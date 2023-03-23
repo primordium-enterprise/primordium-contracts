@@ -1,0 +1,31 @@
+{
+  "name": "primordium-contracts",
+  "version": "0.0.1",
+  "description": "The Primordium on-chain governance framework.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BCJdevelopment/primordium-contracts.git"
+  },
+  "keywords": [
+    "Primordium",
+    "DAO",
+    "ethereum",
+    "governance"
+  ],
+  "author": "Ben Jett, BCJ Development",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/BCJdevelopment/primordium-contracts/issues"
+  },
+  "homepage": "https://github.com/BCJdevelopment/primordium-contracts#readme",
+  "devDependencies": {
+    "hardhat": "^2.13.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.8.2"
+  }
+}
