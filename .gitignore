@@ -102,3 +102,13 @@ dist
 
 # TernJS port file
 .tern-port
+
+.env
+coverage
+coverage.json
+typechain
+typechain-types
+
+# Hardhat files
+cache
+artifacts
