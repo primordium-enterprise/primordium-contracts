@@ -3,7 +3,7 @@
 /// @title Primordium Executor and Treasury
 
 // LICENSE
-// PrimordiumExecutor.sol is a modified version of Compound Lab's Timelock.sol:
+// Executor.sol is a modified version of Compound Lab's Timelock.sol:
 // https://github.com/compound-finance/compound-protocol/blob/master/contracts/Timelock.sol
 //
 // Timelock.sol source code Copyright 2020 Compound Labs, Inc.
@@ -15,7 +15,7 @@ pragma solidity ^0.8.18;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
-contract PrimordiumExecutor {
+contract Executor {
     using SafeMath for uint;
 
     event NewAdmin(address indexed newAdmin);
