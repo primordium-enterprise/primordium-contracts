@@ -28,7 +28,7 @@ abstract contract IGovernor is IERC165, IERC6372 {
      * @dev Emitted when a proposal is created.
      */
     event ProposalCreated(
-        uint256 proposalId,
+        uint256 indexed proposalId,
         address proposer,
         address[] targets,
         uint256[] values,
@@ -123,17 +123,6 @@ abstract contract IGovernor is IERC165, IERC6372 {
 
     /**
      * @notice module:core
-     * @dev Hashing function used to (re)build the proposal id from the proposal details..
-     */
-    function hashProposal(
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas,
-        bytes32 descriptionHash
-    ) public pure virtual returns (uint256);
-
-    /**
-     * @notice module:core
      * @dev Current state of a proposal, following Compound's convention
      */
     function state(uint256 proposalId) public view virtual returns (ProposalState);
@@ -208,6 +197,17 @@ abstract contract IGovernor is IERC165, IERC6372 {
     function hasVoted(uint256 proposalId, address account) public view virtual returns (bool);
 
     /**
+     * @notice module:core
+     * @dev Hashing function used to verify the proposal actions that were originally submitted.
+     */
+    function hashProposalActions(
+        uint256 proposalId,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas
+    ) public pure virtual returns (uint256);
+
+    /**
      * @dev Create a new proposal. Vote start after a delay specified by {IGovernor-votingDelay} and lasts for a
      * duration specified by {IGovernor-votingPeriod}.
      *
@@ -217,6 +217,7 @@ abstract contract IGovernor is IERC165, IERC6372 {
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
+        string[] memory signatures,
         string memory description
     ) public virtual returns (uint256 proposalId);
 
@@ -229,11 +230,12 @@ abstract contract IGovernor is IERC165, IERC6372 {
      * Note: some module can modify the requirements for execution, for example by adding an additional timelock.
      */
     function execute(
+        uint256 proposalId,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 descriptionHash
-    ) public payable virtual returns (uint256 proposalId);
+    ) public payable virtual returns (uint256 _proposalId);
 
     /**
      * @dev Cancel a proposal. A proposal is cancellable by the proposer, but only while it is Pending state, i.e.
@@ -242,11 +244,12 @@ abstract contract IGovernor is IERC165, IERC6372 {
      * Emits a {ProposalCanceled} event.
      */
     function cancel(
+        uint256 proposalId,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 descriptionHash
-    ) public virtual returns (uint256 proposalId);
+    ) public virtual returns (uint256 _proposalId);
 
     /**
      * @dev Cast a vote

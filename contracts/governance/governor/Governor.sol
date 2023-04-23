@@ -32,8 +32,12 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
     bytes32 public constant EXTENDED_BALLOT_TYPEHASH =
         keccak256("ExtendedBallot(uint256 proposalId,uint8 support,string reason,bytes params)");
 
+    uint256 proposalCount = 0;
+
     // solhint-disable var-name-mixedcase
     struct ProposalCore {
+        uint256 proposalId;
+        uint256 actionsHash;
         // --- start retyped from Timers.BlockNumber at offset 0x00 ---
         uint64 voteStart;
         address proposer;
@@ -123,28 +127,6 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      */
     function version() public view virtual override returns (string memory) {
         return "1";
-    }
-
-    /**
-     * @dev See {IGovernor-hashProposal}.
-     *
-     * The proposal id is produced by hashing the ABI encoded `targets` array, the `values` array, the `calldatas` array
-     * and the descriptionHash (bytes32 which itself is the keccak256 hash of the description string). This proposal id
-     * can be produced from the proposal data which is part of the {ProposalCreated} event. It can even be computed in
-     * advance, before the proposal is submitted.
-     *
-     * Note that the chainId and the governor address are not part of the proposal id computation. Consequently, the
-     * same proposal (with same operation and same description) will have the same id if submitted on multiple governors
-     * across multiple networks. This also means that in order to execute the same operation twice (on the same
-     * governor) the proposer will have to change the description in order to avoid proposal id conflicts.
-     */
-    function hashProposal(
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas,
-        bytes32 descriptionHash
-    ) public pure virtual override returns (uint256) {
-        return uint256(keccak256(abi.encode(targets, values, calldatas, descriptionHash)));
     }
 
     /**
@@ -253,12 +235,34 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
     }
 
     /**
+     * @dev See {IGovernor-hashProposaActions}.
+     *
+     * The actionsHash is produced by hashing the ABI encoded 'proposalId', the `targets` array, the `values` array, and the
+     * `calldatas` array.
+     * This can be reproduced from the proposal data which is part of the {ProposalCreated} event.
+     *
+     * Note that the chainId and the governor address are not part of the proposal id computation. Consequently, the
+     * same proposal (with same operation and same description) will have the same id if submitted on multiple governors
+     * across multiple networks. This also means that in order to execute the same operation twice (on the same
+     * governor) the proposer will have to change the description in order to avoid proposal id conflicts.
+     */
+    function hashProposalActions(
+        uint256 proposalId,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas
+    ) public pure virtual override returns (uint256) {
+        return uint256(keccak256(abi.encode(proposalId, targets, values, calldatas)));
+    }
+
+    /**
      * @dev See {IGovernor-propose}.
      */
     function propose(
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
+        string[] memory signatures,
         string memory description
     ) public virtual override returns (uint256) {
         address proposer = _msgSender();
@@ -269,17 +273,36 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
             "Governor: proposer votes below proposal threshold"
         );
 
-        uint256 proposalId = hashProposal(targets, values, calldatas, keccak256(bytes(description)));
-
+        require(targets.length > 0, "Governor: proposal must provide actions");
         require(targets.length == values.length, "Governor: invalid proposal length");
         require(targets.length == calldatas.length, "Governor: invalid proposal length");
-        require(targets.length > 0, "Governor: empty proposal");
-        require(_proposals[proposalId].voteStart == 0, "Governor: proposal already exists");
+        require(targets.length == signatures.length, "Governor: invalid proposal length");
 
+        // Verify the human-readable function signatures
+        // Fail if calldata is included BUT the function signature doesn't match the calldata function identifier
+        for (uint256 i = 0; i < signatures.length; ++i) {
+            if (calldatas[i].length > 0) {
+                require(
+                    bytes4(calldatas[i]) == bytes4(keccak256(bytes(signatures[i]))),
+                    "Governor: function signature(s) must match the calldata function identifiers"
+                );
+            }
+        }
+
+        // Increment proposal counter
+        proposalCount++;
+        uint256 newProposalId = proposalCount;
+
+        // Generate actions hash for later reference
+        uint256 actionsHash = hashProposalActions(newProposalId, targets, values, calldatas);
+
+        // Generate voting periods
         uint256 snapshot = currentTimepoint + votingDelay();
         uint256 deadline = snapshot + votingPeriod();
 
-        _proposals[proposalId] = ProposalCore({
+        _proposals[newProposalId] = ProposalCore({
+            proposalId: newProposalId,
+            actionsHash: actionsHash,
             proposer: proposer,
             voteStart: snapshot.toUint64(),
             voteEnd: deadline.toUint64(),
@@ -290,7 +313,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         });
 
         emit ProposalCreated(
-            proposalId,
+            newProposalId,
             proposer,
             targets,
             values,
@@ -301,19 +324,19 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
             description
         );
 
-        return proposalId;
+        return newProposalId;
     }
 
     /**
      * @dev See {IGovernor-execute}.
      */
     function execute(
+        uint256 proposalId,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 descriptionHash
     ) public payable virtual override returns (uint256) {
-        uint256 proposalId = hashProposal(targets, values, calldatas, descriptionHash);
 
         ProposalState status = state(proposalId);
         require(
@@ -335,22 +358,23 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      * @dev See {IGovernor-cancel}.
      */
     function cancel(
+        uint256 proposalId,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 descriptionHash
     ) public virtual override returns (uint256) {
-        uint256 proposalId = hashProposal(targets, values, calldatas, descriptionHash);
+        // uint256 proposalId = hashProposal(targets, values, calldatas, descriptionHash);
         require(state(proposalId) == ProposalState.Pending, "Governor: too late to cancel");
         require(_msgSender() == _proposals[proposalId].proposer, "Governor: only proposer can cancel");
-        return _cancel(targets, values, calldatas, descriptionHash);
+        return _cancel(proposalId, targets, values, calldatas, descriptionHash);
     }
 
     /**
      * @dev Internal execution mechanism. Can be overridden to implement different execution mechanism
      */
     function _execute(
-        uint256 /* proposalId */,
+        uint256 proposalId,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
@@ -406,12 +430,13 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      * Emits a {IGovernor-ProposalCanceled} event.
      */
     function _cancel(
+        uint256 proposalId,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 descriptionHash
     ) internal virtual returns (uint256) {
-        uint256 proposalId = hashProposal(targets, values, calldatas, descriptionHash);
+        // uint256 proposalId = hashProposal(targets, values, calldatas, descriptionHash);
 
         ProposalState status = state(proposalId);
 
