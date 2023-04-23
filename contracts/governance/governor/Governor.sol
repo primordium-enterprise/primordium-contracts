@@ -51,8 +51,6 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
     }
     // solhint-enable var-name-mixedcase
 
-    string private _name;
-
     /// @custom:oz-retyped-from mapping(uint256 => Governor.ProposalCore)
     mapping(uint256 => ProposalCore) private _proposals;
 
@@ -85,8 +83,8 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
     /**
      * @dev Sets the value for {name} and {version}
      */
-    constructor(string memory name_) EIP712(name_, version()) {
-        _name = name_;
+    constructor() EIP712(name(), version()) {
+
     }
 
     /**
@@ -119,7 +117,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      * @dev See {IGovernor-name}.
      */
     function name() public view virtual override returns (string memory) {
-        return _name;
+        return "Primordium Governor";
     }
 
     /**
@@ -293,7 +291,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         proposalCount++;
         uint256 newProposalId = proposalCount;
 
-        // Generate actions hash for later reference
+        // Generate actionsHash for later reference
         uint256 actionsHash = hashProposalActions(newProposalId, targets, values, calldatas);
 
         // Generate voting periods
@@ -325,6 +323,30 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         );
 
         return newProposalId;
+    }
+
+    /**
+     * @dev Function to queue a proposal to the timelock.
+     */
+    function queue(
+        uint256 proposalId,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas
+    ) public virtual override returns (uint256) {
+
+        require(state(proposalId) == ProposalState.Succeeded, "Governor: proposal not successful");
+
+        uint256 actionsHash = hashProposalActions(proposalId, targets, values, calldatas);
+        require(_proposals[proposalId].actionsHash == actionsHash);
+
+        uint256 delay = _timelock.getMinDelay();
+        _timelockIds[proposalId] = _timelock.hashOperationBatch(targets, values, calldatas, 0, descriptionHash);
+        _timelock.scheduleBatch(targets, values, calldatas, 0, descriptionHash, delay);
+
+        emit ProposalQueued(proposalId, block.timestamp + delay);
+
+        return proposalId;
     }
 
     /**
