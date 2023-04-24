@@ -13,6 +13,12 @@ import "../../interfaces/IERC6372.sol";
  * _Available since v4.3._
  */
 abstract contract IGovernor is IERC165, IERC6372 {
+
+    /**
+     * @dev Emitted when the executor controller used for proposal execution is modified.
+     */
+    event ExecutorChange(address oldExecutor, address newExecutor);
+
     enum ProposalState {
         Pending,
         Active,
@@ -38,6 +44,11 @@ abstract contract IGovernor is IERC165, IERC6372 {
         uint256 voteEnd,
         string description
     );
+
+    /**
+     * @dev Emitted when a proposal is queued.
+     */
+    event ProposalQueued(uint256 proposalId, uint256 eta);
 
     /**
      * @dev Emitted when a proposal is canceled.
@@ -222,6 +233,18 @@ abstract contract IGovernor is IERC165, IERC6372 {
     ) public virtual returns (uint256 proposalId);
 
     /**
+     * @dev Queue a proposal in the Executor for execution.
+     *
+     * Emits a {ProposalQueued} event.
+     */
+    function queue(
+        uint256 proposalId,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas
+    ) public virtual returns (uint256 proposalId_);
+
+    /**
      * @dev Execute a successful proposal. This requires the quorum to be reached, the vote to be successful, and the
      * deadline to be reached.
      *
@@ -233,9 +256,8 @@ abstract contract IGovernor is IERC165, IERC6372 {
         uint256 proposalId,
         address[] memory targets,
         uint256[] memory values,
-        bytes[] memory calldatas,
-        bytes32 descriptionHash
-    ) public payable virtual returns (uint256 _proposalId);
+        bytes[] memory calldatas
+    ) public virtual returns (uint256 proposalId_);
 
     /**
      * @dev Cancel a proposal. A proposal is cancellable by the proposer, but only while it is Pending state, i.e.
@@ -247,9 +269,13 @@ abstract contract IGovernor is IERC165, IERC6372 {
         uint256 proposalId,
         address[] memory targets,
         uint256[] memory values,
-        bytes[] memory calldatas,
-        bytes32 descriptionHash
-    ) public virtual returns (uint256 _proposalId);
+        bytes[] memory calldatas
+    ) public virtual returns (uint256 proposalId_);
+
+    /**
+     * @dev Public accessor to check the eta of a queued proposal.
+     */
+    function proposalEta(uint256 proposalId) public view virtual returns (uint256);
 
     /**
      * @dev Cast a vote
@@ -308,4 +334,5 @@ abstract contract IGovernor is IERC165, IERC6372 {
         bytes32 r,
         bytes32 s
     ) public virtual returns (uint256 balance);
+
 }

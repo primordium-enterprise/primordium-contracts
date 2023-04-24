@@ -26,6 +26,7 @@ import "./IGovernor.sol";
  * _Available since v4.3._
  */
 abstract contract Governor is Context, ERC165, EIP712, IGovernor {
+
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
     using SafeCast for uint256;
 
@@ -33,37 +34,42 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
     bytes32 public constant EXTENDED_BALLOT_TYPEHASH =
         keccak256("ExtendedBallot(uint256 proposalId,uint8 support,string reason,bytes params)");
 
-    // Proposals counter
-    uint256 proposalCount = 0;
-
-    // Executor is a timelock/treasury
-    Executor public executor;
-
-    /**
-     * @dev Emitted when the executor controller used for proposal execution is modified.
-     */
-    event ExecutorChange(address oldExecutor, address newExecutor);
-
-    // Legacy view function for executor (should remove?)
-    function _executor() internal view virtual returns(Executor) {
-        return executor();
-    }
-
-    mapping(uint256 => bytes32) private _executorIds;
-
-    /**
-     * @dev See {IGovernor-name}.
-     */
     function name() public view virtual override returns (string memory) {
         return "__Governor";
     }
 
-    /**
-     * @dev See {IGovernor-version}.
-     */
     function version() public view virtual override returns (string memory) {
         return "1";
     }
+
+    // Proposals counter
+    uint256 proposalCount = 0;
+
+    // Executor serves as the timelock and treasury
+    Executor public executor;
+
+    // Legacy view function for executor (should remove?)
+    function _executor() internal view virtual returns(address) {
+        return address(executor);
+    }
+
+    /**
+     * @dev Public endpoint to update the underlying timelock instance. Restricted to the timelock itself, so updates
+     * must be proposed, scheduled, and executed through governance proposals.
+     *
+     * CAUTION: It is not recommended to change the timelock while there are other queued governance proposals.
+     */
+    function updateExecutor(Executor newExecutor) external virtual onlyGovernance {
+        _updateExecutor(newExecutor);
+    }
+
+    function _updateExecutor(Executor newExecutor) private {
+        emit ExecutorChange(address(executor), address(newExecutor));
+        executor = newExecutor;
+    }
+
+    // Tracking queued operations on the executor
+    mapping(uint256 => bytes32) private _executorIds;
 
     // solhint-disable var-name-mixedcase
     struct ProposalCore {
@@ -102,7 +108,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      * governance protocol (since v4.6).
      */
     modifier onlyGovernance() {
-        require(_msgSender() == _executor(), "Governor: onlyGovernance");
+        require(_msgSender() == address(executor), "Governor: onlyGovernance");
         if (_executor() != address(this)) {
             bytes32 msgDataHash = keccak256(_msgData());
             // loop until popping the expected operation - throw if deque is empty (operation not authorized)
@@ -115,9 +121,9 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      * @dev Sets the value for {name} and {version}
      */
     constructor(
-        address executor_
+        Executor executor_
     ) EIP712(name(), version()) {
-        executor = executor_;
+        _updateExecutor(executor_);
     }
 
     /**
@@ -179,32 +185,18 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         }
 
         if (_quorumReached(proposalId) && _voteSucceeded(proposalId)) {
-            return ProposalState.Succeeded;
+            bytes32 queueId = _executorIds[proposalId];
+            if (queueId == bytes32(0)) {
+                return ProposalState.Succeeded;
+            } else if (executor.isOperationDone(queueId)) {
+                return ProposalState.Executed;
+            } else if (executor.isOperationPending(queueId)) {
+                return ProposalState.Queued;
+            } else {
+                return ProposalState.Canceled;
+            }
         } else {
             return ProposalState.Defeated;
-        }
-    }
-
-    /**
-     * @dev Overridden version of the {Governor-state} function with added support for the `Queued` status.
-     */
-    function state(uint256 proposalId) public view virtual override(IGovernor, Governor) returns (ProposalState) {
-        ProposalState status = super.state(proposalId);
-
-        if (status != ProposalState.Succeeded) {
-            return status;
-        }
-
-        // core tracks execution, so we just have to check if successful proposal have been queued.
-        bytes32 queueid = _timelockIds[proposalId];
-        if (queueid == bytes32(0)) {
-            return status;
-        } else if (_timelock.isOperationDone(queueid)) {
-            return ProposalState.Executed;
-        } else if (_timelock.isOperationPending(queueid)) {
-            return ProposalState.Queued;
-        } else {
-            return ProposalState.Canceled;
         }
     }
 
@@ -375,7 +367,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas
-    ) public virtual override returns (uint256) {
+    ) public virtual returns (uint256) {
 
         require(state(proposalId) == ProposalState.Succeeded, "Governor: proposal not successful");
 
@@ -399,7 +391,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas
-    ) public payable virtual override returns (uint256) {
+    ) public virtual returns (uint256) {
 
         ProposalState status = state(proposalId);
         require(
@@ -425,7 +417,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas
-    ) public virtual override returns (uint256) {
+    ) public virtual returns (uint256) {
         // uint256 proposalId = hashProposal(targets, values, calldatas, descriptionHash);
         require(state(proposalId) == ProposalState.Pending, "Governor: too late to cancel");
         require(_msgSender() == _proposals[proposalId].proposer, "Governor: only proposer can cancel");
@@ -436,13 +428,12 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      * @dev Overridden execute function that run the already queued proposal through the timelock.
      */
     function _execute(
-        uint256 /* proposalId */,
+        uint256 proposalId,
         address[] memory targets,
         uint256[] memory values,
-        bytes[] memory calldatas,
-        bytes32 descriptionHash
-    ) internal virtual override {
-        _timelock.executeBatch{value: msg.value}(targets, values, calldatas, 0, proposalId);
+        bytes[] memory calldatas
+    ) internal virtual {
+        executor.executeBatch{value: msg.value}(targets, values, calldatas, 0, proposalId);
     }
 
     /**
@@ -487,6 +478,9 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      *
      * Emits a {IGovernor-ProposalCanceled} event.
      */
+    // This function can reenter through the external call to the timelock, but we assume the timelock is trusted and
+    // well behaved (according to TimelockController) and this will not happen.
+    // slither-disable-next-line reentrancy-no-eth
     function _cancel(
         uint256 proposalId,
         address[] memory targets,
@@ -503,9 +497,23 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         );
         _proposals[proposalId].canceled = true;
 
+        // Added from "TimelockController"
+        if (_executorIds[proposalId] != 0) {
+            executor.cancel(_executorIds[proposalId]);
+            delete _executorIds[proposalId];
+        }
+
         emit ProposalCanceled(proposalId);
 
         return proposalId;
+    }
+
+    /**
+     * @dev Public accessor to check the eta of a queued proposal
+     */
+    function proposalEta(uint256 proposalId) public view virtual returns (uint256) {
+        uint256 eta = executor.getTimestamp(_executorIds[proposalId]);
+        return eta == 1 ? 0 : eta; // _DONE_TIMESTAMP (1) should be replaced with a 0 value
     }
 
     /**
@@ -662,101 +670,6 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
     function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyGovernance {
         (bool success, bytes memory returndata) = target.call{value: value}(data);
         Address.verifyCallResult(success, returndata, "Governor: relay reverted without message");
-    }
-
-
-
-
-
-    /**
-     * @dev Set the timelock.
-     */
-    constructor(Executor executorAddress) {
-        _updateTimelock(executorAddress);
-    }
-
-    /**
-     * @dev See {IERC165-supportsInterface}.
-     */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, Governor) returns (bool) {
-        return interfaceId == type(IGovernorTimelock).interfaceId || super.supportsInterface(interfaceId);
-    }
-
-
-
-    /**
-     * @dev Public accessor to check the eta of a queued proposal
-     */
-    function proposalEta(uint256 proposalId) public view virtual override returns (uint256) {
-        uint256 eta = _timelock.getTimestamp(_timelockIds[proposalId]);
-        return eta == 1 ? 0 : eta; // _DONE_TIMESTAMP (1) should be replaced with a 0 value
-    }
-
-    /**
-     * @dev Function to queue a proposal to the timelock.
-     */
-    function queue(
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas,
-        bytes32 descriptionHash
-    ) public virtual override returns (uint256) {
-        uint256 proposalId = hashProposal(targets, values, calldatas, descriptionHash);
-
-        require(state(proposalId) == ProposalState.Succeeded, "Governor: proposal not successful");
-
-        uint256 delay = _timelock.getMinDelay();
-        _timelockIds[proposalId] = _timelock.hashOperationBatch(targets, values, calldatas, 0, descriptionHash);
-        _timelock.scheduleBatch(targets, values, calldatas, 0, descriptionHash, delay);
-
-        emit ProposalQueued(proposalId, block.timestamp + delay);
-
-        return proposalId;
-    }
-
-    /**
-     * @dev Overridden version of the {Governor-_cancel} function to cancel the timelocked proposal if it as already
-     * been queued.
-     */
-    // This function can reenter through the external call to the timelock, but we assume the timelock is trusted and
-    // well behaved (according to TimelockController) and this will not happen.
-    // slither-disable-next-line reentrancy-no-eth
-    function _cancel(
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas,
-        bytes32 descriptionHash
-    ) internal virtual override returns (uint256) {
-        uint256 proposalId = super._cancel(targets, values, calldatas, descriptionHash);
-
-        if (_timelockIds[proposalId] != 0) {
-            _timelock.cancel(_timelockIds[proposalId]);
-            delete _timelockIds[proposalId];
-        }
-
-        return proposalId;
-    }
-
-    /**
-     * @dev Address through which the governor executes action. In this case, the timelock.
-     */
-    function _executor() internal view virtual override returns (address) {
-        return address(_timelock);
-    }
-
-    /**
-     * @dev Public endpoint to update the underlying timelock instance. Restricted to the timelock itself, so updates
-     * must be proposed, scheduled, and executed through governance proposals.
-     *
-     * CAUTION: It is not recommended to change the timelock while there are other queued governance proposals.
-     */
-    function updateTimelock(TimelockController newTimelock) external virtual onlyGovernance {
-        _updateTimelock(newTimelock);
-    }
-
-    function _updateTimelock(TimelockController newTimelock) private {
-        emit TimelockChange(address(_timelock), address(newTimelock));
-        _timelock = newTimelock;
     }
 
 }
