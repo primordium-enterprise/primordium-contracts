@@ -349,7 +349,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
             proposer,
             targets,
             values,
-            new string[](targets.length),
+            signatures,
             calldatas,
             snapshot,
             deadline,
@@ -367,7 +367,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas
-    ) public virtual returns (uint256) {
+    ) public virtual override returns (uint256) {
 
         require(state(proposalId) == ProposalState.Succeeded, "Governor: proposal not successful");
 
@@ -375,8 +375,8 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         require(_proposals[proposalId].actionsHash == actionsHash);
 
         uint256 delay = executor.getMinDelay();
-        _executorIds[proposalId] = executor.hashOperationBatch(targets, values, calldatas, 0, proposalId);
-        executor.scheduleBatch(targets, values, calldatas, 0, proposalId, delay);
+        _executorIds[proposalId] = executor.hashOperationBatch(targets, values, calldatas, 0, bytes32(proposalId));
+        executor.scheduleBatch(targets, values, calldatas, 0, bytes32(proposalId), delay);
 
         emit ProposalQueued(proposalId, block.timestamp + delay);
 
@@ -391,7 +391,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas
-    ) public virtual returns (uint256) {
+    ) public virtual override returns (uint256) {
 
         ProposalState status = state(proposalId);
         require(
@@ -417,7 +417,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas
-    ) public virtual returns (uint256) {
+    ) public virtual override returns (uint256) {
         // uint256 proposalId = hashProposal(targets, values, calldatas, descriptionHash);
         require(state(proposalId) == ProposalState.Pending, "Governor: too late to cancel");
         require(_msgSender() == _proposals[proposalId].proposer, "Governor: only proposer can cancel");
@@ -433,7 +433,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         uint256[] memory values,
         bytes[] memory calldatas
     ) internal virtual {
-        executor.executeBatch{value: msg.value}(targets, values, calldatas, 0, proposalId);
+        executor.executeBatch{value: msg.value}(targets, values, calldatas, 0, bytes32(proposalId));
     }
 
     /**
@@ -443,8 +443,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         uint256 /* proposalId */,
         address[] memory targets,
         uint256[] memory /* values */,
-        bytes[] memory calldatas,
-        bytes32 /*descriptionHash*/
+        bytes[] memory calldatas
     ) internal virtual {
         if (_executor() != address(this)) {
             for (uint256 i = 0; i < targets.length; ++i) {
@@ -462,8 +461,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         uint256 /* proposalId */,
         address[] memory /* targets */,
         uint256[] memory /* values */,
-        bytes[] memory /* calldatas */,
-        bytes32 /*descriptionHash*/
+        bytes[] memory /* calldatas */
     ) internal virtual {
         if (_executor() != address(this)) {
             if (!_governanceCall.empty()) {
@@ -483,9 +481,9 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
     // slither-disable-next-line reentrancy-no-eth
     function _cancel(
         uint256 proposalId,
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas
+        address[] memory /*targets*/,
+        uint256[] memory /*values*/,
+        bytes[] memory /*calldatas*/
     ) internal virtual returns (uint256) {
         // uint256 proposalId = hashProposal(targets, values, calldatas, descriptionHash);
 
@@ -511,7 +509,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
     /**
      * @dev Public accessor to check the eta of a queued proposal
      */
-    function proposalEta(uint256 proposalId) public view virtual returns (uint256) {
+    function proposalEta(uint256 proposalId) public view virtual override returns (uint256) {
         uint256 eta = executor.getTimestamp(_executorIds[proposalId]);
         return eta == 1 ? 0 : eta; // _DONE_TIMESTAMP (1) should be replaced with a 0 value
     }
