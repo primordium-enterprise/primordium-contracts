@@ -83,6 +83,11 @@ abstract contract IGovernor is IERC165, IERC6372 {
     );
 
     /**
+     * @dev Returns address for executor contract
+     */
+    function _executor() internal view virtual returns(address);
+
+    /**
      * @notice module:core
      * @dev Name of the governor instance (used in building the ERC712 domain separator).
      */

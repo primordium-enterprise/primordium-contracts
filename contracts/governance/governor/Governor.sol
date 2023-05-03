@@ -49,7 +49,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
     Executor public executor;
 
     // Legacy view function for executor (should remove?)
-    function _executor() internal view virtual returns(address) {
+    function _executor() internal view virtual override returns(address) {
         return address(executor);
     }
 
