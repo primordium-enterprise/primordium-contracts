@@ -68,6 +68,16 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         executor = newExecutor;
     }
 
+    /**
+     * @dev Public endpoint to transfer ownership of the Executor contract to a new Governor. Restricted to the timelock
+     * itself, so updates must be proposed, scheduled, and executed through governance proposals.
+     *
+     * NOTE: This Governor can only transfer ownership if it is the current owner. The new owner must accept ownership.
+     */
+    function transferExecutorOwnership(address newOwner) public virtual onlyGovernance {
+        executor.transferOwnership(newOwner);
+    }
+
     // Tracking queued operations on the executor
     mapping(uint256 => bytes32) private _executorIds;
 

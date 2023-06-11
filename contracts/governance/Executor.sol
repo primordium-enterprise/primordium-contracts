@@ -5,6 +5,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
@@ -24,11 +25,8 @@ import "@openzeppelin/contracts/utils/Address.sol";
  *
  * _Available since v3.3._
  */
-contract Executor is AccessControl, IERC721Receiver, IERC1155Receiver {
-    bytes32 public constant TIMELOCK_ADMIN_ROLE = keccak256("TIMELOCK_ADMIN_ROLE");
-    bytes32 public constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
-    bytes32 public constant EXECUTOR_ROLE = keccak256("EXECUTOR_ROLE");
-    bytes32 public constant CANCELLER_ROLE = keccak256("CANCELLER_ROLE");
+contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
+
     uint256 internal constant _DONE_TIMESTAMP = uint256(1);
 
     mapping(bytes32 => uint256) private _timestamps;
@@ -71,38 +69,17 @@ contract Executor is AccessControl, IERC721Receiver, IERC1155Receiver {
      * @dev Initializes the contract with the following parameters:
      *
      * - `minDelay`: initial minimum delay for operations
-     * - `proposers`: accounts to be granted proposer and canceller roles
-     * - `executors`: accounts to be granted executor role
-     * - `admin`: optional account to be granted admin role; disable with zero address
+     * - `owner`: optional account to transfer ownership to; default to msg.sender() with 0 address.
      *
      * IMPORTANT: The optional admin can aid with initial configuration of roles after deployment
      * without being subject to delay, but this role should be subsequently renounced in favor of
      * administration through timelocked proposals. Previous versions of this contract would assign
      * this admin to the deployer automatically and should be renounced as well.
      */
-    constructor(uint256 minDelay, address[] memory proposers, address[] memory executors, address admin) {
-        _setRoleAdmin(TIMELOCK_ADMIN_ROLE, TIMELOCK_ADMIN_ROLE);
-        _setRoleAdmin(PROPOSER_ROLE, TIMELOCK_ADMIN_ROLE);
-        _setRoleAdmin(EXECUTOR_ROLE, TIMELOCK_ADMIN_ROLE);
-        _setRoleAdmin(CANCELLER_ROLE, TIMELOCK_ADMIN_ROLE);
-
-        // self administration
-        _setupRole(TIMELOCK_ADMIN_ROLE, address(this));
-
-        // optional admin
-        if (admin != address(0)) {
-            _setupRole(TIMELOCK_ADMIN_ROLE, admin);
-        }
-
-        // register proposers and cancellers
-        for (uint256 i = 0; i < proposers.length; ++i) {
-            _setupRole(PROPOSER_ROLE, proposers[i]);
-            _setupRole(CANCELLER_ROLE, proposers[i]);
-        }
-
-        // register executors
-        for (uint256 i = 0; i < executors.length; ++i) {
-            _setupRole(EXECUTOR_ROLE, executors[i]);
+    constructor(uint256 minDelay, address owner) {
+        // optional owner
+        if (owner != address(0)) {
+            transferOwnership(owner);
         }
 
         _minDelay = minDelay;
@@ -110,16 +87,19 @@ contract Executor is AccessControl, IERC721Receiver, IERC1155Receiver {
     }
 
     /**
-     * @dev Modifier to make a function callable only by a certain role. In
-     * addition to checking the sender's role, `address(0)` 's role is also
-     * considered. Granting a role to `address(0)` is equivalent to enabling
-     * this role for everyone.
+     * @dev Modifier to make a function callable only by the owner, or by the Executor itself through the execution
+     * of a scheduled transaction.
      */
-    modifier onlyRoleOrOpenRole(bytes32 role) {
-        if (!hasRole(role, address(0))) {
-            _checkRole(role, _msgSender());
+    modifier onlyOwnerOrSelf() {
+        if (_msgSender() != address(this)) {
+            _checkOwner();
         }
         _;
+    }
+
+    // Don't let contract renounce ownership (ownership cannot be recovered)
+    function renounceOwnership() public pure override {
+        revert("Ownable Override: This Executor contract cannot have the ownership revoked.");
     }
 
     /**
@@ -127,11 +107,13 @@ contract Executor is AccessControl, IERC721Receiver, IERC1155Receiver {
      */
     receive() external payable {}
 
+    fallback() external payable {}
+
     /**
      * @dev See {IERC165-supportsInterface}.
      */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, AccessControl) returns (bool) {
-        return interfaceId == type(IERC1155Receiver).interfaceId || super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165) returns (bool) {
+        return interfaceId == type(IERC1155Receiver).interfaceId;
     }
 
     /**
@@ -225,7 +207,7 @@ contract Executor is AccessControl, IERC721Receiver, IERC1155Receiver {
         bytes32 predecessor,
         bytes32 salt,
         uint256 delay
-    ) public virtual onlyRole(PROPOSER_ROLE) {
+    ) public virtual onlyOwner {
         bytes32 id = hashOperation(target, value, data, predecessor, salt);
         _schedule(id, delay);
         emit CallScheduled(id, 0, target, value, data, predecessor, delay);
@@ -250,7 +232,7 @@ contract Executor is AccessControl, IERC721Receiver, IERC1155Receiver {
         bytes32 predecessor,
         bytes32 salt,
         uint256 delay
-    ) public virtual onlyRole(PROPOSER_ROLE) {
+    ) public virtual onlyOwner {
         require(targets.length == values.length, "TimelockController: length mismatch");
         require(targets.length == payloads.length, "TimelockController: length mismatch");
 
@@ -280,7 +262,7 @@ contract Executor is AccessControl, IERC721Receiver, IERC1155Receiver {
      *
      * - the caller must have the 'canceller' role.
      */
-    function cancel(bytes32 id) public virtual onlyRole(CANCELLER_ROLE) {
+    function cancel(bytes32 id) public virtual onlyOwner {
         require(isOperationPending(id), "TimelockController: operation cannot be cancelled");
         delete _timestamps[id];
 
@@ -305,7 +287,7 @@ contract Executor is AccessControl, IERC721Receiver, IERC1155Receiver {
         bytes calldata payload,
         bytes32 predecessor,
         bytes32 salt
-    ) public payable virtual onlyRoleOrOpenRole(EXECUTOR_ROLE) {
+    ) public payable virtual {
         bytes32 id = hashOperation(target, value, payload, predecessor, salt);
 
         _beforeCall(id, predecessor);
@@ -332,7 +314,7 @@ contract Executor is AccessControl, IERC721Receiver, IERC1155Receiver {
         bytes[] calldata payloads,
         bytes32 predecessor,
         bytes32 salt
-    ) public payable virtual onlyRoleOrOpenRole(EXECUTOR_ROLE) {
+    ) public payable virtual {
         require(targets.length == values.length, "TimelockController: length mismatch");
         require(targets.length == payloads.length, "TimelockController: length mismatch");
 
