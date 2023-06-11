@@ -287,7 +287,7 @@ contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         bytes calldata payload,
         bytes32 predecessor,
         bytes32 salt
-    ) public payable virtual {
+    ) public payable virtual onlyOwner {
         bytes32 id = hashOperation(target, value, payload, predecessor, salt);
 
         _beforeCall(id, predecessor);
@@ -314,7 +314,7 @@ contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         bytes[] calldata payloads,
         bytes32 predecessor,
         bytes32 salt
-    ) public payable virtual {
+    ) public payable virtual onlyOwner {
         require(targets.length == values.length, "TimelockController: length mismatch");
         require(targets.length == payloads.length, "TimelockController: length mismatch");
 
