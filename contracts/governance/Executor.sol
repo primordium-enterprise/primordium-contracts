@@ -71,10 +71,10 @@ contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
      * - `minDelay`: initial minimum delay for operations
      * - `owner`: optional account to transfer ownership to; default to msg.sender() with 0 address.
      *
-     * IMPORTANT: The optional admin can aid with initial configuration of roles after deployment
+     * IMPORTANT: The optional owner can aid with initial configuration of roles after deployment
      * without being subject to delay, but this role should be subsequently renounced in favor of
      * administration through timelocked proposals. Previous versions of this contract would assign
-     * this admin to the deployer automatically and should be renounced as well.
+     * this owner to the deployer automatically and should be renounced as well.
      */
     constructor(uint256 minDelay, address owner) {
         // optional owner
@@ -173,7 +173,7 @@ contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         bytes calldata data,
         bytes32 predecessor,
         bytes32 salt
-    ) public pure virtual returns (bytes32 hash) {
+    ) public pure virtual returns (bytes32 operationId) {
         return keccak256(abi.encode(target, value, data, predecessor, salt));
     }
 
@@ -187,7 +187,7 @@ contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         bytes[] calldata payloads,
         bytes32 predecessor,
         bytes32 salt
-    ) public pure virtual returns (bytes32 hash) {
+    ) public pure virtual returns (bytes32 operationId) {
         return keccak256(abi.encode(targets, values, payloads, predecessor, salt));
     }
 
@@ -195,10 +195,6 @@ contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
      * @dev Schedule an operation containing a single transaction.
      *
      * Emits events {CallScheduled} and {CallSalt}.
-     *
-     * Requirements:
-     *
-     * - the caller must have the 'proposer' role.
      */
     function schedule(
         address target,
@@ -207,23 +203,20 @@ contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         bytes32 predecessor,
         bytes32 salt,
         uint256 delay
-    ) public virtual onlyOwner {
+    ) public virtual onlyOwner returns (bytes32 operationId) {
         bytes32 id = hashOperation(target, value, data, predecessor, salt);
         _schedule(id, delay);
         emit CallScheduled(id, 0, target, value, data, predecessor, delay);
         if (salt != bytes32(0)) {
             emit CallSalt(id, salt);
         }
+        return id;
     }
 
     /**
      * @dev Schedule an operation containing a batch of transactions.
      *
      * Emits a {CallSalt} event and one {CallScheduled} event per transaction in the batch.
-     *
-     * Requirements:
-     *
-     * - the caller must have the 'proposer' role.
      */
     function scheduleBatch(
         address[] calldata targets,
@@ -232,7 +225,7 @@ contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         bytes32 predecessor,
         bytes32 salt,
         uint256 delay
-    ) public virtual onlyOwner {
+    ) public virtual onlyOwner returns (bytes32 operationId) {
         require(targets.length == values.length, "TimelockController: length mismatch");
         require(targets.length == payloads.length, "TimelockController: length mismatch");
 
@@ -244,6 +237,7 @@ contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         if (salt != bytes32(0)) {
             emit CallSalt(id, salt);
         }
+        return id;
     }
 
     /**
@@ -257,10 +251,6 @@ contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
 
     /**
      * @dev Cancel an operation.
-     *
-     * Requirements:
-     *
-     * - the caller must have the 'canceller' role.
      */
     function cancel(bytes32 id) public virtual onlyOwner {
         require(isOperationPending(id), "TimelockController: operation cannot be cancelled");
@@ -273,10 +263,6 @@ contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
      * @dev Execute an (ready) operation containing a single transaction.
      *
      * Emits a {CallExecuted} event.
-     *
-     * Requirements:
-     *
-     * - the caller must have the 'executor' role.
      */
     // This function can reenter, but it doesn't pose a risk because _afterCall checks that the proposal is pending,
     // thus any modifications to the operation during reentrancy should be caught.

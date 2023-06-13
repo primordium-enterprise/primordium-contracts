@@ -298,6 +298,15 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
     }
 
     /**
+     * @dev Generates a salt for the executor's operationId, by hashing the proposalId with the Governor version.
+     *
+     * Important for avoiding operationId clashes in the Executor for (potential) future versions of Governor.
+     */
+    function generateExecutorSalt(uint256 proposalId) private view returns (bytes32 salt) {
+        return keccak256(abi.encode(proposalId, bytes(version())));
+    }
+
+    /**
      * @dev See {IGovernor-propose}.
      */
     function propose(
@@ -385,8 +394,15 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         require(_proposals[proposalId].actionsHash == actionsHash);
 
         uint256 delay = executor.getMinDelay();
-        _executorIds[proposalId] = executor.hashOperationBatch(targets, values, calldatas, 0, bytes32(proposalId));
-        executor.scheduleBatch(targets, values, calldatas, 0, bytes32(proposalId), delay);
+        bytes32 operationId = executor.scheduleBatch(
+            targets,
+            values,
+            calldatas,
+            0,
+            generateExecutorSalt(proposalId),
+            delay
+        );
+        _executorIds[proposalId] = operationId;
 
         emit ProposalQueued(proposalId, block.timestamp + delay);
 
@@ -428,7 +444,6 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         uint256[] memory values,
         bytes[] memory calldatas
     ) public virtual override returns (uint256) {
-        // uint256 proposalId = hashProposal(targets, values, calldatas, descriptionHash);
         require(state(proposalId) == ProposalState.Pending, "Governor: too late to cancel");
         require(_msgSender() == _proposals[proposalId].proposer, "Governor: only proposer can cancel");
         return _cancel(proposalId, targets, values, calldatas);
@@ -443,7 +458,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         uint256[] memory values,
         bytes[] memory calldatas
     ) internal virtual {
-        executor.executeBatch{value: msg.value}(targets, values, calldatas, 0, bytes32(proposalId));
+        executor.executeBatch{value: msg.value}(targets, values, calldatas, 0, generateExecutorSalt(proposalId));
     }
 
     /**
@@ -495,7 +510,6 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         uint256[] memory /*values*/,
         bytes[] memory /*calldatas*/
     ) internal virtual returns (uint256) {
-        // uint256 proposalId = hashProposal(targets, values, calldatas, descriptionHash);
 
         ProposalState status = state(proposalId);
 
