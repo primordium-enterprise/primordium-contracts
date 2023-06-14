@@ -5,7 +5,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/interfaces/IERC165.sol";
-import "../../interfaces/IERC6372.sol";
+import "@openzeppelin/contracts/interfaces/IERC6372.sol";
 
 /**
  * @dev Interface of the {Governor} core.
