@@ -224,6 +224,12 @@ abstract contract IGovernor is IERC165, IERC6372 {
     ) public pure virtual returns (uint256);
 
     /**
+     * @notice module:core
+     * @dev Create a hashed salt using the proposalId and the Governor version() for executor operations.
+     */
+    function generateExecutorSalt(uint256 proposalId) public view virtual returns (bytes32);
+
+    /**
      * @dev Create a new proposal. Vote start after a delay specified by {IGovernor-votingDelay} and lasts for a
      * duration specified by {IGovernor-votingPeriod}.
      *

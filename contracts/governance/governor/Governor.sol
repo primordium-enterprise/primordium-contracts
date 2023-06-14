@@ -150,13 +150,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         // In addition to the current interfaceId, also support previous version of the interfaceId that did not
         // include the castVoteWithReasonAndParams() function as standard
         return
-            interfaceId ==
-            (type(IGovernor).interfaceId ^
-                type(IERC6372).interfaceId ^
-                this.cancel.selector ^
-                this.castVoteWithReasonAndParams.selector ^
-                this.castVoteWithReasonAndParamsBySig.selector ^
-                this.getVotesWithParams.selector) ||
+            interfaceId == type(IGovernor).interfaceId ||
             // Previous interface for backwards compatibility
             interfaceId == (type(IGovernor).interfaceId ^ type(IERC6372).interfaceId ^ this.cancel.selector) ||
             super.supportsInterface(interfaceId);
@@ -302,7 +296,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      *
      * Important for avoiding operationId clashes in the Executor for (potential) future versions of Governor.
      */
-    function generateExecutorSalt(uint256 proposalId) private view returns (bytes32 salt) {
+    function generateExecutorSalt(uint256 proposalId) public view override returns (bytes32 salt) {
         return keccak256(abi.encode(proposalId, bytes(version())));
     }
 
