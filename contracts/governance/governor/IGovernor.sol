@@ -113,31 +113,6 @@ abstract contract IGovernor is IERC165, IERC6372 {
     function CLOCK_MODE() public view virtual override returns (string memory);
 
     /**
-     * @notice module:voting
-     * @dev A description of the possible `support` values for {castVote} and the way these votes are counted, meant to
-     * be consumed by UIs to show correct vote options and interpret the results. The string is a URL-encoded sequence of
-     * key-value pairs that each describe one aspect, for example `support=bravo&quorum=for,abstain`.
-     *
-     * There are 2 standard keys: `support` and `quorum`.
-     *
-     * - `support=bravo` refers to the vote options 0 = Against, 1 = For, 2 = Abstain, as in `GovernorBravo`.
-     * - `quorum=bravo` means that only For votes are counted towards quorum.
-     * - `quorum=for,abstain` means that both For and Abstain votes are counted towards quorum.
-     *
-     * If a counting module makes use of encoded `params`, it should  include this under a `params` key with a unique
-     * name that describes the behavior. For example:
-     *
-     * - `params=fractional` might refer to a scheme where votes are divided fractionally between for/against/abstain.
-     * - `params=erc721` might refer to a scheme where specific NFTs are delegated to vote.
-     *
-     * NOTE: The string can be decoded by the standard
-     * https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams[`URLSearchParams`]
-     * JavaScript class.
-     */
-    // solhint-disable-next-line func-name-mixedcase
-    function COUNTING_MODE() public view virtual returns (string memory);
-
-    /**
      * @notice module:core
      * @dev Current state of a proposal, following Compound's convention
      */

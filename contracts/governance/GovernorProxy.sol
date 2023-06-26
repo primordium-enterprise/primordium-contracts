@@ -19,7 +19,7 @@ contract GovernorProxy is GovernorProxyStorage, GovernorEvents {
 
 	constructor(
 			address timelock_,
-			address comp_,
+			address mushi_,
 			address admin_,
 	        address implementation_,
 	        uint votingPeriod_,
@@ -29,17 +29,17 @@ contract GovernorProxy is GovernorProxyStorage, GovernorEvents {
         // Admin set to msg.sender for initialization
         admin = msg.sender;
 
-        delegateTo(
-            implementation_,
-            abi.encodeWithSignature(
-                "initialize(address,address,uint256,uint256,uint256)",
-                timelock_,
-                comp_,
-                votingPeriod_,
-                votingDelay_,
-                proposalThreshold_
-            )
-        );
+        // delegateTo(
+        //     implementation_,
+        //     abi.encodeWithSignature(
+        //         "initialize(address,address,uint256,uint256,uint256)",
+        //         timelock_,
+        //         mushi_,
+        //         votingPeriod_,
+        //         votingDelay_,
+        //         proposalThreshold_
+        //     )
+        // );
 
         _setImplementation(implementation_);
 

@@ -13,6 +13,7 @@ import "../../token/Votes.sol";
  * _Available since v4.3._
  */
 abstract contract GovernorVotes is Governor {
+
     IVotes public immutable token;
 
     constructor(IVotes tokenAddress) {
@@ -53,4 +54,5 @@ abstract contract GovernorVotes is Governor {
     ) internal view virtual override returns (uint256) {
         return token.getPastVotes(account, timepoint);
     }
+
 }
