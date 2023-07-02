@@ -4,11 +4,13 @@ import { deployBaseGovernance } from "./governance-fixtures";
 
 describe("Executor", () => {
 
-    it("Should show deployer as owner", async () => {
+    it("Should show governor as owner", async () => {
 
-        const { deployer, executor } = await loadFixture(deployBaseGovernance);
+        const { deployer, governor, executor } = await loadFixture(deployBaseGovernance);
 
-        expect(await executor.owner()).to.equal(deployer.address);
+        expect(await executor.owner()).to.equal(governor.address);
+
+
 
     })
 })
