@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
+import "hardhat/console.sol";
 
 /**
  * @dev Contract module which acts as a timelocked controller. When set as the
@@ -70,11 +71,6 @@ contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
      *
      * - `minDelay`: initial minimum delay for operations
      * - `owner`: optional account to transfer ownership to; default to msg.sender() with 0 address.
-     *
-     * IMPORTANT: The optional owner can aid with initial configuration of roles after deployment
-     * without being subject to delay, but this role should be subsequently renounced in favor of
-     * administration through timelocked proposals. Previous versions of this contract would assign
-     * this owner to the deployer automatically and should be renounced as well.
      */
     constructor(uint256 minDelay, address owner) {
         // optional owner
@@ -321,6 +317,7 @@ contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
      * @dev Execute an operation's call.
      */
     function _execute(address target, uint256 value, bytes calldata data) internal virtual {
+        console.log("Executor _execute:", target, value);
         (bool success, ) = target.call{value: value}(data);
         require(success, "TimelockController: underlying transaction reverted");
     }

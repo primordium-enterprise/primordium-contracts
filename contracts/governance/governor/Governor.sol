@@ -13,6 +13,7 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "../Executor.sol";
 import "./IGovernor.sol";
+import "hardhat/console.sol";
 
 /**
  * @dev Core of the governance system, designed to be extended though various modules.
@@ -76,6 +77,24 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      */
     function transferExecutorOwnership(address newOwner) public virtual onlyGovernance {
         executor.transferOwnership(newOwner);
+    }
+
+    /**
+     * @dev A helpful extension for initializing the Governor when deploying the first version
+     *
+     * 1. Deploy Executor (deployer address as the owner)
+     * 2. Deploy Governor with executor address set to address(0)
+     * 3. Call initialize on Governor from deployer address (to set the executor and complete the ownership transfer)
+     */
+    function initialize(Executor newExecutor) public virtual {
+        require(_executor() == address(0), "GovernorInitialize: Can only initialize once.");
+        require(
+            newExecutor.owner() == _msgSender(),
+            "GovernorInitialize: Call must come from the current owner of the executor."
+        );
+
+        _updateExecutor(newExecutor);
+        executor.acceptOwnership();
     }
 
     // Tracking queued operations on the executor
@@ -684,6 +703,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      * Note that if the executor is simply the governor itself, use of `relay` is redundant.
      */
     function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyGovernance {
+        console.log("RELAY", target, value);
         (bool success, bytes memory returndata) = target.call{value: value}(data);
         Address.verifyCallResult(success, returndata, "Governor: relay reverted without message");
     }

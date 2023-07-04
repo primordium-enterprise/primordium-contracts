@@ -13,7 +13,7 @@ export const deployBaseGovernance = async () => {
 
     const executor = await ethers.deployContract("Executor", [twoDaysInSeconds, ethers.constants.AddressZero]);
     const governor = await ethers.deployContract("GovernorV1", [
-        executor.address, // Executor
+        ethers.constants.AddressZero, // Executor
         ethers.constants.AddressZero, // Token
         twoDaysInBlocks, // initialVotingDelay
         threeDaysInBlocks, // initialVotingPeriod
@@ -22,23 +22,9 @@ export const deployBaseGovernance = async () => {
 
     await executor.transferOwnership(governor.address);
 
-    const acceptOwnershipParameters = [
-        governor.address,
-        0,
-        (await governor.populateTransaction.relay(
-            executor.address,
-            0,
-            (await executor.populateTransaction.acceptOwnership()).data
-        )).data,
-        ethers.constants.HashZero,
-        ethers.utils.keccak256(ethers.utils.arrayify(deployer.address)),
-    ];
+    console.log("Governor address:", governor.address);
 
-    await executor.schedule(...[...acceptOwnershipParameters, twoDaysInSeconds]);
-
-    await time.increase(twoDaysInSeconds + 24);
-
-    await executor.execute(...acceptOwnershipParameters);
+    await governor.initialize(executor.address);
 
     return {
         deployer,
