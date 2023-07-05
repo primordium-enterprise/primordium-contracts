@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { deployBaseGovernance } from "./governance-fixtures";
 
-describe("Executor", () => {
+describe("Ownership", () => {
 
     it("Should show Governor as owner of Executor", async () => {
         const { governor, executor } = await loadFixture(deployBaseGovernance);
