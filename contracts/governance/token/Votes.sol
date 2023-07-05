@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts (last updated v4.8.1) (token/ERC20/extensions/ERC20Votes.sol)
+// Primordium Contracts
+// Based on OpenZeppelin Contracts (last updated v4.8.1) (token/ERC20/extensions/ERC20Votes.sol)
 
 pragma solidity ^0.8.0;
 
@@ -24,7 +25,7 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
  *
  * _Available since v4.2._
  */
-abstract contract ERC20Votes is ERC20Permit, IVotes {
+abstract contract Votes is ERC20Permit, IVotes {
     struct Checkpoint {
         uint32 fromBlock;
         uint224 votes;
