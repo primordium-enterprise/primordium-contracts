@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 /**
  * @dev Extension of ERC20 to support Compound-like voting and delegation. This version is more generic than Compound's,
@@ -25,7 +26,7 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
  *
  * _Available since v4.2._
  */
-abstract contract Votes is ERC20Permit, IVotes {
+abstract contract Votes is ERC20Permit, IVotes, Ownable2Step {
     struct Checkpoint {
         uint32 fromBlock;
         uint224 votes;
