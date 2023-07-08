@@ -5,6 +5,7 @@
 pragma solidity ^0.8.0;
 
 import "../Votes.sol";
+import "../../utils/ExecutorControlled.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -13,7 +14,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  *
  * Anyone can mint vote tokens in exchange for the DAO's base asset
  */
-abstract contract VotesMint is Votes {
+abstract contract VotesMint is Votes, ExecutorControlled {
 
     IERC20 private immutable _baseAsset; // The address for the DAO's base ERC20 asset.
 

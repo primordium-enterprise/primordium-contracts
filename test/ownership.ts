@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { deployBaseGovernance } from "./governance-fixtures";
+import { ethers } from "hardhat";
 
 describe("Ownership", () => {
 
@@ -11,7 +12,13 @@ describe("Ownership", () => {
 
     it("Should show Executor as _executor of Governor", async () => {
         const { governor, executor } = await loadFixture(deployBaseGovernance);
-        expect (await governor.executor()).to.equal(executor.address);
+        expect(await governor.executor()).to.equal(executor.address);
+    });
+
+    it("Should NOT let you update the _executor address outside of a proposal", async () => {
+        const { governor } = await loadFixture(deployBaseGovernance);
+        await expect(governor.updateExecutor(ethers.constants.AddressZero))
+            .to.be.revertedWith("Governor: onlyGovernance");
     });
 
 })

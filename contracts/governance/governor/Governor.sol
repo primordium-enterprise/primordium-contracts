@@ -74,13 +74,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      * 3. Call initialize on Governor from deployer address (to set the _executor and complete the ownership transfer)
      */
     function initialize(Executor newExecutor) public virtual {
-        require(executor() == address(0), "GovernorInitialize: Can only initialize once.");
-        require(
-            newExecutor.owner() == _msgSender(),
-            "GovernorInitialize: Call must come from the current owner of the _executor."
-        );
-
-        _updateExecutor(newExecutor);
+        initializeExecutor(newExecutor);
         _executor.acceptOwnership();
     }
 
@@ -138,9 +132,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      */
     constructor(
         Executor executor_
-    ) EIP712(name(), version()) {
-        _updateExecutor(executor_);
-    }
+    ) EIP712(name(), version()) ExecutorControlled(executor_) { }
 
     /**
      * @dev Function to receive ETH that will be handled by the governor (disabled if executor is a third party contract)
