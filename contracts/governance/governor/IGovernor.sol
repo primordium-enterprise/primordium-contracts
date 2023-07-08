@@ -6,18 +6,14 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/interfaces/IERC165.sol";
 import "@openzeppelin/contracts/interfaces/IERC6372.sol";
+import "../utils/ExecutorControlled.sol";
 
 /**
  * @dev Interface of the {Governor} core.
  *
  * _Available since v4.3._
  */
-abstract contract IGovernor is IERC165, IERC6372 {
-
-    /**
-     * @dev Emitted when the executor controller used for proposal execution is modified.
-     */
-    event ExecutorChange(address oldExecutor, address newExecutor);
+abstract contract IGovernor is IERC165, IERC6372, ExecutorControlled {
 
     enum ProposalState {
         Pending,
@@ -81,11 +77,6 @@ abstract contract IGovernor is IERC165, IERC6372 {
         string reason,
         bytes params
     );
-
-    /**
-     * @dev Returns address for executor contract
-     */
-    function _executor() internal view virtual returns(address);
 
     /**
      * @notice module:core

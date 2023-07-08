@@ -13,7 +13,7 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "../Executor.sol";
 import "./IGovernor.sol";
-import "hardhat/console.sol";
+import "../utils/ExecutorControlled.sol";
 
 /**
  * @dev Core of the governance system, designed to be extended though various modules.
@@ -26,7 +26,7 @@ import "hardhat/console.sol";
  *
  * _Available since v4.3._
  */
-abstract contract Governor is Context, ERC165, EIP712, IGovernor {
+abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGovernor {
 
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
     using SafeCast for uint256;
@@ -44,15 +44,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
     }
 
     // Proposals counter
-    uint256 proposalCount = 0;
-
-    // Executor serves as the timelock and treasury
-    Executor public executor;
-
-    // Legacy view function for executor (should remove?)
-    function _executor() internal view virtual override returns(address) {
-        return address(executor);
-    }
+    uint256 public proposalCount = 0;
 
     /**
      * @dev Public endpoint to update the underlying timelock instance. Restricted to the timelock itself, so updates
@@ -60,13 +52,8 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      *
      * CAUTION: It is not recommended to change the timelock while there are other queued governance proposals.
      */
-    function updateExecutor(Executor newExecutor) external virtual onlyGovernance {
+    function updateExecutor(Executor newExecutor) public virtual onlyGovernance {
         _updateExecutor(newExecutor);
-    }
-
-    function _updateExecutor(Executor newExecutor) private {
-        emit ExecutorChange(address(executor), address(newExecutor));
-        executor = newExecutor;
     }
 
     /**
@@ -76,28 +63,28 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      * NOTE: This Governor can only transfer ownership if it is the current owner. The new owner must accept ownership.
      */
     function transferExecutorOwnership(address newOwner) public virtual onlyGovernance {
-        executor.transferOwnership(newOwner);
+        _executor.transferOwnership(newOwner);
     }
 
     /**
      * @dev A helpful extension for initializing the Governor when deploying the first version
      *
      * 1. Deploy Executor (deployer address as the owner)
-     * 2. Deploy Governor with executor address set to address(0)
-     * 3. Call initialize on Governor from deployer address (to set the executor and complete the ownership transfer)
+     * 2. Deploy Governor with _executor address set to address(0)
+     * 3. Call initialize on Governor from deployer address (to set the _executor and complete the ownership transfer)
      */
     function initialize(Executor newExecutor) public virtual {
-        require(_executor() == address(0), "GovernorInitialize: Can only initialize once.");
+        require(executor() == address(0), "GovernorInitialize: Can only initialize once.");
         require(
             newExecutor.owner() == _msgSender(),
-            "GovernorInitialize: Call must come from the current owner of the executor."
+            "GovernorInitialize: Call must come from the current owner of the _executor."
         );
 
         _updateExecutor(newExecutor);
-        executor.acceptOwnership();
+        _executor.acceptOwnership();
     }
 
-    // Tracking queued operations on the executor
+    // Tracking queued operations on the _executor
     mapping(uint256 => bytes32) private _executorIds;
 
     // solhint-disable var-name-mixedcase
@@ -131,14 +118,14 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      * parameter setters in {GovernorSettings} are protected using this modifier.
      *
      * The governance executing address may be different from the Governor's own address, for example it could be a
-     * timelock. This can be customized by modules by overriding {_executor}. The executor is only able to invoke these
+     * timelock. This can be customized by modules by overriding {_executor}. The _executor is only able to invoke these
      * functions during the execution of the governor's {execute} function, and not under any other circumstances. Thus,
      * for example, additional timelock proposers are not able to change governance parameters without going through the
      * governance protocol (since v4.6).
      */
     modifier onlyGovernance() {
-        require(_msgSender() == address(executor), "Governor: onlyGovernance");
-        if (_executor() != address(this)) {
+        require(_msgSender() == address(_executor), "Governor: onlyGovernance");
+        if (executor() != address(this)) {
             bytes32 msgDataHash = keccak256(_msgData());
             // loop until popping the expected operation - throw if deque is empty (operation not authorized)
             while (_governanceCall.popFront() != msgDataHash) {}
@@ -159,7 +146,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      * @dev Function to receive ETH that will be handled by the governor (disabled if executor is a third party contract)
      */
     receive() external payable virtual {
-        require(_executor() == address(this));
+        require(executor() == address(this));
     }
 
     /**
@@ -211,9 +198,9 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
             bytes32 queueId = _executorIds[proposalId];
             if (queueId == bytes32(0)) {
                 return ProposalState.Succeeded;
-            } else if (executor.isOperationDone(queueId)) {
+            } else if (_executor.isOperationDone(queueId)) {
                 return ProposalState.Executed;
-            } else if (executor.isOperationPending(queueId)) {
+            } else if (_executor.isOperationPending(queueId)) {
                 return ProposalState.Queued;
             } else {
                 return ProposalState.Canceled;
@@ -311,7 +298,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
     }
 
     /**
-     * @dev Generates a salt for the executor's operationId, by hashing the proposalId with the Governor version.
+     * @dev Generates a salt for the _executor's operationId, by hashing the proposalId with the Governor version.
      *
      * Important for avoiding operationId clashes in the Executor for (potential) future versions of Governor.
      */
@@ -406,8 +393,8 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         uint256 actionsHash = hashProposalActions(proposalId, targets, values, calldatas);
         require(_proposals[proposalId].actionsHash == actionsHash);
 
-        uint256 delay = executor.getMinDelay();
-        bytes32 operationId = executor.scheduleBatch(
+        uint256 delay = _executor.getMinDelay();
+        bytes32 operationId = _executor.scheduleBatch(
             targets,
             values,
             calldatas,
@@ -471,7 +458,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         uint256[] memory values,
         bytes[] memory calldatas
     ) internal virtual {
-        executor.executeBatch{value: msg.value}(targets, values, calldatas, 0, generateExecutorSalt(proposalId));
+        _executor.executeBatch{value: msg.value}(targets, values, calldatas, 0, generateExecutorSalt(proposalId));
     }
 
     /**
@@ -483,7 +470,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         uint256[] memory /* values */,
         bytes[] memory calldatas
     ) internal virtual {
-        if (_executor() != address(this)) {
+        if (executor() != address(this)) {
             for (uint256 i = 0; i < targets.length; ++i) {
                 if (targets[i] == address(this)) {
                     _governanceCall.pushBack(keccak256(calldatas[i]));
@@ -501,7 +488,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
         uint256[] memory /* values */,
         bytes[] memory /* calldatas */
     ) internal virtual {
-        if (_executor() != address(this)) {
+        if (executor() != address(this)) {
             if (!_governanceCall.empty()) {
                 _governanceCall.clear();
             }
@@ -534,7 +521,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
 
         // Added from "TimelockController"
         if (_executorIds[proposalId] != 0) {
-            executor.cancel(_executorIds[proposalId]);
+            _executor.cancel(_executorIds[proposalId]);
             delete _executorIds[proposalId];
         }
 
@@ -547,7 +534,7 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
      * @dev Public accessor to check the eta of a queued proposal
      */
     function proposalEta(uint256 proposalId) public view virtual override returns (uint256) {
-        uint256 eta = executor.getTimestamp(_executorIds[proposalId]);
+        uint256 eta = _executor.getTimestamp(_executorIds[proposalId]);
         return eta == 1 ? 0 : eta; // _DONE_TIMESTAMP (1) should be replaced with a 0 value
     }
 
@@ -697,13 +684,12 @@ abstract contract Governor is Context, ERC165, EIP712, IGovernor {
     }
 
     /**
-     * @dev Relays a transaction or function call to an arbitrary target. In cases where the governance executor
+     * @dev Relays a transaction or function call to an arbitrary target. In cases where the governance _executor
      * is some contract other than the governor itself, like when using a timelock, this function can be invoked
      * in a governance proposal to recover tokens or Ether that was sent to the governor contract by mistake.
-     * Note that if the executor is simply the governor itself, use of `relay` is redundant.
+     * Note that if the _executor is simply the governor itself, use of `relay` is redundant.
      */
     function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyGovernance {
-        console.log("RELAY", target, value);
         (bool success, bytes memory returndata) = target.call{value: value}(data);
         Address.verifyCallResult(success, returndata, "Governor: relay reverted without message");
     }
