@@ -26,7 +26,7 @@ import "hardhat/console.sol";
  *
  * _Available since v3.3._
  */
-contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
+abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
 
     uint256 internal constant _DONE_TIMESTAMP = uint256(1);
 

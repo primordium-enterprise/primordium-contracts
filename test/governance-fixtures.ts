@@ -11,8 +11,17 @@ export const deployBaseGovernance = async () => {
     const twoDaysInBlocks = twoDaysInSeconds / 12; // 12 sec/block
     const threeDaysInBlocks = twoDaysInBlocks * 1.5;
 
-    // Deploy Executor first, use zero address to set owner as the deployer
-    const executor = await ethers.deployContract("Executor", [twoDaysInSeconds, ethers.constants.AddressZero]);
+    // Deploy Votes first, using zero address for executor
+    const votes = await ethers.deployContract("Mushi", [
+        ethers.constants.AddressZero
+    ]);
+
+    // Deploy Executor, use zero address to set owner as the deployer
+    const executor = await ethers.deployContract("PrimordiumExecutor", [
+        twoDaysInSeconds,
+        ethers.constants.AddressZero,
+        votes.address
+    ]);
 
     // Deploy Governor second, starting with zero address (to allow calling "initialize" on the Governor)
     const governor = await ethers.deployContract("GovernorV1", [
@@ -23,6 +32,9 @@ export const deployBaseGovernance = async () => {
         0 // initialProposalThreshold
     ]);
 
+    // Initialize the executor for the votes
+    await votes.initializeExecutor(executor.address);
+
     // Initiate ownership transfer to Governor
     await executor.transferOwnership(governor.address);
 
@@ -31,6 +43,7 @@ export const deployBaseGovernance = async () => {
 
     return {
         deployer,
+        votes,
         executor,
         governor
     }

@@ -15,6 +15,16 @@ describe("Ownership", () => {
         expect(await governor.executor()).to.equal(executor.address);
     });
 
+    it("Should show Votes as _votes of Execuotr", async () => {
+        const { votes, executor } = await loadFixture(deployBaseGovernance);
+        expect(await executor.votes()).to.equal(votes.address);
+    })
+
+    it("Should show Executor as _executor of Votes", async () => {
+        const { votes, executor } = await loadFixture(deployBaseGovernance);
+        expect(await votes.executor()).to.equal(executor.address);
+    })
+
     it("Should NOT let you update the _executor address outside of a proposal", async () => {
         const { governor } = await loadFixture(deployBaseGovernance);
         await expect(governor.updateExecutor(ethers.constants.AddressZero))

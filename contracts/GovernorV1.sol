@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.0;
 
-import "./governance/Executor.sol";
+import "./governance/executor/Executor.sol";
 import "./governance/token/Votes.sol";
 import "./governance/governor/Governor.sol";
 import "./governance/governor/extensions/GovernorVotes.sol";

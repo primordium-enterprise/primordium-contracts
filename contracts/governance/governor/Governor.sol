@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
-import "../Executor.sol";
+import "../executor/Executor.sol";
 import "./IGovernor.sol";
 import "../utils/ExecutorControlled.sol";
 

@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.0;
 
-import "../Executor.sol";
+import "../executor/Executor.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 
 abstract contract IExecutorControlled {
