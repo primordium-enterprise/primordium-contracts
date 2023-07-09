@@ -20,4 +20,13 @@ abstract contract ExecutorVoteProvisions is Executor {
         return address(_votes);
     }
 
+    modifier onlyVotes() {
+        require(_msgSender() == address(_votes), "ExecutorVoteProvisions: call must come from the _votes contract.");
+        _;
+    }
+
+    function deposit(uint256 amount) public virtual onlyVotes {
+
+    }
+
 }

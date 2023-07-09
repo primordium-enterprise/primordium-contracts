@@ -5,6 +5,7 @@
 pragma solidity ^0.8.0;
 
 import "../Votes.sol";
+import "../../executor/extensions/ExecutorVoteProvisions.sol";
 import "../../utils/ExecutorControlled.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -42,7 +43,7 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
     event TokenPriceChanged(uint256 previousTokenPrice, uint256 newTokenPrice);
 
     constructor(
-        Executor executor_,
+        ExecutorVoteProvisions executor_,
         uint256 initialTokenPrice,
         IERC20 baseAsset_
     ) ExecutorControlled(executor_) {
@@ -87,14 +88,20 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
     modifier depositRequirements(uint256 amount) virtual {
         require(_provisionMode != ProvisionModes.Governance, "VotesProvisioner: Deposits are not available.");
         require(amount >= _tokenPrice, "VotesProvisioner: Amount of base asset must be greater than zero.");
-        require(amount % _tokenPrice == uint256(0), "VotesProvisioner: Amount of base asset must be a multiple of the token price.");
+        require(
+            amount % _tokenPrice == uint256(0),
+            "VotesProvisioner: Amount of base asset must be a multiple of the token price."
+        );
         _;
     }
 
     function depositFor(address account) public payable virtual depositRequirements(msg.value) {
         require(address(_baseAsset) == address(0), "VotesProvisioner: Base asset is not set to ETH.");
         uint256 mintAmount = _getDepositMintAmount(msg.value);
-        // _executor.
+        executor().call{value: msg.value}("");
+        _getExecutorVoteProvisions().deposit(msg.value);
+        _mint(account, mintAmount);
+
     }
 
     function depositFor(address account, uint256 amount) public virtual depositRequirements(amount) {
@@ -107,6 +114,10 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
 
     function withraw() public payable {
 
+    }
+
+    function _getExecutorVoteProvisions() private view returns(ExecutorVoteProvisions) {
+        return ExecutorVoteProvisions(payable(address(_executor)));
     }
 
 }
