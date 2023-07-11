@@ -4,6 +4,7 @@
   "description": "The Primordium on-chain governance framework.",
   "main": "index.js",
   "scripts": {
+    "compile": "npx hardhat compile",
     "test": "npx hardhat test"
   },
   "repository": {

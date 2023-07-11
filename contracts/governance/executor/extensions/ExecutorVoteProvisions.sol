@@ -25,8 +25,17 @@ abstract contract ExecutorVoteProvisions is Executor {
         _;
     }
 
-    function deposit(uint256 amount) public virtual onlyVotes {
+    function registerDeposit(uint256 amount) public virtual onlyVotes {
+        _registerDeposit(amount);
+    }
 
+    function registerDepositEth(uint256 amount) public payable virtual onlyVotes {
+        require(msg.value == amount, "ExecutorVoteProvisions: depositEth mismatching amount and msg.value");
+        _registerDeposit(amount);
+    }
+
+    function _registerDeposit(uint256 amount) private {
+        // NEED TO IMPLEMENT BALANCE CHECKS
     }
 
 }

@@ -42,6 +42,11 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
      */
     event TokenPriceChanged(uint256 previousTokenPrice, uint256 newTokenPrice);
 
+    /**
+     * @dev Emitted when a deposit is made and tokens are minted.
+     */
+    event NewDeposit(address indexed account, uint256 amountDeposited, uint256 amountMinted);
+
     constructor(
         ExecutorVoteProvisions executor_,
         uint256 initialTokenPrice,
@@ -85,38 +90,40 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
         _tokenPrice = newTokenPrice;
     }
 
-    modifier depositRequirements(uint256 amount) virtual {
+    /**
+     * @dev Allows exchanging the base asset for votes (if votes are available for purchase).
+     * @notice This is abstract, and should be overridden to provide functionality based on the _baseAsset (ETH vs ERC20)
+     */
+    function depositFor(address account, uint256 amount) public payable virtual;
+
+    /**
+     * @notice Internal function that should be overridden with functionality to transfer the deposit to the Executor.
+     */
+    function _transferDepositToExecutor(address account, uint256 amount) internal virtual;
+
+    function _depositFor(address account_, uint256 amount) internal virtual {
         require(_provisionMode != ProvisionModes.Governance, "VotesProvisioner: Deposits are not available.");
         require(amount >= _tokenPrice, "VotesProvisioner: Amount of base asset must be greater than zero.");
         require(
             amount % _tokenPrice == uint256(0),
             "VotesProvisioner: Amount of base asset must be a multiple of the token price."
         );
-        _;
-    }
-
-    function depositFor(address account) public payable virtual depositRequirements(msg.value) {
-        require(address(_baseAsset) == address(0), "VotesProvisioner: Base asset is not set to ETH.");
-        uint256 mintAmount = _getDepositMintAmount(msg.value);
-        executor().call{value: msg.value}("");
-        _getExecutorVoteProvisions().deposit(msg.value);
+        address account = account_ == address(0) ? _msgSender() : account_; // Set to msg.sender if zero address
+        uint256 mintAmount = amount / _tokenPrice;
+        _transferDepositToExecutor(account, amount);
         _mint(account, mintAmount);
-
+        emit NewDeposit(account, amount, mintAmount);
     }
 
-    function depositFor(address account, uint256 amount) public virtual depositRequirements(amount) {
-        require(address(_baseAsset) != address(0), "VotesProvisioner: Base asset is set to ETH.");
-    }
-
-    function _getDepositMintAmount(uint256 amount) private view returns(uint256) {
+    function _getDepositMintAmount(uint256 amount) internal view returns(uint256) {
         return amount / _tokenPrice;
     }
 
-    function withraw() public payable {
+    function withrawTo(address account, uint256 amount) public payable {
 
     }
 
-    function _getExecutorVoteProvisions() private view returns(ExecutorVoteProvisions) {
+    function _getExecutorVoteProvisions() internal view returns(ExecutorVoteProvisions) {
         return ExecutorVoteProvisions(payable(address(_executor)));
     }
 
