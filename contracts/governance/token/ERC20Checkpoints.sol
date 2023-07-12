@@ -107,6 +107,17 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata {
     }
 
     /**
+     * @dev Additional method to check the balance of tokens for `account` at the end of `timepoint`.
+     *
+     * Requirements:
+     *
+     * - `timepoint` must be in the past
+     */
+    function getPastBalanceOf(address account, uint256 timepoint) public view virtual returns (uint256) {
+        return _balances[account].getAtProbablyRecentBlock(timepoint);
+    }
+
+    /**
      * @dev See {IERC20-transfer}.
      *
      * Requirements:
