@@ -15,6 +15,7 @@ import "@openzeppelin/contracts/utils/Address.sol";
 using SafeMath for uint256;
 using Address for address;
 
+uint256 constant COMPARE_FRACTIONS_MULTIPLIER = 1_000;
 
 /**
  * @dev Extension of {Votes} to support decentralized DAO formation.
@@ -45,10 +46,10 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
      * @dev Emitted when the _tokenPrice is updated.
      */
     event TokenPriceChanged(
-        uint128 previousNumerator,
-        uint128 newNumerator,
-        uint128 previousDenominator,
-        uint128 newDenominator
+        uint256 previousNumerator,
+        uint256 newNumerator,
+        uint256 previousDenominator,
+        uint256 newDenominator
     );
 
     /**
@@ -88,21 +89,21 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
     /**
      * @notice Public function to update the token price. Only the executor can make an update to the token price.
      */
-    function updateTokenPrice(uint128 numerator, uint128 denominator) public virtual onlyExecutor {
+    function updateTokenPrice(uint256 numerator, uint256 denominator) public virtual onlyExecutor {
         _updateTokenPrice(numerator, denominator);
     }
 
     /**
      * @notice Public function to update the token price numerator. Only executor can update.
      */
-    function updateTokenPriceNumerator(uint128 numerator) public virtual onlyExecutor {
+    function updateTokenPriceNumerator(uint256 numerator) public virtual onlyExecutor {
         _updateTokenPrice(numerator, 0);
     }
 
     /**
      * @notice Public function to update the token price. Only executor can update.
      */
-    function updateTokenPriceDenominator(uint128 denominator) public virtual onlyExecutor {
+    function updateTokenPriceDenominator(uint256 denominator) public virtual onlyExecutor {
         _updateTokenPrice(0, denominator);
     }
 
@@ -110,23 +111,44 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
      * @dev Private function to update the tokenPrice numerator and denominator. Skips update of zero values (neither can
      * be set to zero).
      */
-    function _updateTokenPrice(uint128 newNumerator, uint128 newDenominator) private {
-        uint128 prevNumerator = _tokenPrice.numerator;
-        uint128 prevDenominator = _tokenPrice.denominator;
-        if (newNumerator != 0) {
-            _tokenPrice.numerator = newNumerator;
+    function _updateTokenPrice(uint256 newNumerator, uint256 newDenominator) private {
+        require(newDenominator <= 1000, "VotesProvisioner: Denominator must be no greater than 1000");
+        uint256 prevNumerator = _tokenPrice.numerator;
+        uint256 prevDenominator = _tokenPrice.denominator;
+        if (newNumerator > 0) {
+            _tokenPrice.numerator = SafeCast.toUint128(newNumerator);
         }
-        if (newDenominator != 0) {
-            _tokenPrice.denominator = newDenominator;
+        if (newDenominator > 0) {
+            _tokenPrice.denominator = SafeCast.toUint128(newDenominator);
         }
         emit TokenPriceChanged(prevNumerator, newNumerator, prevDenominator, newDenominator);
     }
 
-    // function valuePerToken() public view returns(uint256) {
-    //     return _treasuryBalance() / ;
-    // }
+    function valuePerToken() public view returns(uint256) {
+        return _valuePerToken(1);
+    }
 
-    // function _treasuryBalance() internal view virtual returns(uint256);
+    function _valuePerToken(uint256 multiplier) internal view returns(uint256) {
+        uint256 supply = totalSupply();
+        return supply > 0 ? _treasuryBalance() * multiplier / supply : 0;
+    }
+
+    function _valueAndRemainderPerToken(uint256 multiplier) internal view returns(uint256, uint256) {
+        uint256 supply = totalSupply();
+        uint256 balance = _treasuryBalance();
+        return supply > 0 ?
+            (
+                balance * multiplier / supply,
+                balance * multiplier % supply
+            ) :
+            (0, 0);
+    }
+
+    /**
+     * @dev Internal function that measures the balance of the base asset in the Executor (needs to be overridden to
+     * measure the chosen base asset properly)
+     */
+    function _treasuryBalance() internal view virtual returns(uint256);
 
     /**
      * @notice Allows exchanging the amount of base asset for votes (if votes are available for purchase).
@@ -159,12 +181,24 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
         require(_provisionMode != ProvisionModes.Governance, "VotesProvisioner: Deposits are not available.");
         require(account != address(0));
         require(amount >= 0, "VotesProvisioner: Amount of base asset must be greater than zero.");
-        uint128 tokenPriceNumerator = _tokenPrice.numerator;
+        uint256 tokenPriceNumerator = _tokenPrice.numerator;
+        uint256 tokenPriceDenominator = _tokenPrice.denominator;
+        // The "amount" must be a multiple of the token price numerator
         require(
             amount % tokenPriceNumerator == 0,
             "VotesProvisioner: Amount of base asset must be a multiple of the token price numerator."
         );
-        uint256 mintAmount = amount / tokenPriceNumerator * _tokenPrice.denominator;
+        // The current price per token must not exceed the current value per token, or the treasury will be at risk
+        // NOTE: We can bypass this check in founding mode because no funds can leave the treasury yet through governance
+        if (_provisionMode != ProvisionModes.Founding) {
+            (uint256 vpt, uint256 remainder) = _valueAndRemainderPerToken(tokenPriceDenominator);
+            require(
+                ( vpt < tokenPriceNumerator ) ||
+                ( vpt <= tokenPriceNumerator && remainder == 0),
+                "VotesProvisioner: Token price is too low."
+            );
+        }
+        uint256 mintAmount = amount / tokenPriceNumerator * tokenPriceDenominator;
         _transferDepositToExecutor(account, amount);
         _mint(account, mintAmount);
         emit NewDeposit(account, amount, mintAmount);

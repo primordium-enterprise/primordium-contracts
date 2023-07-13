@@ -71,4 +71,8 @@ abstract contract ERC20VotesProvisioner is VotesProvisioner {
         _getExecutorVoteProvisions().registerDeposit(amount);
     }
 
+    function _treasuryBalance() internal view virtual override returns(uint256) {
+        return _baseAsset.balanceOf(executor());
+    }
+
 }

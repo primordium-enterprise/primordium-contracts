@@ -49,5 +49,8 @@ abstract contract ETHVotesProvisioner is VotesProvisioner {
         _getExecutorVoteProvisions().registerDepositEth{value: msg.value}(amount);
     }
 
+    function _treasuryBalance() internal view virtual override returns(uint256) {
+        return executor().balance;
+    }
 
 }
