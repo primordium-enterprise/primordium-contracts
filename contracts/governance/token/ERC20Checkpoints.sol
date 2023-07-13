@@ -5,6 +5,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/utils/Checkpoints.sol";
@@ -20,7 +21,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
  * this function so it returns a different value.
  *
  * Balances are tracked using historical checkpoints, allowing balances to be
- * retrieved at different points in time.
+ * retrieved at different points in time. Implements {IERC6372} for clock mode.
  *
  * We have followed general OpenZeppelin Contracts guidelines: functions revert
  * instead returning `false` on failure. This behavior is nonetheless
@@ -36,7 +37,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
  * functions have been added to mitigate the well-known issues around setting
  * allowances. See {IERC20-approve}.
  */
-abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata {
+abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC6372 {
 
     using Checkpoints for Checkpoints.History;
 
@@ -90,6 +91,23 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata {
      */
     function decimals() public view virtual override returns (uint8) {
         return 18;
+    }
+
+    /**
+     * @dev Clock used for flagging checkpoints. Can be overridden to implement timestamp based checkpoints.
+     */
+    function clock() public view virtual override returns (uint48) {
+        return SafeCast.toUint48(block.number);
+    }
+
+    /**
+     * @dev Description of the clock
+     */
+    // solhint-disable-next-line func-name-mixedcase
+    function CLOCK_MODE() public view virtual override returns (string memory) {
+        // Check that the clock was not modified
+        require(clock() == block.number);
+        return "mode=blocknumber&from=default";
     }
 
     /**

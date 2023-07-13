@@ -90,6 +90,12 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
         _tokenPrice = newTokenPrice;
     }
 
+    // function valuePerToken() public view returns(uint256) {
+    //     return _treasuryBalance() / ;
+    // }
+
+    // function _treasuryBalance() internal view virtual returns(uint256);
+
     /**
      * @dev Allows exchanging the base asset for votes (if votes are available for purchase).
      * @notice This is abstract, and should be overridden to provide functionality based on the _baseAsset (ETH vs ERC20)
@@ -113,10 +119,6 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
         _transferDepositToExecutor(account, amount);
         _mint(account, mintAmount);
         emit NewDeposit(account, amount, mintAmount);
-    }
-
-    function _getDepositMintAmount(uint256 amount) internal view returns(uint256) {
-        return amount / _tokenPrice;
     }
 
     function withrawTo(address account, uint256 amount) public payable {
