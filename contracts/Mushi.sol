@@ -16,7 +16,7 @@ contract Mushi is Votes, ETHVotesProvisioner {
     )
         ERC20Permit(TOKEN_NAME)
         ERC20Checkpoints(TOKEN_NAME, TOKEN_SYMBOL)
-        ETHVotesProvisioner(executor_, 1)
+        ETHVotesProvisioner(executor_, TokenPrice(1, 1))
     {}
 
 }

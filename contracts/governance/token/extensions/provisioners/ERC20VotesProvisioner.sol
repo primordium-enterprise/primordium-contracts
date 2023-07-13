@@ -14,23 +14,29 @@ abstract contract ERC20VotesProvisioner is VotesProvisioner {
 
     constructor(
         ExecutorVoteProvisions executor_,
-        uint256 initialTokenPrice,
+        TokenPrice memory initialTokenPrice,
         IERC20 baseAsset_
     ) VotesProvisioner(executor_, initialTokenPrice, baseAsset_) {
         require(address(baseAsset_) != address(0), "ERC20VotesProvisioner: the address for the baseAsset cannot be address(0)");
     }
 
     /**
+     * @notice Allows exchanging the amount of base asset for votes (if votes are available for purchase).
+     * @param account The account address to deposit to.
+     * @param amount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for every
+     * tokenPrice.numerator count of base asset tokens.
      * @dev Override to deposit ERC20 base asset in exchange for votes.
-     * @notice While this function is marked as "payable" (since it overrides VotesProvisioner), it requires msg.value to be zero.
+     * While this function is marked as "payable" (since it overrides VotesProvisioner), it requires msg.value to be zero.
+     * @return Amount of vote tokens minted.
      */
-    function depositFor(address account, uint256 amount) public payable virtual override {
+    function depositFor(address account, uint256 amount) public payable virtual override returns(uint256) {
         require(msg.value == 0, "ERC20VotesProvisioner: Cannot accept ETH deposits.");
-        _depositFor(account, amount);
+        return _depositFor(account, amount);
     }
 
     /**
-     * @dev Additional function helper to use permit on the baseAsset to transfer in a single transaction (when supported).
+     * @dev Additional function helper to use permit on the base asset contract to transfer in a single transaction
+     * (if supported).
      */
     function depositForWithPermit(
         address owner,
@@ -40,8 +46,11 @@ abstract contract ERC20VotesProvisioner is VotesProvisioner {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) public virtual {
-        require(spender == address(this), "ERC20VotesProvisioner: deposits using ERC20 permit must set this contract address as the 'spender'");
+    ) public virtual returns(uint256) {
+        require(
+            spender == address(this),
+            "ERC20VotesProvisioner: deposits using ERC20 permit must set this contract address as the 'spender'"
+        );
         IERC20Permit(baseAsset()).permit(
             owner,
             spender,
@@ -51,7 +60,7 @@ abstract contract ERC20VotesProvisioner is VotesProvisioner {
             r,
             s
         );
-        _depositFor(owner, value);
+        return _depositFor(owner, value);
     }
 
     /**

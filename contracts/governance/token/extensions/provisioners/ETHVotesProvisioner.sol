@@ -9,24 +9,37 @@ abstract contract ETHVotesProvisioner is VotesProvisioner {
 
     constructor(
         ExecutorVoteProvisions executor_,
-        uint256 initialTokenPrice
+        TokenPrice memory initialTokenPrice
     ) VotesProvisioner(executor_, initialTokenPrice, IERC20(address(0))) {
 
     }
 
     /**
-     * @dev Additional depositFor function, but ommitting the unused "amount" parameter (since base asset is ETH)
+     * @notice Allows exchanging the amount of base asset for votes (if votes are available for purchase).
+     * @param account The account address to deposit to.
+     * @param amount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for every
+     * tokenPrice.numerator count of base asset tokens.
+     * @dev Override to deposit ETH base asset in exchange for votes. Mints tokenPrice.denominator votes for every
+     * tokenPrice.numerator amount of Wei.
+     * For override compatibility, the "amount" parameter is included, but is not used.
+     * @return Amount of vote tokens minted.
      */
-    function depositFor(address account) public payable virtual {
-        _depositFor(account, msg.value);
+    function depositFor(address account, uint256 amount) public payable virtual override returns(uint256) {
+        return _depositFor(account, msg.value);
     }
 
     /**
-     * @dev Override to deposit ETH base asset in exchange for votes.
-     * @notice For override compatibility, the "amount" parameter is included, but is not used.
+     * @dev Additional depositFor function, but ommitting the unused "amount" parameter (since msg.value is used)
      */
-    function depositFor(address account, uint256 amount) public payable virtual override {
-        _depositFor(account, msg.value);
+    function depositFor(address account) public payable virtual returns(uint256) {
+        return _depositFor(account, msg.value);
+    }
+
+    /**
+     * @dev Additional deposit function, but omitting the unused "amount" parameter (since base asset is ETH)
+     */
+    function deposit() public payable virtual returns(uint256) {
+        return _depositFor(_msgSender(), msg.value);
     }
 
     /**
