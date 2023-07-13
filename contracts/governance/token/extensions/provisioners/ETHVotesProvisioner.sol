@@ -15,16 +15,15 @@ abstract contract ETHVotesProvisioner is VotesProvisioner {
     }
 
     /**
-     * @notice Allows exchanging the amount of base asset for votes (if votes are available for purchase).
+     * @notice Allows exchanging the amount of base asset for votes (if votes are available for purchase). The "amount"
+     * parameter is not used.
      * @param account The account address to deposit to.
-     * @param amount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for every
-     * tokenPrice.numerator count of base asset tokens.
      * @dev Override to deposit ETH base asset in exchange for votes. Mints tokenPrice.denominator votes for every
      * tokenPrice.numerator amount of Wei.
      * For override compatibility, the "amount" parameter is included, but is not used.
      * @return Amount of vote tokens minted.
      */
-    function depositFor(address account, uint256 amount) public payable virtual override returns(uint256) {
+    function depositFor(address account, uint256 /*amount*/) public payable virtual override returns(uint256) {
         return _depositFor(account, msg.value);
     }
 
@@ -45,7 +44,8 @@ abstract contract ETHVotesProvisioner is VotesProvisioner {
     /**
      * @dev Override to transfer the ETH deposit to the Executor, and register it on the Executor.
      */
-    function _transferDepositToExecutor(address account, uint256 amount) internal virtual override {
+
+    function _transferDepositToExecutor(address /*account*/, uint256 amount) internal virtual override {
         _getExecutorVoteProvisions().registerDepositEth{value: msg.value}(amount);
     }
 

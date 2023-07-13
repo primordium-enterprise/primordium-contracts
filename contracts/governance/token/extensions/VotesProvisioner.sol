@@ -112,7 +112,8 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
      * be set to zero).
      */
     function _updateTokenPrice(uint256 newNumerator, uint256 newDenominator) private {
-        require(newDenominator <= 1000, "VotesProvisioner: Denominator must be no greater than 1000");
+        require(newNumerator <= 10e8, "VotesProvisioner: Numerator must be no greater than 10e8");
+        require(newDenominator <= 10e3, "VotesProvisioner: Denominator must be no greater than 10e3");
         uint256 prevNumerator = _tokenPrice.numerator;
         uint256 prevDenominator = _tokenPrice.denominator;
         if (newNumerator > 0) {
@@ -194,7 +195,7 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
             (uint256 vpt, uint256 remainder) = _valueAndRemainderPerToken(tokenPriceDenominator);
             require(
                 ( vpt < tokenPriceNumerator ) ||
-                ( vpt <= tokenPriceNumerator && remainder == 0),
+                ( vpt == tokenPriceNumerator && remainder == 0),
                 "VotesProvisioner: Token price is too low."
             );
         }
