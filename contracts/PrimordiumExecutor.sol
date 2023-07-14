@@ -3,15 +3,15 @@
 
 pragma solidity ^0.8.0;
 
-import "./governance/executor/extensions/ExecutorVoteProvisions.sol";
+import "./governance/executor/extensions/Treasurer.sol";
 
-contract PrimordiumExecutor is Executor, ExecutorVoteProvisions {
+contract PrimordiumExecutor is Executor, Treasurer {
 
     constructor(
         uint256 minDelay,
         address owner,
         VotesProvisioner votes_
-    ) Executor(minDelay, owner) ExecutorVoteProvisions(votes_) {
+    ) Executor(minDelay, owner) Treasurer(votes_) {
 
     }
 

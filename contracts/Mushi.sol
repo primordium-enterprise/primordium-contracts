@@ -12,7 +12,7 @@ string constant TOKEN_SYMBOL = "MUSHI";
 
 contract Mushi is Votes, ETHVotesProvisioner {
     constructor(
-        ExecutorVoteProvisions executor_
+        Treasurer executor_
     )
         ERC20Permit(TOKEN_NAME)
         ERC20Checkpoints(TOKEN_NAME, TOKEN_SYMBOL)

@@ -5,7 +5,7 @@
 pragma solidity ^0.8.0;
 
 import "../Votes.sol";
-import "../../executor/extensions/ExecutorVoteProvisions.sol";
+import "../../executor/extensions/Treasurer.sol";
 import "../../utils/ExecutorControlled.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -58,7 +58,7 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
     event NewDeposit(address indexed account, uint256 amountDeposited, uint256 amountMinted);
 
     constructor(
-        ExecutorVoteProvisions executor_,
+        Treasurer executor_,
         TokenPrice memory initialTokenPrice,
         IERC20 baseAsset_
     ) ExecutorControlled(executor_) {
@@ -210,8 +210,8 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
 
     }
 
-    function _getExecutorVoteProvisions() internal view returns(ExecutorVoteProvisions) {
-        return ExecutorVoteProvisions(payable(address(_executor)));
+    function _getTreasurer() internal view returns(Treasurer) {
+        return Treasurer(payable(address(_executor)));
     }
 
 }

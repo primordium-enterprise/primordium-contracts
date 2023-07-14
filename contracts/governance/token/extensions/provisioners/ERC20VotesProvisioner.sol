@@ -13,7 +13,7 @@ using SafeMath for uint256;
 abstract contract ERC20VotesProvisioner is VotesProvisioner {
 
     constructor(
-        ExecutorVoteProvisions executor_,
+        Treasurer executor_,
         TokenPrice memory initialTokenPrice,
         IERC20 baseAsset_
     ) VotesProvisioner(executor_, initialTokenPrice, baseAsset_) {
@@ -68,7 +68,7 @@ abstract contract ERC20VotesProvisioner is VotesProvisioner {
      */
     function _transferDepositToExecutor(address account, uint256 amount) internal virtual override {
         SafeERC20.safeTransferFrom(_baseAsset, account, executor(), amount);
-        _getExecutorVoteProvisions().registerDeposit(amount);
+        _getTreasurer().registerDeposit(amount);
     }
 
     function _treasuryBalance() internal view virtual override returns(uint256) {

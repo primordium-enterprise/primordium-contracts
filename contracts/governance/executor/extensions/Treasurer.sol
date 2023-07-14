@@ -6,7 +6,7 @@ pragma solidity ^0.8.0;
 import "../../token/extensions/VotesProvisioner.sol";
 import "../Executor.sol";
 
-abstract contract ExecutorVoteProvisions is Executor {
+abstract contract Treasurer is Executor {
 
     VotesProvisioner internal immutable _votes;
 
@@ -21,7 +21,7 @@ abstract contract ExecutorVoteProvisions is Executor {
     }
 
     modifier onlyVotes() {
-        require(_msgSender() == address(_votes), "ExecutorVoteProvisions: call must come from the _votes contract.");
+        require(_msgSender() == address(_votes), "Treasurer: call must come from the _votes contract.");
         _;
     }
 
@@ -30,7 +30,7 @@ abstract contract ExecutorVoteProvisions is Executor {
     }
 
     function registerDepositEth(uint256 amount) public payable virtual onlyVotes {
-        require(msg.value == amount, "ExecutorVoteProvisions: depositEth mismatching amount and msg.value");
+        require(msg.value == amount, "Treasurer: depositEth mismatching amount and msg.value");
         _registerDeposit(amount);
     }
 

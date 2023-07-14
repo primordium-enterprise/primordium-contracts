@@ -8,7 +8,7 @@ import "../VotesProvisioner.sol";
 abstract contract ETHVotesProvisioner is VotesProvisioner {
 
     constructor(
-        ExecutorVoteProvisions executor_,
+        Treasurer executor_,
         TokenPrice memory initialTokenPrice
     ) VotesProvisioner(executor_, initialTokenPrice, IERC20(address(0))) {
 
@@ -46,7 +46,7 @@ abstract contract ETHVotesProvisioner is VotesProvisioner {
      */
 
     function _transferDepositToExecutor(address /*account*/, uint256 amount) internal virtual override {
-        _getExecutorVoteProvisions().registerDepositEth{value: msg.value}(amount);
+        _getTreasurer().registerDepositEth{value: msg.value}(amount);
     }
 
     function _treasuryBalance() internal view virtual override returns(uint256) {
