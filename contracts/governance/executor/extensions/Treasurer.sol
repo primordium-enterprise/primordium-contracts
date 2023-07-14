@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 
 import "../../token/extensions/VotesProvisioner.sol";
 import "../Executor.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 abstract contract Treasurer is Executor {
 
@@ -25,16 +26,30 @@ abstract contract Treasurer is Executor {
         _;
     }
 
-    function registerDeposit(uint256 amount) public virtual onlyVotes {
-        _registerDeposit(amount);
+    function registerDepositERC20(uint256 depositAmount) public virtual onlyVotes {
+        _registerDeposit(depositAmount);
     }
 
-    function registerDepositEth(uint256 amount) public payable virtual onlyVotes {
-        require(msg.value == amount, "Treasurer: depositEth mismatching amount and msg.value");
-        _registerDeposit(amount);
+    function registerDepositETH(uint256 depositAmount) public payable virtual onlyVotes {
+        require(msg.value == depositAmount, "Treasurer: depositEth mismatching depositAmount and msg.value");
+        _registerDeposit(depositAmount);
     }
 
-    function _registerDeposit(uint256 amount) private {
+    function _registerDeposit(uint256 depositAmount) private {
+        // NEED TO IMPLEMENT BALANCE CHECKS
+    }
+
+    function processWithdrawalERC20(IERC20 baseAsset, address receiver, uint256 withdrawAmount) public virtual onlyVotes {
+        SafeERC20.safeTransfer(baseAsset, receiver, withdrawAmount);
+        _processWithdrawal(withdrawAmount);
+    }
+
+    function processWithdrawalETH(address receiver, uint256 withdrawAmount) public virtual onlyVotes {
+        (bool success,) = receiver.call{value: withdrawAmount}("");
+        if (!success) revert("Treasurer: Failed to process ETH withdrawal.");
+    }
+
+    function _processWithdrawal(uint256 withdrawAmount) private {
         // NEED TO IMPLEMENT BALANCE CHECKS
     }
 

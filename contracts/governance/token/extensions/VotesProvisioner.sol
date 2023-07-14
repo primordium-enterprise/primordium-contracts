@@ -43,7 +43,7 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
     IERC20 internal immutable _baseAsset; // The address for the DAO's base asset (address(0) for ETH)
 
     /**
-     * @dev Emitted when the _tokenPrice is updated.
+     * @notice Emitted when the tokenPrice is updated.
      */
     event TokenPriceChanged(
         uint256 previousNumerator,
@@ -53,9 +53,21 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
     );
 
     /**
-     * @dev Emitted when a deposit is made and tokens are minted.
+     * @notice Emitted when a deposit is made and tokens are minted.
+     * @param account The account address that votes were minted to.
+     * @param amountDeposited The amount of the base asset transferred to the Executor as a deposit.
+     * @param votesMinted The amount of vote tokens minted to the account.
      */
-    event NewDeposit(address indexed account, uint256 amountDeposited, uint256 amountMinted);
+    event Deposit(address indexed account, uint256 amountDeposited, uint256 votesMinted);
+
+    /**
+     * @notice Emitted when a withdrawal is made and tokens are burned.
+     * @param account The account address that votes were burned for.
+     * @param receiver The receiver address that the withdrawal was sent to.
+     * @param amountWithdrawn The amount of base asset tokens trånsferred from the Executor as a withdrawal.
+     * @param votesBurned The amount of vote tokens burned from the account.
+     */
+    event Withdrawal(address indexed account, address receiver, uint256 amountWithdrawn, uint256 votesBurned);
 
     constructor(
         Treasurer executor_,
@@ -152,41 +164,47 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
     function _treasuryBalance() internal view virtual returns(uint256);
 
     /**
-     * @notice Allows exchanging the amount of base asset for votes (if votes are available for purchase).
+     * @notice Allows exchanging the depositAmount of base asset for votes (if votes are available for purchase).
      * @param account The account address to deposit to.
-     * @param amount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for every
-     * tokenPrice.numerator count of base asset tokens.
+     * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for
+     * every tokenPrice.numerator count of base asset tokens.
      * @dev This is abstract, and should be overridden to provide functionality based on the _baseAsset (ETH vs ERC20)
      * @return Amount of vote tokens minted.
      */
-    function depositFor(address account, uint256 amount) public payable virtual returns(uint256);
+    function depositFor(address account, uint256 depositAmount) public payable virtual returns(uint256);
 
     /**
      * @notice Calls {depositFor} with msg.sender as the account.
-     * @param amount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for every
+     * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for every
      * tokenPrice.numerator count of base asset tokens.
      */
-    function deposit(uint256 amount) public payable virtual returns(uint256) {
-        return depositFor(_msgSender(), amount);
+    function deposit(uint256 depositAmount) public payable virtual returns(uint256) {
+        return depositFor(_msgSender(), depositAmount);
     }
 
     /**
-     * @notice Internal function that should be overridden with functionality to transfer the deposit to the Executor.
+     * @dev Internal function that should be overridden with functionality to transfer the deposit to the Executor.
      */
-    function _transferDepositToExecutor(address account, uint256 amount) internal virtual;
+    function _transferDepositToExecutor(address account, uint256 depositAmount) internal virtual;
 
     /**
-     * @dev
+     * @dev Internal function that should be overridden with functionality to transfer the withdrawal to the recipient.
      */
-    function _depositFor(address account, uint256 amount) internal virtual returns(uint256) {
+    function _transferWithdrawalToRecipient(address receiver, uint256 withdrawAmount) internal virtual;
+
+    /**
+     * @dev Internal function for processing the deposit. Calls _transferDepositToExecutor, which must be implemented in
+     * an inheriting contract.
+     */
+    function _depositFor(address account, uint256 depositAmount) internal virtual returns(uint256) {
         require(_provisionMode != ProvisionModes.Governance, "VotesProvisioner: Deposits are not available.");
         require(account != address(0));
-        require(amount >= 0, "VotesProvisioner: Amount of base asset must be greater than zero.");
+        require(depositAmount >= 0, "VotesProvisioner: Amount of base asset must be greater than zero.");
         uint256 tokenPriceNumerator = _tokenPrice.numerator;
         uint256 tokenPriceDenominator = _tokenPrice.denominator;
-        // The "amount" must be a multiple of the token price numerator
+        // The "depositAmount" must be a multiple of the token price numerator
         require(
-            amount % tokenPriceNumerator == 0,
+            depositAmount % tokenPriceNumerator == 0,
             "VotesProvisioner: Amount of base asset must be a multiple of the token price numerator."
         );
         // The current price per token must not exceed the current value per token, or the treasury will be at risk
@@ -199,15 +217,30 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
                 "VotesProvisioner: Token price is too low."
             );
         }
-        uint256 mintAmount = amount / tokenPriceNumerator * tokenPriceDenominator;
-        _transferDepositToExecutor(account, amount);
+        uint256 mintAmount = depositAmount / tokenPriceNumerator * tokenPriceDenominator;
+        _transferDepositToExecutor(account, depositAmount);
         _mint(account, mintAmount);
-        emit NewDeposit(account, amount, mintAmount);
+        emit Deposit(account, depositAmount, mintAmount);
         return mintAmount;
     }
 
-    function withrawTo(address account, uint256 amount) public payable {
+    function withrawTo(address receiver, uint256 amount) public virtual {
+        _withdraw(_msgSender(), receiver, amount);
+    }
 
+    function withdraw(uint256 amount) public virtual {
+        _withdraw(_msgSender(), _msgSender(), amount);
+    }
+
+    function _withdraw(address account, address receiver, uint256 amount) internal virtual {
+        require(account != address(0), "VotesProvisioner: zero address cannot initiate withdrawal.");
+        require(receiver != address(0), "VotesProvisioner: Cannot withdraw to zero address.");
+        require(amount > 0, "VotesProvisioner: Amount of tokens withdrawing must be greater than zero.");
+
+        uint256 withdrawAmount = _valuePerToken(amount); // [ (amount/supply) * treasuryBalance ]
+        _burn(account, amount);
+        _transferWithdrawalToRecipient(receiver, withdrawAmount);
+        emit Withdrawal(account, receiver, withdrawAmount, amount);
     }
 
     function _getTreasurer() internal view returns(Treasurer) {

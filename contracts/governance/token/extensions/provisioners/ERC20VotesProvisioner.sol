@@ -21,17 +21,17 @@ abstract contract ERC20VotesProvisioner is VotesProvisioner {
     }
 
     /**
-     * @notice Allows exchanging the amount of base asset for votes (if votes are available for purchase).
+     * @notice Allows exchanging the depositAmount of base asset for votes (if votes are available for purchase).
      * @param account The account address to deposit to.
-     * @param amount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for every
+     * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for every
      * tokenPrice.numerator count of base asset tokens.
      * @dev Override to deposit ERC20 base asset in exchange for votes.
      * While this function is marked as "payable" (since it overrides VotesProvisioner), it requires msg.value to be zero.
      * @return Amount of vote tokens minted.
      */
-    function depositFor(address account, uint256 amount) public payable virtual override returns(uint256) {
+    function depositFor(address account, uint256 depositAmount) public payable virtual override returns(uint256) {
         require(msg.value == 0, "ERC20VotesProvisioner: Cannot accept ETH deposits.");
-        return _depositFor(account, amount);
+        return _depositFor(account, depositAmount);
     }
 
     /**
@@ -66,9 +66,16 @@ abstract contract ERC20VotesProvisioner is VotesProvisioner {
     /**
      * @dev Override to transfer the ERC20 deposit to the Executor, and register on the Executor.
      */
-    function _transferDepositToExecutor(address account, uint256 amount) internal virtual override {
-        SafeERC20.safeTransferFrom(_baseAsset, account, executor(), amount);
-        _getTreasurer().registerDeposit(amount);
+    function _transferDepositToExecutor(address account, uint256 depositAmount) internal virtual override {
+        SafeERC20.safeTransferFrom(_baseAsset, account, executor(), depositAmount);
+        _getTreasurer().registerDepositERC20(depositAmount);
+    }
+
+    /**
+     * @dev Override to transfer the ERC20 withdrawal from the Executor.
+     */
+    function _transferWithdrawalToRecipient(address receiver, uint256 withdrawAmount) internal virtual override {
+        _getTreasurer().processWithdrawalERC20(_baseAsset, receiver, withdrawAmount);
     }
 
     function _treasuryBalance() internal view virtual override returns(uint256) {
