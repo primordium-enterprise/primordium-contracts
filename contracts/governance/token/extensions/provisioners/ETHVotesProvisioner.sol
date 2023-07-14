@@ -52,7 +52,7 @@ abstract contract ETHVotesProvisioner is VotesProvisioner {
     /**
      * @dev Override to transfer the ETH withdrawal from the Executor.
      */
-    function _transferWithdrawalToRecipient(address receiver, uint256 withdrawAmount) internal virtual override {
+    function _transferWithdrawalToReceiver(address receiver, uint256 withdrawAmount) internal virtual override {
         _getTreasurer().processWithdrawalETH(receiver, withdrawAmount);
     }
 

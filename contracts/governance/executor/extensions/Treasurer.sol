@@ -40,11 +40,12 @@ abstract contract Treasurer is Executor {
     }
 
     function processWithdrawalERC20(IERC20 baseAsset, address receiver, uint256 withdrawAmount) public virtual onlyVotes {
-        SafeERC20.safeTransfer(baseAsset, receiver, withdrawAmount);
         _processWithdrawal(withdrawAmount);
+        SafeERC20.safeTransfer(baseAsset, receiver, withdrawAmount);
     }
 
     function processWithdrawalETH(address receiver, uint256 withdrawAmount) public virtual onlyVotes {
+        _processWithdrawal(withdrawAmount);
         (bool success,) = receiver.call{value: withdrawAmount}("");
         if (!success) revert("Treasurer: Failed to process ETH withdrawal.");
     }

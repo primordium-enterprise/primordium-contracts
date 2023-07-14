@@ -190,7 +190,7 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
     /**
      * @dev Internal function that should be overridden with functionality to transfer the withdrawal to the recipient.
      */
-    function _transferWithdrawalToRecipient(address receiver, uint256 withdrawAmount) internal virtual;
+    function _transferWithdrawalToReceiver(address receiver, uint256 withdrawAmount) internal virtual;
 
     /**
      * @dev Internal function for processing the deposit. Calls _transferDepositToExecutor, which must be implemented in
@@ -224,25 +224,46 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
         return mintAmount;
     }
 
-    function withrawTo(address receiver, uint256 amount) public virtual {
-        _withdraw(_msgSender(), receiver, amount);
+    /**
+     * @notice Allows burning the provided amount of vote tokens owned by the transaction sender and withdrawing the
+     * proportional share of the base asset in the treasury.
+     * @param receiver The address for the base asset to be sent to.
+     * @param amount The amount of vote tokens to be burned.
+     * @return The amount of base asset withdrawn.
+     */
+    function withdrawTo(address receiver, uint256 amount) public virtual returns(uint256) {
+        return _withdraw(_msgSender(), receiver, amount);
     }
 
-    function withdraw(uint256 amount) public virtual {
-        _withdraw(_msgSender(), _msgSender(), amount);
+    /**
+     * @notice Allows burning the provided amount of vote tokens and withdrawing the proportional share of the base asset
+     * from the treasury. The tokens are burned for msg.sender, and the base asset is sent to msg.sender as well.
+     * @param amount The amount of vote tokens to be burned.
+     * @return The amount of base asset withdrawn.
+     */
+    function withdraw(uint256 amount) public virtual returns(uint256) {
+        return _withdraw(_msgSender(), _msgSender(), amount);
     }
 
-    function _withdraw(address account, address receiver, uint256 amount) internal virtual {
+    /**
+     * @dev Internal function for processing the withdrawal. Calls _transferWithdrawalToReciever, which must be
+     * implemented in an inheriting contract.
+     */
+    function _withdraw(address account, address receiver, uint256 amount) internal virtual returns(uint256) {
         require(account != address(0), "VotesProvisioner: zero address cannot initiate withdrawal.");
         require(receiver != address(0), "VotesProvisioner: Cannot withdraw to zero address.");
         require(amount > 0, "VotesProvisioner: Amount of tokens withdrawing must be greater than zero.");
 
         uint256 withdrawAmount = _valuePerToken(amount); // [ (amount/supply) * treasuryBalance ]
         _burn(account, amount);
-        _transferWithdrawalToRecipient(receiver, withdrawAmount);
+        _transferWithdrawalToReceiver(receiver, withdrawAmount);
         emit Withdrawal(account, receiver, withdrawAmount, amount);
+        return withdrawAmount;
     }
 
+    /**
+     * @dev Internal function for returning the executor address wrapped as the Treasurer contract.
+     */
     function _getTreasurer() internal view returns(Treasurer) {
         return Treasurer(payable(address(_executor)));
     }

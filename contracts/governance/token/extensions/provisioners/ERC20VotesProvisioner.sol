@@ -74,7 +74,7 @@ abstract contract ERC20VotesProvisioner is VotesProvisioner {
     /**
      * @dev Override to transfer the ERC20 withdrawal from the Executor.
      */
-    function _transferWithdrawalToRecipient(address receiver, uint256 withdrawAmount) internal virtual override {
+    function _transferWithdrawalToReceiver(address receiver, uint256 withdrawAmount) internal virtual override {
         _getTreasurer().processWithdrawalERC20(_baseAsset, receiver, withdrawAmount);
     }
 
