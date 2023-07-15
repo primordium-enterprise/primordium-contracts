@@ -7,6 +7,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import "./IERC20Checkpoints.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/utils/Checkpoints.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -37,15 +38,15 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
  * functions have been added to mitigate the well-known issues around setting
  * allowances. See {IERC20-approve}.
  */
-abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC6372 {
+abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Checkpoints, IERC6372 {
 
-    using Checkpoints for Checkpoints.History;
+    using Checkpoints for Checkpoints.Trace224; // We use Trace224 to be agnostic towards the clock mode
 
-    mapping(address => Checkpoints.History) private _balances;
+    mapping(address => Checkpoints.Trace224) private _balances;
 
     mapping(address => mapping(address => uint256)) private _allowances;
 
-    uint256 private _totalSupply;
+    Checkpoints.Trace224 private _totalSupplyCheckpoints;
 
     string private _name;
     string private _symbol;
@@ -114,7 +115,27 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC6372 
      * @dev See {IERC20-totalSupply}.
      */
     function totalSupply() public view virtual override returns (uint256) {
-        return _totalSupply;
+        return _totalSupplyCheckpoints.latest();
+    }
+
+     /**
+     * @dev Retrieve the `totalSupply` at the end of `timepoint`. Note, this value is the sum of all balances.
+     * It is NOT the sum of all the delegated votes!
+     *
+     * Requirements:
+     *
+     * - `timepoint` must be in the past
+     */
+    function getPastTotalSupply(uint256 timepoint) public view virtual returns (uint256) {
+        require(timepoint < clock(), "ERC20Checkpoints: future lookup");
+        return _totalSupplyCheckpoints.upperLookupRecent(SafeCast.toUint32(timepoint));
+    }
+
+    /**
+     * @dev Maximum token supply. Defaults to `type(uint224).max` (2^224^ - 1).
+     */
+    function maxSupply() public view virtual override returns (uint256) {
+        return type(uint224).max;
     }
 
     /**
@@ -132,7 +153,7 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC6372 
      * - `timepoint` must be in the past
      */
     function getPastBalanceOf(address account, uint256 timepoint) public view virtual returns (uint256) {
-        return _balances[account].getAtProbablyRecentBlock(timepoint);
+        return _balances[account].upperLookupRecent(SafeCast.toUint32(timepoint));
     }
 
     /**
@@ -262,10 +283,10 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC6372 
         require(fromBalance >= amount, "ERC20Checkpoints: transfer amount exceeds balance");
 
         unchecked {
-            _balances[from].push(_subtract, amount);
+            _writeCheckpoint(_balances[from], _subtract, amount);
             // Overflow not possible: the sum of all balances is capped by totalSupply, and the sum is preserved by
             // decrementing then incrementing.
-            _balances[to].push(_add, amount);
+            _writeCheckpoint(_balances[to], _add, amount);
         }
 
         emit Transfer(from, to, amount);
@@ -283,14 +304,16 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC6372 
      * - `account` cannot be the zero address.
      */
     function _mint(address account, uint256 amount) internal virtual {
-        require(account != address(0), "ERC20: mint to the zero address");
+        require(account != address(0), "ERC20Checkpoints: mint to the zero address");
 
         _beforeTokenTransfer(address(0), account, amount);
 
-        _totalSupply += amount;
+        // Update total supply, but don't allow minting past the maxSupply
+        (,uint256 newSupply) = _writeCheckpoint(_totalSupplyCheckpoints, _add, amount);
+        require(newSupply <= maxSupply(), "ERC20Checkpoints: Cannot mint more tokens than the max supply.");
         unchecked {
             // Overflow not possible: balance + amount is at most totalSupply + amount, which is checked above.
-            _balances[account].push(_add, amount);
+            _writeCheckpoint(_balances[account], _add, amount);
         }
         emit Transfer(address(0), account, amount);
 
@@ -309,16 +332,16 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC6372 
      * - `account` must have at least `amount` tokens.
      */
     function _burn(address account, uint256 amount) internal virtual {
-        require(account != address(0), "ERC20: burn from the zero address");
+        require(account != address(0), "ERC20Checkpoints: burn from the zero address");
 
         _beforeTokenTransfer(account, address(0), amount);
 
         uint256 accountBalance = uint256(_balances[account].latest());
-        require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
+        require(accountBalance >= amount, "ERC20Checkpoints: burn amount exceeds balance");
         unchecked {
-            _balances[account].push(_subtract, amount);
+            _writeCheckpoint(_balances[account], _subtract, amount);
             // Overflow not possible: amount <= accountBalance <= totalSupply.
-            _totalSupply -= amount;
+            _writeCheckpoint(_totalSupplyCheckpoints, _subtract, amount);
         }
 
         emit Transfer(account, address(0), amount);
@@ -340,8 +363,8 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC6372 
      * - `spender` cannot be the zero address.
      */
     function _approve(address owner, address spender, uint256 amount) internal virtual {
-        require(owner != address(0), "ERC20: approve from the zero address");
-        require(spender != address(0), "ERC20: approve to the zero address");
+        require(owner != address(0), "ERC20Checkpoints: approve from the zero address");
+        require(spender != address(0), "ERC20Checkpoints: approve to the zero address");
 
         _allowances[owner][spender] = amount;
         emit Approval(owner, spender, amount);
@@ -358,7 +381,7 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC6372 
     function _spendAllowance(address owner, address spender, uint256 amount) internal virtual {
         uint256 currentAllowance = allowance(owner, spender);
         if (currentAllowance != type(uint256).max) {
-            require(currentAllowance >= amount, "ERC20: insufficient allowance");
+            require(currentAllowance >= amount, "ERC20Checkpoints: insufficient allowance");
             unchecked {
                 _approve(owner, spender, currentAllowance - amount);
             }
@@ -404,6 +427,17 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC6372 
 
     function _subtract(uint256 a, uint256 b) internal pure returns (uint256) {
         return a - b;
+    }
+
+    function _writeCheckpoint(
+        Checkpoints.Trace224 storage store,
+        function(uint256, uint256) view returns (uint256) op,
+        uint256 delta
+    ) internal returns (uint256 oldWeight, uint256 newWeight) {
+        return store.push(
+            SafeCast.toUint32(clock()),
+            SafeCast.toUint224(op(store.latest(), delta))
+        );
     }
 
 }

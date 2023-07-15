@@ -14,9 +14,10 @@ abstract contract ERC20VotesProvisioner is VotesProvisioner {
 
     constructor(
         Treasurer executor_,
+        uint256 initialMaxSupply,
         TokenPrice memory initialTokenPrice,
         IERC20 baseAsset_
-    ) VotesProvisioner(executor_, initialTokenPrice, baseAsset_) {
+    ) VotesProvisioner(executor_, initialMaxSupply, initialTokenPrice, baseAsset_) {
         require(address(baseAsset_) != address(0), "ERC20VotesProvisioner: the address for the baseAsset cannot be address(0)");
     }
 

@@ -34,6 +34,8 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
 
     ProvisionModes private _provisionMode;
 
+    uint256 internal _maxSupply;
+
     struct TokenPrice {
         uint128 numerator; // Minimum amount of base asset tokens required to mint {denominator} amount of votes.
         uint128 denominator; // Number of votes that can be minted per {numerator} count of base asset.
@@ -43,12 +45,19 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
     IERC20 internal immutable _baseAsset; // The address for the DAO's base asset (address(0) for ETH)
 
     /**
+     * @notice Emitted when the max supply of votes is updated.
+     * @param prevMaxSupply The previous max supply.
+     * @param newMaxSupply The new max supply.
+     */
+    event MaxSupplyChange(uint256 prevMaxSupply, uint256 newMaxSupply);
+
+    /**
      * @notice Emitted when the tokenPrice is updated.
      */
-    event TokenPriceChanged(
-        uint256 previousNumerator,
+    event TokenPriceChange(
+        uint256 prevNumerator,
         uint256 newNumerator,
-        uint256 previousDenominator,
+        uint256 prevDenominator,
         uint256 newDenominator
     );
 
@@ -71,6 +80,7 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
 
     constructor(
         Treasurer executor_,
+        uint256 initialMaxSupply,
         TokenPrice memory initialTokenPrice,
         IERC20 baseAsset_
     ) ExecutorControlled(executor_) {
@@ -79,7 +89,36 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
             require(address(baseAsset_).isContract(), "VotesProvisioner: base asset must be a deployed contract.");
         }
         _baseAsset = baseAsset_;
+        _updateMaxSupply(initialMaxSupply);
         _updateTokenPrice(initialTokenPrice.numerator, initialTokenPrice.denominator);
+    }
+
+    /**
+     * @notice Function to get the current max supply of vote tokens available for minting.
+     * @dev Overrides to use the updateable _maxSupply
+     */
+    function maxSupply() public view virtual override(ERC20Checkpoints) returns (uint256) {
+        return _maxSupply;
+    }
+
+    /**
+     * @notice Executor-only function to update the max supply of vote tokens.
+     * @param newMaxSupply The new max supply. Must be no greater than type(uint224).max.
+     */
+    function updateMaxSupply(uint256 newMaxSupply) external virtual onlyExecutor {
+        _updateMaxSupply(newMaxSupply);
+    }
+
+    /**
+     * @dev Internal function to update the max supply.
+     * We DO allow the max supply to be set below the current totalSupply(), because this would allow a DAO to
+     * remain in Funding mode, and continue to reject deposits ABOVE the max supply threshold of tokens minted.
+     * May never be used, but preserves DAO optionality.
+     */
+    function _updateMaxSupply(uint256 newMaxSupply) internal virtual {
+        require(newMaxSupply <= type(uint224).max, "VotesProvisioner: max supply risks overflowing votes.");
+        emit MaxSupplyChange(_maxSupply, newMaxSupply);
+        _maxSupply = newMaxSupply;
     }
 
     /**
@@ -134,7 +173,7 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
         if (newDenominator > 0) {
             _tokenPrice.denominator = SafeCast.toUint128(newDenominator);
         }
-        emit TokenPriceChanged(prevNumerator, newNumerator, prevDenominator, newDenominator);
+        emit TokenPriceChange(prevNumerator, newNumerator, prevDenominator, newDenominator);
     }
 
     function valuePerToken() public view returns(uint256) {

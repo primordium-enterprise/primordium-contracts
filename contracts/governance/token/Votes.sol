@@ -29,14 +29,11 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
 
     using Checkpoints for Checkpoints.Trace224; // We use Trace224 to be agnostic towards the clock mode
 
-    uint256 private constant MAX_SUPPLY = type(uint224).max;
-
     bytes32 private constant _DELEGATION_TYPEHASH =
         keccak256("Delegation(address delegatee,uint256 nonce,uint256 expiry)");
 
     mapping(address => address) private _delegates;
     mapping(address => Checkpoints.Trace224) private _checkpoints;
-    Checkpoints.Trace224 private _totalSupplyCheckpoints;
 
     /**
      * @dev Get number of checkpoints for `account`.
@@ -72,19 +69,6 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
     }
 
     /**
-     * @dev Retrieve the `totalSupply` at the end of `timepoint`. Note, this value is the sum of all balances.
-     * It is NOT the sum of all the delegated votes!
-     *
-     * Requirements:
-     *
-     * - `timepoint` must be in the past
-     */
-    function getPastTotalSupply(uint256 timepoint) public view virtual override returns (uint256) {
-        require(timepoint < clock(), "ERC20Votes: future lookup");
-        return _totalSupplyCheckpoints.upperLookupRecent(SafeCast.toUint32(timepoint));
-    }
-
-    /**
      * @dev Delegate votes from the sender to `delegatee`.
      */
     function delegate(address delegatee) public virtual override {
@@ -114,29 +98,11 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
     }
 
     /**
-     * @dev Maximum token supply. Defaults to `type(uint224).max` (2^224^ - 1).
-     */
-    function _maxSupply() internal view virtual returns (uint224) {
-        return type(uint224).max;
-    }
-
-    /**
      * @dev Snapshots the totalSupply after it has been increased.
      */
     function _mint(address account, uint256 amount) internal virtual override {
         super._mint(account, amount);
-        require(totalSupply() <= _maxSupply(), "ERC20Votes: total supply risks overflowing votes");
 
-        _writeCheckpoint(_totalSupplyCheckpoints, _add, SafeCast.toUint224(amount));
-    }
-
-    /**
-     * @dev Snapshots the totalSupply after it has been decreased.
-     */
-    function _burn(address account, uint256 amount) internal virtual override {
-        super._burn(account, amount);
-
-        _writeCheckpoint(_totalSupplyCheckpoints, _subtract, SafeCast.toUint224(amount));
     }
 
     /**
@@ -171,7 +137,7 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
                 (uint256 oldWeight, uint256 newWeight) = _writeCheckpoint(
                     _checkpoints[src],
                     _subtract,
-                    SafeCast.toUint224(amount)
+                    amount
                 );
                 emit DelegateVotesChanged(src, oldWeight, newWeight);
             }
@@ -180,19 +146,11 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
                 (uint256 oldWeight, uint256 newWeight) = _writeCheckpoint(
                     _checkpoints[dst],
                     _add,
-                    SafeCast.toUint224(amount)
+                    amount
                 );
                 emit DelegateVotesChanged(dst, oldWeight, newWeight);
             }
         }
-    }
-
-    function _writeCheckpoint(
-        Checkpoints.Trace224 storage store,
-        function(uint256, uint256) view returns (uint256) op,
-        uint224 delta
-    ) private returns (uint256 oldWeight, uint256 newWeight) {
-        return store.push(SafeCast.toUint32(clock()), SafeCast.toUint224(op(store.latest(), delta)));
     }
 
 }

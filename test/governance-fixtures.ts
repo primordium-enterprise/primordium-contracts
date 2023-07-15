@@ -13,7 +13,8 @@ export const deployBaseGovernance = async () => {
 
     // Deploy Votes first, using zero address for executor
     const votes = await ethers.deployContract("Mushi", [
-        ethers.constants.AddressZero
+        ethers.constants.AddressZero,
+        ethers.utils.parseEther((10_000).toString())
     ]);
 
     // Deploy Executor, use zero address to set owner as the deployer

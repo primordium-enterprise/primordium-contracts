@@ -10,13 +10,14 @@ pragma solidity ^0.8.10;
 string constant TOKEN_NAME = "Primordium";
 string constant TOKEN_SYMBOL = "MUSHI";
 
-contract Mushi is Votes, ETHVotesProvisioner {
+contract Mushi is ETHVotesProvisioner {
     constructor(
-        Treasurer executor_
+        Treasurer executor_,
+        uint256 initialMaxSupply
     )
         ERC20Permit(TOKEN_NAME)
         ERC20Checkpoints(TOKEN_NAME, TOKEN_SYMBOL)
-        ETHVotesProvisioner(executor_, TokenPrice(1, 1))
+        ETHVotesProvisioner(executor_, initialMaxSupply, TokenPrice(1, 1))
     {}
 
 }
