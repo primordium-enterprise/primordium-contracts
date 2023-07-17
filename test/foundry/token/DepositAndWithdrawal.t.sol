@@ -30,19 +30,23 @@ contract DepositAndWithdrawal is Test, GovernanceSetup {
         token.depositFor(a4); // Should deposit 0
     }
 
-    function test_Balances() public {
+    function _expectedTokenBalance(uint256 baseAssetAmount) internal view returns(uint256) {
         (uint256 num, uint256 denom) = token.tokenPrice();
-        assertEq(token.balanceOf(a1), amnt1 / num * denom);
-        assertEq(token.balanceOf(a2), amnt2 / num * denom);
-        assertEq(token.balanceOf(a3), amnt3 / num * denom);
+        return baseAssetAmount / num * denom;
+    }
+
+    function test_Balances() public {
+        assertEq(token.balanceOf(a1), _expectedTokenBalance(amnt1));
+        assertEq(token.balanceOf(a2), _expectedTokenBalance(amnt2));
+        assertEq(token.balanceOf(a3), _expectedTokenBalance(amnt3));
         assertEq(token.balanceOf(a4), 0);
     }
 
     function testFuzz_InvalidAssetMultipleOnDeposit(uint8 amount) public {
-        (uint256 num, uint256 denom) = token.tokenPrice();
+        (uint256 num,) = token.tokenPrice();
         if (amount % num == 0) {
             token.deposit{value: amount}();
-            assertEq(token.balanceOf(address(this)), amount / num * denom);
+            assertEq(token.balanceOf(address(this)), _expectedTokenBalance(amount));
         } else {
             vm.expectRevert();
             token.deposit{value: amount}();
@@ -50,8 +54,34 @@ contract DepositAndWithdrawal is Test, GovernanceSetup {
     }
 
     function test_TotalSupply() public {
-        (uint256 num, uint256 denom) = token.tokenPrice();
-        assertEq(token.totalSupply(), (amnt1 + amnt2 + amnt3) / num * denom);
+        assertEq(token.totalSupply(), _expectedTokenBalance(amnt1 + amnt2 + amnt3));
+    }
+
+    function test_SimpleWithdraw() public {
+        uint256 a2Balance = token.balanceOf(a2);
+        vm.prank(a2);
+        token.withdraw(a2Balance);
+        assertEq(token.balanceOf(a2), 0);
+        assertEq(token.totalSupply(), _expectedTokenBalance(amnt1 + amnt3));
+        assertEq(a2.balance, amnt2);
+    }
+
+    function test_SimpleWithdrawTo() public {
+        uint256 a2Balance = token.balanceOf(a2);
+        vm.prank(a2);
+        token.withdrawTo(a1, a2Balance);
+        assertEq(token.balanceOf(a2), 0);
+        assertEq(token.totalSupply(), _expectedTokenBalance(amnt1 + amnt3));
+        assertEq(a2.balance, 0);
+        assertEq(a1.balance, amnt2);
+    }
+
+    function test_PermitWithdraw() public {
+        // NEED TO IMPLEMENT
+    }
+
+    function test_WithdrawAfterRevenue() public {
+        // NEED TO IMPLEMENT
     }
 
 }

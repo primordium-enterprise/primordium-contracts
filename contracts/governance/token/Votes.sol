@@ -98,14 +98,6 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
     }
 
     /**
-     * @dev Snapshots the totalSupply after it has been increased.
-     */
-    function _mint(address account, uint256 amount) internal virtual override {
-        super._mint(account, amount);
-
-    }
-
-    /**
      * @dev Move voting power when tokens are transferred.
      *
      * Emits a {IVotes-DelegateVotesChanged} event.
