@@ -12,13 +12,15 @@ string constant TOKEN_NAME = "Primordium";
 string constant TOKEN_SYMBOL = "MUSHI";
 
 contract Mushi is PermitWithdraw, ETHVotesProvisioner {
+
     constructor(
         Treasurer executor_,
-        uint256 initialMaxSupply
+        uint256 initialMaxSupply,
+        TokenPrice memory initialTokenPrice
     )
         ERC20Permit(TOKEN_NAME)
         ERC20Checkpoints(TOKEN_NAME, TOKEN_SYMBOL)
-        ETHVotesProvisioner(executor_, initialMaxSupply, TokenPrice(1, 1))
+        ETHVotesProvisioner(executor_, initialMaxSupply, initialTokenPrice)
     {}
 
 }
