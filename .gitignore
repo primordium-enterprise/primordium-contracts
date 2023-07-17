@@ -112,3 +112,10 @@ typechain-types
 # Hardhat files
 cache
 artifacts
+
+# Foundry
+forge-cache
+out
+
+# VS Code
+.vscode

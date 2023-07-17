@@ -14,7 +14,7 @@ contract GovernorV1 is Governor, GovernorVotes, GovernorSettings, _PlaceholderFu
 
     constructor(
         Executor executor,
-        IVotes token,
+        Votes token,
         uint256 initialVotingDelay,
         uint256 initialVotingPeriod,
         uint256 initialProposalThreshold

@@ -9,7 +9,6 @@ import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-import "hardhat/console.sol";
 
 /**
  * @dev Contract module which acts as a timelocked controller. When set as the
@@ -317,7 +316,6 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
      * @dev Execute an operation's call.
      */
     function _execute(address target, uint256 value, bytes calldata data) internal virtual {
-        console.log("Executor _execute:", target, value);
         (bool success, ) = target.call{value: value}(data);
         require(success, "TimelockController: underlying transaction reverted");
     }
