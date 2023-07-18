@@ -2,38 +2,10 @@
 pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
-import "../GovernanceSetup.t.sol";
+import "forge-std/console.sol";
+import "./TestAccountsSetup.t.sol";
 
-contract DepositAndWithdrawal is Test, GovernanceSetup {
-
-    address a1 = address(0x01);
-    address a2 = address(0x02);
-    address a3 = address(0x03);
-    address a4 = address(0x04);
-
-    uint256 amnt1 = 1 ether;
-    uint256 amnt2 = 2 ether;
-    uint256 amnt3 = 3 ether;
-
-    constructor() {
-        vm.deal(a1, amnt1);
-        vm.deal(a2, amnt2);
-    }
-
-    function setUp() public {
-        // Test various deposit functions
-        vm.prank(a1);
-        token.deposit{value: amnt1}();
-        vm.prank(a2);
-        token.depositFor{value: amnt2}(a2);
-        token.depositFor{value: amnt3}(a3, amnt3);
-        token.depositFor(a4); // Should deposit 0
-    }
-
-    function _expectedTokenBalance(uint256 baseAssetAmount) internal view returns(uint256) {
-        (uint256 num, uint256 denom) = token.tokenPrice();
-        return baseAssetAmount / num * denom;
-    }
+contract DepositAndWithdrawal is Test, TestAccountsSetup {
 
     function test_Balances() public {
         assertEq(token.balanceOf(a1), _expectedTokenBalance(amnt1));
@@ -54,7 +26,7 @@ contract DepositAndWithdrawal is Test, GovernanceSetup {
     }
 
     function test_TotalSupply() public {
-        assertEq(token.totalSupply(), _expectedTokenBalance(amnt1 + amnt2 + amnt3));
+        assertEq(token.totalSupply(), _expectedTokenBalance(amntTotal));
     }
 
     function test_SimpleWithdraw() public {
@@ -77,11 +49,67 @@ contract DepositAndWithdrawal is Test, GovernanceSetup {
     }
 
     function test_PermitWithdraw() public {
-        // NEED TO IMPLEMENT
+        uint256 pk = vm.deriveKey("test test test test test test test test test test test junk", 0);
+        address a = vm.addr(pk);
+        uint256 n = 1 ether;
+        token.depositFor{ value: 1 ether}(a);
+        assertEq(token.balanceOf(a), _expectedTokenBalance(n));
+
+        // Test the withdrawal permit
+        (
+            ,
+            string memory name,
+            string memory version,
+            uint256 chainId,
+            address verifyingContract,
+            ,
+        ) = token.eip712Domain();
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"), // TYPE HASH
+                keccak256(bytes(name)),
+                keccak256(bytes(version)),
+                chainId,
+                verifyingContract
+            )
+        );
+        uint256 deadline = block.timestamp + 1 days;
+        uint256 amount = token.balanceOf(a) / 2;
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256("PermitWithdraw(address owner,address receiver,uint256 amount,uint256 withdrawNonce,uint256 deadline)"),
+                a,
+                a,
+                amount,
+                token.withdrawNonces(a),
+                deadline
+            )
+        );
+        bytes32 dataHash = ECDSA.toTypedDataHash(domainSeparator, structHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, dataHash);
+        token.permitWithdraw(
+            a,
+            a,
+            amount,
+            deadline,
+            v,
+            r,
+            s
+        );
+
+        assertEq(token.balanceOf(a), _expectedTokenBalance(n / 2));
+        assertEq(a.balance, n / 2);
     }
 
     function test_WithdrawAfterRevenue() public {
-        // NEED TO IMPLEMENT
+        (bool success,) = address(executor).call{ value: amntTotal }("");
+        assertEq(success, true);
+        uint256 a1Balance = token.balanceOf(a1);
+        vm.prank(a1);
+        token.withdraw(a1Balance);
+        assertEq(token.balanceOf(a1), 0);
+        assertEq(a1.balance, amnt1 * 2); // Should be twice as much since we doubled the treasury
     }
 
 }

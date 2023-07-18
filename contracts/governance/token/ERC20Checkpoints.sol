@@ -153,6 +153,7 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
      * - `timepoint` must be in the past
      */
     function getPastBalanceOf(address account, uint256 timepoint) public view virtual returns (uint256) {
+        require(timepoint < clock(), "ERC20Checkpoints: future lookup");
         return _balances[account].upperLookupRecent(SafeCast.toUint32(timepoint));
     }
 
