@@ -17,36 +17,35 @@ contract Balances is Test, TestAccountsSetup {
     }
 
     function test_PastBalances() public {
-        uint256 prevB = block.number - 1; // Reference, updates with block number
-        uint256 nextB = block.number + 1; // Reference, updates with block number
+        uint256 b1 = 1;
+        uint256 b2 = 2;
+        uint256 b3 = 3;
         uint256 a1Balance1 = token.balanceOf(a1);
         uint256 a2Balance1 = token.balanceOf(a2);
         uint256 transferAmount = a1Balance1 / 2;
-        vm.roll(nextB);
+        vm.roll(b2);
 
         vm.prank(a1);
         token.transfer(a2, a1Balance1 / 2);
 
         assertEq(token.balanceOf(a1), a1Balance1 - transferAmount);
         assertEq(token.balanceOf(a2), a2Balance1 + transferAmount);
-        assertEq(token.getPastBalanceOf(a1, prevB), a1Balance1);
-        assertEq(token.getPastBalanceOf(a2, prevB), a2Balance1);
+        assertEq(token.getPastBalanceOf(a1, b1), a1Balance1);
+        assertEq(token.getPastBalanceOf(a2, b1), a2Balance1);
 
         vm.expectRevert(bytes("ERC20Checkpoints: future lookup"));
         token.getPastBalanceOf(a1, block.number);
-        vm.roll(nextB);
-        assertEq(token.getPastBalanceOf(a1, prevB), a1Balance1 - transferAmount);
+        vm.roll(b3);
+        assertEq(token.getPastBalanceOf(a1, b2), a1Balance1 - transferAmount);
     }
 
     function test_PastSupply() public {
-        uint256 nextB = block.number + 1;
-
         uint256 a1Balance1 = token.balanceOf(a1);
         uint256 supply1 = token.totalSupply();
         uint256 expectedSupply1 = _expectedTokenBalance(amntTotal);
         assertEq(supply1, expectedSupply1);
 
-        vm.roll(nextB);
+        vm.roll(2);
 
         vm.prank(a1);
         token.withdraw(a1Balance1 / 2);
@@ -56,7 +55,7 @@ contract Balances is Test, TestAccountsSetup {
         assertEq(token.balanceOf(a1), a1Balance1 / 2);
         assertEq(supply2, expectedSupply2);
 
-        vm.roll(nextB);
+        vm.roll(3);
 
         token.depositFor{value: amnt1}(a1);
 

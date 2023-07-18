@@ -22,7 +22,7 @@ abstract contract GovernanceSetup is Test {
 
     GovernorV1 governor = new GovernorV1(
         Executor(payable(address(0))),
-        Votes(address(token)),
+        VotesProvisioner(address(token)),
         2 days / 12, // Two days in blocks
         3 days / 12, // Three Days in blocks,
         0

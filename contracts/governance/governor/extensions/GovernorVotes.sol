@@ -14,18 +14,12 @@ import "../../token/Votes.sol";
  */
 abstract contract GovernorVotes is Governor {
 
-    IVotes public immutable token;
-
-    constructor(IVotes tokenAddress) {
-        token = IVotes(address(tokenAddress));
-    }
-
     /**
      * @dev Clock (as specified in EIP-6372) is set to match the token's clock. Fallback to block numbers if the token
      * does not implement EIP-6372.
      */
     function clock() public view virtual override returns (uint48) {
-        try token.clock() returns (uint48 timepoint) {
+        try _token.clock() returns (uint48 timepoint) {
             return timepoint;
         } catch {
             return SafeCast.toUint48(block.number);
@@ -37,7 +31,7 @@ abstract contract GovernorVotes is Governor {
      */
     // solhint-disable-next-line func-name-mixedcase
     function CLOCK_MODE() public view virtual override returns (string memory) {
-        try token.CLOCK_MODE() returns (string memory clockmode) {
+        try _token.CLOCK_MODE() returns (string memory clockmode) {
             return clockmode;
         } catch {
             return "mode=blocknumber&from=default";
@@ -52,7 +46,7 @@ abstract contract GovernorVotes is Governor {
         uint256 timepoint,
         bytes memory /*params*/
     ) internal view virtual override returns (uint256) {
-        return token.getPastVotes(account, timepoint);
+        return _token.getPastVotes(account, timepoint);
     }
 
 }

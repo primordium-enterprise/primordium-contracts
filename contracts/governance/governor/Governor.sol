@@ -11,6 +11,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
+import "../token/extensions/VotesProvisioner.sol";
 import "../executor/Executor.sol";
 import "./IGovernor.sol";
 import "../utils/ExecutorControlled.sol";
@@ -27,6 +28,8 @@ import "../utils/ExecutorControlled.sol";
  * _Available since v4.3._
  */
 abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGovernor {
+
+    VotesProvisioner internal immutable _token;
 
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
     using SafeCast for uint256;
@@ -131,14 +134,17 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      * @dev Sets the value for {name} and {version}
      */
     constructor(
-        Executor executor_
-    ) EIP712(name(), version()) ExecutorControlled(executor_) { }
+        Executor executor_,
+        VotesProvisioner token_
+    ) EIP712(name(), version()) ExecutorControlled(executor_) {
+        _token = token_;
+    }
 
     /**
-     * @dev Function to receive ETH that will be handled by the governor (disabled if executor is a third party contract)
+     * @notice Returns the address of the token contract used for keeping a tally of votes
      */
-    receive() external payable virtual {
-        require(executor() == address(this));
+    function token() public view returns (address) {
+        return address(_token);
     }
 
     /**
@@ -206,7 +212,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      * @dev Part of the Governor Bravo's interface: _"The number of votes required in order for a voter to become a proposer"_.
      */
     function proposalThreshold() public view virtual returns (uint256) {
-        return 0;
+        return 1;
     }
 
     /**
@@ -321,6 +327,13 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         require(targets.length == calldatas.length, "Governor: invalid proposal length");
         require(targets.length == signatures.length, "Governor: invalid proposal length");
 
+        if (_token.provisionMode() == IVotesProvisioner.ProvisionModes.Founding) {
+            require(
+                targets[0] == address(_token) && bytes4(calldatas[0]) == _token.setProvisionMode.selector,
+                "Governor: Cannot propose additional actions until the token's provision mode is upgraded from founding mode"
+            );
+        }
+
         // Verify the human-readable function signatures
         // Fail if calldata is included BUT the function signature doesn't match the calldata function identifier
         for (uint256 i = 0; i < signatures.length; ++i) {
@@ -336,16 +349,13 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         proposalCount++;
         uint256 newProposalId = proposalCount;
 
-        // Generate actionsHash for later reference
-        uint256 actionsHash = hashProposalActions(newProposalId, targets, values, calldatas);
-
         // Generate voting periods
         uint256 snapshot = currentTimepoint + votingDelay();
         uint256 deadline = snapshot + votingPeriod();
 
         _proposals[newProposalId] = ProposalCore({
             proposalId: newProposalId,
-            actionsHash: actionsHash,
+            actionsHash: hashProposalActions(newProposalId, targets, values, calldatas),
             proposer: proposer,
             voteStart: snapshot.toUint64(),
             voteEnd: deadline.toUint64(),
