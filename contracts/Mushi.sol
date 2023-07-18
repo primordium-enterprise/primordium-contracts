@@ -15,12 +15,12 @@ contract Mushi is PermitWithdraw, ETHVotesProvisioner {
 
     constructor(
         Treasurer executor_,
-        uint256 initialMaxSupply,
-        TokenPrice memory initialTokenPrice
+        uint256 maxSupply_,
+        TokenPrice memory tokenPrice_
     )
         ERC20Permit(TOKEN_NAME)
         ERC20Checkpoints(TOKEN_NAME, TOKEN_SYMBOL)
-        ETHVotesProvisioner(executor_, initialMaxSupply, initialTokenPrice)
+        ETHVotesProvisioner(executor_, maxSupply_, tokenPrice_)
     {}
 
 }

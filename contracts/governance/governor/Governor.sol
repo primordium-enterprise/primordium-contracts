@@ -29,6 +29,12 @@ import "../utils/ExecutorControlled.sol";
  */
 abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGovernor {
 
+    /**
+     * @notice The minimum supply of vote tokens that must be in circulation before proposals to enter governance mode
+     * can be submitted.
+     */
+    uint256 public immutable governanceThreshold;
+
     VotesProvisioner internal immutable _token;
 
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
@@ -135,9 +141,11 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      */
     constructor(
         Executor executor_,
-        VotesProvisioner token_
+        VotesProvisioner token_,
+        uint256 governanceThreshold_
     ) EIP712(name(), version()) ExecutorControlled(executor_) {
         _token = token_;
+        governanceThreshold = governanceThreshold_;
     }
 
     /**
@@ -328,6 +336,10 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         require(targets.length == signatures.length, "Governor: invalid proposal length");
 
         if (_token.provisionMode() == IVotesProvisioner.ProvisionModes.Founding) {
+            require(
+                _token.totalSupply() >= governanceThreshold,
+                "Governor: Not enough votes to enter governance"
+            );
             require(
                 targets[0] == address(_token) && bytes4(calldatas[0]) == _token.setProvisionMode.selector,
                 "Governor: Cannot propose additional actions until the token's provision mode is upgraded from founding mode"

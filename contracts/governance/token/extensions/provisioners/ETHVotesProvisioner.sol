@@ -9,9 +9,9 @@ abstract contract ETHVotesProvisioner is VotesProvisioner {
 
     constructor(
         Treasurer executor_,
-        uint256 initialMaxSupply,
-        TokenPrice memory initialTokenPrice
-    ) VotesProvisioner(executor_, initialMaxSupply, initialTokenPrice, IERC20(address(0))) {
+        uint256 maxSupply_,
+        TokenPrice memory tokenPrice_
+    ) VotesProvisioner(executor_, maxSupply_, tokenPrice_, IERC20(address(0))) {
 
     }
 

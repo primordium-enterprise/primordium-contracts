@@ -10,7 +10,7 @@ abstract contract GovernanceSetup is Test {
 
     Mushi token = new Mushi(
         Treasurer(payable(address(0))),
-        10 ether,
+        10 ether / 10,
         IVotesProvisioner.TokenPrice(10, 1)
     );
 
@@ -23,6 +23,7 @@ abstract contract GovernanceSetup is Test {
     GovernorV1 governor = new GovernorV1(
         Executor(payable(address(0))),
         VotesProvisioner(address(token)),
+        1 ether / 10, // Governance threshold
         2 days / 12, // Two days in blocks
         3 days / 12, // Three Days in blocks,
         0

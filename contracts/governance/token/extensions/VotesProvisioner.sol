@@ -37,8 +37,8 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
 
     constructor(
         Treasurer executor_,
-        uint256 initialMaxSupply,
-        TokenPrice memory initialTokenPrice,
+        uint256 maxSupply_,
+        TokenPrice memory tokenPrice_,
         IERC20 baseAsset_
     ) ExecutorControlled(executor_) {
         require(address(baseAsset_) != address(this), "VotesProvisioner: cannot make itself the base asset.");
@@ -46,8 +46,8 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
             require(address(baseAsset_).isContract(), "VotesProvisioner: base asset must be a deployed contract.");
         }
         _baseAsset = baseAsset_;
-        _updateMaxSupply(initialMaxSupply);
-        _updateTokenPrice(initialTokenPrice.numerator, initialTokenPrice.denominator);
+        _updateMaxSupply(maxSupply_);
+        _updateTokenPrice(tokenPrice_.numerator, tokenPrice_.denominator);
     }
 
     /**

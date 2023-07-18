@@ -12,13 +12,14 @@ import "./governance/governor/extensions/_PlaceholderFunctions.sol";
 contract GovernorV1 is Governor, GovernorVotes, GovernorSettings, _PlaceholderFunctions {
 
     constructor(
-        Executor executor,
-        VotesProvisioner token,
+        Executor executor_,
+        VotesProvisioner token_,
+        uint256 governanceThreshold_,
         uint256 initialVotingDelay,
         uint256 initialVotingPeriod,
         uint256 initialProposalThreshold
     )
-        Governor(executor, token)
+        Governor(executor_, token_, governanceThreshold_)
         GovernorSettings(initialVotingDelay, initialVotingPeriod, initialProposalThreshold)
     { }
 
