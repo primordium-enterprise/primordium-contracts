@@ -11,7 +11,7 @@ abstract contract GovernanceSetup is Test {
     Mushi token = new Mushi(
         Treasurer(payable(address(0))),
         10 ether,
-        VotesProvisioner.TokenPrice(10, 1)
+        IVotesProvisioner.TokenPrice(10, 1)
     );
 
     PrimordiumExecutor executor = new PrimordiumExecutor(

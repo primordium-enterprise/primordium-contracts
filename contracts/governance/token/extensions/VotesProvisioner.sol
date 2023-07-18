@@ -5,6 +5,7 @@
 pragma solidity ^0.8.0;
 
 import "../Votes.sol";
+import "./IVotesProvisioner.sol";
 import "../../executor/extensions/Treasurer.sol";
 import "../../utils/ExecutorControlled.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -24,59 +25,15 @@ uint256 constant COMPARE_FRACTIONS_MULTIPLIER = 1_000;
  *
  * Anyone can mint vote tokens in exchange for the DAO's base asset. Any member can withdraw pro rata.
  */
-abstract contract VotesProvisioner is Votes, ExecutorControlled {
-
-    enum ProvisionModes {
-        Founding, // Initial mode for tokens, allows deposits/withdrawals at all times
-        Governance, // No deposits allowed during Governance mode
-        Funding // deposits/withdrawals are fully allowed during Funding mode
-    }
+abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControlled {
 
     ProvisionModes private _provisionMode;
 
     uint256 internal _maxSupply;
 
-    struct TokenPrice {
-        uint128 numerator; // Minimum amount of base asset tokens required to mint {denominator} amount of votes.
-        uint128 denominator; // Number of votes that can be minted per {numerator} count of base asset.
-    }
     TokenPrice private _tokenPrice = TokenPrice(1, 1); // Defaults to 1 to 1
 
     IERC20 internal immutable _baseAsset; // The address for the DAO's base asset (address(0) for ETH)
-
-    /**
-     * @notice Emitted when the max supply of votes is updated.
-     * @param prevMaxSupply The previous max supply.
-     * @param newMaxSupply The new max supply.
-     */
-    event MaxSupplyChange(uint256 prevMaxSupply, uint256 newMaxSupply);
-
-    /**
-     * @notice Emitted when the tokenPrice is updated.
-     */
-    event TokenPriceChange(
-        uint256 prevNumerator,
-        uint256 newNumerator,
-        uint256 prevDenominator,
-        uint256 newDenominator
-    );
-
-    /**
-     * @notice Emitted when a deposit is made and tokens are minted.
-     * @param account The account address that votes were minted to.
-     * @param amountDeposited The amount of the base asset transferred to the Executor as a deposit.
-     * @param votesMinted The amount of vote tokens minted to the account.
-     */
-    event Deposit(address indexed account, uint256 amountDeposited, uint256 votesMinted);
-
-    /**
-     * @notice Emitted when a withdrawal is made and tokens are burned.
-     * @param account The account address that votes were burned for.
-     * @param receiver The receiver address that the withdrawal was sent to.
-     * @param amountWithdrawn The amount of base asset tokens trånsferred from the Executor as a withdrawal.
-     * @param votesBurned The amount of vote tokens burned from the account.
-     */
-    event Withdrawal(address indexed account, address receiver, uint256 amountWithdrawn, uint256 votesBurned);
 
     constructor(
         Treasurer executor_,
@@ -94,10 +51,35 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
     }
 
     /**
+     * @notice Function to get the current provision mode of the token.
+     */
+    function provisionMode() public view virtual returns(ProvisionModes) {
+        return _provisionMode;
+    }
+
+    /**
+     * @notice Executor-only function to update the provision mode.
+     */
+    function setProvisionMode(ProvisionModes mode) public virtual onlyExecutor {
+        _setProvisionMode(mode);
+    }
+
+    /**
+     * @dev Internal function to set the provision mode.
+     */
+    function _setProvisionMode(ProvisionModes mode) internal virtual {
+        require(mode > ProvisionModes.Founding, "VotesProvisioner: cannot set the provision mode to founding mode");
+        ProvisionModes currentMode = _provisionMode;
+        require(mode != currentMode, "VotesProvisioner: provision mode is already equal to the provided mode");
+        emit ProvisionModeChange(currentMode, mode);
+        _provisionMode = mode;
+    }
+
+    /**
      * @notice Function to get the current max supply of vote tokens available for minting.
      * @dev Overrides to use the updateable _maxSupply
      */
-    function maxSupply() public view virtual override(ERC20Checkpoints) returns (uint256) {
+    function maxSupply() public view virtual override(ERC20Checkpoints, IVotesProvisioner) returns (uint256) {
         return _maxSupply;
     }
 
@@ -124,7 +106,7 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
     /**
      * @notice Returns the address of the base asset (or address(0) if the base asset is ETH)
      */
-    function baseAsset() public view returns(address) {
+    function baseAsset() public view returns (address) {
         return address(_baseAsset);
     }
 
@@ -133,7 +115,7 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
      *
      * The {numerator} is the minimum amount of the base asset tokens required to mint {denominator} amount of votes.
      */
-    function tokenPrice() public view returns(uint128, uint128) {
+    function tokenPrice() public view returns (uint128, uint128) {
         return (_tokenPrice.numerator, _tokenPrice.denominator);
     }
 
@@ -176,16 +158,16 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
         emit TokenPriceChange(prevNumerator, newNumerator, prevDenominator, newDenominator);
     }
 
-    function valuePerToken() public view returns(uint256) {
+    function valuePerToken() public view returns (uint256) {
         return _valuePerToken(1);
     }
 
-    function _valuePerToken(uint256 multiplier) internal view returns(uint256) {
+    function _valuePerToken(uint256 multiplier) internal view returns (uint256) {
         uint256 supply = totalSupply();
         return supply > 0 ? _treasuryBalance() * multiplier / supply : 0;
     }
 
-    function _valueAndRemainderPerToken(uint256 multiplier) internal view returns(uint256, uint256) {
+    function _valueAndRemainderPerToken(uint256 multiplier) internal view returns (uint256, uint256) {
         uint256 supply = totalSupply();
         uint256 balance = _treasuryBalance();
         return supply > 0 ?
@@ -200,7 +182,7 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
      * @dev Internal function that measures the balance of the base asset in the Executor (needs to be overridden to
      * measure the chosen base asset properly)
      */
-    function _treasuryBalance() internal view virtual returns(uint256);
+    function _treasuryBalance() internal view virtual returns (uint256);
 
     /**
      * @notice Allows exchanging the depositAmount of base asset for votes (if votes are available for purchase).
@@ -210,14 +192,14 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
      * @dev This is abstract, and should be overridden to provide functionality based on the _baseAsset (ETH vs ERC20)
      * @return Amount of vote tokens minted.
      */
-    function depositFor(address account, uint256 depositAmount) public payable virtual returns(uint256);
+    function depositFor(address account, uint256 depositAmount) public payable virtual returns (uint256);
 
     /**
      * @notice Calls {depositFor} with msg.sender as the account.
      * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for every
      * tokenPrice.numerator count of base asset tokens.
      */
-    function deposit(uint256 depositAmount) public payable virtual returns(uint256) {
+    function deposit(uint256 depositAmount) public payable virtual returns (uint256) {
         return depositFor(_msgSender(), depositAmount);
     }
 
@@ -235,7 +217,7 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
      * @dev Internal function for processing the deposit. Calls _transferDepositToExecutor, which must be implemented in
      * an inheriting contract.
      */
-    function _depositFor(address account, uint256 depositAmount) internal virtual returns(uint256) {
+    function _depositFor(address account, uint256 depositAmount) internal virtual returns (uint256) {
         require(_provisionMode != ProvisionModes.Governance, "VotesProvisioner: Deposits are not available.");
         require(account != address(0));
         require(depositAmount >= 0, "VotesProvisioner: Amount of base asset must be greater than zero.");
@@ -270,7 +252,7 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
      * @param amount The amount of vote tokens to be burned.
      * @return The amount of base asset withdrawn.
      */
-    function withdrawTo(address receiver, uint256 amount) public virtual returns(uint256) {
+    function withdrawTo(address receiver, uint256 amount) public virtual returns (uint256) {
         return _withdraw(_msgSender(), receiver, amount);
     }
 
@@ -280,7 +262,7 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
      * @param amount The amount of vote tokens to be burned.
      * @return The amount of base asset withdrawn.
      */
-    function withdraw(uint256 amount) public virtual returns(uint256) {
+    function withdraw(uint256 amount) public virtual returns (uint256) {
         return _withdraw(_msgSender(), _msgSender(), amount);
     }
 
@@ -303,7 +285,7 @@ abstract contract VotesProvisioner is Votes, ExecutorControlled {
     /**
      * @dev Internal function for returning the executor address wrapped as the Treasurer contract.
      */
-    function _getTreasurer() internal view returns(Treasurer) {
+    function _getTreasurer() internal view returns (Treasurer) {
         return Treasurer(payable(address(_executor)));
     }
 
