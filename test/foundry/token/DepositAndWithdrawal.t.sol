@@ -49,30 +49,11 @@ contract DepositAndWithdrawal is Test, TestAccountsSetup {
     }
 
     function test_PermitWithdraw() public {
-        uint256 pk = vm.deriveKey("test test test test test test test test test test test junk", 0);
-        address a = vm.addr(pk);
+        (uint256 pk, address a) = _generateTestPrivateKey();
         uint256 n = 1 ether;
         token.depositFor{ value: 1 ether}(a);
         assertEq(token.balanceOf(a), _expectedTokenBalance(n));
 
-        // Test the withdrawal permit
-        (
-            ,
-            string memory name,
-            string memory version,
-            uint256 chainId,
-            address verifyingContract,
-            ,
-        ) = token.eip712Domain();
-        bytes32 domainSeparator = keccak256(
-            abi.encode(
-                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"), // TYPE HASH
-                keccak256(bytes(name)),
-                keccak256(bytes(version)),
-                chainId,
-                verifyingContract
-            )
-        );
         uint256 deadline = block.timestamp + 1 days;
         uint256 amount = token.balanceOf(a) / 2;
         bytes32 structHash = keccak256(
@@ -85,7 +66,7 @@ contract DepositAndWithdrawal is Test, TestAccountsSetup {
                 deadline
             )
         );
-        bytes32 dataHash = ECDSA.toTypedDataHash(domainSeparator, structHash);
+        bytes32 dataHash = ECDSA.toTypedDataHash(_generateEIP712DomainSeperator(), structHash);
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, dataHash);
         token.permitWithdraw(

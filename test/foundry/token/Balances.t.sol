@@ -70,4 +70,10 @@ contract Balances is Test, TestAccountsSetup {
         assertEq(token.getPastTotalSupply(block.number - 2), supply1);
     }
 
+    function testFail_TransferTooMuch() public {
+        uint256 a1Balance = token.balanceOf(a1);
+        vm.prank(a1);
+        token.transfer(a2, a1Balance + 1);
+    }
+
 }

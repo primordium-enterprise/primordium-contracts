@@ -31,9 +31,36 @@ contract TestAccountsSetup is Test, GovernanceSetup {
         token.depositFor(a4); // Should deposit 0
     }
 
-     function _expectedTokenBalance(uint256 baseAssetAmount) internal view returns(uint256) {
+    function _expectedTokenBalance(uint256 baseAssetAmount) internal view returns(uint256) {
         (uint256 num, uint256 denom) = token.tokenPrice();
         return baseAssetAmount / num * denom;
+    }
+
+    function _generateTestPrivateKey() internal pure returns(uint256 pk, address a) {
+        pk = vm.deriveKey("test test test test test test test test test test test junk", 0);
+        a = vm.addr(pk);
+        return (pk, a);
+    }
+
+    function _generateEIP712DomainSeperator() internal view returns(bytes32) {
+        (
+            ,
+            string memory name,
+            string memory version,
+            uint256 chainId,
+            address verifyingContract,
+            ,
+        ) = token.eip712Domain();
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"), // TYPE HASH
+                keccak256(bytes(name)),
+                keccak256(bytes(version)),
+                chainId,
+                verifyingContract
+            )
+        );
+        return domainSeparator;
     }
 
 }
