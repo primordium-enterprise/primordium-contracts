@@ -121,30 +121,30 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
 
     /**
      * @notice Public function to update the token price. Only the executor can make an update to the token price.
-     * @param numerator The new numerator value (the amount of base asset required for {denominator} amount of votes).
+     * @param newNumerator The new numerator value (the amount of base asset required for {denominator} amount of votes).
      * Set to zero to keep the numerator the same.
-     * @param denominator The new denominator value (the amount of votes minted for every {numerator} amount of the base
+     * @param newDenominator The new denominator value (the amount of votes minted for every {numerator} amount of the base
      * asset). Set to zero to keep the denominator the same.
      */
-    function updateTokenPrice(uint256 numerator, uint256 denominator) public virtual onlyExecutor {
-        _updateTokenPrice(numerator, denominator);
+    function updateTokenPrice(uint256 newNumerator, uint256 newDenominator) public virtual onlyExecutor {
+        _updateTokenPrice(newNumerator, newDenominator);
     }
 
     /**
      * @notice Public function to update the token price numerator. Only executor can update.
-     * @param numerator The new numerator value (the amount of base asset required for {denominator} amount of votes).
+     * @param newNumerator The new numerator value (the amount of base asset required for {denominator} amount of votes).
      */
-    function updateTokenPriceNumerator(uint256 numerator) public virtual onlyExecutor {
-        _updateTokenPrice(numerator, 0);
+    function updateTokenPriceNumerator(uint256 newNumerator) public virtual onlyExecutor {
+        _updateTokenPrice(newNumerator, 0);
     }
 
     /**
      * @notice Public function to update the token price. Only executor can update.
-     * @param denominator The new denominator value (the amount of votes minted for every {numerator} amount of the base
+     * @param newDenominator The new denominator value (the amount of votes minted for every {numerator} amount of the base
      * asset).
      */
-    function updateTokenPriceDenominator(uint256 denominator) public virtual onlyExecutor {
-        _updateTokenPrice(0, denominator);
+    function updateTokenPriceDenominator(uint256 newDenominator) public virtual onlyExecutor {
+        _updateTokenPrice(0, newDenominator);
     }
 
     /**
