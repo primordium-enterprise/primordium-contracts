@@ -12,6 +12,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 
 using SafeMath for uint256;
 using Address for address;
@@ -153,7 +154,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      */
     function _updateTokenPrice(uint256 newNumerator, uint256 newDenominator) private {
         require(newNumerator <= 10e8, "VotesProvisioner: Numerator must be no greater than 10e8");
-        require(newDenominator <= 10e3, "VotesProvisioner: Denominator must be no greater than 10e3");
+        require(newDenominator <= 10e8, "VotesProvisioner: Denominator must be no greater than 10e3");
         uint256 prevNumerator = _tokenPrice.numerator;
         uint256 prevDenominator = _tokenPrice.denominator;
         if (newNumerator > 0) {
@@ -171,7 +172,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
 
     function _valuePerToken(uint256 multiplier) internal view returns (uint256) {
         uint256 supply = totalSupply();
-        return supply > 0 ? _treasuryBalance() * multiplier / supply : 0;
+        return supply > 0 ? Math.mulDiv(_treasuryBalance(), multiplier, supply) : 0;
     }
 
     function _valueAndRemainderPerToken(uint256 multiplier) internal view returns (uint256, uint256) {
