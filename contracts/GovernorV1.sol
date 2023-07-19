@@ -5,21 +5,29 @@ pragma solidity ^0.8.0;
 
 import "./governance/executor/Executor.sol";
 import "./governance/governor/Governor.sol";
-import "./governance/governor/extensions/GovernorVotes.sol";
+import "./governance/governor/extensions/GovernorVotesQuorumFraction.sol";
 import "./governance/governor/extensions/GovernorSettings.sol";
 import "./governance/governor/extensions/_PlaceholderFunctions.sol";
 
-contract GovernorV1 is Governor, GovernorVotes, GovernorSettings, _PlaceholderFunctions {
+contract GovernorV1 is
+    Governor,
+    GovernorVotes,
+    GovernorVotesQuorumFraction,
+    GovernorSettings,
+    _PlaceholderFunctions
+{
 
     constructor(
         Executor executor_,
         VotesProvisioner token_,
         uint256 governanceThreshold_,
+        uint256 initialQuorumNumerator,
         uint256 initialVotingDelay,
         uint256 initialVotingPeriod,
         uint256 initialProposalThreshold
     )
         Governor(executor_, token_, governanceThreshold_)
+        GovernorVotesQuorumFraction(initialQuorumNumerator)
         GovernorSettings(initialVotingDelay, initialVotingPeriod, initialProposalThreshold)
     { }
 

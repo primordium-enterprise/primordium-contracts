@@ -19,10 +19,6 @@ abstract contract _PlaceholderFunctions is Governor {
 
     function _voteSucceeded(uint256 proposalId) internal view override returns(bool) { return false; }
 
-    function quorum(
-        uint256 timepoint
-    ) public view virtual override returns (uint256) { return timepoint; }
-
     function hasVoted(
         uint256 proposalId,
         address account
