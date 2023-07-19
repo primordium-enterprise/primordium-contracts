@@ -18,34 +18,34 @@ interface IVotesProvisioner {
 
     /**
      * @notice Emitted when provisionMode is updated.
-     * @param prevMode The previous provision mode.
+     * @param oldMode The previous provision mode.
      * @param newMode The new provision mode.
      */
     event ProvisionModeChange(
-        ProvisionModes prevMode,
+        ProvisionModes oldMode,
         ProvisionModes newMode
     );
 
     /**
      * @notice Emitted when the tokenPrice is updated.
-     * @param prevNumerator Previous numerator before the update.
+     * @param oldNumerator Previous numerator before the update.
      * @param newNumerator The new minimum amount of base asset tokens required to mint {denominator} amount of votes.
-     * @param prevDenominator The previous denominator before the update.
+     * @param oldDenominator The previous denominator before the update.
      * @param newDenominator The new number of votes that can be minted per {numerator} count of base asset.
      */
     event TokenPriceChange(
-        uint256 prevNumerator,
+        uint256 oldNumerator,
         uint256 newNumerator,
-        uint256 prevDenominator,
+        uint256 oldDenominator,
         uint256 newDenominator
     );
 
     /**
      * @notice Emitted when the max supply of votes is updated.
-     * @param prevMaxSupply The previous max supply.
+     * @param oldMaxSupply The previous max supply.
      * @param newMaxSupply The new max supply.
      */
-    event MaxSupplyChange(uint256 prevMaxSupply, uint256 newMaxSupply);
+    event MaxSupplyChange(uint256 oldMaxSupply, uint256 newMaxSupply);
 
     /**
      * @notice Emitted when a deposit is made and tokens are minted.
