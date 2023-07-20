@@ -17,24 +17,24 @@ abstract contract GovernorSettings is Governor {
     event ProposalThresholdSet(uint256 oldProposalThreshold, uint256 newProposalThreshold);
 
     uint256 private _votingDelay;
-    /// @notice The minimum setable voting delay
-    uint256 public constant MIN_VOTING_DELAY = 1;
-    /// @notice The maximum setable voting delay, set to approximately 1 week
-    uint256 public immutable MAX_VOTING_DELAY;
+    /// @notice The minimum setable voting delay, set to 1.
+    uint128 public constant MIN_VOTING_DELAY = 1;
+    /// @notice The maximum setable voting delay, set to approximately 1 week.
+    uint128 public immutable MAX_VOTING_DELAY;
     event VotingDelaySet(uint256 oldVotingDelay, uint256 newVotingDelay);
 
     uint256 private _votingPeriod;
-    /// @notice The minimum setable voting period, set to approximately 24 hours
-    uint256 public immutable MIN_VOTING_PERIOD;
-    /// @notice The maximum setable voting period, set to approximately 2 weeks
-    uint256 public immutable MAX_VOTING_PERIOD;
+    /// @notice The minimum setable voting period, set to approximately 24 hours.
+    uint128 public immutable MIN_VOTING_PERIOD;
+    /// @notice The maximum setable voting period, set to approximately 2 weeks.
+    uint128 public immutable MAX_VOTING_PERIOD;
     event VotingPeriodSet(uint256 oldVotingPeriod, uint256 newVotingPeriod);
 
     /**
      * @dev Initialize the governance parameters.
      */
     constructor(uint256 initialVotingDelay, uint256 initialVotingPeriod, uint256 initialProposalThreshold) {
-        // Initialize immutables
+        // Initialize immutables based on clock (assumes seconds if not block number)
         bool usesBlockNumber = clock() == block.number;
         MAX_VOTING_DELAY = usesBlockNumber ?
             50_400 : // About 1 week at 12sec/block
