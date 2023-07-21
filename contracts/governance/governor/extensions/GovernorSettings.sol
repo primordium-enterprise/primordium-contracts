@@ -18,16 +18,16 @@ abstract contract GovernorSettings is Governor {
 
     uint256 private _votingDelay;
     /// @notice The minimum setable voting delay, set to 1.
-    uint128 public constant MIN_VOTING_DELAY = 1;
+    uint256 public constant MIN_VOTING_DELAY = 1;
     /// @notice The maximum setable voting delay, set to approximately 1 week.
-    uint128 public immutable MAX_VOTING_DELAY;
+    uint256 public immutable MAX_VOTING_DELAY;
     event VotingDelaySet(uint256 oldVotingDelay, uint256 newVotingDelay);
 
     uint256 private _votingPeriod;
     /// @notice The minimum setable voting period, set to approximately 24 hours.
-    uint128 public immutable MIN_VOTING_PERIOD;
+    uint256 public immutable MIN_VOTING_PERIOD;
     /// @notice The maximum setable voting period, set to approximately 2 weeks.
-    uint128 public immutable MAX_VOTING_PERIOD;
+    uint256 public immutable MAX_VOTING_PERIOD;
     event VotingPeriodSet(uint256 oldVotingPeriod, uint256 newVotingPeriod);
 
     /**
