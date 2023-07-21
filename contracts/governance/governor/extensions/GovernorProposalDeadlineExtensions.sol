@@ -4,7 +4,9 @@
 pragma solidity ^0.8.0;
 
 import "../Governor.sol";
+import "./GovernorCountingSimple.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @dev A module to extend the deadline for controversial votes. The extension amount for each vote is dynamically
@@ -15,6 +17,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
  * give other DAO members time to react.
  * - The deadline extension amount decays exponentially as the proposal moves further past its original deadline to
  * prevent infinite delays and/or DoS for the outcome.
+ * - Only extends the vote if a quorum has been reached.
  *
  * This is designed as a dynamic protection mechanism against "Vote Sniping," where the outcome of a low activity
  * proposal is flipped at the last minute by a heavy swing vote, without leaving time for additional voters to react.
@@ -22,7 +25,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
  * Through the governance process, the DAO can set the baseDeadlineExtension, the decayPeriod, and the percentDecay values.
  *
  */
-abstract contract GovernorProposalDeadlineExtensions is Governor {
+abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
 
     /**
      * @notice The absolute max amount that the deadline can be extended by, set to approximately 2 weeks.
@@ -58,11 +61,15 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
         uint64 originalDeadline;
         uint64 extendedBy;
         uint64 currentDeadline;
-        uint64 __gap_unused;
+        bool quorumReached;
     }
 
     // Tracking the deadlines for a proposal
     mapping(uint256 => DeadlineData) private _deadlineDatas;
+
+    /// @dev The fraction multiple used in the vote weight calculation
+    uint256 constant FRACTION_MULTIPLE = 1000;
+    uint256 constant FRACTION_MULTIPLE_MAX = FRACTION_MULTIPLE * 5 / 4; // Max 1.25 multiple on the vote weight
 
     constructor() {
         // Initialize immutables based on clock (assumes seconds if not block number)
@@ -80,6 +87,8 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
             7_200 : // About 1 day at 12sec/block
             1 days;
     }
+
+    event ProposalExtended(uint256 indexed proposalId, uint256 extendedDeadline);
 
     /**
      * @notice The current max extension period for any given proposal. The voting period cannot be extended past the
@@ -194,14 +203,61 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
         }
 
         // Retrieve the existing deadline data
-        DeadlineData memory deadlineData = _deadlineDatas[proposalId];
+        DeadlineData memory dd = _deadlineDatas[proposalId];
 
         // If extension is already maxxed out, no further updates needed
-        if (deadlineData.extendedBy >= maxDeadlineExtension_) {
-            return weight;
+        if (dd.extendedBy >= maxDeadlineExtension_) return weight;
+
+        // Initialize the struct if it hasn't been initialized yet
+        uint256 currentTimepoint = clock();
+        if (dd.originalDeadline == 0) {
+            dd.originalDeadline = SafeCast.toUint64(super.proposalDeadline(proposalId));
+            dd.currentDeadline = dd.originalDeadline;
         }
 
-        // CHECK IF
+        // Calculate the extension, and update the extension (if applicable)
+        uint256 distanceFromDeadline = dd.currentDeadline - currentTimepoint;
+
+        // We can return if we are outside the range of the base extension amount
+        if (distanceFromDeadline >= baseDeadlineExtension_) return weight;
+
+        // If quorum wasn't reached last time, check again
+        if (!dd.quorumReached) {
+            dd.quorumReached = _quorumReached(proposalId);
+            // If quorum still hasn't been reached, skip the calculation and return
+            if (!dd.quorumReached) return weight;
+        }
+
+        (uint256 againstVotes, uint256 forVotes) = _proposalCountedVotes(proposalId);
+
+        // Zero if original deadline is still in the future
+        uint256 distancePastDeadline = currentTimepoint > dd.originalDeadline ?
+            currentTimepoint - dd.originalDeadline :
+            0;
+
+        uint256 extend = baseDeadlineExtension_;
+        // Extend amount decays past the original deadline
+        if (distancePastDeadline > 0) {
+            uint256 periodsElapsed = distancePastDeadline / decayPeriod_;
+            extend = ( baseDeadlineExtension_ * inversePercentDecay_ ** periodsElapsed) / ( 100 ** periodsElapsed );
+        }
+
+        uint256 extendBy = ( extend - distanceFromDeadline ) * Math.max(
+            (
+                weight * FRACTION_MULTIPLE / (
+                    ( forVotes > againstVotes ? forVotes - againstVotes : againstVotes - forVotes ) + 1
+                )
+            ),
+            FRACTION_MULTIPLE_MAX
+        ) / FRACTION_MULTIPLE;
+
+        // Update extended by with the extension value, maxing out at the max deadline extension
+        dd.extendedBy += SafeCast.toUint64(Math.max(extendBy, maxDeadlineExtension_));
+        // Update the new deadline
+        dd.currentDeadline = dd.originalDeadline + dd.extendedBy;
+
+        // Set in storage
+        _deadlineDatas[proposalId] = dd;
 
         return weight;
 

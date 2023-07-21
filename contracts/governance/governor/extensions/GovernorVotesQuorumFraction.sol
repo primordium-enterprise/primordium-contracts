@@ -12,6 +12,8 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
  * @dev Extension of {Governor} for voting weight extraction from an {ERC20Votes} token and a quorum expressed as a
  * fraction of the total supply.
  *
+ * The DAO can set the {quorumNumerator} to zero to allow any vote to pass without a quorum.
+ *
  * _Available since v4.3._
  */
 abstract contract GovernorVotesQuorumFraction is GovernorVotes {
@@ -65,6 +67,11 @@ abstract contract GovernorVotesQuorumFraction is GovernorVotes {
      * @dev Returns the quorum for a timepoint, in terms of number of votes: `supply * numerator / denominator`.
      */
     function quorum(uint256 timepoint) public view virtual override returns (uint256) {
+        // Check for zero numerator to save gas
+        uint256 numerator = quorumNumerator(timepoint);
+        if (numerator == 0) {
+            return 0;
+        }
         return (_token.getPastTotalSupply(timepoint) * quorumNumerator(timepoint)) / quorumDenominator();
     }
 
