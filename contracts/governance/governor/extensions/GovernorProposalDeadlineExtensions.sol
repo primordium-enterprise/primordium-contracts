@@ -11,13 +11,15 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 /**
  * @dev A module to extend the deadline for controversial votes. The extension amount for each vote is dynamically
  * computed, taking several parameters into account, such as:
+ * - Only extends the deadline if a quorum has been reached.
+ * - Only extends if the vote is taking place close to the current deadline.
  * - If the vote is particularly influential to the outcome of the vote, this will weight towards a longer deadline
  * extension.
  * - If the vote takes place close to the current deadline, this will also weight towards a longer deadline extension to
  * give other DAO members time to react.
  * - The deadline extension amount decays exponentially as the proposal moves further past its original deadline to
  * prevent infinite delays and/or DoS for the outcome.
- * - Only extends the vote if a quorum has been reached.
+
  *
  * This is designed as a dynamic protection mechanism against "Vote Sniping," where the outcome of a low activity
  * proposal is flipped at the last minute by a heavy swing vote, without leaving time for additional voters to react.
@@ -67,6 +69,8 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
     // Tracking the deadlines for a proposal
     mapping(uint256 => DeadlineData) private _deadlineDatas;
 
+    event ProposalExtended(uint256 indexed proposalId, uint256 extendedDeadline);
+
     /// @dev The fraction multiple used in the vote weight calculation
     uint256 constant FRACTION_MULTIPLE = 1000;
     uint256 constant FRACTION_MULTIPLE_MAX = FRACTION_MULTIPLE * 5 / 4; // Max 1.25 multiple on the vote weight
@@ -88,7 +92,6 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
             1 days;
     }
 
-    event ProposalExtended(uint256 indexed proposalId, uint256 extendedDeadline);
 
     /**
      * @notice The current max extension period for any given proposal. The voting period cannot be extended past the
@@ -144,6 +147,7 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
 
     function _updateDecayPeriod(uint256 newDecayPeriod) internal {
         require(newDecayPeriod <= MAX_DECAY_PERIOD, "decayPeriod too large");
+        require(newDecayPeriod > 0, "decayPeriod must be greater than zero");
         emit DecayPeriodSet(_decayPeriod, newDecayPeriod);
         // SafeCast unnecessary here as long as the MAX_DECAY_PERIOD is less than type(uint64).max
         _decayPeriod = uint64(newDecayPeriod);
@@ -162,6 +166,7 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
 
     function _updatePercentDecay(uint256 newPercentDecay) internal {
         require(newPercentDecay <= MAX_PERCENT_DECAY, "percentDecay must be no greater than 100%");
+        require(newPercentDecay > 0, "percentDecay must be greater than 0%");
         uint256 newInversePercentDecay = MAX_PERCENT_DECAY - newPercentDecay;
         emit PercentDecaySet(MAX_PERCENT_DECAY - _inversePercentDecay, newInversePercentDecay);
         // SafeCast unnecessary here as long as the MAX_PERCENT_DECAY is less than type(uint64).max
@@ -240,9 +245,11 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
         if (distancePastDeadline > 0) {
             uint256 periodsElapsed = distancePastDeadline / decayPeriod_;
             extend = ( baseDeadlineExtension_ * inversePercentDecay_ ** periodsElapsed) / ( 100 ** periodsElapsed );
+            // Check again for distance from the deadline. If extend is too small, just return.
+            if (distanceFromDeadline >= extend) return weight;
         }
 
-        uint256 extendBy = ( extend - distanceFromDeadline ) * Math.max(
+        uint256 extendBy = ( extend - distanceFromDeadline ) * Math.min(
             (
                 weight * FRACTION_MULTIPLE / (
                     ( forVotes > againstVotes ? forVotes - againstVotes : againstVotes - forVotes ) + 1
@@ -251,13 +258,20 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
             FRACTION_MULTIPLE_MAX
         ) / FRACTION_MULTIPLE;
 
-        // Update extended by with the extension value, maxing out at the max deadline extension
-        dd.extendedBy += SafeCast.toUint64(Math.max(extendBy, maxDeadlineExtension_));
-        // Update the new deadline
-        dd.currentDeadline = dd.originalDeadline + dd.extendedBy;
+        if (extendBy > 0) {
 
-        // Set in storage
-        _deadlineDatas[proposalId] = dd;
+            // Update extended by with the extension value, maxing out at the max deadline extension
+            dd.extendedBy += SafeCast.toUint64(Math.max(extendBy, maxDeadlineExtension_));
+            // Update the new deadline
+            dd.currentDeadline = dd.originalDeadline + dd.extendedBy;
+
+            // Set in storage
+            _deadlineDatas[proposalId] = dd;
+
+            // Emit the event
+            emit ProposalExtended(proposalId, dd.currentDeadline);
+
+        }
 
         return weight;
 
