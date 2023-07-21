@@ -24,8 +24,21 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
  * This is designed as a dynamic protection mechanism against "Vote Sniping," where the outcome of a low activity
  * proposal is flipped at the last minute by a heavy swing vote, without leaving time for additional voters to react.
  *
- * Through the governance process, the DAO can set the baseDeadlineExtension, the decayPeriod, and the percentDecay values.
+ * Through the governance process, the DAO can set the baseDeadlineExtension, the decayPeriod, and the percentDecay
+ * values. This allows fine-tuning the exponential decay of the baseDeadlineExtension amount as a vote moves past the
+ * original proposal deadline (to prevent votes from being filibustered forever by constant voting).
  *
+ * The exponential decay of the baseDeadlineExtension follows the following formula:
+ *
+ * E = [ baseDeadlineExtension * ( 100 - percentDecay)**P ] / [ 100**P ]
+ *
+ * Where P = distancePastDeadline / decayPeriod = ( currentTimepoint - originalDeadline ) / decayPeriod
+ *
+ * Notably, if the original deadline has not been reached yet, then E = baseDeadlineExtension
+ *
+ * Finally, the actual extension amount follows the following formula for each cast vote:
+ *
+ * deadlineExtension = ( E - distanceFromDeadline ) * min(1.25, [ voteWeight / ( abs(ForVotes - AgainstVotes) + 1 ) ])
  */
 abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
 
@@ -194,7 +207,7 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
         bytes memory params
     ) internal virtual override returns(uint256) {
 
-        uint256 weight = super._castVote(proposalId, account, support, reason, params);
+        uint256 voteWeight = super._castVote(proposalId, account, support, reason, params);
 
         // Grab all four values from the slot at once to minimize storage reads
         uint256 maxDeadlineExtension_ = _maxDeadlineExtension;
@@ -204,14 +217,14 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
 
         // If maxDeadlineExtension is set to zero, then no deadline updates needed, skip to save gas
         if (maxDeadlineExtension_ == 0) {
-            return weight;
+            return voteWeight;
         }
 
         // Retrieve the existing deadline data
         DeadlineData memory dd = _deadlineDatas[proposalId];
 
         // If extension is already maxxed out, no further updates needed
-        if (dd.extendedBy >= maxDeadlineExtension_) return weight;
+        if (dd.extendedBy >= maxDeadlineExtension_) return voteWeight;
 
         // Initialize the struct if it hasn't been initialized yet
         uint256 currentTimepoint = clock();
@@ -224,13 +237,13 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
         uint256 distanceFromDeadline = dd.currentDeadline - currentTimepoint;
 
         // We can return if we are outside the range of the base extension amount
-        if (distanceFromDeadline >= baseDeadlineExtension_) return weight;
+        if (distanceFromDeadline >= baseDeadlineExtension_) return voteWeight;
 
         // If quorum wasn't reached last time, check again
         if (!dd.quorumReached) {
             dd.quorumReached = _quorumReached(proposalId);
             // If quorum still hasn't been reached, skip the calculation and return
-            if (!dd.quorumReached) return weight;
+            if (!dd.quorumReached) return voteWeight;
         }
 
         (uint256 againstVotes, uint256 forVotes) = _proposalCountedVotes(proposalId);
@@ -246,22 +259,25 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
             uint256 periodsElapsed = distancePastDeadline / decayPeriod_;
             extend = ( baseDeadlineExtension_ * inversePercentDecay_ ** periodsElapsed) / ( 100 ** periodsElapsed );
             // Check again for distance from the deadline. If extend is too small, just return.
-            if (distanceFromDeadline >= extend) return weight;
+            if (distanceFromDeadline >= extend) return voteWeight;
         }
 
-        uint256 extendBy = ( extend - distanceFromDeadline ) * Math.min(
+        // We include a FRACTION_MULTIPLE that we later divide back out to circumvent integer division issues
+        uint256 deadlineExtension = ( extend - distanceFromDeadline ) * Math.min(
+            FRACTION_MULTIPLE_MAX,
             (
-                weight * FRACTION_MULTIPLE / (
+                voteWeight * FRACTION_MULTIPLE / (
+                    // Add 1 to denominator to avoid divide by zero error
                     ( forVotes > againstVotes ? forVotes - againstVotes : againstVotes - forVotes ) + 1
                 )
-            ),
-            FRACTION_MULTIPLE_MAX
+            )
         ) / FRACTION_MULTIPLE;
 
-        if (extendBy > 0) {
+        // Only need to extend and emit if the extension is greater than 0
+        if (deadlineExtension > 0) {
 
             // Update extended by with the extension value, maxing out at the max deadline extension
-            dd.extendedBy += SafeCast.toUint64(Math.max(extendBy, maxDeadlineExtension_));
+            dd.extendedBy += SafeCast.toUint64(Math.max(deadlineExtension, maxDeadlineExtension_));
             // Update the new deadline
             dd.currentDeadline = dd.originalDeadline + dd.extendedBy;
 
@@ -273,7 +289,7 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
 
         }
 
-        return weight;
+        return voteWeight;
 
     }
 }
