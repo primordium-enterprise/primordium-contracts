@@ -39,13 +39,6 @@ abstract contract GovernorCountingSimple is Governor {
     }
 
     /**
-     * @dev Simple calls the Governor's default proposal deadline, included for extended modules
-     */
-    function proposalDeadline(uint256 proposalId) public view virtual override returns (uint256) {
-        return super.proposalDeadline(proposalId);
-    }
-
-    /**
      * @dev See {IGovernor-hasVoted}.
      */
     function hasVoted(uint256 proposalId, address account) public view virtual override returns (bool) {

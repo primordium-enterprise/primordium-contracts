@@ -7,14 +7,15 @@ import "./governance/executor/Executor.sol";
 import "./governance/governor/Governor.sol";
 import "./governance/governor/extensions/GovernorVotesQuorumFraction.sol";
 import "./governance/governor/extensions/GovernorSettings.sol";
-import "./governance/governor/extensions/_PlaceholderFunctions.sol";
+import "./governance/governor/extensions/GovernorCountingSimple.sol";
+import "./governance/governor/extensions/GovernorProposalDeadlineExtensions.sol";
 
 contract GovernorV1 is
     Governor,
     GovernorVotes,
     GovernorVotesQuorumFraction,
     GovernorSettings,
-    _PlaceholderFunctions
+    GovernorCountingSimple
 {
 
     constructor(
