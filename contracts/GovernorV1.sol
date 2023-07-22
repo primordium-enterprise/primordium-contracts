@@ -15,7 +15,8 @@ contract GovernorV1 is
     GovernorVotes,
     GovernorVotesQuorumFraction,
     GovernorSettings,
-    GovernorCountingSimple
+    GovernorCountingSimple,
+    GovernorProposalDeadlineExtensions
 {
 
     constructor(
@@ -39,6 +40,22 @@ contract GovernorV1 is
     // Overriding here is unnecessary, but included for readability
     function version() public pure override returns (string memory) {
         return "1";
+    }
+
+    function proposalDeadline(
+        uint256 proposalId
+    ) public view override(Governor, GovernorProposalDeadlineExtensions) returns (uint256) {
+        return super.proposalDeadline(proposalId);
+    }
+
+    function _castVote(
+        uint256 proposalId,
+        address account,
+        uint8 support,
+        string memory reason,
+        bytes memory params
+    ) internal override(Governor, GovernorProposalDeadlineExtensions) returns (uint256) {
+        return super._castVote(proposalId, account, support, reason, params);
     }
 
 }

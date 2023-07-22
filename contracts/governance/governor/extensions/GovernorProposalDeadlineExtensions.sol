@@ -4,7 +4,6 @@
 pragma solidity ^0.8.0;
 
 import "../Governor.sol";
-import "./GovernorCountingSimple.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -40,7 +39,7 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
  *
  * deadlineExtension = ( E - distanceFromDeadline ) * min(1.25, [ voteWeight / ( abs(ForVotes - AgainstVotes) + 1 ) ])
  */
-abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
+abstract contract GovernorProposalDeadlineExtensions is Governor {
 
     /**
      * @notice The absolute max amount that the deadline can be extended by, set to approximately 2 weeks.
@@ -186,6 +185,9 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
         _inversePercentDecay = uint64(newInversePercentDecay);
     }
 
+    /**
+     * @dev We override to provide the extended deadline (if applicable)
+     */
     function proposalDeadline(uint256 proposalId) public view virtual override returns (uint256) {
         uint256 currentDeadline = _deadlineDatas[proposalId].currentDeadline;
         // If uninitialized (no votes cast yet), return the original proposal deadline
@@ -195,8 +197,8 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
         return currentDeadline;
     }
 
-    function proposalDeadlineExtension(uint256 proposalId) public view virtual returns (uint256) {
-        return _deadlineDatas[proposalId].currentDeadline;
+    function proposalOriginalDeadline(uint256 proposalId) public view virtual returns (uint256) {
+        return Governor.proposalDeadline(proposalId);
     }
 
     function _castVote(
@@ -209,35 +211,19 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
 
         uint256 voteWeight = super._castVote(proposalId, account, support, reason, params);
 
-        // Grab all four values from the slot at once to minimize storage reads
+        // Grab the max deadline extension
         uint256 maxDeadlineExtension_ = _maxDeadlineExtension;
-        uint256 baseDeadlineExtension_ = _baseDeadlineExtension;
-        uint256 decayPeriod_ = _decayPeriod;
-        uint256 inversePercentDecay_ = _inversePercentDecay;
 
-        // If maxDeadlineExtension is set to zero, then no deadline updates needed, skip to save gas
+        // If maxDeadlineExtension is set to zero, then no deadline updates needed, skip the rest to save gas
         if (maxDeadlineExtension_ == 0) {
             return voteWeight;
         }
 
-        // Retrieve the existing deadline data
+        // Retrieve the existing deadline data for this proposal
         DeadlineData memory dd = _deadlineDatas[proposalId];
 
         // If extension is already maxxed out, no further updates needed
         if (dd.extendedBy >= maxDeadlineExtension_) return voteWeight;
-
-        // Initialize the struct if it hasn't been initialized yet
-        uint256 currentTimepoint = clock();
-        if (dd.originalDeadline == 0) {
-            dd.originalDeadline = SafeCast.toUint64(super.proposalDeadline(proposalId));
-            dd.currentDeadline = dd.originalDeadline;
-        }
-
-        // Calculate the extension, and update the extension (if applicable)
-        uint256 distanceFromDeadline = dd.currentDeadline - currentTimepoint;
-
-        // We can return if we are outside the range of the base extension amount
-        if (distanceFromDeadline >= baseDeadlineExtension_) return voteWeight;
 
         // If quorum wasn't reached last time, check again
         if (!dd.quorumReached) {
@@ -246,30 +232,57 @@ abstract contract GovernorProposalDeadlineExtensions is GovernorCountingSimple {
             if (!dd.quorumReached) return voteWeight;
         }
 
-        (uint256 againstVotes, uint256 forVotes) = _proposalCountedVotes(proposalId);
+        uint256 currentTimepoint = clock();
 
-        // Zero if original deadline is still in the future
-        uint256 distancePastDeadline = currentTimepoint > dd.originalDeadline ?
-            currentTimepoint - dd.originalDeadline :
-            0;
+        // Initialize the rest of the struct if it hasn't been initialized yet
+        if (dd.originalDeadline == 0) {
+             // Assumes safe conversion, uint64 should be large enough for either block numbers or timestamps in seconds
+            dd.originalDeadline = uint64(Governor.proposalDeadline(proposalId));
+            dd.currentDeadline = dd.originalDeadline;
+        }
 
-        uint256 extend = baseDeadlineExtension_;
-        // Extend amount decays past the original deadline
-        if (distancePastDeadline > 0) {
-            uint256 periodsElapsed = distancePastDeadline / decayPeriod_;
-            extend = ( baseDeadlineExtension_ * inversePercentDecay_ ** periodsElapsed) / ( 100 ** periodsElapsed );
-            // Check again for distance from the deadline. If extend is too small, just return.
-            if (distanceFromDeadline >= extend) return voteWeight;
+        // Initialize extendMultiple
+        uint256 extendMultiple;
+
+        /**
+         * Save gas with unchecked, this is ok because all overflow/underflow checks are performed in the code here:
+         * - If the currentDeadline wasn't larger than the currentTimepoint, the vote wouldn't be allowed to be cast
+         * - Only subtracts the originalDeadline from the currentTimepoint if the currentTimepoint is larger
+         * - Only subtracts the distanceFromDeadline from the extend amount if extend amount is larger
+         *
+         * Additionally, this block scopes the storage variables to avoid "stack too deep" errors
+         */
+        unchecked {
+
+            // Read all three at once to reduce storage reads
+            uint256 baseDeadlineExtension_ = _baseDeadlineExtension;
+            uint256 decayPeriod_ = _decayPeriod;
+            uint256 inversePercentDecay_ = _inversePercentDecay;
+
+            // Get the current distance from the deadline
+            uint256 distanceFromDeadline = dd.currentDeadline - currentTimepoint;
+
+            // We can return if we are outside the range of the base extension amount (since it gets subtracted out)
+            if (baseDeadlineExtension_ < distanceFromDeadline) return voteWeight;
+
+            // Extend amount decays past the original deadline
+            if (currentTimepoint > dd.originalDeadline) {
+                uint256 periodsElapsed = ( currentTimepoint - dd.originalDeadline ) / decayPeriod_;
+                uint256 extend = ( baseDeadlineExtension_ * inversePercentDecay_ ** periodsElapsed) / ( 100 ** periodsElapsed );
+                // Check again for distance from the deadline. If extend is too small, just return.
+                if (extend < distanceFromDeadline) return voteWeight;
+                extendMultiple = extend - distanceFromDeadline;
+            } else {
+                extendMultiple = baseDeadlineExtension_ - distanceFromDeadline;
+            }
+
         }
 
         // We include a FRACTION_MULTIPLE that we later divide back out to circumvent integer division issues
-        uint256 deadlineExtension = ( extend - distanceFromDeadline ) * Math.min(
+        uint256 deadlineExtension = extendMultiple * Math.min(
             FRACTION_MULTIPLE_MAX,
             (
-                voteWeight * FRACTION_MULTIPLE / (
-                    // Add 1 to denominator to avoid divide by zero error
-                    ( forVotes > againstVotes ? forVotes - againstVotes : againstVotes - forVotes ) + 1
-                )
+                voteWeight * FRACTION_MULTIPLE / ( _voteMargin(proposalId) + 1 ) // Add 1 to denominator to avoid divide by zero error
             )
         ) / FRACTION_MULTIPLE;
 

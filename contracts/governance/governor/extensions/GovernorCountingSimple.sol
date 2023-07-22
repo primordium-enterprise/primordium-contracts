@@ -81,6 +81,17 @@ abstract contract GovernorCountingSimple is Governor {
     }
 
     /**
+     * @dev See {Governor-_voteMargin}. In this module, the margin is just the difference between the forVotes and
+     * againstVotes.
+     */
+    function _voteMargin(uint256 proposalId) internal view virtual override returns (uint256) {
+        ProposalVote storage proposalVote = _proposalVotes[proposalId];
+        uint256 forVotes = proposalVote.forVotes;
+        uint256 againstVotes = proposalVote.againstVotes;
+        return forVotes > againstVotes ? forVotes - againstVotes : againstVotes - forVotes;
+    }
+
+    /**
      * @dev See {Governor-_countVote}. In this module, the support follows the `VoteType` enum (from Governor Bravo).
      */
     function _countVote(

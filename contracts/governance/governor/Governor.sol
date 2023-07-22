@@ -279,6 +279,11 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     function _voteSucceeded(uint256 proposalId) internal view virtual returns (bool);
 
     /**
+     * @dev The vote spread (the difference between For and Against counts)
+     */
+    function _voteMargin(uint256 proposalId) internal view virtual returns (uint256);
+
+    /**
      * @dev Get the voting weight of `account` at a specific `timepoint`, for a vote as described by `params`.
      */
     function _getVotes(address account, uint256 timepoint, bytes memory params) internal view virtual returns (uint256);
