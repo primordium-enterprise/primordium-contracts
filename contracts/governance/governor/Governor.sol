@@ -370,7 +370,9 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
                 "Governor: Not enough votes to enter governance"
             );
             require(
-                targets[0] == address(_token) && bytes4(calldatas[0]) == _token.setProvisionMode.selector,
+                targets.length == 1 && // Only allow a single action until we exit founding mode
+                targets[0] == address(_token) && // And the action must be to upgrade the provision mode on the token
+                bytes4(calldatas[0]) == _token.setProvisionMode.selector, // Selector must match
                 "Governor: Cannot propose additional actions until the token's provision mode is upgraded from founding mode"
             );
         }
