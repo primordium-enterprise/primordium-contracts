@@ -225,7 +225,10 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      * @dev Internal function for processing the deposit. Calls _transferDepositToExecutor, which must be implemented in
      * an inheriting contract.
      */
-    function _depositFor(address account, uint256 depositAmount) internal virtual returns (uint256) {
+    function _depositFor(
+        address account,
+        uint256 depositAmount
+    ) internal virtual executorIsInitialized returns (uint256) {
         require(_provisionMode != ProvisionModes.Governance, "VotesProvisioner: Deposits are not available.");
         require(account != address(0));
         require(depositAmount >= 0, "VotesProvisioner: Amount of base asset must be greater than zero.");

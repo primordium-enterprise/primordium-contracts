@@ -36,6 +36,7 @@ abstract contract ExecutorControlled is Context, IExecutorControlled {
         return address(_executor);
     }
 
+    /// @dev Internal function to update the Executor to a new address
     function _updateExecutor(Executor newExecutor) internal {
         // If the _executor has already been initialized at some point, don't let it go back to zero address.
         if (address(_executor) != address(0)) {
@@ -45,8 +46,15 @@ abstract contract ExecutorControlled is Context, IExecutorControlled {
         _executor = newExecutor;
     }
 
+    /// @dev Only the executor is allowed to execute these functions
     modifier onlyExecutor() {
         require(_msgSender() == address(_executor), "ExecutorControlled: onlyExecutor");
+        _;
+    }
+
+    /// @dev The executor must be initialized before these functions can be executed
+    modifier executorIsInitialized() {
+        require(address(_executor) != address(0), "ExecutorControlled: executor not initialized");
         _;
     }
 
