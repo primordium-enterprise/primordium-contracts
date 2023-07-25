@@ -93,7 +93,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     // solhint-disable var-name-mixedcase
     struct ProposalCore {
         uint256 proposalId;
-        uint256 actionsHash;
+        bytes32 actionsHash;
         // --- start retyped from Timers.BlockNumber at offset 0x00 ---
         uint64 voteStart;
         address proposer;
@@ -328,8 +328,8 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas
-    ) public pure virtual override returns (uint256) {
-        return uint256(keccak256(abi.encode(proposalId, targets, values, calldatas)));
+    ) public pure virtual override returns (bytes32) {
+        return keccak256(abi.encode(proposalId, targets, values, calldatas));
     }
 
     /**
@@ -435,8 +435,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
 
         require(state(proposalId) == ProposalState.Succeeded, "Governor: proposal not successful");
 
-        uint256 actionsHash = hashProposalActions(proposalId, targets, values, calldatas);
-        require(_proposals[proposalId].actionsHash == actionsHash);
+        require(_proposals[proposalId].actionsHash == hashProposalActions(proposalId, targets, values, calldatas));
 
         uint256 delay = _executor.getMinDelay();
         bytes32 operationId = _executor.scheduleBatch(

@@ -212,7 +212,7 @@ abstract contract IGovernor is IERC165, IERC6372, ExecutorControlled {
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas
-    ) public pure virtual returns (uint256);
+    ) public pure virtual returns (bytes32);
 
     /**
      * @notice module:core
