@@ -29,7 +29,7 @@ library BalanceShares {
         uint endIndex;
     }
 
-    function addAccounts(
+    function addAccountShares(
         BalanceShare storage self,
         NewAccountShare[] memory newAccountShares
     ) internal {

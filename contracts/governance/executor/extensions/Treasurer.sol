@@ -11,10 +11,13 @@ abstract contract Treasurer is Executor {
 
     VotesProvisioner internal immutable _votes;
 
+    IERC20 internal immutable _baseAsset;
+
     constructor(
         VotesProvisioner votes_
     ) {
         _votes = votes_;
+        _baseAsset = IERC20(votes_.baseAsset());
     }
 
     function votes() public view returns(address) {
@@ -24,6 +27,10 @@ abstract contract Treasurer is Executor {
     modifier onlyVotes() {
         require(_msgSender() == address(_votes), "Treasurer: call must come from the _votes contract.");
         _;
+    }
+
+    function baseAsset() public view returns (address) {
+        return address(_baseAsset);
     }
 
     function registerDepositERC20(uint256 depositAmount) public virtual onlyVotes {
@@ -39,9 +46,9 @@ abstract contract Treasurer is Executor {
         // NEED TO IMPLEMENT BALANCE CHECKS
     }
 
-    function processWithdrawalERC20(IERC20 baseAsset, address receiver, uint256 withdrawAmount) public virtual onlyVotes {
+    function processWithdrawalERC20(address receiver, uint256 withdrawAmount) public virtual onlyVotes {
         _processWithdrawal(withdrawAmount);
-        SafeERC20.safeTransfer(baseAsset, receiver, withdrawAmount);
+        SafeERC20.safeTransfer(_baseAsset, receiver, withdrawAmount);
     }
 
     function processWithdrawalETH(address receiver, uint256 withdrawAmount) public virtual onlyVotes {
