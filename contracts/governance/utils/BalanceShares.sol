@@ -17,13 +17,13 @@ library BalanceShares {
     }
 
     struct AccountShare {
-        uint64 bps; // The basis points share of this account
-        uint64 createdAt; // A timestamp indicating when this account share was created
-        uint64 removableAt; // A timestamp (in UTC seconds) at which the revenue share can be removed by the DAO
-        uint64 lastWithdrawnAt; // A timestamp (in UTC seconds) at which the revenue share was last withdrawn
-        uint256 startIndex;
-        uint256 endIndex;
-        uint256 lastBalanceIndex;
+        uint16 bps; // The basis points share of this account
+        uint40 createdAt; // A timestamp indicating when this account share was created
+        uint40 removableAt; // A timestamp (in UTC seconds) at which the revenue share can be removed by the DAO
+        uint40 lastWithdrawnAt; // A timestamp (in UTC seconds) at which the revenue share was last withdrawn
+        uint40 startIndex;
+        uint40 endIndex;
+        uint40 lastBalanceIndex;
         uint256 lastBalance;
     }
 
@@ -45,18 +45,18 @@ library BalanceShares {
             self._balances.push(0);
             length += 1;
         }
-        uint currentBalancesIndex = length - 1;
+        uint40 currentBalancesIndex = SafeCast.toUint40(length) - 1; // Cache current balances index
 
         // Loop through accounts and track changes
         uint totalBps = self._totalBps;
-        uint64 currentTimestamp = uint64(block.timestamp); // Cache timestamp in memory to save gas
+        uint40 currentTimestamp = uint40(block.timestamp); // Cache timestamp in memory to save gas
         for (uint i = 0; i < newAccountShares.length;) {
             NewAccountShare memory nas = newAccountShares[i];
             totalBps += nas.bps;
             self._accounts[nas.account] = AccountShare({
-                bps: SafeCast.toUint64(nas.bps),
+                bps: SafeCast.toUint16(nas.bps),
                 createdAt: currentTimestamp,
-                removableAt: SafeCast.toUint64(nas.removableAt),
+                removableAt: SafeCast.toUint40(nas.removableAt),
                 lastWithdrawnAt: currentTimestamp,
                 startIndex: currentBalancesIndex,
                 endIndex: 0,
