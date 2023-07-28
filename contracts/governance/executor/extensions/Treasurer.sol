@@ -5,9 +5,14 @@ pragma solidity ^0.8.0;
 
 import "../../token/extensions/VotesProvisioner.sol";
 import "../Executor.sol";
+import "../../utils/BalanceShares.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 abstract contract Treasurer is Executor {
+
+    using BalanceShares for BalanceShares.BalanceShare;
+
+    BalanceShares.BalanceShare private _revenueShares;
 
     VotesProvisioner internal immutable _votes;
 
@@ -59,6 +64,14 @@ abstract contract Treasurer is Executor {
 
     function _processWithdrawal(uint256 withdrawAmount) private {
         // NEED TO IMPLEMENT BALANCE CHECKS
+    }
+
+
+    function addRevenueShare(
+        BalanceShares.NewAccountShare memory newAccountShare
+    ) public onlyTimelock {
+        // RUN BALANCES UPDATE
+        // THEN ADD REVENUE SHARE USING LIBRARY
     }
 
 }

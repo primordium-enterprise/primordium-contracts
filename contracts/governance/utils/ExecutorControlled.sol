@@ -48,8 +48,12 @@ abstract contract ExecutorControlled is Context, IExecutorControlled {
 
     /// @dev Only the executor is allowed to execute these functions
     modifier onlyExecutor() {
-        require(_msgSender() == address(_executor), "ExecutorControlled: onlyExecutor");
+        _onlyExecutor();
         _;
+    }
+
+    function _onlyExecutor() internal view {
+        require(msg.sender == address(_executor), "ExecutorControlled: onlyExecutor");
     }
 
     /// @dev The executor must be initialized before these functions can be executed
