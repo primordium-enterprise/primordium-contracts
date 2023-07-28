@@ -159,7 +159,8 @@ library BalanceShares {
             // The current timestamp must be greater than the removeableAt timestamp (unless explicitly skipped)
             require(skipRemoveableAtCheck || currentTimestamp >= removeableAt);
 
-            // Set the endIndex to be the current balance share index
+            // Set the bps to 0, and the endIndex to be the current balance share index
+            accountShare.bps = 0;
             accountShare.endIndex = uint40(currentBalanceCheckIndex);
 
             unchecked {
@@ -214,6 +215,26 @@ library BalanceShares {
         address address_
     ) internal view returns (bool) {
         return self._accountWithdrawalApprovals[account][address_];
+    }
+
+    /**
+     * @dev Returns the following details (in order) for the specified account:
+     * - bps
+     * - createdAt
+     * - removeableAt
+     * - lastWithdrawnAt
+     */
+    function accountDetails(
+        BalanceShare storage self,
+        address account
+    ) internal view returns (uint256, uint256, uint256, uint256) {
+        AccountShare storage accountShare = self._accounts[account];
+        return (
+            accountShare.bps,
+            accountShare.createdAt,
+            accountShare.removableAt,
+            accountShare.lastWithdrawnAt
+        );
     }
 
     /**
