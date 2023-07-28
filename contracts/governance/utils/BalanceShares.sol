@@ -4,6 +4,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 
 library BalanceShares {
 
@@ -188,24 +189,23 @@ library BalanceShares {
      * @dev Adds the provided balance amount to the shared balances
      */
     function addBalance(BalanceShare storage self, uint256 amount) internal {
-        // Start with a reference to the current balance
-        BalanceCheck storage currentBalanceCheck = self._balanceChecks[self._balanceChecks.length - 1];
-        uint currentBalance = currentBalanceCheck.balance;
+        // Unchecked because manual checks ensure no overflow/underflow
         unchecked {
-            while (amount > 0) {
-                // Cannot increase current balanceCheck more than the max
-                uint maxBalanceIncrease = MAX_CHECK_BALANCE - currentBalance;
-                if (maxBalanceIncrease >= amount) {
-                    // If we can fit into the current balanceCheck, just do that and break
-                    currentBalanceCheck.balance = uint240(currentBalance + amount);
-                    break;
-                } else {
-                    // Increase the current balanceCheck balance to the max, and subtract this difference from the amount
-                    currentBalanceCheck.balance = uint240(MAX_CHECK_BALANCE);
-                    amount -= maxBalanceIncrease;
-                    // Push a new zero-initialized balanceCheck, updating the reference to it
+            // Start with a reference to the current balance
+            BalanceCheck storage currentBalanceCheck = self._balanceChecks[self._balanceChecks.length - 1];
+            uint currentBalance = currentBalanceCheck.balance;
+            // Loop until break
+            while (true) {
+                // Can only increase current balanceCheck up to the MAX_CHECK_BALANCE
+                uint balanceIncrease = Math.min(amount, MAX_CHECK_BALANCE - currentBalance);
+                currentBalanceCheck.balance = uint240(currentBalance + balanceIncrease);
+                amount -= balanceIncrease;
+                // If there is still more balance remaining, push a new balanceCheck and zero out the currentBalance
+                if (amount > 0) {
                     currentBalanceCheck = self._balanceChecks.push();
                     currentBalance = 0;
+                } else {
+                    break; // Can complete once amount is zero
                 }
             }
         }
