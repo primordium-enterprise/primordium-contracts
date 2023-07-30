@@ -82,7 +82,7 @@ library BalanceShares {
             NewAccountShare memory newAccountShare = newAccountShares[i];
 
             // Check that the account has zeroed out previous balances (on the off chance that it existed previously)
-            require(_accountHasFinishedWithdrawals(self._accounts[newAccountShare.account]));
+            require(accountHasFinishedWithdrawals(self._accounts[newAccountShare.account]));
 
             addToTotalBps += newAccountShare.bps; // We don't verify the BPS amount here, because total will be verified below
             // Initialize the new AccountShare
@@ -244,7 +244,6 @@ library BalanceShares {
      * @dev Processes an account withdrawal, calculating the balance amount that should be paid out to the account. As a
      * result of this function, the balance amount to be paid out is marked as withdrawn for this account. The host
      * contract is responsible for ensuring this balance is paid out to the account as part of the transaction.
-     *
      * @param account The address of the withdrawing account.
      * @return balanceToBePaid This is the balance that is marked as paid out for the account. The host contract should
      * pay this balance to the account as part of the withdrawal transaction.
@@ -253,30 +252,53 @@ library BalanceShares {
         BalanceShare storage self,
         address account
     ) internal returns (uint256) {
-        return _accountBalance(
+        AccountShare storage accountShare = self._accounts[account];
+        (
+            uint balanceToBePaid,
+            uint lastBalanceCheckIndex,
+            uint lastBalancePulled
+        ) = _calculateAccountBalance(
             self,
-            account,
-            true // Save to storage, as this assumes the balance is being paid out
+            accountShare,
+            true // Revert if the account is already completed their withdrawals, save the gas
         );
+
+        // Save the account updates to storage
+        accountShare.lastBalanceCheckIndex = uint40(lastBalanceCheckIndex);
+        accountShare.lastBalancePulled = lastBalancePulled;
+        accountShare.lastWithdrawnAt = uint40(block.timestamp);
+
+        return balanceToBePaid;
     }
 
     function accountBalance(
         BalanceShare storage self,
         address account
-    ) internal returns (uint256) {
-        return _accountBalance(
+    ) internal view returns (uint256) {
+        AccountShare storage accountShare = self._accounts[account];
+        (uint balanceToBePaid,,) = _calculateAccountBalance(
             self,
-            account,
-            false // Don't save to storage
+            accountShare,
+            false // Show the zero balance
         );
+        return balanceToBePaid;
     }
 
-    function _accountBalance(
+    /**
+     * @dev Private function to calculate the current balance owed to the AccountShare.
+     * @return accountBalanceOwed The balance owed to the account share
+     * @return lastBalanceCheckIndex The resulting lastBalanceCheckIndex for the account
+     * @return lastBalancePulled The resulting lastBalancePulled for the account
+     */
+    function _calculateAccountBalance(
         BalanceShare storage self,
-        address account,
-        bool updateAccountShare
-    ) private returns(uint256 balanceToBePaid) {
-        AccountShare storage accountShare = self._accounts[account];
+        AccountShare storage accountShare,
+        bool revertOnFinished
+    ) private view returns(
+        uint256 accountBalanceOwed,
+        uint256,
+        uint256
+    ) {
         (
             uint bps,
             uint createdAt,
@@ -291,9 +313,12 @@ library BalanceShares {
             accountShare.lastBalancePulled
         );
 
-        // If account is not active or is already finished with withdrawals, return 0
+        // If account is not active or is already finished with withdrawals, return zero
         if (_accountHasFinishedWithdrawals(createdAt, lastBalanceCheckIndex, endIndex)) {
-            return balanceToBePaid;
+            if (revertOnFinished) {
+                revert("Account has completed withdrawals.");
+            }
+            return (accountBalanceOwed, lastBalanceCheckIndex, lastBalancePulled);
         }
 
         uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
@@ -304,7 +329,7 @@ library BalanceShares {
             uint diff = balanceCheck.balance - lastBalancePulled;
             if (diff > 0 && balanceCheck.totalBps > 0) {
                 // For each check, add ( balanceCheck.balance - lastBalancePulled ) * ( accountBps / balanceCheck.totalBps )
-                balanceToBePaid += Math.mulDiv(diff, bps, balanceCheck.totalBps);
+                accountBalanceOwed += Math.mulDiv(diff, bps, balanceCheck.totalBps);
             }
             // Do not increment past the end of the balanceChecks array
             if (lastBalanceCheckIndex == latestBalanceCheckIndex) {
@@ -327,13 +352,7 @@ library BalanceShares {
             }
         }
 
-        // If flagged as such, save the account updates to storage
-        if (updateAccountShare) {
-            accountShare.lastBalanceCheckIndex = uint40(lastBalanceCheckIndex);
-            accountShare.lastBalancePulled = lastBalancePulled;
-        }
-
-        return balanceToBePaid;
+        return (accountBalanceOwed, lastBalanceCheckIndex, lastBalancePulled);
 
     }
 
@@ -415,9 +434,9 @@ library BalanceShares {
      *
      * Returns true if the account has not been initialized with any shares yet
      */
-    function _accountHasFinishedWithdrawals(
+    function accountHasFinishedWithdrawals(
         AccountShare storage accountShare
-    ) private view returns (bool) {
+    ) internal view returns (bool) {
         (uint createdAt, uint lastBalanceCheckIndex, uint endIndex) = (
             accountShare.createdAt,
             accountShare.lastBalanceCheckIndex,
