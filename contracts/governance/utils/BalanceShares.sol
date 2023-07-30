@@ -177,26 +177,64 @@ library BalanceShares {
     }
 
     /**
-     * @dev Adds the provided balance amount to the shared balances
+     * @dev Method to add to the total pool of balance available to the account shares, at the rate of:
+     * balanceIncreasedBy * totalBps / 10_000
+     * @param balanceIncreasedBy A uint256 representing how much the core balance increased by, which will be multiplied
+     * by the totalBps for all active balance shares to be made available to those accounts.
+     * @return balanceAddedToShares Returns the amount added to the balance shares, which should be accounted for in the
+     * host contract.
      */
-    function addBalance(BalanceShare storage self, uint256 amount) internal {
-        // Unchecked because manual checks ensure no overflow/underflow
-        unchecked {
-            // Start with a reference to the current balance
-            BalanceCheck storage currentBalanceCheck = self._balanceChecks[self._balanceChecks.length - 1];
-            uint currentBalance = currentBalanceCheck.balance;
-            // Loop until break
-            while (true) {
-                // Can only increase current balanceCheck up to the MAX_CHECK_BALANCE_AMOUNT
-                uint balanceIncrease = Math.min(amount, MAX_CHECK_BALANCE_AMOUNT - currentBalance);
-                currentBalanceCheck.balance = uint240(currentBalance + balanceIncrease);
-                amount -= balanceIncrease;
-                // If there is still more balance remaining, push a new balanceCheck and zero out the currentBalance
-                if (amount > 0) {
-                    currentBalanceCheck = self._balanceChecks.push();
-                    currentBalance = 0;
-                } else {
-                    break; // Can complete once amount is zero
+    function processBalanceShares(
+        BalanceShare storage self,
+        uint256 balanceIncreasedBy
+    ) internal returns (uint256 balanceAddedToShares) {
+        uint length = self._balanceChecks.length;
+        // Only continue if the length is greater than zero, otherwise returns zero by default
+        if (length > 0) {
+            BalanceCheck storage latestBalanceCheck = self._balanceChecks[length - 1];
+            uint totalBps = latestBalanceCheck.totalBps;
+            balanceAddedToShares = _calculateBalanceShare(balanceIncreasedBy, totalBps);
+            _addBalance(self, latestBalanceCheck, balanceAddedToShares);
+        }
+    }
+
+    function _calculateBalanceShare(
+        uint256 balanceIncreasedBy,
+        uint256 totalBps
+    ) private pure returns (uint256) {
+        // Only run the mulDiv if the totalBps is greater than zero
+        return totalBps > 0 ?
+            Math.mulDiv(balanceIncreasedBy, totalBps, MAX_BPS) :
+            0;
+    }
+
+    /**
+     * @dev Private function, adds the provided balance amount to the shared balances.
+     */
+    function _addBalance(
+        BalanceShare storage self,
+        BalanceCheck storage latestBalanceCheck,
+        uint256 amount
+    ) private {
+        if (amount > 0) {
+            // Unchecked because manual checks ensure no overflow/underflow
+            unchecked {
+                // Start with a reference to the current balance
+                uint currentBalance = latestBalanceCheck.balance;
+                // Loop until break
+                while (true) {
+                    // Can only increase current balanceCheck up to the MAX_CHECK_BALANCE_AMOUNT
+                    uint balanceIncrease = Math.min(amount, MAX_CHECK_BALANCE_AMOUNT - currentBalance);
+                    latestBalanceCheck.balance = uint240(currentBalance + balanceIncrease);
+                    amount -= balanceIncrease;
+                    // If there is still more balance remaining, push a new balanceCheck and zero out the currentBalance
+                    if (amount > 0) {
+                        self._balanceChecks.push(BalanceCheck(latestBalanceCheck.totalBps, 0));
+                        latestBalanceCheck = self._balanceChecks[self._balanceChecks.length - 1];
+                        currentBalance = 0;
+                    } else {
+                        break; // Can complete once amount remaining is zero
+                    }
                 }
             }
         }
