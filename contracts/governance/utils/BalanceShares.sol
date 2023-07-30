@@ -177,6 +177,19 @@ library BalanceShares {
     }
 
     /**
+     * @dev The total basis points sum for all currently active account shares.
+     * @return totalBps An integer representing the total basis points sum. 1 basis point = 0.01%
+     */
+    function totalBps(
+        BalanceShare storage self
+    ) internal view returns (uint256) {
+        uint length = self._balanceChecks.length;
+        return length > 0 ?
+            self._balanceChecks[length - 1].totalBps :
+            0;
+    }
+
+    /**
      * @dev Method to add to the total pool of balance available to the account shares, at the rate of:
      * balanceIncreasedBy * totalBps / 10_000
      * @param balanceIncreasedBy A uint256 representing how much the core balance increased by, which will be multiplied
