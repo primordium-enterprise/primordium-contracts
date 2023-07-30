@@ -30,8 +30,8 @@ library BalanceShares {
         uint40 lastWithdrawnAt; // A timestamp (in UTC seconds) at which the revenue share was last withdrawn
         uint40 startIndex; // Balance index at which this account share starts participating
         uint40 endIndex; // Where this account finished participating, or type(uint40).max when still active
-        uint40 lastBalanceIndex; // The last balanceCheck index that was withdrawn from
-        uint256 lastBalance; // The balance of balanceChecks[lastBalanceIndex] when it was last withdrawn
+        uint40 lastBalanceCheckIndex; // The last balanceCheck index that was withdrawn from
+        uint256 lastBalancePulled; // The balance of balanceChecks[lastBalanceCheckIndex] when it was last withdrawn
     }
 
     struct NewAccountShare {
@@ -82,7 +82,7 @@ library BalanceShares {
             NewAccountShare memory newAccountShare = newAccountShares[i];
 
             // Check that the account has zeroed out previous balances (on the off chance that it existed previously)
-            require(_accountHasFinishedWithdrawals(self, newAccountShare.account));
+            require(_accountHasFinishedWithdrawals(self._accounts[newAccountShare.account]));
 
             addToTotalBps += newAccountShare.bps; // We don't verify the BPS amount here, because total will be verified below
             // Initialize the new AccountShare
@@ -93,8 +93,8 @@ library BalanceShares {
                 lastWithdrawnAt: currentTimestamp,
                 startIndex: startIndexUint40,
                 endIndex: MAX_INDEX,
-                lastBalanceIndex: startIndexUint40,
-                lastBalance: 0
+                lastBalanceCheckIndex: startIndexUint40,
+                lastBalancePulled: 0
             });
             // Initialize the approvedForWithdrawal addresses
             approveAddressesForWithdrawal(
@@ -241,12 +241,99 @@ library BalanceShares {
     }
 
     /**
-     * @dev Processes an account withdrawal, returning the balance amount that should be transferred to the account.
+     * @dev Processes an account withdrawal, calculating the balance amount that should be paid out to the account. As a
+     * result of this function, the balance amount to be paid out is marked as withdrawn for this account. The host
+     * contract is responsible for ensuring this balance is paid out to the account as part of the transaction.
+     *
+     * @param account The address of the withdrawing account.
+     * @return balanceToBePaid This is the balance that is marked as paid out for the account. The host contract should
+     * pay this balance to the account as part of the withdrawal transaction.
      */
     function processAccountWithdrawal(
         BalanceShare storage self,
         address account
-    ) internal {
+    ) internal returns (uint256) {
+        return _accountBalance(
+            self,
+            account,
+            true // Save to storage, as this assumes the balance is being paid out
+        );
+    }
+
+    function accountBalance(
+        BalanceShare storage self,
+        address account
+    ) internal returns (uint256) {
+        return _accountBalance(
+            self,
+            account,
+            false // Don't save to storage
+        );
+    }
+
+    function _accountBalance(
+        BalanceShare storage self,
+        address account,
+        bool updateAccountShare
+    ) private returns(uint256 balanceToBePaid) {
+        AccountShare storage accountShare = self._accounts[account];
+        (
+            uint bps,
+            uint createdAt,
+            uint endIndex,
+            uint lastBalanceCheckIndex,
+            uint lastBalancePulled
+        ) = (
+            accountShare.bps,
+            accountShare.createdAt,
+            accountShare.endIndex,
+            accountShare.lastBalanceCheckIndex,
+            accountShare.lastBalancePulled
+        );
+
+        // If account is not active or is already finished with withdrawals, return 0
+        if (_accountHasFinishedWithdrawals(createdAt, lastBalanceCheckIndex, endIndex)) {
+            return balanceToBePaid;
+        }
+
+        uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
+
+        // Process each balanceCheck while in range of the endIndex, summing the total balance to be paid
+        while (lastBalanceCheckIndex <= endIndex) {
+            BalanceCheck memory balanceCheck = self._balanceChecks[lastBalanceCheckIndex];
+            uint diff = balanceCheck.balance - lastBalancePulled;
+            if (diff > 0 && balanceCheck.totalBps > 0) {
+                // For each check, add ( balanceCheck.balance - lastBalancePulled ) * ( accountBps / balanceCheck.totalBps )
+                balanceToBePaid += Math.mulDiv(diff, bps, balanceCheck.totalBps);
+            }
+            // Do not increment past the end of the balanceChecks array
+            if (lastBalanceCheckIndex == latestBalanceCheckIndex) {
+                // Track this balance to save to the account's storage as the lastPulledBalance
+                unchecked {
+                    lastBalancePulled = balanceCheck.balance;
+                }
+                break;
+            }
+            /**
+             * @dev Notice that this increments the lastBalanceCheckIndex PAST the endIndex for an account that has had
+             * their balance share removed at some point.
+             *
+             * This is the desired behavior. See the private {_accountHasFinishedWithdrawals} function. This considers an
+             * account to be finished with withdrawals once the lastBalanceCheckIndex is greater than the endIndex.
+             */
+            unchecked {
+                lastBalanceCheckIndex += 1;
+                lastBalancePulled = 0;
+            }
+        }
+
+        // If flagged as such, save the account updates to storage
+        if (updateAccountShare) {
+            accountShare.lastBalanceCheckIndex = uint40(lastBalanceCheckIndex);
+            accountShare.lastBalancePulled = lastBalancePulled;
+        }
+
+        return balanceToBePaid;
 
     }
 
@@ -323,17 +410,31 @@ library BalanceShares {
     }
 
     /**
-     * @dev An account is considered to be finished with withdrawals when the account's "lastBalanceIndex" is greater
-     * than the account's "endIndex"
+     * @dev An account is considered to be finished with withdrawals when the account's "lastBalanceCheckIndex" is
+     * greater than the account's "endIndex"
      *
      * Returns true if the account has not been initialized with any shares yet
      */
     function _accountHasFinishedWithdrawals(
-        BalanceShare storage self,
-        address account
+        AccountShare storage accountShare
     ) private view returns (bool) {
-        AccountShare storage accountShare = self._accounts[account];
-        return accountShare.createdAt == 0 || accountShare.lastBalanceIndex > accountShare.endIndex;
+        (uint createdAt, uint lastBalanceCheckIndex, uint endIndex) = (
+            accountShare.createdAt,
+            accountShare.lastBalanceCheckIndex,
+            accountShare.endIndex
+        );
+        return _accountHasFinishedWithdrawals(createdAt, lastBalanceCheckIndex, endIndex);
+    }
+
+    /**
+     * @dev Overload for checking if these values are already loaded into memory (to save gas).
+     */
+    function _accountHasFinishedWithdrawals(
+        uint createdAt,
+        uint lastBalanceCheckIndex,
+        uint endIndex
+    ) private pure returns (bool) {
+        return createdAt == 0 || lastBalanceCheckIndex > endIndex;
     }
 
 }
