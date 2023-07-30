@@ -10,7 +10,7 @@ library BalanceShares {
 
     uint constant MAX_BPS = 10_000; // Max total BPS (1 basis point == 0.01%, which is 1 / 10_000)
     uint40 constant MAX_INDEX = type(uint40).max;
-    uint256 constant MAX_CHECK_BALANCE = type(uint240).max;
+    uint256 constant MAX_CHECK_BALANCE_AMOUNT = type(uint240).max;
 
     struct BalanceShare {
         BalanceCheck[] _balanceChecks; // New balanceCheck pushed every time totalBps changes, or when balance overflow occurs, max length is type(uint40).max
@@ -111,12 +111,8 @@ library BalanceShares {
         uint newTotalBps = lastBalanceCheck.totalBps + addToTotalBps;
         require(newTotalBps <= MAX_BPS);
 
-        // Push a new balance check (or just overwrite the bps if the balance of the last check is still zero)
-        if (lastBalanceCheck.balance > 0) {
-            self._balanceChecks.push(BalanceCheck(uint16(newTotalBps), 0));
-        } else {
-            self._balanceChecks[startIndex].totalBps = uint16(newTotalBps);
-        }
+        // Update the totalBps
+        _updateTotalBps(self, lastBalanceCheck.balance, startIndex, uint16(newTotalBps));
 
     }
 
@@ -150,20 +146,20 @@ library BalanceShares {
     ) private {
         uint currentTimestamp = block.timestamp;
         uint subFromTotalBps;
-        uint currentBalanceCheckIndex = self._balanceChecks.length - 1;
+        uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
         for (uint i = 0; i < accounts.length;) {
             AccountShare storage accountShare = self._accounts[accounts[i]];
             uint bps = accountShare.bps;
             uint endIndex = accountShare.endIndex;
             uint removeableAt = accountShare.removableAt;
             // The account share must be active to be removed
-            require(MAX_INDEX > endIndex);
+            require(endIndex == MAX_INDEX);
             // The current timestamp must be greater than the removeableAt timestamp (unless explicitly skipped)
             require(skipRemoveableAtCheck || currentTimestamp >= removeableAt);
 
             // Set the bps to 0, and the endIndex to be the current balance share index
             accountShare.bps = 0;
-            accountShare.endIndex = uint40(currentBalanceCheckIndex);
+            accountShare.endIndex = uint40(latestBalanceCheckIndex);
 
             unchecked {
                 subFromTotalBps += bps; // Can be unchecked, bps was checked when the account share was added
@@ -171,17 +167,12 @@ library BalanceShares {
             }
         }
 
-        BalanceCheck memory currentBalanceCheck = self._balanceChecks[currentBalanceCheckIndex];
+        BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
 
-        // Underflow is impossible since all changes are always accounted for
-        uint newTotalBps = currentBalanceCheck.totalBps - subFromTotalBps;
+        uint newTotalBps = latestBalanceCheck.totalBps - subFromTotalBps;
 
-        // Push a new balance check (or just overwrite the bps if the balance of the last check is still zero)
-        if (currentBalanceCheck.balance > 0) {
-            self._balanceChecks.push(BalanceCheck(uint16(newTotalBps), 0));
-        } else {
-            self._balanceChecks[currentBalanceCheckIndex].totalBps = uint16(newTotalBps);
-        }
+        // Update the totalBps
+        _updateTotalBps(self, latestBalanceCheck.balance, latestBalanceCheckIndex, uint16(newTotalBps));
 
     }
 
@@ -196,8 +187,8 @@ library BalanceShares {
             uint currentBalance = currentBalanceCheck.balance;
             // Loop until break
             while (true) {
-                // Can only increase current balanceCheck up to the MAX_CHECK_BALANCE
-                uint balanceIncrease = Math.min(amount, MAX_CHECK_BALANCE - currentBalance);
+                // Can only increase current balanceCheck up to the MAX_CHECK_BALANCE_AMOUNT
+                uint balanceIncrease = Math.min(amount, MAX_CHECK_BALANCE_AMOUNT - currentBalance);
                 currentBalanceCheck.balance = uint240(currentBalance + balanceIncrease);
                 amount -= balanceIncrease;
                 // If there is still more balance remaining, push a new balanceCheck and zero out the currentBalance
@@ -209,6 +200,16 @@ library BalanceShares {
                 }
             }
         }
+    }
+
+    /**
+     * @dev Processes an account withdrawal, returning the balance amount that should be transferred to the account.
+     */
+    function processAccountWithdrawal(
+        BalanceShare storage self,
+        address account
+    ) internal {
+
     }
 
     function approveAddressesForWithdrawal(
@@ -263,6 +264,24 @@ library BalanceShares {
             accountShare.removableAt,
             accountShare.lastWithdrawnAt
         );
+    }
+
+    /**
+     * @dev Helper method for updating the totalBps for a BalanceShare. Checks if it needs to push a new BalanceCheck
+     * item to the array, or if it can just update the totalBps for the latest item (if the balance is already zero).
+     */
+    function _updateTotalBps(
+        BalanceShare storage self,
+        uint256 latestBalance,
+        uint256 latestBalanceCheckIndex,
+        uint16 newTotalBps
+    ) private {
+        // If the latestBalance is greater than 0, then push a new item, otherwise just update the current item
+        if (latestBalance > 0) {
+            self._balanceChecks.push(BalanceCheck(newTotalBps, 0));
+        } else {
+            self._balanceChecks[latestBalanceCheckIndex].totalBps = newTotalBps;
+        }
     }
 
     /**
