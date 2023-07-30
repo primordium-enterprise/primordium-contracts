@@ -244,6 +244,10 @@ library BalanceShares {
      * @dev Processes an account withdrawal, calculating the balance amount that should be paid out to the account. As a
      * result of this function, the balance amount to be paid out is marked as withdrawn for this account. The host
      * contract is responsible for ensuring this balance is paid out to the account as part of the transaction.
+     *
+     * Can only be processed if msg.sender is the account itself, or if msg.sender is approved, or if the account has
+     * approved anyone (address(0) is approved).
+     *
      * @param account The address of the withdrawing account.
      * @return balanceToBePaid This is the balance that is marked as paid out for the account. The host contract should
      * pay this balance to the account as part of the withdrawal transaction.
@@ -252,6 +256,15 @@ library BalanceShares {
         BalanceShare storage self,
         address account
     ) internal returns (uint256) {
+
+        // Authorize the msg.sender
+        require(
+            msg.sender == account ||
+            self._accountWithdrawalApprovals[account][msg.sender] ||
+            self._accountWithdrawalApprovals[account][address(0)],
+            "Unauthorized."
+        );
+
         AccountShare storage accountShare = self._accounts[account];
         (
             uint balanceToBePaid,
