@@ -81,8 +81,10 @@ library BalanceShares {
         for (uint i = 0; i < newAccountShares.length;) {
             NewAccountShare memory newAccountShare = newAccountShares[i];
 
+            // No zero addresses
+            require(newAccountShare.account != address(0));
             // Check that the account has zeroed out previous balances (on the off chance that it existed previously)
-            require(accountHasFinishedWithdrawals(self._accounts[newAccountShare.account]));
+            require(_accountHasFinishedWithdrawals(self._accounts[newAccountShare.account]));
 
             addToTotalBps += newAccountShare.bps; // We don't verify the BPS amount here, because total will be verified below
             // Initialize the new AccountShare
@@ -297,17 +299,22 @@ library BalanceShares {
         return balanceToBePaid;
     }
 
+    /**
+     * @dev Returns the current withdrawable balance for an account share.
+     * @param account The address of the account.
+     * @return balanceAvailable The balance available for withdraw from this account.
+     */
     function accountBalance(
         BalanceShare storage self,
         address account
     ) internal view returns (uint256) {
         AccountShare storage accountShare = self._accounts[account];
-        (uint balanceToBePaid,,) = _calculateAccountBalance(
+        (uint balanceAvailable,,) = _calculateAccountBalance(
             self,
             accountShare,
             false // Show the zero balance
         );
-        return balanceToBePaid;
+        return balanceAvailable;
     }
 
     /**
@@ -461,8 +468,18 @@ library BalanceShares {
      * Returns true if the account has not been initialized with any shares yet
      */
     function accountHasFinishedWithdrawals(
-        AccountShare storage accountShare
+        BalanceShare storage self,
+        address account
     ) internal view returns (bool) {
+        return _accountHasFinishedWithdrawals(self._accounts[account]);
+    }
+
+    /**
+     * @dev Overload for when the reference is already present
+     */
+    function _accountHasFinishedWithdrawals(
+        AccountShare storage accountShare
+    ) private view returns (bool) {
         (uint createdAt, uint lastBalanceCheckIndex, uint endIndex) = (
             accountShare.createdAt,
             accountShare.lastBalanceCheckIndex,
@@ -480,6 +497,38 @@ library BalanceShares {
         uint endIndex
     ) private pure returns (bool) {
         return createdAt == 0 || lastBalanceCheckIndex > endIndex;
+    }
+
+    /**
+     * @dev A function for changing the address that an account receives its shares to. This is only callable by the
+     * account owner. A list of approved addresses for withdrawal can be provided.
+     *
+     * Note that by default, if the address(0) was approved (meaning anyone can process a withdrawal to the account),
+     * then address(0) will be approved for the new account address as well.
+     *
+     * @param account The address for the current account share (which must be msg.sender)
+     * @param newAccount The new address to copy the account share over to.
+     * @param approvedAddresses A list of addresses to be approved for processing withdrawals to the account receiver.
+     */
+    function changeAccountAddress(
+        BalanceShare storage self,
+        address account,
+        address newAccount,
+        address[] memory approvedAddresses
+    ) internal {
+        require(msg.sender == account);
+        require(newAccount != address(0));
+        // Copy it over
+        self._accounts[newAccount] = self._accounts[account];
+        // Zero out the old account
+        self._accounts[account] = AccountShare(0, 0, 0, 0, 0, 0, 0, 0);
+
+        // Approve addresses
+        approveAddressesForWithdrawal(self, newAccount, approvedAddresses);
+
+        if (self._accountWithdrawalApprovals[account][address(0)]) {
+            self._accountWithdrawalApprovals[newAccount][address(0)] = true;
+        }
     }
 
 }
