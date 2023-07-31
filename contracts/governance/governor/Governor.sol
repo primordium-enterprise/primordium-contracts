@@ -261,6 +261,10 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         return _proposals[proposalId].voteEnd;
     }
 
+    function proposalActionsHash(uint256 proposalId) public view virtual override returns (bytes32) {
+        return _proposals[proposalId].actionsHash;
+    }
+
     /**
      * @dev Address of the proposer
      */

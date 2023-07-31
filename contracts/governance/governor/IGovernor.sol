@@ -150,6 +150,12 @@ abstract contract IGovernor is IERC165, IERC6372, ExecutorControlled {
     function proposalDeadline(uint256 proposalId) public view virtual returns (uint256);
 
     /**
+     * @notice module:core
+     * @dev Returns the hash of the proposal actions
+     */
+    function proposalActionsHash(uint256 proposalId) public view virtual returns (bytes32);
+
+    /**
      * @notice module:user-config
      * @dev Delay, between the proposal is created and the vote starts. The unit this duration is expressed in depends
      * on the clock (see EIP-6372) this contract uses.
