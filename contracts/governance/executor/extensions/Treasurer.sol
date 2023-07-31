@@ -5,17 +5,11 @@ pragma solidity ^0.8.0;
 
 import "../../token/extensions/VotesProvisioner.sol";
 import "../Executor.sol";
-import "../../utils/BalanceShares.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 abstract contract Treasurer is Executor {
 
-    using BalanceShares for BalanceShares.BalanceShare;
-
-    BalanceShares.BalanceShare private _revenueShares;
-
     VotesProvisioner internal immutable _votes;
-
     IERC20 internal immutable _baseAsset;
 
     constructor(
@@ -37,6 +31,18 @@ abstract contract Treasurer is Executor {
     function baseAsset() public view returns (address) {
         return address(_baseAsset);
     }
+
+    /**
+     * @notice Returns the current DAO balance of the base asset in the treasury.
+     */
+    function treasuryBalance() public view returns (uint256) {
+        return _balance();
+    }
+
+    /**
+     * @dev An internal function that must be overridden to properly return the DAO.
+     */
+    function _balance() internal view virtual returns (uint256);
 
     function registerDepositERC20(uint256 depositAmount) public virtual onlyVotes {
         _registerDeposit(depositAmount);
@@ -66,12 +72,8 @@ abstract contract Treasurer is Executor {
         // NEED TO IMPLEMENT BALANCE CHECKS
     }
 
+    function _beforeExecute(address target, uint256 value, bytes calldata data) internal virtual override {
 
-    function addRevenueShare(
-        BalanceShares.NewAccountShare memory newAccountShare
-    ) public onlyTimelock {
-        // RUN BALANCES UPDATE
-        // THEN ADD REVENUE SHARE USING LIBRARY
     }
 
 }

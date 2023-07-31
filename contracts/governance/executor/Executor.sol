@@ -329,9 +329,15 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
      * @dev Execute an operation's call.
      */
     function _execute(address target, uint256 value, bytes calldata data) internal virtual {
+        _beforeExecute(target, value, data);
         (bool success, ) = target.call{value: value}(data);
         require(success, "Executor: underlying transaction reverted");
     }
+
+    /**
+     * @dev Checks before execution of target, value, and calldata
+     */
+    function _beforeExecute(address target, uint256 value, bytes calldata data) internal virtual { }
 
     /**
      * @dev Checks before execution of an operation's calls.
