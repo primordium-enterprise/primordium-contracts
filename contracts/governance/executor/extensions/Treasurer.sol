@@ -35,14 +35,14 @@ abstract contract Treasurer is Executor {
     /**
      * @notice Returns the current DAO balance of the base asset in the treasury.
      */
-    function treasuryBalance() public view returns (uint256) {
-        return _balance();
-    }
+    // function treasuryBalance() public view returns (uint256) {
+    //     return _balance();
+    // }
 
     /**
      * @dev An internal function that must be overridden to properly return the DAO.
      */
-    function _balance() internal view virtual returns (uint256);
+    // function _balance() internal view virtual returns (uint256);
 
     function registerDepositERC20(uint256 depositAmount) public virtual onlyVotes {
         _registerDeposit(depositAmount);
@@ -70,10 +70,6 @@ abstract contract Treasurer is Executor {
 
     function _processWithdrawal(uint256 withdrawAmount) internal virtual {
         // NEED TO IMPLEMENT BALANCE CHECKS
-    }
-
-    function _beforeExecute(address target, uint256 value, bytes calldata data) internal virtual override {
-
     }
 
 }

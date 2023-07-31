@@ -5,14 +5,10 @@ pragma solidity ^0.8.0;
 
 import "../VotesProvisioner.sol";
 
-abstract contract ETHVotesProvisioner is VotesProvisioner {
+abstract contract VotesProvisionerETH is VotesProvisioner {
 
-    constructor(
-        Treasurer executor_,
-        uint256 maxSupply_,
-        TokenPrice memory tokenPrice_
-    ) VotesProvisioner(executor_, maxSupply_, tokenPrice_, IERC20(address(0))) {
-
+    constructor() {
+        require(address(_baseAsset) == address(0));
     }
 
     /**

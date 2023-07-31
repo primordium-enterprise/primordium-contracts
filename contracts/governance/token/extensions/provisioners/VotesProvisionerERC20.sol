@@ -10,15 +10,10 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 using SafeMath for uint256;
 
-abstract contract ERC20VotesProvisioner is VotesProvisioner {
+abstract contract VotesProvisionerERC20 is VotesProvisioner {
 
-    constructor(
-        Treasurer executor_,
-        uint256 maxSupply_,
-        TokenPrice memory tokenPrice_,
-        IERC20 baseAsset_
-    ) VotesProvisioner(executor_, maxSupply_, tokenPrice_, baseAsset_) {
-        require(address(baseAsset_) != address(0), "ERC20VotesProvisioner: the address for the baseAsset cannot be address(0)");
+    constructor() {
+        require(address(_baseAsset) != address(0), "VotesProvisionerERC20: the address for the baseAsset cannot be address(0)");
     }
 
     /**
@@ -31,7 +26,7 @@ abstract contract ERC20VotesProvisioner is VotesProvisioner {
      * @return Amount of vote tokens minted.
      */
     function depositFor(address account, uint256 depositAmount) public payable virtual override returns(uint256) {
-        require(msg.value == 0, "ERC20VotesProvisioner: Cannot accept ETH deposits.");
+        require(msg.value == 0, "VotesProvisionerERC20: Cannot accept ETH deposits.");
         return _depositFor(account, depositAmount);
     }
 
@@ -50,7 +45,7 @@ abstract contract ERC20VotesProvisioner is VotesProvisioner {
     ) public virtual returns(uint256) {
         require(
             spender == address(this),
-            "ERC20VotesProvisioner: deposits using ERC20 permit must set this contract address as the 'spender'"
+            "VotesProvisionerERC20: deposits using ERC20 permit must set this contract address as the 'spender'"
         );
         IERC20Permit(baseAsset()).permit(
             owner,
