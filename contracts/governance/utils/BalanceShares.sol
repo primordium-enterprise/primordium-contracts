@@ -53,22 +53,22 @@ library BalanceShares {
     ) internal {
         require(newAccountShares.length > 0);
 
-        // Initialize the lastBalanceCheck
-        BalanceCheck memory lastBalanceCheck = BalanceCheck(0, 0);
+        // Initialize the latestBalanceCheck
+        BalanceCheck memory latestBalanceCheck = BalanceCheck(0, 0);
 
         // Get startIndex of the nextBalanceCheck (assumed to be equal to length since we are pushing a new balanceCheck)
         uint startIndex = self._balanceChecks.length;
 
         // If length is greater than zero, then copy the last array element to the nextBalanceCheck
         if (startIndex > 0) {
-            lastBalanceCheck = self._balanceChecks[startIndex - 1];
+            latestBalanceCheck = self._balanceChecks[startIndex - 1];
             // If the balance of the last element is zero, then we plan to just overwrite this checkpoint
-            if (lastBalanceCheck.balance == 0) {
+            if (latestBalanceCheck.balance == 0) {
                 startIndex -= 1;
             }
         } else {
             // If length not greater than zero, initialize the first element
-            self._balanceChecks.push(lastBalanceCheck);
+            self._balanceChecks.push(latestBalanceCheck);
         }
 
         // Cache as uint40 for loop below, SafeCast ensures array length is no larger than type(uint40).max
@@ -110,11 +110,10 @@ library BalanceShares {
         }
 
         // Calculate the new totalBps, and make sure it is valid
-        uint newTotalBps = lastBalanceCheck.totalBps + addToTotalBps;
-        require(newTotalBps <= MAX_BPS);
+        uint newTotalBps = latestBalanceCheck.totalBps + addToTotalBps;
 
         // Update the totalBps
-        _updateTotalBps(self, lastBalanceCheck.balance, startIndex, uint16(newTotalBps));
+        _updateTotalBps(self, latestBalanceCheck.balance, startIndex, newTotalBps);
 
     }
 
@@ -132,13 +131,15 @@ library BalanceShares {
     }
 
     /**
-     * @dev Same as the {removeAccountShares} function call, but skips checking the "removeableAt" parameter.
+     * @dev Same as the {removeAccountShares} function call, but additional parameter to skip checking the "removeableAt"
+     * validity.
      */
-    function removeAccountSharesSkippingRemoveableAtCheck(
+    function removeAccountShares(
         BalanceShare storage self,
-        address[] memory accounts
+        address[] memory accounts,
+        bool skipRemoveableAtCheck
     ) internal {
-        _removeAccountShares(self, accounts, true);
+        _removeAccountShares(self, accounts, skipRemoveableAtCheck);
     }
 
     function _removeAccountShares(
@@ -146,7 +147,6 @@ library BalanceShares {
         address[] memory accounts,
         bool skipRemoveableAtCheck
     ) private {
-        uint currentTimestamp = block.timestamp;
         uint subFromTotalBps;
         uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
         for (uint i = 0; i < accounts.length;) {
@@ -157,7 +157,7 @@ library BalanceShares {
             // The account share must be active to be removed
             require(endIndex == MAX_INDEX);
             // The current timestamp must be greater than the removeableAt timestamp (unless explicitly skipped)
-            require(skipRemoveableAtCheck || currentTimestamp >= removeableAt);
+            require(skipRemoveableAtCheck || block.timestamp >= removeableAt);
 
             // Set the bps to 0, and the endIndex to be the current balance share index
             accountShare.bps = 0;
@@ -174,7 +174,7 @@ library BalanceShares {
         uint newTotalBps = latestBalanceCheck.totalBps - subFromTotalBps;
 
         // Update the totalBps
-        _updateTotalBps(self, latestBalanceCheck.balance, latestBalanceCheckIndex, uint16(newTotalBps));
+        _updateTotalBps(self, latestBalanceCheck.balance, latestBalanceCheckIndex, newTotalBps);
 
     }
 
@@ -389,6 +389,113 @@ library BalanceShares {
 
     }
 
+    function increaseAccountBps(
+        BalanceShare storage self,
+        address account,
+        uint256 increaseBy
+    ) internal {
+        AccountShare storage accountShare = self._accounts[account];
+        // Account must not have finished withdrawals (this also ensures that the account has been initialized)
+        require(!_accountHasFinishedWithdrawals(accountShare));
+        accountShare.bps = SafeCast.toUint16(accountShare.bps + increaseBy);
+
+        // Also update the totalBps
+        uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
+        BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
+        _updateTotalBps(
+            self,
+            latestBalanceCheck.balance,
+            latestBalanceCheckIndex,
+            latestBalanceCheck.totalBps + increaseBy
+        );
+    }
+
+    /**
+     * @dev Function to decrease the basis points share for an account. Defaults to not allowing the bps decrease if the
+     * current timestamp is earlier than the account's "removeableAt" timestamp.
+     * @param self The BalanceShare
+     * @param account The account address
+     * @param decreaseBy The amount to decrease the account bps by
+     */
+    function decreaseAccountBps(
+        BalanceShare storage self,
+        address account,
+        uint256 decreaseBy
+    ) internal {
+        _decreaseAccountBps(self, account, decreaseBy, false);
+    }
+
+    /**
+     * @dev An additional function overload for decreasing account bps, with option to skip checking the "removeableAt"
+     * timestamp for the account.
+     * @param self The BalanceShare
+     * @param account The account address
+     * @param decreaseBy The amount to decrease the account bps by
+     * @param skipRemoveableAtCheck A bool that skips the "removeableAt" check if true
+     */
+    function decreaseAccountBps(
+        BalanceShare storage self,
+        address account,
+        uint256 decreaseBy,
+        bool skipRemoveableAtCheck
+    ) internal {
+        _decreaseAccountBps(self, account, decreaseBy, skipRemoveableAtCheck);
+    }
+
+    function _decreaseAccountBps(
+        BalanceShare storage self,
+        address account,
+        uint256 decreaseBy,
+        bool skipRemoveableAtCheck
+    ) private {
+        AccountShare storage accountShare = self._accounts[account];
+        // Account must not have finished withdrawals (this also ensures that the account has been initialized)
+        require(!_accountHasFinishedWithdrawals(accountShare));
+        (
+            uint bps,
+            uint removeableAt
+        ) = (
+            accountShare.bps,
+            accountShare.removableAt
+        );
+        // Cannot decrease to zero (should call remove account share in that case)
+        require(decreaseBy < bps);
+        // The current timestamp must be greater than the removeableAt timestamp (unless explicitly skipped)
+        require(skipRemoveableAtCheck || block.timestamp >= removeableAt);
+
+        // Update the account bps
+        accountShare.bps = uint16(bps - decreaseBy);
+
+        // Update the totalBps too
+        uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
+        BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
+        _updateTotalBps(
+            self,
+            latestBalanceCheck.balance,
+            latestBalanceCheckIndex,
+            latestBalanceCheck.totalBps - decreaseBy
+        );
+    }
+
+    /**
+     * @dev Helper method for updating the totalBps for a BalanceShare. Checks if it needs to push a new BalanceCheck
+     * item to the array, or if it can just update the totalBps for the latest item (if the balance is already zero).
+     */
+    function _updateTotalBps(
+        BalanceShare storage self,
+        uint256 latestBalance,
+        uint256 latestBalanceCheckIndex,
+        uint256 newTotalBps
+    ) private {
+        require(newTotalBps <= MAX_BPS);
+        // If the latestBalance is greater than 0, then push a new item, otherwise just update the current item
+        if (latestBalance > 0) {
+            self._balanceChecks.push(BalanceCheck(uint16(newTotalBps), 0));
+        } else {
+            self._balanceChecks[latestBalanceCheckIndex].totalBps = uint16(newTotalBps);
+        }
+    }
+
     function approveAddressesForWithdrawal(
         BalanceShare storage self,
         address account,
@@ -444,28 +551,10 @@ library BalanceShares {
     }
 
     /**
-     * @dev Helper method for updating the totalBps for a BalanceShare. Checks if it needs to push a new BalanceCheck
-     * item to the array, or if it can just update the totalBps for the latest item (if the balance is already zero).
-     */
-    function _updateTotalBps(
-        BalanceShare storage self,
-        uint256 latestBalance,
-        uint256 latestBalanceCheckIndex,
-        uint16 newTotalBps
-    ) private {
-        // If the latestBalance is greater than 0, then push a new item, otherwise just update the current item
-        if (latestBalance > 0) {
-            self._balanceChecks.push(BalanceCheck(newTotalBps, 0));
-        } else {
-            self._balanceChecks[latestBalanceCheckIndex].totalBps = newTotalBps;
-        }
-    }
-
-    /**
      * @dev An account is considered to be finished with withdrawals when the account's "lastBalanceCheckIndex" is
-     * greater than the account's "endIndex"
+     * greater than the account's "endIndex".
      *
-     * Returns true if the account has not been initialized with any shares yet
+     * Returns true if the account has not been initialized with any shares yet.
      */
     function accountHasFinishedWithdrawals(
         BalanceShare storage self,
@@ -521,7 +610,7 @@ library BalanceShares {
         // Copy it over
         self._accounts[newAccount] = self._accounts[account];
         // Zero out the old account
-        self._accounts[account] = AccountShare(0, 0, 0, 0, 0, 0, 0, 0);
+        delete self._accounts[account];
 
         // Approve addresses
         approveAddressesForWithdrawal(self, newAccount, approvedAddresses);

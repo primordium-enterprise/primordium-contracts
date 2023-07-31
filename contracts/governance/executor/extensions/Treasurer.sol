@@ -47,7 +47,7 @@ abstract contract Treasurer is Executor {
         _registerDeposit(depositAmount);
     }
 
-    function _registerDeposit(uint256 depositAmount) private {
+    function _registerDeposit(uint256 depositAmount) internal virtual {
         // NEED TO IMPLEMENT BALANCE CHECKS
     }
 
@@ -62,7 +62,7 @@ abstract contract Treasurer is Executor {
         if (!success) revert("Treasurer: Failed to process ETH withdrawal.");
     }
 
-    function _processWithdrawal(uint256 withdrawAmount) private {
+    function _processWithdrawal(uint256 withdrawAmount) internal virtual {
         // NEED TO IMPLEMENT BALANCE CHECKS
     }
 
