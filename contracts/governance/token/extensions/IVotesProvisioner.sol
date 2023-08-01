@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 
 interface IVotesProvisioner {
 
-    enum ProvisionModes {
+    enum ProvisionMode {
         Founding, // Initial mode for tokens, allows deposits/withdrawals at all times
         Governance, // No deposits allowed during Governance mode
         Funding // deposits/withdrawals are fully allowed during Funding mode
@@ -22,8 +22,8 @@ interface IVotesProvisioner {
      * @param newMode The new provision mode.
      */
     event ProvisionModeChange(
-        ProvisionModes oldMode,
-        ProvisionModes newMode
+        ProvisionMode oldMode,
+        ProvisionMode newMode
     );
 
     /**
@@ -65,10 +65,10 @@ interface IVotesProvisioner {
     event Withdrawal(address indexed account, address receiver, uint256 amountWithdrawn, uint256 votesBurned);
 
     // Function to query the current provision mode
-    function provisionMode() external view returns(ProvisionModes);
+    function provisionMode() external view returns(ProvisionMode);
 
     // Updates the provision mode, executor only
-    function setProvisionMode(ProvisionModes mode) external;
+    function setProvisionMode(ProvisionMode mode) external;
 
     // Function to query the max supply
     function maxSupply() external view returns (uint256);

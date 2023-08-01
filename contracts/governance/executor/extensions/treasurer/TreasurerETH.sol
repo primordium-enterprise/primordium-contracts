@@ -16,17 +16,16 @@ abstract contract TreasurerETH is Treasurer {
         return address(this).balance;
     }
 
+    /// @dev Transfers ETH.
+    function _transferBaseAsset(address to, uint256 amount) internal virtual override {
+        (bool success,) = to.call{value: amount}("");
+        if (!success) revert("TreasurerETH: Failed to send ETH.");
+    }
+
     /// @dev Override to ensure that the depositAmount is equal to the msg.value
     function _registerDeposit(uint256 depositAmount) internal virtual override {
         super._registerDeposit(depositAmount);
         require(msg.value == depositAmount, "TreasurerETH: mismatching depositAmount and msg.value");
-    }
-
-    /// @dev Override to process sending the ETH to the receiver
-    function _processWithdrawal(address receiver, uint256 withdrawAmount) internal virtual override {
-        super._processWithdrawal(receiver, withdrawAmount);
-        (bool success,) = receiver.call{value: withdrawAmount}("");
-        if (!success) revert("TreasurerETH: Failed to process ETH withdrawal");
     }
 
 }

@@ -48,6 +48,15 @@ abstract contract Treasurer is Executor {
      */
     function _treasuryBalance() internal view virtual returns (uint256);
 
+    /**
+     * @dev Internal function to transfer an amount of the base asset to the specified address.
+     */
+    function _transferBaseAsset(address to, uint256 amount) internal virtual;
+
+    /**
+     * @notice Registers a deposit on the Treasurer. Only callable by the votes contract.
+     * @param depositAmount The amount being deposited.
+     */
     function registerDeposit(uint256 depositAmount) public payable virtual onlyVotes {
         _registerDeposit(depositAmount);
     }
@@ -57,11 +66,18 @@ abstract contract Treasurer is Executor {
         require(depositAmount > 0, "Treasurer: Deposit amount must be greater than zero");
     }
 
+    /**
+     * @notice Processes a withdrawal from the Treasurer to the withdrawing member. Only callable by the votes contract.
+     * @param receiver The address to send the base asset to.
+     * @param withdrawAmount The amount of base asset to send.
+     */
     function processWithdrawal(address receiver, uint256 withdrawAmount) public virtual onlyVotes {
         _processWithdrawal(receiver, withdrawAmount);
     }
 
     /// @dev Must override to implement the actual transfer functionality depending on what baseAsset is used
-    function _processWithdrawal(address receiver, uint256 withdrawAmount) internal virtual { }
+    function _processWithdrawal(address receiver, uint256 withdrawAmount) internal virtual {
+        _transferBaseAsset(receiver, withdrawAmount);
+    }
 
 }

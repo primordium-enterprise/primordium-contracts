@@ -208,15 +208,19 @@ library BalanceShares {
         if (length > 0) {
             BalanceCheck storage latestBalanceCheck = self._balanceChecks[length - 1];
             uint currentTotalBps = latestBalanceCheck.totalBps;
-            balanceAddedToShares = _calculateBalanceShare(balanceIncreasedBy, currentTotalBps);
+            balanceAddedToShares = calculateBalanceShare(balanceIncreasedBy, currentTotalBps);
             _addBalance(self, latestBalanceCheck, balanceAddedToShares);
         }
     }
 
-    function _calculateBalanceShare(
+    /**
+     * @dev A function to calculate the balance to be added to the shares provided the amount the balance increased by
+     * and the current total BPS
+     */
+    function calculateBalanceShare(
         uint256 balanceIncreasedBy,
         uint256 currentTotalBps
-    ) private pure returns (uint256) {
+    ) internal pure returns (uint256) {
         // Only run the mulDiv if the totalBps is greater than zero
         return currentTotalBps > 0 ?
             Math.mulDiv(balanceIncreasedBy, currentTotalBps, MAX_BPS) :

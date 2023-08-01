@@ -39,7 +39,7 @@ abstract contract TreasurerBalanceSharesETH is TreasurerETH, TreasurerBalanceSha
     function _processWithdrawal(
         address receiver,
         uint256 withdrawAmount
-    ) internal virtual override(TreasurerETH, TreasurerBalanceShares) {
+    ) internal virtual override(Treasurer, TreasurerBalanceShares) {
         super._processWithdrawal(receiver, withdrawAmount);
     }
 

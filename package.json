@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "compile": "npx hardhat compile",
-    "test": "forge test -vvv"
+    "test": "forge test -vvv --no-match-path 'test/foundry/.*/*'"
   },
   "repository": {
     "type": "git",

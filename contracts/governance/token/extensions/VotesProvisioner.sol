@@ -28,7 +28,7 @@ uint256 constant COMPARE_FRACTIONS_MULTIPLIER = 1_000;
  */
 abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControlled {
 
-    ProvisionModes private _provisionMode;
+    ProvisionMode private _provisionMode;
 
     uint256 internal _maxSupply;
 
@@ -54,23 +54,23 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     /**
      * @notice Function to get the current provision mode of the token.
      */
-    function provisionMode() public view virtual returns(ProvisionModes) {
+    function provisionMode() public view virtual returns(ProvisionMode) {
         return _provisionMode;
     }
 
     /**
      * @notice Executor-only function to update the provision mode.
      */
-    function setProvisionMode(ProvisionModes mode) public virtual onlyExecutor {
+    function setProvisionMode(ProvisionMode mode) public virtual onlyExecutor {
         _setProvisionMode(mode);
     }
 
     /**
      * @dev Internal function to set the provision mode.
      */
-    function _setProvisionMode(ProvisionModes mode) internal virtual {
-        require(mode > ProvisionModes.Founding, "VotesProvisioner: cannot set the provision mode to founding mode");
-        ProvisionModes currentMode = _provisionMode;
+    function _setProvisionMode(ProvisionMode mode) internal virtual {
+        require(mode > ProvisionMode.Founding, "VotesProvisioner: cannot set the provision mode to founding mode");
+        ProvisionMode currentMode = _provisionMode;
         require(mode != currentMode, "VotesProvisioner: provision mode is already equal to the provided mode");
         emit ProvisionModeChange(currentMode, mode);
         _provisionMode = mode;
@@ -230,7 +230,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         address account,
         uint256 depositAmount
     ) internal virtual executorIsInitialized returns (uint256) {
-        require(_provisionMode != ProvisionModes.Governance, "VotesProvisioner: Deposits are not available.");
+        require(_provisionMode != ProvisionMode.Governance, "VotesProvisioner: Deposits are not available.");
         require(account != address(0));
         require(depositAmount >= 0, "VotesProvisioner: Amount of base asset must be greater than zero.");
         uint256 tokenPriceNumerator = _tokenPrice.numerator;
@@ -242,7 +242,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         );
         // The current price per token must not exceed the current value per token, or the treasury will be at risk
         // NOTE: We can bypass this check in founding mode because no funds can leave the treasury yet through governance
-        if (_provisionMode != ProvisionModes.Founding) {
+        if (_provisionMode != ProvisionMode.Founding) {
             (uint256 vpt, uint256 remainder) = _valueAndRemainderPerToken(tokenPriceDenominator);
             require(
                 ( vpt < tokenPriceNumerator ) ||
