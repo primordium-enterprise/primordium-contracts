@@ -23,6 +23,13 @@ abstract contract TreasurerBalanceSharesERC20 is TreasurerERC20, TreasurerBalanc
         }
     }
 
+    /**
+     * @dev Total treasury balance is measured in ERC20 base asset
+     */
+    function _getBaseAssetBalance() internal view virtual override returns (uint256) {
+        return _baseAsset.balanceOf(address(this));
+    }
+
     function _registerDeposit(
         uint256 depositAmount
     ) internal virtual override(Treasurer, TreasurerBalanceShares) {

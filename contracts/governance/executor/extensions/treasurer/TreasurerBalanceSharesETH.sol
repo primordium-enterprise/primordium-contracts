@@ -23,8 +23,11 @@ abstract contract TreasurerBalanceSharesETH is TreasurerETH, TreasurerBalanceSha
         }
     }
 
-    function _updateTreasuryBalance() internal virtual override returns (uint256) {
-
+    /**
+     * @dev Total treasury balance is measured in ETH
+     */
+    function _getBaseAssetBalance() internal view virtual override returns (uint256) {
+        return address(this).balance;
     }
 
     function _registerDeposit(
