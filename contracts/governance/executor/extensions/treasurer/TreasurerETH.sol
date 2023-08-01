@@ -11,6 +11,11 @@ abstract contract TreasurerETH is Treasurer {
         require(address(_baseAsset) == address(0), "TreasurerETH: Invalid baseAsset address");
     }
 
+    /// @dev Defaults to returning the ETH balance of this address
+    function _treasuryBalance() internal view virtual override returns (uint256) {
+        return address(this).balance;
+    }
+
     /// @dev Override to ensure that the depositAmount is equal to the msg.value
     function _registerDeposit(uint256 depositAmount) internal virtual override {
         super._registerDeposit(depositAmount);

@@ -53,8 +53,4 @@ abstract contract VotesProvisionerETH is VotesProvisioner {
         _getTreasurer().processWithdrawal(receiver, withdrawAmount);
     }
 
-    function _treasuryBalance() internal view virtual override returns(uint256) {
-        return executor().balance;
-    }
-
 }

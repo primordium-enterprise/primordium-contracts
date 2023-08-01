@@ -12,7 +12,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
     BalanceShares.BalanceShare private _balanceShares;
 
     // The treasury balance accessible to the DAO (some funds may be allocated to BalanceShares)
-    uint256 _treasuryBalance;
+    uint256 _balance;
 
     /// @dev Override to implement balance updates on the treasury
     function _registerDeposit(uint256 depositAmount) internal virtual override {

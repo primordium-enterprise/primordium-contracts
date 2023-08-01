@@ -187,10 +187,11 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     }
 
     /**
-     * @dev Internal function that measures the balance of the base asset in the Executor (needs to be overridden to
-     * measure the chosen base asset properly)
+     * @dev Internal function that returns the balance of the base asset in the Executor.
      */
-    function _treasuryBalance() internal view virtual returns (uint256);
+    function _treasuryBalance() internal view virtual returns (uint256) {
+        return _getTreasurer().treasuryBalance();
+    }
 
     /**
      * @notice Allows exchanging the depositAmount of base asset for votes (if votes are available for purchase).

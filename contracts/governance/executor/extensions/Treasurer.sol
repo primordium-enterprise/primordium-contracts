@@ -24,8 +24,12 @@ abstract contract Treasurer is Executor {
     }
 
     modifier onlyVotes() {
-        require(_msgSender() == address(_votes), "Treasurer: call must come from the _votes contract.");
+        _onlyVotes();
         _;
+    }
+
+    function _onlyVotes() private view {
+        require(msg.sender == address(_votes), "Treasurer: call must come from the _votes contract.");
     }
 
     function baseAsset() public view returns (address) {
@@ -35,14 +39,14 @@ abstract contract Treasurer is Executor {
     /**
      * @notice Returns the current DAO balance of the base asset in the treasury.
      */
-    // function treasuryBalance() public view returns (uint256) {
-    //     return _balance();
-    // }
+    function treasuryBalance() public view returns (uint256) {
+        return _treasuryBalance();
+    }
 
     /**
-     * @dev An internal function that must be overridden to properly return the DAO.
+     * @dev An internal function that must be overridden to properly return the DAO treasury balance.
      */
-    // function _balance() internal view virtual returns (uint256);
+    function _treasuryBalance() internal view virtual returns (uint256);
 
     function registerDeposit(uint256 depositAmount) public payable virtual onlyVotes {
         _registerDeposit(depositAmount);
