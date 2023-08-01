@@ -11,4 +11,10 @@ abstract contract TreasurerERC20 is Treasurer {
         require(address(_baseAsset) != address(0));
     }
 
+    /// @dev Override to process sending the ERC20 to the receiver
+    function _processWithdrawal(address receiver, uint256 withdrawAmount) internal virtual override {
+        super._processWithdrawal(receiver, withdrawAmount);
+        SafeERC20.safeTransfer(_baseAsset, receiver, withdrawAmount);
+    }
+
 }

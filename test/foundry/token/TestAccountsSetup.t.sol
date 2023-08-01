@@ -28,7 +28,8 @@ contract TestAccountsSetup is Test, GovernanceSetup {
         vm.prank(a2);
         token.depositFor{value: amnt2}(a2);
         token.depositFor{value: amnt3}(a3, amnt3);
-        token.depositFor(a4); // Should deposit 0
+        vm.expectRevert();  // Should revert in Treasurer on deposit of 0
+        token.depositFor(a4);
     }
 
     function _expectedTokenBalance(uint256 baseAssetAmount) internal view returns(uint256) {

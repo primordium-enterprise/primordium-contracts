@@ -43,14 +43,14 @@ abstract contract VotesProvisionerETH is VotesProvisioner {
      */
 
     function _transferDepositToExecutor(address /*account*/, uint256 depositAmount) internal virtual override {
-        _getTreasurer().registerDepositETH{value: msg.value}(depositAmount);
+        _getTreasurer().registerDeposit{value: msg.value}(depositAmount);
     }
 
     /**
      * @dev Override to transfer the ETH withdrawal from the Executor.
      */
     function _transferWithdrawalToReceiver(address receiver, uint256 withdrawAmount) internal virtual override {
-        _getTreasurer().processWithdrawalETH(receiver, withdrawAmount);
+        _getTreasurer().processWithdrawal(receiver, withdrawAmount);
     }
 
     function _treasuryBalance() internal view virtual override returns(uint256) {

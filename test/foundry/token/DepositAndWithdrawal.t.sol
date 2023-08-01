@@ -17,6 +17,7 @@ contract DepositAndWithdrawal is Test, TestAccountsSetup {
     function testFuzz_InvalidAssetMultipleOnDeposit(uint8 amount) public {
         (uint256 num,) = token.tokenPrice();
         if (amount % num == 0) {
+            if (amount == 0) vm.expectRevert(); // Throws an error in the Treasurer if the deposit amount is zero
             token.deposit{value: amount}();
             assertEq(token.balanceOf(address(this)), _expectedTokenBalance(amount));
         } else {

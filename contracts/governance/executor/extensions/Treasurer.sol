@@ -44,32 +44,20 @@ abstract contract Treasurer is Executor {
      */
     // function _balance() internal view virtual returns (uint256);
 
-    function registerDepositERC20(uint256 depositAmount) public virtual onlyVotes {
+    function registerDeposit(uint256 depositAmount) public payable virtual onlyVotes {
         _registerDeposit(depositAmount);
     }
 
-    function registerDepositETH(uint256 depositAmount) public payable virtual onlyVotes {
-        require(msg.value == depositAmount, "Treasurer: depositEth mismatching depositAmount and msg.value");
-        _registerDeposit(depositAmount);
-    }
-
+    /// @dev Can override and call super._registerDeposit for additional checks/functionality depending on baseAsset used
     function _registerDeposit(uint256 depositAmount) internal virtual {
-        // NEED TO IMPLEMENT BALANCE CHECKS
+        require(depositAmount > 0, "Treasurer: Deposit amount must be greater than zero");
     }
 
-    function processWithdrawalERC20(address receiver, uint256 withdrawAmount) public virtual onlyVotes {
-        _processWithdrawal(withdrawAmount);
-        SafeERC20.safeTransfer(_baseAsset, receiver, withdrawAmount);
+    function processWithdrawal(address receiver, uint256 withdrawAmount) public virtual onlyVotes {
+        _processWithdrawal(receiver, withdrawAmount);
     }
 
-    function processWithdrawalETH(address receiver, uint256 withdrawAmount) public virtual onlyVotes {
-        _processWithdrawal(withdrawAmount);
-        (bool success,) = receiver.call{value: withdrawAmount}("");
-        if (!success) revert("Treasurer: Failed to process ETH withdrawal.");
-    }
-
-    function _processWithdrawal(uint256 withdrawAmount) internal virtual {
-        // NEED TO IMPLEMENT BALANCE CHECKS
-    }
+    /// @dev Must override to implement the actual transfer functionality depending on what baseAsset is used
+    function _processWithdrawal(address receiver, uint256 withdrawAmount) internal virtual { }
 
 }

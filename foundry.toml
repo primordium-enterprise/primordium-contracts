@@ -14,5 +14,6 @@ optimizer = true
 optimizer_runs = 2000
 via_ir = false
 ignored_error_codes = ['unused-param']
+no_match_path = "test/foundry/.*/*"
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
