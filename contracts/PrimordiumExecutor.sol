@@ -4,9 +4,9 @@
 pragma solidity ^0.8.0;
 
 import "./governance/executor/extensions/treasurer/TreasurerETH.sol";
-import "./governance/executor/extensions/treasurer/TreasurerBalanceShares.sol";
+import "./governance/executor/extensions/treasurer/TreasurerBalanceSharesETH.sol";
 
-contract PrimordiumExecutor is Executor, TreasurerETH, TreasurerBalanceShares {
+contract PrimordiumExecutor is Executor, TreasurerBalanceSharesETH {
 
     constructor(
         uint256 minDelay,
@@ -16,17 +16,12 @@ contract PrimordiumExecutor is Executor, TreasurerETH, TreasurerBalanceShares {
 
     }
 
-    function _registerDeposit(
-        uint256 depositAmount
-    ) internal virtual override(TreasurerETH, TreasurerBalanceShares) {
-        super._registerDeposit(depositAmount);
-    }
-
-    function _processWithdrawal(
-        address receiver,
-        uint256 withdrawAmount
-    ) internal virtual override(TreasurerETH, TreasurerBalanceShares) {
-        super._processWithdrawal(receiver, withdrawAmount);
+    function _beforeExecute(
+        address target,
+        uint256 value,
+        bytes calldata data
+    ) internal virtual override(Executor, TreasurerBalanceSharesETH) {
+        super._beforeExecute(target, value, data);
     }
 
 }
