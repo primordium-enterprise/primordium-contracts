@@ -18,23 +18,28 @@ abstract contract TreasurerBalanceShares is Treasurer {
     // The previously measured DAO balance (minus any _stashedBalance), for tracking changes to the balance amount
     uint256 _balance;
 
-    // The total balance of the base asset that is not actually owned by the DAO (because it is owed to BalanceShares)
+    // The total balance of the base asset that is not actually owned by the DAO (it is owed to BalanceShares, etc.)
     uint256 _stashedBalance;
 
     /**
      * @dev Override to retrieve the base asset balance available to the DAO.
      */
     function _treasuryBalance() internal view virtual override returns (uint256) {
-        return _balance;
+        return _mockUpdateTreasuryBalance(_currentTreasuryBalance(), _balance);
     }
 
     function updateTreasuryBalance() public returns (uint256) {
         return _updateTreasuryBalance();
     }
 
+    /// @dev Helper function to return the current raw base asset balance minus the _stashedBalance
+    function _currentTreasuryBalance() internal view virtual returns (uint256) {
+        return _getBaseAssetBalance() - _stashedBalance;
+    }
+
     /// @dev Update function that balances the treasury based on any revenue changes that occurred since the last update
     function _updateTreasuryBalance() internal virtual returns (uint256) {
-        uint currentBalance = _getBaseAssetBalance() - _stashedBalance;
+        uint currentBalance = _currentTreasuryBalance();
         uint prevBalance = _balance;
         // If revenue occurred, apply revenue shares and update the balances
         if (currentBalance > prevBalance) {
@@ -53,8 +58,9 @@ abstract contract TreasurerBalanceShares is Treasurer {
     ) internal view virtual returns (uint256) {
         if (currentBalance > prevBalance) {
             uint increasedBy = currentBalance - prevBalance;
-            uint stashed = _balanceShares[BalanceShareId.Revenue].calculateBalanceToAddToShares(increasedBy);
+            currentBalance -= _balanceShares[BalanceShareId.Revenue].calculateBalanceToAddToShares(increasedBy);
         }
+        return currentBalance;
     }
 
     /**

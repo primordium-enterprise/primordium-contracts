@@ -226,10 +226,7 @@ library BalanceShares {
         (
             uint256 balanceToAddToShares,
             uint256 newBalanceRemainder
-        ) = _calculateBalanceShare(
-            balanceIncreasedBy + self._balanceRemainder, // Add the old remainder into the calculation
-            latestBalanceCheck.totalBps
-        );
+        ) = _calculateBalanceShare(self, balanceIncreasedBy, latestBalanceCheck.totalBps);
         // Update with the new remainder
         self._balanceRemainder = SafeCast.toUint16(newBalanceRemainder);
         return balanceToAddToShares;
@@ -247,16 +244,19 @@ library BalanceShares {
         BalanceShare storage self,
         uint256 balanceIncreasedBy
     ) internal view returns (uint256 balanceToAddToShares) {
-        (balanceToAddToShares,) = _calculateBalanceShare(balanceIncreasedBy, totalBps(self));
+        (balanceToAddToShares,) = _calculateBalanceShare(self, balanceIncreasedBy, totalBps(self));
     }
 
     /**
-     * @dev Private function that returns the balanceToAddToShares, and the mulmod remainder of the operation
+     * @dev Private function that returns the balanceToAddToShares, and the mulmod remainder of the operation. NOTE: This
+     * function adds the previous _balanceRemainder to the balanceIncreasedBy parameter before running the calculations.
      */
     function _calculateBalanceShare(
+        BalanceShare storage self,
         uint256 balanceIncreasedBy,
         uint256 currentTotalBps
-    ) private pure returns (uint256, uint256) {
+    ) private view returns (uint256, uint256) {
+        balanceIncreasedBy += self._balanceRemainder; // Adds the previous remainder into the calculation
         return (
             Math.mulDiv(balanceIncreasedBy, currentTotalBps, MAX_BPS),
             mulmod(balanceIncreasedBy, currentTotalBps, MAX_BPS)
