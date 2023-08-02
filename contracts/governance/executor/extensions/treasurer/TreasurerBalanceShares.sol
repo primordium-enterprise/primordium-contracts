@@ -53,10 +53,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
     ) internal view virtual returns (uint256) {
         if (currentBalance > prevBalance) {
             uint increasedBy = currentBalance - prevBalance;
-            uint stashed = BalanceShares.calculateBalanceShare(
-                increasedBy,
-                _balanceShares[BalanceShareId.Revenue].totalBps()
-            );
+            uint stashed = _balanceShares[BalanceShareId.Revenue].calculateBalanceToAddToShares(increasedBy);
         }
     }
 

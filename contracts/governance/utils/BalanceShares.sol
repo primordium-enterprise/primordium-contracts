@@ -13,6 +13,8 @@ library BalanceShares {
     uint256 constant MAX_CHECK_BALANCE_AMOUNT = type(uint240).max;
 
     struct BalanceShare {
+        uint16 _balanceRemainder; // Tracks the balance remainder when processing account balance updates
+        bytes30 __gap_unused_0;
         BalanceCheck[] _balanceChecks; // New balanceCheck pushed every time totalBps changes, or when balance overflow occurs, max length is type(uint40).max
         mapping(address => AccountShare) _accounts;
         mapping(address => mapping(address => bool)) _accountWithdrawalApprovals;
@@ -207,24 +209,73 @@ library BalanceShares {
         // Only continue if the length is greater than zero, otherwise returns zero by default
         if (length > 0) {
             BalanceCheck storage latestBalanceCheck = self._balanceChecks[length - 1];
-            uint currentTotalBps = latestBalanceCheck.totalBps;
-            balanceAddedToShares = calculateBalanceShare(balanceIncreasedBy, currentTotalBps);
+            balanceAddedToShares = _processBalanceShares(self, latestBalanceCheck, balanceIncreasedBy);
             _addBalance(self, latestBalanceCheck, balanceAddedToShares);
         }
     }
 
     /**
-     * @dev A function to calculate the balance to be added to the shares provided the amount the balance increased by
-     * and the current total BPS
+     * @dev Private function that takes the balanceIncreasedBy, adds the previous _balanceRemainder, and returns the
+     * balanceToAddToShares, updating the stored _balanceRemainder in the process.
      */
-    function calculateBalanceShare(
+    function _processBalanceShares(
+        BalanceShare storage self,
+        BalanceCheck storage latestBalanceCheck,
+        uint256 balanceIncreasedBy
+    ) private returns (uint256) {
+        (
+            uint256 balanceToAddToShares,
+            uint256 newBalanceRemainder
+        ) = _calculateBalanceShare(
+            balanceIncreasedBy + self._balanceRemainder, // Add the old remainder into the calculation
+            latestBalanceCheck.totalBps
+        );
+        // Update with the new remainder
+        self._balanceRemainder = SafeCast.toUint16(newBalanceRemainder);
+        return balanceToAddToShares;
+    }
+
+    /**
+     * @dev A function to calculate the balance to be added to the shares provided the amount the balance increased by
+     * and the current total BPS. Returns both the calculated balance to be added to the balance shares, as well as the
+     * remainder (useful for storing for next time).
+     * @param balanceIncreasedBy A uint256 representing how much the core balance increased by, which will be multiplied
+     * by the totalBps for all active balance shares to be made available to those accounts.
+     * @return balanceToAddToShares The calculated balance to add the shares
+     */
+    function calculateBalanceToAddToShares(
+        BalanceShare storage self,
+        uint256 balanceIncreasedBy
+    ) internal view returns (uint256 balanceToAddToShares) {
+        (balanceToAddToShares,) = _calculateBalanceShare(balanceIncreasedBy, totalBps(self));
+    }
+
+    /**
+     * @dev Private function that returns the balanceToAddToShares, and the mulmod remainder of the operation
+     */
+    function _calculateBalanceShare(
         uint256 balanceIncreasedBy,
         uint256 currentTotalBps
-    ) internal pure returns (uint256) {
-        // Only run the mulDiv if the totalBps is greater than zero
-        return currentTotalBps > 0 ?
-            Math.mulDiv(balanceIncreasedBy, currentTotalBps, MAX_BPS) :
-            0;
+    ) private pure returns (uint256, uint256) {
+        return (
+            Math.mulDiv(balanceIncreasedBy, currentTotalBps, MAX_BPS),
+            mulmod(balanceIncreasedBy, currentTotalBps, MAX_BPS)
+        );
+    }
+
+    /**
+     * @dev A function to directly add a given amount to the balance shares. This amount should be accounted for in the
+     * host contract.
+     */
+    function addBalanceToShares(
+        BalanceShare storage self,
+        uint256 amount
+    ) internal {
+        uint length = self._balanceChecks.length;
+        if (length > 0) {
+            BalanceCheck storage latestBalanceCheck = self._balanceChecks[length - 1];
+            _addBalance(self, latestBalanceCheck, amount);
+        }
     }
 
     /**
