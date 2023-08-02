@@ -171,8 +171,11 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     }
 
     function _valuePerToken(uint256 multiplier) internal view returns (uint256) {
-        uint256 supply = totalSupply();
-        return supply > 0 ? Math.mulDiv(_treasuryBalance(), multiplier, supply) : 0;
+        return _valuePerTokenCalc(_treasuryBalance(), multiplier, totalSupply());
+    }
+
+    function _valuePerTokenCalc(uint256 balance, uint256 multiplier, uint256 supply) private pure returns (uint256) {
+        return supply > 0 ? Math.mulDiv(balance, multiplier, supply) : 0;
     }
 
     function _valueAndRemainderPerToken(uint256 multiplier) internal view returns (uint256, uint256) {
@@ -180,8 +183,8 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         uint256 balance = _treasuryBalance();
         return supply > 0 ?
             (
-                balance * multiplier / supply,
-                balance * multiplier % supply
+                Math.mulDiv(balance, multiplier, supply),
+                mulmod(balance, multiplier, supply)
             ) :
             (0, 0);
     }
@@ -243,6 +246,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         // The current price per token must not exceed the current value per token, or the treasury will be at risk
         // NOTE: We can bypass this check in founding mode because no funds can leave the treasury yet through governance
         if (_provisionMode != ProvisionMode.Founding) {
+            // (tokenPriceNumerator / tokenPriceDenominator) >= (treasuryBalance / totalTokenSupply)
             (uint256 vpt, uint256 remainder) = _valueAndRemainderPerToken(tokenPriceDenominator);
             require(
                 ( vpt < tokenPriceNumerator ) ||
