@@ -201,7 +201,7 @@ library BalanceShares {
      * @return balanceAddedToShares Returns the amount added to the balance shares, which should be accounted for in the
      * host contract.
      */
-    function processBalanceShares(
+    function processBalanceShare(
         BalanceShare storage self,
         uint256 balanceIncreasedBy
     ) internal returns (uint256 balanceAddedToShares) {
@@ -209,7 +209,7 @@ library BalanceShares {
         // Only continue if the length is greater than zero, otherwise returns zero by default
         if (length > 0) {
             BalanceCheck storage latestBalanceCheck = self._balanceChecks[length - 1];
-            balanceAddedToShares = _processBalanceShares(self, latestBalanceCheck, balanceIncreasedBy);
+            balanceAddedToShares = _processBalanceShare(self, latestBalanceCheck, balanceIncreasedBy);
             _addBalance(self, latestBalanceCheck, balanceAddedToShares);
         }
     }
@@ -218,7 +218,7 @@ library BalanceShares {
      * @dev Private function that takes the balanceIncreasedBy, adds the previous _balanceRemainder, and returns the
      * balanceToAddToShares, updating the stored _balanceRemainder in the process.
      */
-    function _processBalanceShares(
+    function _processBalanceShare(
         BalanceShare storage self,
         BalanceCheck storage latestBalanceCheck,
         uint256 balanceIncreasedBy

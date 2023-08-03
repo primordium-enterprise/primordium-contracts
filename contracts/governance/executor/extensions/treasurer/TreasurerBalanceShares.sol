@@ -47,8 +47,8 @@ abstract contract TreasurerBalanceShares is Treasurer {
         // If revenue occurred, apply revenue shares and update the balances
         if (currentBalance > prevBalance) {
             uint increasedBy = currentBalance - prevBalance;
-            // Use "processBalanceShares" function to account for the remainder
-            uint stashed = _balanceShares[BalanceShareId.Revenue].processBalanceShares(increasedBy);
+            // Use "processBalanceShare" function to account for the remainder
+            uint stashed = _balanceShares[BalanceShareId.Revenue].processBalanceShare(increasedBy);
             _stashedBalance += stashed;
             currentBalance -= stashed;
             _balance = currentBalance;
@@ -77,7 +77,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
     function _registerDeposit(uint256 depositAmount) internal virtual override {
         super._registerDeposit(depositAmount);
         // NEED TO BYPASS UNTIL INITIALIZATION, THEN APPLY RETROACTIVELY
-        uint stashed = _balanceShares[BalanceShareId.Deposits].processBalanceShares(depositAmount);
+        uint stashed = _balanceShares[BalanceShareId.Deposits].processBalanceShare(depositAmount);
         _balance += depositAmount - stashed;
         _stashedBalance += stashed;
     }
