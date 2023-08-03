@@ -21,6 +21,9 @@ abstract contract TreasurerBalanceShares is Treasurer {
     // The total balance of the base asset that is not actually owned by the DAO (it is owed to BalanceShares, etc.)
     uint256 _stashedBalance;
 
+    error InsufficientBaseAssetFunds(uint256 balanceTransferAmount, uint256 currentBalance);
+    error InvalidBaseAssetOperation();
+
     /**
      * @dev Override to retrieve the base asset balance available to the DAO.
      */
@@ -44,6 +47,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
         // If revenue occurred, apply revenue shares and update the balances
         if (currentBalance > prevBalance) {
             uint increasedBy = currentBalance - prevBalance;
+            // Use "processBalanceShares" function to account for the remainder
             uint stashed = _balanceShares[BalanceShareId.Revenue].processBalanceShares(increasedBy);
             _stashedBalance += stashed;
             currentBalance -= stashed;
@@ -85,5 +89,29 @@ abstract contract TreasurerBalanceShares is Treasurer {
         // BALANCE CHECKS
         _balance -= withdrawAmount;
     }
+
+    /**
+     * @dev Before execution of any action on the Executor, confirm that balance transfers do not exceed DAO balance and
+     * update the balance accordingly
+     */
+    function _beforeExecute(address target, uint256 value, bytes calldata data) internal virtual override {
+        super._beforeExecute(target, value, data);
+        uint transferAmount = _checkExecutionBalanceTransfer(target, value, data);
+        if (transferAmount > 0) {
+            uint currentBalance = _treasuryBalance();
+            // Revert if the attempted transfer amount is greater than the currentBalance
+            if (transferAmount > _treasuryBalance()) {
+                revert InsufficientBaseAssetFunds(transferAmount, currentBalance);
+            }
+            // Proactively update the treasury balance in anticipation of the base asset transfer
+            _balance -= transferAmount;
+        }
+    }
+
+    function _checkExecutionBalanceTransfer(
+        address target,
+        uint256 value,
+        bytes calldata data
+    ) internal virtual returns (uint256 balanceBeingTransferred);
 
 }

@@ -16,11 +16,30 @@ abstract contract TreasurerBalanceSharesETH is TreasurerETH, TreasurerBalanceSha
         return TreasurerBalanceShares._treasuryBalance();
     }
 
-    function _beforeExecute(address target, uint256 value, bytes calldata data) internal virtual override {
+    // function _beforeExecute(address target, uint256 value, bytes calldata data) internal virtual override {
+    //     super._beforeExecute(target, value, data);
+    //     if (value > 0) {
+    //         // UPDATE BALANCE AND THEN ADJUST BASED ON ETH VALUE, DON'T ALLOW IF MORE THAN BALANCE
+    //     }
+    // }
+
+    function _beforeExecute(
+        address target,
+        uint256 value,
+        bytes calldata data
+    ) internal virtual override(Executor, TreasurerBalanceShares) {
         super._beforeExecute(target, value, data);
-        if (value > 0) {
-            // UPDATE BALANCE AND THEN ADJUST BASED ON ETH VALUE, DON'T ALLOW IF MORE THAN BALANCE
-        }
+    }
+
+    /**
+     * @dev Override to return the ETH value of the transaction
+     */
+    function _checkExecutionBalanceTransfer(
+        address /*target*/,
+        uint256 value,
+        bytes calldata /*data*/
+    ) internal virtual override returns (uint256 balanceBeingTransferred) {
+        return value;
     }
 
     /**
