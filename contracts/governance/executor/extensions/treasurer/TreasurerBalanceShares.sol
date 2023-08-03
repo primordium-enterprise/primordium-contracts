@@ -26,22 +26,44 @@ abstract contract TreasurerBalanceShares is Treasurer {
 
     /**
      * @dev Override to retrieve the base asset balance available to the DAO.
+     *
+     * Calculates any revenue shares that would need to be applied first (but doesn't save these to state in order to
+     * save gas)
      */
     function _treasuryBalance() internal view virtual override returns (uint256) {
-        return _mockUpdateTreasuryBalance(_currentTreasuryBalance(), _balance);
+        uint256 currentBalance = _currentTreasuryBalance();
+        uint256 prevBalance = _balance;
+        if (currentBalance > prevBalance) {
+            currentBalance -= _balanceShares[BalanceShareId.Revenue].calculateBalanceToAddToShares(
+                currentBalance - prevBalance
+            );
+        }
+        return currentBalance;
     }
 
-    function updateTreasuryBalance() public returns (uint256) {
-        return _updateTreasuryBalance();
-    }
-
-    /// @dev Helper function to return the current raw base asset balance minus the _stashedBalance
+    /**
+     * @dev Helper function to return the full base asset balance minus the _stashedBalance
+     */
     function _currentTreasuryBalance() internal view virtual returns (uint256) {
         return _getBaseAssetBalance() - _stashedBalance;
     }
 
-    /// @dev Update function that balances the treasury based on any revenue changes that occurred since the last update
-    function _updateTreasuryBalance() internal virtual returns (uint256) {
+    /**
+     * @notice A publicly callable function to update the treasury balances, processing any revenue shares and saving
+     * these updates to the contract state.
+     */
+    function processBalanceShares() public returns (uint256) {
+        return _processBalanceShares();
+    }
+
+    /**
+     * @dev Update function that balances the treasury based on any revenue changes that occurred since the last update.
+     *
+     * Saves these changes to the _balance and _stashedBalance storage state.
+     *
+     * Calls BalanceShares.processBalanceShare on the revenue shares to track any balance remainders as well.
+     */
+    function _processBalanceShares() internal virtual returns (uint256) {
         uint currentBalance = _currentTreasuryBalance();
         uint prevBalance = _balance;
         // If revenue occurred, apply revenue shares and update the balances
@@ -56,19 +78,8 @@ abstract contract TreasurerBalanceShares is Treasurer {
         return currentBalance;
     }
 
-    function _mockUpdateTreasuryBalance(
-        uint256 currentBalance,
-        uint256 prevBalance
-    ) internal view virtual returns (uint256) {
-        if (currentBalance > prevBalance) {
-            uint increasedBy = currentBalance - prevBalance;
-            currentBalance -= _balanceShares[BalanceShareId.Revenue].calculateBalanceToAddToShares(increasedBy);
-        }
-        return currentBalance;
-    }
-
     /**
-     * @dev Internal function to return the total base asset owned by this address (should be overridden depending on
+     * @dev Internal function to return the total base asset owned by this address (needs to be overridden based on
      * the base asset type)
      */
     function _getBaseAssetBalance() internal view virtual returns (uint256);
@@ -91,8 +102,8 @@ abstract contract TreasurerBalanceShares is Treasurer {
     }
 
     /**
-     * @dev Before execution of any action on the Executor, confirm that balance transfers do not exceed DAO balance and
-     * update the balance accordingly
+     * @dev Before execution of any action on the Executor, confirm that base asset transfers do not exceed DAO balance,
+     * and then update the balance to account for the transfer.
      */
     function _beforeExecute(address target, uint256 value, bytes calldata data) internal virtual override {
         super._beforeExecute(target, value, data);
@@ -108,6 +119,11 @@ abstract contract TreasurerBalanceShares is Treasurer {
         }
     }
 
+    /**
+     * @dev Used in the _beforeExecute hook to check for base asset transfers. Needs to be overridden based on the base
+     * asset type. This should return the amount being transferred from the Treasurer in the provided transaction so it
+     * can be accounted for in the internal balance state.
+     */
     function _checkExecutionBalanceTransfer(
         address target,
         uint256 value,

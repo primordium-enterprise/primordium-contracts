@@ -48,6 +48,8 @@ library BalanceShares {
      * For accounts that cannot claim their withdrawals on their own (because they don't have functions to do so),
      * it is recommended to provide [address(0)] for the approvedAccountsForWithdrawal so that any address can claim
      * the withdrawal proceeds on behalf of the account.
+     *
+     * It is recommended that the host contract process current balance shares before adding additional accounts.
      */
     function addAccountShares(
         BalanceShare storage self,
@@ -124,6 +126,8 @@ library BalanceShares {
      * will still have access to withdraw their balances that were accumulated prior to removal.
      *
      * Requires that the block.timestamp is greater than the account's "removeableAt" parameter, or else throws an error.
+     *
+     * It is recommended that the host contract process current balance shares before removing accounts.
      */
     function removeAccountShares(
         BalanceShare storage self,
