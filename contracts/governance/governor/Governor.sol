@@ -364,9 +364,12 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         );
 
         require(targets.length > 0, "Governor: proposal must provide actions");
-        require(targets.length == values.length, "Governor: invalid proposal length");
-        require(targets.length == calldatas.length, "Governor: invalid proposal length");
-        require(targets.length == signatures.length, "Governor: invalid proposal length");
+        require(
+            targets.length == values.length &&
+            targets.length == calldatas.length &&
+            targets.length == signatures.length,
+            "Governor: invalid proposal length"
+        );
 
         if (_token.provisionMode() == IVotesProvisioner.ProvisionMode.Founding) {
             require(
