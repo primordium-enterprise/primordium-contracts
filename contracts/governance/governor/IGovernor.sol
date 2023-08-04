@@ -31,7 +31,7 @@ abstract contract IGovernor is IERC165, IERC6372, ExecutorControlled {
      */
     event ProposalCreated(
         uint256 indexed proposalId,
-        address proposer,
+        address indexed proposer,
         address[] targets,
         uint256[] values,
         string[] signatures,
@@ -44,24 +44,30 @@ abstract contract IGovernor is IERC165, IERC6372, ExecutorControlled {
     /**
      * @dev Emitted when a proposal is queued.
      */
-    event ProposalQueued(uint256 proposalId, uint256 eta);
+    event ProposalQueued(uint256 indexed proposalId, uint256 eta);
 
     /**
      * @dev Emitted when a proposal is canceled.
      */
-    event ProposalCanceled(uint256 proposalId);
+    event ProposalCanceled(uint256 indexed proposalId);
 
     /**
      * @dev Emitted when a proposal is executed.
      */
-    event ProposalExecuted(uint256 proposalId);
+    event ProposalExecuted(uint256 indexed proposalId);
 
     /**
      * @dev Emitted when a vote is cast without params.
      *
      * Note: `support` values should be seen as buckets. Their interpretation depends on the voting module used.
      */
-    event VoteCast(address indexed voter, uint256 proposalId, uint8 support, uint256 weight, string reason);
+    event VoteCast(
+        address indexed voter,
+        uint256 indexed proposalId,
+        uint8 support,
+        uint256 weight,
+        string reason
+    );
 
     /**
      * @dev Emitted when a vote is cast with params.
@@ -71,7 +77,7 @@ abstract contract IGovernor is IERC165, IERC6372, ExecutorControlled {
      */
     event VoteCastWithParams(
         address indexed voter,
-        uint256 proposalId,
+        uint256 indexed proposalId,
         uint8 support,
         uint256 weight,
         string reason,
