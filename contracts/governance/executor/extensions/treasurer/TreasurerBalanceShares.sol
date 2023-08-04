@@ -141,7 +141,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
 
     /**
      * @notice Adds the specified balance shares to the treasury. Only callable by the timelock itself.
-     * @param balanceShareId The enum identifier of which balance share this applies to.
+     * @param balanceShareId The enum identifier for which balance share this applies to.
      * @param newAccountShares An array of BalanceShares.NewAccountShare structs defining the account shares to add to
      * the specified balance share. Each struct item should contain the following properties:
      * - address account The address of the new account share recipient
@@ -154,7 +154,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
         BalanceShareId balanceShareId,
         BalanceShares.NewAccountShare[] calldata newAccountShares
     ) public virtual onlyTimelock {
-        _processRevenueShares();
+        if (balanceShareId == BalanceShareId.Revenue) _processRevenueShares();
         _balanceShares[balanceShareId].addAccountShares(newAccountShares);
         for (uint i = 0; i < newAccountShares.length;) {
             emit BalanceShareAdded(
@@ -167,6 +167,111 @@ abstract contract TreasurerBalanceShares is Treasurer {
         }
     }
 
+    event BalanceShareRemoved(
+        BalanceShareId indexed balanceShareId,
+        address indexed account
+    );
 
+    /**
+     * @notice Removes the provided accounts from the specified balance shares.
+     * @param balanceShareId The enum identifier for which balance share this applies to.
+     * @param accounts An array of accounts to remove from the specified balance share.
+     */
+    function removeBalanceShares(
+        BalanceShareId balanceShareId,
+        address[] calldata accounts
+    ) public virtual onlyTimelock {
+        if (balanceShareId == BalanceShareId.Revenue) _processRevenueShares();
+        _balanceShares[balanceShareId].removeAccountShares(accounts);
+        for (uint i = 0; i < accounts.length;) {
+            emit BalanceShareRemoved(
+                balanceShareId,
+                accounts[i]
+            );
+            unchecked { i++; }
+        }
+    }
+
+    /**
+     * @notice This function removes the specified balance share owned by msg.sender. NOTE: This does not process the
+     * balance withdrawal for msg.sender.
+     * @param balanceShareId The enum identifier for which balance share this applies to.
+     */
+    function removeBalanceShareSelf(BalanceShareId balanceShareId) external virtual {
+        if (balanceShareId == BalanceShareId.Revenue) _processRevenueShares();
+        _balanceShares[balanceShareId].removeAccountShareSelf();
+        emit BalanceShareRemoved(
+            balanceShareId,
+            msg.sender
+        );
+    }
+
+    /**
+     * @notice A balance share recipient can approve addresses to initiate withdrawals to the recipient.
+     * @param balanceShareId The enum identifier for which balance share this applies to.
+     * @param approvedAddresses An array of addresses to approve.
+     */
+    function approveAddressesForBalanceShareWithdrawal(
+        BalanceShareId balanceShareId,
+        address[] calldata approvedAddresses
+    ) external virtual {
+        _balanceShares[balanceShareId].approveAddressesForWithdrawal(
+            msg.sender,
+            approvedAddresses
+        );
+    }
+
+    /**
+     * @notice A balance share recipient can unapprove addresses for initiating withdrawals.
+     * @param balanceShareId The enum identifier for which balance share this applies to.
+     * @param unapprovedAddresses An array of addresses to unapprove.
+     */
+    function unapproveAddressesForBalanceShareWithdrawal(
+        BalanceShareId balanceShareId,
+        address[] calldata unapprovedAddresses
+    ) external virtual {
+        _balanceShares[balanceShareId].unapproveAddressesForWithdrawal(
+            msg.sender,
+            unapprovedAddresses
+        );
+    }
+
+    /**
+     * @notice View function to check whether an address is approved for withdrawals for a given account share.
+     * @param balanceShareId The enum identifier for which balance share this applies to.
+     * @param account The balance share account recipient.
+     * @param addressToCheck The address to check for approval
+     * @return Returns a bool indicating whether or not the "addressToCheck" is approved to withdraw to the given
+     * "account."
+     */
+    function isAddressApprovedForBalanceShareWithdrawal(
+        BalanceShareId balanceShareId,
+        address account,
+        address addressToCheck
+    ) external view virtual returns (bool) {
+        return _balanceShares[balanceShareId].isAddressApprovedForWithdrawal(account, addressToCheck);
+    }
+
+    event BalanceShareWithdrawal(
+        address indexed account,
+        uint256 amount
+    );
+
+    /**
+     * @notice Sends any balance share owed to the provided account. Only callable by the account recipient or approved
+     * addresses.
+     * @param balanceShareId The enum identifier for which balance share this applies to.
+     * @param account The account to process the
+     */
+    function processBalanceShareWithdrawal(
+        BalanceShareId balanceShareId,
+        address account
+    ) external virtual returns (uint256) {
+        if (balanceShareId == BalanceShareId.Revenue) _processRevenueShares();
+        uint256 withdrawAmount = _balanceShares[balanceShareId].processAccountWithdrawal(account);
+        _stashedBalance -= withdrawAmount;
+        _transferBaseAsset(account, withdrawAmount);
+        return withdrawAmount;
+    }
 
 }

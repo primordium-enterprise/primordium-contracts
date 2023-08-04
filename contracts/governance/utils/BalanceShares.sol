@@ -131,55 +131,54 @@ library BalanceShares {
         BalanceShare storage self,
         address[] calldata accounts
     ) internal {
-        _removeAccountShares(self, accounts, false);
-    }
-
-    /**
-     * @dev Same as the {removeAccountShares} function call, but additional parameter to skip checking the "removeableAt"
-     * validity.
-     */
-    function removeAccountShares(
-        BalanceShare storage self,
-        address[] calldata accounts,
-        bool skipRemoveableAtCheck
-    ) internal {
-        _removeAccountShares(self, accounts, skipRemoveableAtCheck);
-    }
-
-    function _removeAccountShares(
-        BalanceShare storage self,
-        address[] calldata accounts,
-        bool skipRemoveableAtCheck
-    ) private {
         uint subFromTotalBps;
         uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
         for (uint i = 0; i < accounts.length;) {
-            AccountShare storage accountShare = self._accounts[accounts[i]];
-            uint bps = accountShare.bps;
-            uint endIndex = accountShare.endIndex;
-            uint removeableAt = accountShare.removableAt;
-            // The account share must be active to be removed
-            require(endIndex == MAX_INDEX);
-            // The current timestamp must be greater than the removeableAt timestamp (unless explicitly skipped)
-            require(skipRemoveableAtCheck || block.timestamp >= removeableAt);
-
-            // Set the bps to 0, and the endIndex to be the current balance share index
-            accountShare.bps = 0;
-            accountShare.endIndex = uint40(latestBalanceCheckIndex);
-
             unchecked {
-                subFromTotalBps += bps; // Can be unchecked, bps was checked when the account share was added
+                // Can be unchecked, bps was checked when the account share was added
+                subFromTotalBps += _destroyAccountShare(self, accounts[i], latestBalanceCheckIndex);
                 i++;
             }
         }
 
-        BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
-
-        uint newTotalBps = latestBalanceCheck.totalBps - subFromTotalBps;
-
         // Update the totalBps
+        BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
+        uint newTotalBps = latestBalanceCheck.totalBps - subFromTotalBps;
         _updateTotalBps(self, latestBalanceCheck.balance, latestBalanceCheckIndex, newTotalBps);
+    }
 
+    /**
+     * @dev A helper function for allowing an AccountShare recipient to remove their own account.
+     *
+     * (_destroyAccountShare allows the msg.sender to destroy the account share before the removableAt timestamp)
+     */
+    function removeAccountShareSelf(
+        BalanceShare storage self
+    ) internal {
+        uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
+        BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
+        uint newTotalBps = latestBalanceCheck.totalBps - _destroyAccountShare(self, msg.sender, latestBalanceCheckIndex);
+        _updateTotalBps(self, latestBalanceCheck.balance, latestBalanceCheckIndex, newTotalBps);
+    }
+
+    function _destroyAccountShare(
+        BalanceShare storage self,
+        address account,
+        uint256 latestBalanceCheckIndex
+    ) private returns (uint256) {
+        AccountShare storage accountShare = self._accounts[account];
+        uint bps = accountShare.bps;
+        uint endIndex = accountShare.endIndex;
+        uint removableAt = accountShare.removableAt;
+        // The account share must be active to be removed
+        require(endIndex == MAX_INDEX);
+        // The current timestamp must be greater than the removableAt timestamp (unless the msg.sender owns the account)
+        require(block.timestamp >= removableAt || msg.sender == account);
+
+        // Set the bps to 0, and the endIndex to be the current balance share index
+        accountShare.bps = 0;
+        accountShare.endIndex = uint40(latestBalanceCheckIndex);
+        return bps;
     }
 
     /**
@@ -488,22 +487,22 @@ library BalanceShares {
      * @param self The BalanceShare
      * @param account The account address
      * @param decreaseBy The amount to decrease the account bps by
-     * @param skipRemoveableAtCheck A bool that skips the "removeableAt" check if true
+     * @param skipRemovableAtCheck A bool that skips the "removeableAt" check if true
      */
     function decreaseAccountBps(
         BalanceShare storage self,
         address account,
         uint256 decreaseBy,
-        bool skipRemoveableAtCheck
+        bool skipRemovableAtCheck
     ) internal {
-        _decreaseAccountBps(self, account, decreaseBy, skipRemoveableAtCheck);
+        _decreaseAccountBps(self, account, decreaseBy, skipRemovableAtCheck);
     }
 
     function _decreaseAccountBps(
         BalanceShare storage self,
         address account,
         uint256 decreaseBy,
-        bool skipRemoveableAtCheck
+        bool skipRemovableAtCheck
     ) private {
         AccountShare storage accountShare = self._accounts[account];
         // Account must not have finished withdrawals (this also ensures that the account has been initialized)
@@ -518,7 +517,7 @@ library BalanceShares {
         // Cannot decrease to zero (should call remove account share in that case)
         require(decreaseBy < bps);
         // The current timestamp must be greater than the removeableAt timestamp (unless explicitly skipped)
-        require(skipRemoveableAtCheck || block.timestamp >= removeableAt);
+        require(skipRemovableAtCheck || block.timestamp >= removeableAt);
 
         // Update the account bps
         accountShare.bps = uint16(bps - decreaseBy);
