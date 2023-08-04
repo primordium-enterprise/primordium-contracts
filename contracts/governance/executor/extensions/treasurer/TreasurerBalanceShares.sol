@@ -50,10 +50,11 @@ abstract contract TreasurerBalanceShares is Treasurer {
 
     /**
      * @notice A publicly callable function to update the treasury balances, processing any revenue shares and saving
-     * these updates to the contract state.
+     * these updates to the contract state. This does NOT send revenue shares to the receipient accounts, it simply
+     * updates the internal accounting allocate the revenue shares to be withdrawable by the recipients.
      */
-    function processBalanceShares() public returns (uint256) {
-        return _processBalanceShares();
+    function processRevenueShares() external returns (uint256) {
+        return _processRevenueShares();
     }
 
     /**
@@ -61,16 +62,16 @@ abstract contract TreasurerBalanceShares is Treasurer {
      *
      * Saves these changes to the _balance and _stashedBalance storage state.
      *
-     * Calls BalanceShares.processBalanceShare on the revenue shares to track any balance remainders as well.
+     * Calls BalanceShares.processBalance on the revenue shares to track any balance remainders as well.
      */
-    function _processBalanceShares() internal virtual returns (uint256) {
+    function _processRevenueShares() internal virtual returns (uint256) {
         uint currentBalance = _currentTreasuryBalance();
         uint prevBalance = _balance;
         // If revenue occurred, apply revenue shares and update the balances
         if (currentBalance > prevBalance) {
             uint increasedBy = currentBalance - prevBalance;
-            // Use "processBalanceShare" function to account for the remainder
-            uint stashed = _balanceShares[BalanceShareId.Revenue].processBalanceShare(increasedBy);
+            // Use "processBalance" function to account for the remainder
+            uint stashed = _balanceShares[BalanceShareId.Revenue].processBalance(increasedBy);
             _stashedBalance += stashed;
             currentBalance -= stashed;
             _balance = currentBalance;
@@ -88,7 +89,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
     function _registerDeposit(uint256 depositAmount) internal virtual override {
         super._registerDeposit(depositAmount);
         // NEED TO BYPASS UNTIL INITIALIZATION, THEN APPLY RETROACTIVELY
-        uint stashed = _balanceShares[BalanceShareId.Deposits].processBalanceShare(depositAmount);
+        uint stashed = _balanceShares[BalanceShareId.Deposits].processBalance(depositAmount);
         _balance += depositAmount - stashed;
         _stashedBalance += stashed;
     }
@@ -129,5 +130,43 @@ abstract contract TreasurerBalanceShares is Treasurer {
         uint256 value,
         bytes calldata data
     ) internal virtual returns (uint256 balanceBeingTransferred);
+
+
+    event BalanceShareAdded(
+        BalanceShareId indexed balanceShareId,
+        address indexed account,
+        uint256 bps,
+        uint256 removableAt
+    );
+
+    /**
+     * @notice Adds the specified balance shares to the treasury. Only callable by the timelock itself.
+     * @param balanceShareId The enum identifier of which balance share this applies to.
+     * @param newAccountShares An array of BalanceShares.NewAccountShare structs defining the account shares to add to
+     * the specified balance share. Each struct item should contain the following properties:
+     * - address account The address of the new account share recipient
+     * - uint256 bps The basis points share for this account
+     * - uint256 removeableAt A timestamp (in UTC seconds) for when this account share will be removeable/decreasable
+     * - address[] approvedAddressesForWithdrawal An array of addresses approved to initiate a withdrawal to the account
+     * recipient. If address(0) is approved, then any address can initiate a withdrawal to the account recipient.
+     */
+    function addBalanceShares(
+        BalanceShareId balanceShareId,
+        BalanceShares.NewAccountShare[] calldata newAccountShares
+    ) public virtual onlyTimelock {
+        _processRevenueShares();
+        _balanceShares[balanceShareId].addAccountShares(newAccountShares);
+        for (uint i = 0; i < newAccountShares.length;) {
+            emit BalanceShareAdded(
+                balanceShareId,
+                newAccountShares[i].account,
+                newAccountShares[i].bps,
+                newAccountShares[i].removableAt
+            );
+            unchecked { i++; }
+        }
+    }
+
+
 
 }

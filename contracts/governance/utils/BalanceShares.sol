@@ -38,8 +38,8 @@ library BalanceShares {
 
     struct NewAccountShare {
         address account;
-        uint bps;
-        uint removableAt;
+        uint256 bps;
+        uint256 removableAt;
         address[] approvedAddressesForWithdrawal;
     }
 
@@ -53,7 +53,7 @@ library BalanceShares {
      */
     function addAccountShares(
         BalanceShare storage self,
-        NewAccountShare[] memory newAccountShares
+        NewAccountShare[] calldata newAccountShares
     ) internal {
         require(newAccountShares.length > 0);
 
@@ -83,7 +83,7 @@ library BalanceShares {
         uint40 currentTimestamp = uint40(block.timestamp); // Cache timestamp in memory to save gas in loop
 
         for (uint i = 0; i < newAccountShares.length;) {
-            NewAccountShare memory newAccountShare = newAccountShares[i];
+            NewAccountShare calldata newAccountShare = newAccountShares[i];
 
             // No zero addresses
             require(newAccountShare.account != address(0));
@@ -108,9 +108,7 @@ library BalanceShares {
                 newAccountShare.account,
                 newAccountShare.approvedAddressesForWithdrawal
             );
-            unchecked {
-                i++;
-            }
+            unchecked { i++; }
         }
 
         // Calculate the new totalBps, and make sure it is valid
@@ -131,7 +129,7 @@ library BalanceShares {
      */
     function removeAccountShares(
         BalanceShare storage self,
-        address[] memory accounts
+        address[] calldata accounts
     ) internal {
         _removeAccountShares(self, accounts, false);
     }
@@ -142,7 +140,7 @@ library BalanceShares {
      */
     function removeAccountShares(
         BalanceShare storage self,
-        address[] memory accounts,
+        address[] calldata accounts,
         bool skipRemoveableAtCheck
     ) internal {
         _removeAccountShares(self, accounts, skipRemoveableAtCheck);
@@ -150,7 +148,7 @@ library BalanceShares {
 
     function _removeAccountShares(
         BalanceShare storage self,
-        address[] memory accounts,
+        address[] calldata accounts,
         bool skipRemoveableAtCheck
     ) private {
         uint subFromTotalBps;
@@ -205,7 +203,7 @@ library BalanceShares {
      * @return balanceAddedToShares Returns the amount added to the balance shares, which should be accounted for in the
      * host contract.
      */
-    function processBalanceShare(
+    function processBalance(
         BalanceShare storage self,
         uint256 balanceIncreasedBy
     ) internal returns (uint256 balanceAddedToShares) {
@@ -213,7 +211,7 @@ library BalanceShares {
         // Only continue if the length is greater than zero, otherwise returns zero by default
         if (length > 0) {
             BalanceCheck storage latestBalanceCheck = self._balanceChecks[length - 1];
-            balanceAddedToShares = _processBalanceShare(self, latestBalanceCheck, balanceIncreasedBy);
+            balanceAddedToShares = _processBalance(self, latestBalanceCheck, balanceIncreasedBy);
             _addBalance(self, latestBalanceCheck, balanceAddedToShares);
         }
     }
@@ -222,7 +220,7 @@ library BalanceShares {
      * @dev Private function that takes the balanceIncreasedBy, adds the previous _balanceRemainder, and returns the
      * balanceToAddToShares, updating the stored _balanceRemainder in the process.
      */
-    function _processBalanceShare(
+    function _processBalance(
         BalanceShare storage self,
         BalanceCheck storage latestBalanceCheck,
         uint256 balanceIncreasedBy
@@ -385,7 +383,7 @@ library BalanceShares {
     function _calculateAccountBalance(
         BalanceShare storage self,
         AccountShare storage accountShare,
-        bool revertOnFinished
+        bool revertOnWithdrawalsFinished
     ) private view returns(
         uint256 accountBalanceOwed,
         uint256,
@@ -407,7 +405,7 @@ library BalanceShares {
 
         // If account is not active or is already finished with withdrawals, return zero
         if (_accountHasFinishedWithdrawals(createdAt, lastBalanceCheckIndex, endIndex)) {
-            if (revertOnFinished) {
+            if (revertOnWithdrawalsFinished) {
                 revert("Account has completed withdrawals.");
             }
             return (accountBalanceOwed, lastBalanceCheckIndex, lastBalancePulled);
@@ -558,26 +556,22 @@ library BalanceShares {
     function approveAddressesForWithdrawal(
         BalanceShare storage self,
         address account,
-        address[] memory approvedAddresses
+        address[] calldata approvedAddresses
     ) internal {
         for (uint i = 0; i < approvedAddresses.length;) {
             self._accountWithdrawalApprovals[account][approvedAddresses[i]] = true;
-            unchecked {
-                i++;
-            }
+            unchecked { i++; }
         }
     }
 
     function unapproveAddressesForWithdrawal(
         BalanceShare storage self,
         address account,
-        address[] memory unapprovedAddresses
+        address[] calldata unapprovedAddresses
     ) internal {
         for (uint i = 0; i < unapprovedAddresses.length;) {
             self._accountWithdrawalApprovals[account][unapprovedAddresses[i]] = false;
-            unchecked {
-                i++;
-            }
+            unchecked { i++; }
         }
     }
 
@@ -662,7 +656,7 @@ library BalanceShares {
         BalanceShare storage self,
         address account,
         address newAccount,
-        address[] memory approvedAddresses
+        address[] calldata approvedAddresses
     ) internal {
         require(msg.sender == account);
         require(newAccount != address(0));

@@ -39,7 +39,7 @@ abstract contract Treasurer is Executor {
     /**
      * @notice Returns the current DAO balance of the base asset in the treasury.
      */
-    function treasuryBalance() public view returns (uint256) {
+    function treasuryBalance() external view returns (uint256) {
         return _treasuryBalance();
     }
 
