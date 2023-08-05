@@ -123,7 +123,7 @@ library BalanceShares {
      * @dev Removes the specified accounts from receiving further shares. Does not process withdrawals. The receivers
      * will still have access to withdraw their balances that were accumulated prior to removal.
      *
-     * Requires that the block.timestamp is greater than the account's "removeableAt" parameter, or else throws an error.
+     * Requires that the block.timestamp is greater than the account's "removableAt" parameter, or else throws an error.
      *
      * It is recommended that the host contract process current balance shares before removing accounts.
      */
@@ -500,17 +500,9 @@ library BalanceShares {
 
     /**
      * @dev Function to decrease the basis points share for an account. Defaults to not allowing the bps decrease if the
-     * current timestamp is earlier than the account's "removeableAt" timestamp.
+     * current timestamp is earlier than the account's "removableAt" timestamp.
      */
     function decreaseAccountBps(
-        BalanceShare storage self,
-        address account,
-        uint256 decreaseBy
-    ) internal returns (uint256) {
-        return _decreaseAccountBps(self, account, decreaseBy);
-    }
-
-    function _decreaseAccountBps(
         BalanceShare storage self,
         address account,
         uint256 decreaseBy
@@ -521,15 +513,15 @@ library BalanceShares {
         require(!_accountHasFinishedWithdrawals(accountShare));
         (
             uint bps,
-            uint removeableAt
+            uint removableAt
         ) = (
             accountShare.bps,
             accountShare.removableAt
         );
         // Cannot decrease to zero (should call remove account share in that case)
         require(decreaseBy < bps);
-        // The current timestamp must be greater than the removeableAt timestamp (unless explicitly skipped)
-        require(block.timestamp >= removeableAt || msg.sender == account);
+        // The current timestamp must be greater than the removableAt timestamp (unless explicitly skipped)
+        require(block.timestamp >= removableAt || msg.sender == account);
 
         // Update the account bps
         uint newAccountBps = bps - decreaseBy;
@@ -632,7 +624,7 @@ library BalanceShares {
      * @dev Returns the following details (in order) for the specified account:
      * - bps
      * - createdAt
-     * - removeableAt
+     * - removableAt
      * - lastWithdrawnAt
      */
     function accountDetails(
