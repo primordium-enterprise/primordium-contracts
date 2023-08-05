@@ -210,8 +210,11 @@ library BalanceShares {
         // Only continue if the length is greater than zero, otherwise returns zero by default
         if (length > 0) {
             BalanceCheck storage latestBalanceCheck = self._balanceChecks[length - 1];
-            balanceAddedToShares = _processBalance(self, latestBalanceCheck, balanceIncreasedBy);
-            _addBalance(self, latestBalanceCheck, balanceAddedToShares);
+            uint currentTotalBps = latestBalanceCheck.totalBps;
+            if (currentTotalBps > 0) {
+                balanceAddedToShares = _processBalance(self, currentTotalBps, balanceIncreasedBy);
+                _addBalance(self, latestBalanceCheck, balanceAddedToShares);
+            }
         }
     }
 
@@ -221,13 +224,13 @@ library BalanceShares {
      */
     function _processBalance(
         BalanceShare storage self,
-        BalanceCheck storage latestBalanceCheck,
+        uint256 currentTotalBps,
         uint256 balanceIncreasedBy
     ) private returns (uint256) {
         (
             uint256 balanceToAddToShares,
             uint256 newBalanceRemainder
-        ) = _calculateBalanceShare(self, balanceIncreasedBy, latestBalanceCheck.totalBps);
+        ) = _calculateBalanceShare(self, balanceIncreasedBy, currentTotalBps);
         // Update with the new remainder
         self._balanceRemainder = SafeCast.toUint16(newBalanceRemainder);
         return balanceToAddToShares;
@@ -503,33 +506,15 @@ library BalanceShares {
         BalanceShare storage self,
         address account,
         uint256 decreaseBy
-    ) internal {
-        _decreaseAccountBps(self, account, decreaseBy, false);
-    }
-
-    /**
-     * @dev An additional function overload for decreasing account bps, with option to skip checking the "removeableAt"
-     * timestamp for the account.
-     * @param self The BalanceShare
-     * @param account The account address
-     * @param decreaseBy The amount to decrease the account bps by
-     * @param skipRemovableAtCheck A bool that skips the "removeableAt" check if true
-     */
-    function decreaseAccountBps(
-        BalanceShare storage self,
-        address account,
-        uint256 decreaseBy,
-        bool skipRemovableAtCheck
-    ) internal {
-        _decreaseAccountBps(self, account, decreaseBy, skipRemovableAtCheck);
+    ) internal returns (uint256) {
+        return _decreaseAccountBps(self, account, decreaseBy);
     }
 
     function _decreaseAccountBps(
         BalanceShare storage self,
         address account,
-        uint256 decreaseBy,
-        bool skipRemovableAtCheck
-    ) private {
+        uint256 decreaseBy
+    ) private returns (uint256) {
         require(decreaseBy > 0);
         AccountShare storage accountShare = self._accounts[account];
         // Account must not have finished withdrawals (this also ensures that the account has been initialized)
@@ -544,10 +529,11 @@ library BalanceShares {
         // Cannot decrease to zero (should call remove account share in that case)
         require(decreaseBy < bps);
         // The current timestamp must be greater than the removeableAt timestamp (unless explicitly skipped)
-        require(skipRemovableAtCheck || block.timestamp >= removeableAt);
+        require(block.timestamp >= removeableAt || msg.sender == account);
 
         // Update the account bps
-        accountShare.bps = uint16(bps - decreaseBy);
+        uint newAccountBps = bps - decreaseBy;
+        accountShare.bps = uint16(newAccountBps);
 
         // Update the totalBps too
         uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
@@ -558,6 +544,8 @@ library BalanceShares {
             latestBalanceCheckIndex,
             latestBalanceCheck.totalBps - decreaseBy
         );
+
+        return newAccountBps;
     }
 
     /**
@@ -579,6 +567,31 @@ library BalanceShares {
         }
     }
 
+    /**
+     * @dev Helper method to update the "removableAt" timestamp for an account. Can only decrease if msg.sender is the
+     * account, otherwise can only increase.
+     */
+    function updateAccountRemovableAt(
+        BalanceShare storage self,
+        address account,
+        uint256 newRemovableAt
+    ) internal {
+        uint currentRemovableAt = self._accounts[account].removableAt;
+        // If msg.sender, then can decrease, otherwise can only increase
+        // NOTE: This also ensures uninitiated accounts don't change anything as well. If msg.sender is the account,
+        // then currentRemovableAt will be zero, which will throw an error
+        require(
+            msg.sender == account ?
+            newRemovableAt < currentRemovableAt :
+            newRemovableAt > currentRemovableAt
+        );
+        self._accounts[account].removableAt = SafeCast.toUint40(newRemovableAt);
+    }
+
+    /**
+     * @dev Approve the provided list of addresses to initiate withdrawal on the account. Approve address(0) to allow
+     * anyone.
+     */
     function approveAddressesForWithdrawal(
         BalanceShare storage self,
         address account,
@@ -590,6 +603,9 @@ library BalanceShares {
         }
     }
 
+    /**
+     * @dev Unapprove the provided list of addresses for initiating withdrawals on the account.
+     */
     function unapproveAddressesForWithdrawal(
         BalanceShare storage self,
         address account,
@@ -601,6 +617,9 @@ library BalanceShares {
         }
     }
 
+    /**
+     * @dev Returns a bool indicating whether or not the address is approved for withdrawal on the specified account.
+     */
     function isAddressApprovedForWithdrawal(
         BalanceShare storage self,
         address account,

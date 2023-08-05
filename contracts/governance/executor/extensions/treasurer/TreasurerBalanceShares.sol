@@ -96,9 +96,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
 
     /// @dev Override to implement balance updates on the treasury
     function _processWithdrawal(address receiver, uint256 withdrawAmount) internal virtual override {
-        // UPDATE TREASURY BALANCE FIRST
         super._processWithdrawal(receiver, withdrawAmount);
-        // BALANCE CHECKS
         _balance -= withdrawAmount;
     }
 
@@ -173,7 +171,8 @@ abstract contract TreasurerBalanceShares is Treasurer {
     );
 
     /**
-     * @notice Removes the provided accounts from the specified balance shares.
+     * @notice Removes the provided accounts from the specified balance shares. Only callable by the timelock itself, and
+     * only works if past the "removableAt" timestamp for the account.
      * @param id The enum identifier indicating which balance share this applies to.
      * @param accounts An array of accounts to remove from the specified balance share.
      */
@@ -314,7 +313,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
         return _balanceShares[id].totalBps();
     }
 
-    event BalanceShareAccountBpsIncreased(
+    event BalanceShareAccountBpsUpdated(
         BalanceShareId indexed id,
         address indexed account,
         uint256 newAccountBps
@@ -323,10 +322,11 @@ abstract contract TreasurerBalanceShares is Treasurer {
     /**
      * @notice Increases the BPS share for an account on the specified balance share. Only callable by the timelock
      * itself.
+     * @param id The enum identifier indicating which balance share this applies to.
      * @param account The account address.
      * @param increaseByBps The amount of BPS to increase the share by (the new account bps will be the previous account
      * bps with the "increaseByBps" added to it).
-     * @return newAccountBps Returns the new account bps
+     * @return newAccountBps Returns the new account bps.
      */
     function increaseBalanceShareAccountBps(
         BalanceShareId id,
@@ -335,7 +335,111 @@ abstract contract TreasurerBalanceShares is Treasurer {
     ) public virtual onlyTimelock returns (uint256) {
         if (id == BalanceShareId.Revenue) _stashRevenueShares();
         uint256 newAccountBps = _balanceShares[id].increaseAccountBps(account, increaseByBps);
-        emit BalanceShareAccountBpsIncreased(id, account, newAccountBps);
+        emit BalanceShareAccountBpsUpdated(id, account, newAccountBps);
         return newAccountBps;
+    }
+
+    /**
+     * @notice Decreases the BPS share for an account on the specified balance share. Only callable by the timelock
+     * itself, and only works if past the "removableAt" timestamp for the account.
+     * @param id The enum identifier indicating which balance share this applies to.
+     * @param account The account address.
+     * @param decreaseByBps The amount of BPS to decrease the share by (the new account bps will be the previous account
+     * bps with the "decreaseByBps" subtracted from it).
+     * @return newAccountBps Returns the new account bps.
+     */
+    function decreaseBalanceShareAccountBps(
+        BalanceShareId id,
+        address account,
+        uint256 decreaseByBps
+    ) public virtual onlyTimelock returns (uint256) {
+        return _decreaseBalanceShareAccountBps(id, account, decreaseByBps);
+    }
+
+    /**
+     * @notice Decreases the BPS share for msg.sender on the specified balance share.
+     * @param id The enum identifier indicating which balance share this applies to.
+     * @param decreaseByBps The amount of BPS to decrease the share by (the new account bps will be the previous account
+     * bps with the "decreaseByBps" subtracted from it).
+     * @return newAccountBps Returns the new account bps.
+     */
+    function decreaseBalanceShareAccountBpsSelf(
+        BalanceShareId id,
+        uint256 decreaseByBps
+    ) external virtual returns (uint256) {
+        return _decreaseBalanceShareAccountBps(id, msg.sender, decreaseByBps);
+    }
+
+    /**
+     * @dev Helper method to decrease the BPS share for an account.
+     */
+    function _decreaseBalanceShareAccountBps(
+        BalanceShareId id,
+        address account,
+        uint256 decreaseByBps
+    ) internal virtual returns (uint256) {
+        if (id == BalanceShareId.Revenue) _stashRevenueShares();
+        uint256 newAccountBps = _balanceShares[id].decreaseAccountBps(account, decreaseByBps);
+        emit BalanceShareAccountBpsUpdated(id, account, newAccountBps);
+        return newAccountBps;
+    }
+
+    event BalanceShareAccountRemovableAtUpdated(
+        BalanceShareId indexed id,
+        address indexed account,
+        uint256 newRemovableAt
+    );
+
+    /**
+     * @notice Increase the "removableAt" timestamp on the account for the specified balance share. Only callable by the
+     * timelock, and only works if past the current "removableAt" timestamp for the account.
+     * @param id The enum identifier indicating which balance share this applies to.
+     * @param account The account address.
+     * @param newRemovableAt The new timestamp to set the removableAt to for the account.
+     */
+    function increaseBalanceShareAccountRemovableAt(
+        BalanceShareId id,
+        address account,
+        uint256 newRemovableAt
+    ) public virtual onlyTimelock {
+        _updateBalanceShareAccountRemovableAt(id, account, newRemovableAt);
+    }
+
+    /**
+     * @notice Decrease the "removableAt" timestamp on the msg.sender's account for the specified balance share.
+     * @param id The enum identifier indicating which balance share this applies to.
+     * @param newRemovableAt The new timestamp to set the removableAt to for the account
+     */
+    function decreaseBalanceShareAccountRemovableAtSelf(
+        BalanceShareId id,
+        uint256 newRemovableAt
+    ) external virtual {
+        _updateBalanceShareAccountRemovableAt(id, msg.sender, newRemovableAt);
+    }
+
+    /**
+     * @dev Internal method to update the balance share account's "removableAt" timestamp.
+     */
+    function _updateBalanceShareAccountRemovableAt(
+        BalanceShareId id,
+        address account,
+        uint256 newRemovableAt
+    ) internal virtual {
+        _balanceShares[id].updateAccountRemovableAt(account, newRemovableAt);
+        emit BalanceShareAccountRemovableAtUpdated(id, account, newRemovableAt);
+    }
+
+    /**
+     * @notice Returns whether or not the specified account has finished it's withdrawals from it's balance share.
+     * @param id The enum identifier indicating which balance share this applies to.
+     * @param account The address of the account to check.
+     * @return hasFinishedWithdrawals A bool that is true if the account has completed it's full withdrawals, or false
+     * otherwise (also returns true if the account has not been initialized, meaning it has 0 withdrawals to process).
+     */
+    function balanceShareAccountHasFinishedWithdrawals(
+        BalanceShareId id,
+        address account
+    ) external virtual returns (bool) {
+        return _balanceShares[id].accountHasFinishedWithdrawals(account);
     }
 }
