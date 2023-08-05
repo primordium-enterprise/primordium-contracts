@@ -25,6 +25,20 @@ abstract contract TreasurerBalanceShares is Treasurer {
     error InvalidBaseAssetOperation();
 
     /**
+     * @notice A method to retrieve a human-readable name for each enum value of the BalanceShareId enum.
+     * @param id The enum identifier indicating which balance share this applies to.
+     * @return name The human-readable name of the specified BalanceShareId.
+     */
+    function balanceShareName(BalanceShareId id) external pure returns (string memory) {
+        if (id == BalanceShareId.Deposits) {
+            return "DepositShares";
+        } else if (id == BalanceShareId.Revenue) {
+            return "RevenueShares";
+        }
+        revert();
+    }
+
+    /**
      * @dev Override to retrieve the base asset balance available to the DAO.
      *
      * Calculates any revenue shares that would need to be applied first (but doesn't save these to state in order to
