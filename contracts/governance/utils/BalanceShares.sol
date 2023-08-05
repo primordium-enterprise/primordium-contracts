@@ -255,12 +255,12 @@ library BalanceShares {
     function _calculateBalanceShare(
         BalanceShare storage self,
         uint256 balanceIncreasedBy,
-        uint256 currentTotalBps
+        uint256 bps
     ) private view returns (uint256, uint256) {
         balanceIncreasedBy += self._balanceRemainder; // Adds the previous remainder into the calculation
         return (
-            Math.mulDiv(balanceIncreasedBy, currentTotalBps, MAX_BPS),
-            mulmod(balanceIncreasedBy, currentTotalBps, MAX_BPS)
+            Math.mulDiv(balanceIncreasedBy, bps, MAX_BPS),
+            mulmod(balanceIncreasedBy, bps, MAX_BPS)
         );
     }
 
@@ -319,7 +319,6 @@ library BalanceShares {
      * Can only be processed if msg.sender is the account itself, or if msg.sender is approved, or if the account has
      * approved anyone (address(0) is approved).
      *
-     * @param account The address of the withdrawing account.
      * @return balanceToBePaid This is the balance that is marked as paid out for the account. The host contract should
      * pay this balance to the account as part of the withdrawal transaction.
      */
@@ -357,7 +356,6 @@ library BalanceShares {
 
     /**
      * @dev Returns the current withdrawable balance for an account share.
-     * @param account The address of the account.
      * @return balanceAvailable The balance available for withdraw from this account.
      */
     function accountBalance(
@@ -374,10 +372,34 @@ library BalanceShares {
     }
 
     /**
+     * @dev A helper function to predict the account balance with an additional "balanceIncreasedBy" parameter (assuming
+     * the state has not been updated to match yet).
+     * @return accountBalance Returns the predicted account balance.
+     */
+    function predictedAccountBalance(
+        BalanceShare storage self,
+        address account,
+        uint256 balanceIncreasedBy
+    ) internal view returns (uint256) {
+        AccountShare storage accountShare = self._accounts[account];
+        (uint balanceAvailable,,) = _calculateAccountBalance(
+            self,
+            accountShare,
+            false
+        );
+        (uint addedTotalBalance,) = _calculateBalanceShare(
+            self,
+            balanceIncreasedBy,
+            accountShare.bps
+        );
+        return balanceAvailable + Math.mulDiv(addedTotalBalance, accountShare.bps, MAX_BPS);
+    }
+
+    /**
      * @dev Private function to calculate the current balance owed to the AccountShare.
-     * @return accountBalanceOwed The balance owed to the account share
-     * @return lastBalanceCheckIndex The resulting lastBalanceCheckIndex for the account
-     * @return lastBalancePulled The resulting lastBalancePulled for the account
+     * @return accountBalanceOwed The balance owed to the account share.
+     * @return lastBalanceCheckIndex The resulting lastBalanceCheckIndex for the account.
+     * @return lastBalancePulled The resulting lastBalancePulled for the account.
      */
     function _calculateAccountBalance(
         BalanceShare storage self,
@@ -445,15 +467,21 @@ library BalanceShares {
 
     }
 
+    /**
+     * @dev Increases the account BPS, updating the total BPS and returning the new account BPS.
+     * @return accountBps Returns the new account BPS.
+     */
     function increaseAccountBps(
         BalanceShare storage self,
         address account,
         uint256 increaseBy
-    ) internal {
+    ) internal returns (uint256) {
+        require(increaseBy > 0);
         AccountShare storage accountShare = self._accounts[account];
         // Account must not have finished withdrawals (this also ensures that the account has been initialized)
         require(!_accountHasFinishedWithdrawals(accountShare));
-        accountShare.bps = SafeCast.toUint16(accountShare.bps + increaseBy);
+        uint newAccountBps = accountShare.bps + increaseBy;
+        accountShare.bps = SafeCast.toUint16(newAccountBps);
 
         // Also update the totalBps
         uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
@@ -464,14 +492,12 @@ library BalanceShares {
             latestBalanceCheckIndex,
             latestBalanceCheck.totalBps + increaseBy
         );
+        return newAccountBps;
     }
 
     /**
      * @dev Function to decrease the basis points share for an account. Defaults to not allowing the bps decrease if the
      * current timestamp is earlier than the account's "removeableAt" timestamp.
-     * @param self The BalanceShare
-     * @param account The account address
-     * @param decreaseBy The amount to decrease the account bps by
      */
     function decreaseAccountBps(
         BalanceShare storage self,
@@ -504,6 +530,7 @@ library BalanceShares {
         uint256 decreaseBy,
         bool skipRemovableAtCheck
     ) private {
+        require(decreaseBy > 0);
         AccountShare storage accountShare = self._accounts[account];
         // Account must not have finished withdrawals (this also ensures that the account has been initialized)
         require(!_accountHasFinishedWithdrawals(accountShare));

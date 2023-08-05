@@ -53,8 +53,8 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * these updates to the contract state. This does NOT send revenue shares to the receipient accounts, it simply
      * updates the internal accounting allocate the revenue shares to be withdrawable by the recipients.
      */
-    function processRevenueShares() external returns (uint256) {
-        return _processRevenueShares();
+    function stashRevenueShares() external returns (uint256) {
+        return _stashRevenueShares();
     }
 
     /**
@@ -64,7 +64,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
      *
      * Calls BalanceShares.processBalance on the revenue shares to track any balance remainders as well.
      */
-    function _processRevenueShares() internal virtual returns (uint256) {
+    function _stashRevenueShares() internal virtual returns (uint256) {
         uint currentBalance = _currentTreasuryBalance();
         uint prevBalance = _balance;
         // If revenue occurred, apply revenue shares and update the balances
@@ -133,7 +133,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
 
 
     event BalanceShareAdded(
-        BalanceShareId indexed balanceShareId,
+        BalanceShareId indexed id,
         address indexed account,
         uint256 bps,
         uint256 removableAt
@@ -141,7 +141,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
 
     /**
      * @notice Adds the specified balance shares to the treasury. Only callable by the timelock itself.
-     * @param balanceShareId The enum identifier for which balance share this applies to.
+     * @param id The enum identifier indicating which balance share this applies to.
      * @param newAccountShares An array of BalanceShares.NewAccountShare structs defining the account shares to add to
      * the specified balance share. Each struct item should contain the following properties:
      * - address account The address of the new account share recipient
@@ -151,14 +151,14 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * recipient. If address(0) is approved, then any address can initiate a withdrawal to the account recipient.
      */
     function addBalanceShares(
-        BalanceShareId balanceShareId,
+        BalanceShareId id,
         BalanceShares.NewAccountShare[] calldata newAccountShares
     ) public virtual onlyTimelock {
-        if (balanceShareId == BalanceShareId.Revenue) _processRevenueShares();
-        _balanceShares[balanceShareId].addAccountShares(newAccountShares);
+        if (id == BalanceShareId.Revenue) _stashRevenueShares();
+        _balanceShares[id].addAccountShares(newAccountShares);
         for (uint i = 0; i < newAccountShares.length;) {
             emit BalanceShareAdded(
-                balanceShareId,
+                id,
                 newAccountShares[i].account,
                 newAccountShares[i].bps,
                 newAccountShares[i].removableAt
@@ -168,24 +168,24 @@ abstract contract TreasurerBalanceShares is Treasurer {
     }
 
     event BalanceShareRemoved(
-        BalanceShareId indexed balanceShareId,
+        BalanceShareId indexed id,
         address indexed account
     );
 
     /**
      * @notice Removes the provided accounts from the specified balance shares.
-     * @param balanceShareId The enum identifier for which balance share this applies to.
+     * @param id The enum identifier indicating which balance share this applies to.
      * @param accounts An array of accounts to remove from the specified balance share.
      */
     function removeBalanceShares(
-        BalanceShareId balanceShareId,
+        BalanceShareId id,
         address[] calldata accounts
     ) public virtual onlyTimelock {
-        if (balanceShareId == BalanceShareId.Revenue) _processRevenueShares();
-        _balanceShares[balanceShareId].removeAccountShares(accounts);
+        if (id == BalanceShareId.Revenue) _stashRevenueShares();
+        _balanceShares[id].removeAccountShares(accounts);
         for (uint i = 0; i < accounts.length;) {
             emit BalanceShareRemoved(
-                balanceShareId,
+                id,
                 accounts[i]
             );
             unchecked { i++; }
@@ -195,27 +195,27 @@ abstract contract TreasurerBalanceShares is Treasurer {
     /**
      * @notice This function removes the specified balance share owned by msg.sender. NOTE: This does not process the
      * balance withdrawal for msg.sender.
-     * @param balanceShareId The enum identifier for which balance share this applies to.
+     * @param id The enum identifier indicating which balance share this applies to.
      */
-    function removeBalanceShareSelf(BalanceShareId balanceShareId) external virtual {
-        if (balanceShareId == BalanceShareId.Revenue) _processRevenueShares();
-        _balanceShares[balanceShareId].removeAccountShareSelf();
+    function removeBalanceShareSelf(BalanceShareId id) external virtual {
+        if (id == BalanceShareId.Revenue) _stashRevenueShares();
+        _balanceShares[id].removeAccountShareSelf();
         emit BalanceShareRemoved(
-            balanceShareId,
+            id,
             msg.sender
         );
     }
 
     /**
      * @notice A balance share recipient can approve addresses to initiate withdrawals to the recipient.
-     * @param balanceShareId The enum identifier for which balance share this applies to.
+     * @param id The enum identifier indicating which balance share this applies to.
      * @param approvedAddresses An array of addresses to approve.
      */
     function approveAddressesForBalanceShareWithdrawal(
-        BalanceShareId balanceShareId,
+        BalanceShareId id,
         address[] calldata approvedAddresses
     ) external virtual {
-        _balanceShares[balanceShareId].approveAddressesForWithdrawal(
+        _balanceShares[id].approveAddressesForWithdrawal(
             msg.sender,
             approvedAddresses
         );
@@ -223,14 +223,14 @@ abstract contract TreasurerBalanceShares is Treasurer {
 
     /**
      * @notice A balance share recipient can unapprove addresses for initiating withdrawals.
-     * @param balanceShareId The enum identifier for which balance share this applies to.
+     * @param id The enum identifier indicating which balance share this applies to.
      * @param unapprovedAddresses An array of addresses to unapprove.
      */
     function unapproveAddressesForBalanceShareWithdrawal(
-        BalanceShareId balanceShareId,
+        BalanceShareId id,
         address[] calldata unapprovedAddresses
     ) external virtual {
-        _balanceShares[balanceShareId].unapproveAddressesForWithdrawal(
+        _balanceShares[id].unapproveAddressesForWithdrawal(
             msg.sender,
             unapprovedAddresses
         );
@@ -238,21 +238,22 @@ abstract contract TreasurerBalanceShares is Treasurer {
 
     /**
      * @notice View function to check whether an address is approved for withdrawals for a given account share.
-     * @param balanceShareId The enum identifier for which balance share this applies to.
+     * @param id The enum identifier indicating which balance share this applies to.
      * @param account The balance share account recipient.
      * @param addressToCheck The address to check for approval
      * @return Returns a bool indicating whether or not the "addressToCheck" is approved to withdraw to the given
      * "account."
      */
     function isAddressApprovedForBalanceShareWithdrawal(
-        BalanceShareId balanceShareId,
+        BalanceShareId id,
         address account,
         address addressToCheck
     ) external view virtual returns (bool) {
-        return _balanceShares[balanceShareId].isAddressApprovedForWithdrawal(account, addressToCheck);
+        return _balanceShares[id].isAddressApprovedForWithdrawal(account, addressToCheck);
     }
 
     event BalanceShareWithdrawal(
+        BalanceShareId indexed id,
         address indexed account,
         uint256 amount
     );
@@ -260,18 +261,81 @@ abstract contract TreasurerBalanceShares is Treasurer {
     /**
      * @notice Sends any balance share owed to the provided account. Only callable by the account recipient or approved
      * addresses.
-     * @param balanceShareId The enum identifier for which balance share this applies to.
-     * @param account The account to process the
+     * @param id The enum identifier indicating which balance share this applies to.
+     * @param account The account to process the withdrawal for. Any outstanding funds will be sent to this address.
      */
     function processBalanceShareWithdrawal(
-        BalanceShareId balanceShareId,
+        BalanceShareId id,
         address account
     ) external virtual returns (uint256) {
-        if (balanceShareId == BalanceShareId.Revenue) _processRevenueShares();
-        uint256 withdrawAmount = _balanceShares[balanceShareId].processAccountWithdrawal(account);
+        if (id == BalanceShareId.Revenue) _stashRevenueShares();
+        uint256 withdrawAmount = _balanceShares[id].processAccountWithdrawal(account);
         _stashedBalance -= withdrawAmount;
         _transferBaseAsset(account, withdrawAmount);
         return withdrawAmount;
     }
 
+    /**
+     * @notice Retrieve the account details for the specified balance share and account address.
+     * @param id The enum identifier indicating which balance share this applies to.
+     * @param account The account address to retrieve the details for.
+     * @return bps The account basis points share.
+     * @return createdAt The block timestamp of when the balance share was added.
+     * @return removableAt The block timestamp of when the balance share is removeable/decreasable.
+     * @return lastWithdrawnAt The block timestamp of when the balance share was last withdrawn.
+     */
+    function balanceShareAccountDetails(
+        BalanceShareId id,
+        address account
+    ) external view virtual returns (uint256, uint256, uint256, uint256) {
+        return _balanceShares[id].accountDetails(account);
+    }
+
+    /**
+     * @notice Retrieve the balance available for withdrawal for an account.
+     * @param id The enum identifier indicating which balance share this applies to.
+     * @param account The account address.
+     */
+    function balanceShareAccountBalance(
+        BalanceShareId id,
+        address account
+    ) external view virtual returns (uint256) {
+        uint currentBalance = _currentTreasuryBalance();
+        uint prevBalance = _balance;
+        uint balanceIncreasedBy = currentBalance > prevBalance ? currentBalance - prevBalance : 0;
+        return _balanceShares[id].predictedAccountBalance(account, balanceIncreasedBy);
+    }
+
+    /**
+     * @notice Retrieve the sum total BPS (basis points) accross all accounts for the specified balance share.
+     * @param id The enum identifier indicating which balance share this applies to.
+     */
+    function balanceShareTotalBps(BalanceShareId id) external view virtual returns (uint256) {
+        return _balanceShares[id].totalBps();
+    }
+
+    event BalanceShareAccountBpsIncreased(
+        BalanceShareId indexed id,
+        address indexed account,
+        uint256 newAccountBps
+    );
+
+    /**
+     * @notice Increases the BPS share for an account on the specified balance share. Only callable by the timelock
+     * itself.
+     * @param account The account address.
+     * @param increaseByBps The amount of BPS to increase the share by (the new account bps will be the previous account
+     * bps with the "increaseByBps" added to it).
+     * @return newAccountBps Returns the new account bps
+     */
+    function increaseBalanceShareAccountBps(
+        BalanceShareId id,
+        address account,
+        uint256 increaseByBps
+    ) public virtual onlyTimelock returns (uint256) {
+        if (id == BalanceShareId.Revenue) _stashRevenueShares();
+        uint256 newAccountBps = _balanceShares[id].increaseAccountBps(account, increaseByBps);
+        emit BalanceShareAccountBpsIncreased(id, account, newAccountBps);
+        return newAccountBps;
+    }
 }
