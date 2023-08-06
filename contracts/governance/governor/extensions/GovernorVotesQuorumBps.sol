@@ -19,7 +19,7 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
  */
 abstract contract GovernorVotesQuorumBps is GovernorVotes {
 
-    uint256 constant MAX_BPS = 10_000;
+    uint256 constant private MAX_BPS = 10_000;
 
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace224;

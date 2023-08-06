@@ -9,12 +9,18 @@ import "../Governor.sol";
 /**
  * @dev Extension of {Governor} for settings updatable through governance.
  *
+ * By default, sets the proposal threshold in basis points, allowing the votes to fluctuate dynamically according to the
+ * total allocated token supply. The maximum BPS to set the proposal threshold to is 1_000 (10%).
+ *
  * _Available since v4.4._
  */
 abstract contract GovernorSettings is Governor {
 
-    uint256 private _proposalThreshold;
-    event ProposalThresholdSet(uint256 oldProposalThreshold, uint256 newProposalThreshold);
+    uint256 constant private MAX_BPS = 10_000;
+    uint256 constant public MAX_PROPOSAL_THRESHOLD_BPS = 1_000;
+
+    uint256 private _proposalThresholdBps;
+    event ProposalThresholdBpsSet(uint256 oldProposalThresholdBps, uint256 newProposalThresholdBps);
 
     uint256 private _votingDelay;
     /// @notice The minimum setable voting delay, set to 1.
@@ -34,11 +40,12 @@ abstract contract GovernorSettings is Governor {
      * @dev Initialize the governance parameters.
      */
     constructor(
-        uint256 proposalThreshold_,
+        uint256 proposalThresholdBps_,
         uint256 votingDelay_,
         uint256 votingPeriod_
     ) {
-        _setProposalThreshold(proposalThreshold_);
+        _setProposalThresholdBps(proposalThresholdBps_);
+
         // Initialize immutables based on clock (assumes seconds if not block number)
         bool usesBlockNumber = clock() == block.number;
         MAX_VOTING_DELAY = usesBlockNumber ?
@@ -56,29 +63,39 @@ abstract contract GovernorSettings is Governor {
     }
 
     /**
-     * @dev See {Governor-proposalThreshold}.
+     * @dev Returns the current proposal threshold of votes required to submit a proposal, as a basis points function of
+     * the current total supply.
      */
     function proposalThreshold() public view virtual override returns (uint256) {
-        return _proposalThreshold;
+        // Overflow not a problem as long as the token's max supply <= type(uint224).max
+        return (_token.totalSupply() * _proposalThresholdBps) / MAX_BPS;
     }
 
     /**
-     * @dev Update the proposal threshold. This operation can only be performed through a governance proposal.
-     *
-     * Emits a {ProposalThresholdSet} event.
+     * @dev Public function to see the current basis points value for the proposalThreshold.
      */
-    function setProposalThreshold(uint256 newProposalThreshold) public virtual onlyGovernance {
-        _setProposalThreshold(newProposalThreshold);
+    function proposalThresholdBps() public view returns (uint256) {
+        return _proposalThresholdBps;
     }
 
     /**
-     * @dev Internal setter for the proposal threshold.
+     * @dev Update the proposal threshold BPS. This operation can only be performed through a governance proposal.
      *
-     * Emits a {ProposalThresholdSet} event.
+     * Emits a {ProposalThresholdBpsSet} event.
      */
-    function _setProposalThreshold(uint256 newProposalThreshold) internal virtual {
-        emit ProposalThresholdSet(_proposalThreshold, newProposalThreshold);
-        _proposalThreshold = newProposalThreshold;
+    function setProposalThresholdBps(uint256 newProposalThresholdBps) public virtual onlyGovernance {
+        _setProposalThresholdBps(newProposalThresholdBps);
+    }
+
+    /**
+     * @dev Internal setter for the proposal threshold BPS.
+     *
+     * Emits a {ProposalThresholdBpsSet} event.
+     */
+    function _setProposalThresholdBps(uint256 newProposalThresholdBps) internal virtual {
+        require(newProposalThresholdBps <= MAX_PROPOSAL_THRESHOLD_BPS);
+        emit ProposalThresholdBpsSet(_proposalThresholdBps, newProposalThresholdBps);
+        _proposalThresholdBps = newProposalThresholdBps;
     }
 
     /**

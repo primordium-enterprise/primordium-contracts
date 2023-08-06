@@ -24,13 +24,13 @@ contract GovernorV1 is
         VotesProvisioner token_,
         uint256 governanceThreshold_,
         uint256 quorumBps_,
-        uint256 proposalThreshold_,
+        uint256 proposalThresholdBps_,
         uint256 votingDelay_,
         uint256 votingPeriod_
     )
         Governor(executor_, token_, governanceThreshold_)
         GovernorVotesQuorumBps(quorumBps_)
-        GovernorSettings(proposalThreshold_, votingDelay_, votingPeriod_)
+        GovernorSettings(proposalThresholdBps_, votingDelay_, votingPeriod_)
     { }
 
     function name() public pure override returns (string memory) {
@@ -40,10 +40,6 @@ contract GovernorV1 is
     // Overriding here is unnecessary, but included for readability
     function version() public pure override returns (string memory) {
         return "1";
-    }
-
-    function proposalThreshold() public view override(Governor, GovernorSettings) returns (uint256) {
-        return GovernorSettings.proposalThreshold();
     }
 
     function proposalDeadline(

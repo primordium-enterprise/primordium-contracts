@@ -23,7 +23,8 @@ import "../utils/ExecutorControlled.sol";
  *
  * - A counting module must implement {quorum}, {_quorumReached}, {_voteSucceeded} and {_countVote}
  * - A voting module must implement {_getVotes}
- * - Additionally, {votingPeriod} must also be implemented
+ * - Additionally, {proposalThreshold}, {votingDelay} and {votingPeriod} must also be implemented (see the
+ * GovernorSettings extension)
  *
  * _Available since v4.3._
  */
@@ -243,13 +244,6 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         } else {
             return ProposalState.Defeated;
         }
-    }
-
-    /**
-     * @dev Part of the Governor Bravo's interface: _"The number of votes required in order for a voter to become a proposer"_.
-     */
-    function proposalThreshold() public view virtual returns (uint256) {
-        return 1;
     }
 
     /**
