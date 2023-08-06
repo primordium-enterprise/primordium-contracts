@@ -31,23 +31,22 @@ abstract contract GovernorVotesQuorumBps is GovernorVotes {
     /**
      * @dev Initialize quorum as a fraction of the token's total supply.
      *
-     * The fraction is specified as `bps / denominator`. By default the denominator is 10_000, so quorum is
-     * specified as a percent: a bps of 1_000 corresponds to quorum being 10% of total supply. The denominator can
-     * be customized by overriding {quorumDenominator}.
+     * The fraction is specified as `bps / 10_000`. So, the quorum is specified as a percent: a bps of 1_000 corresponds
+     * to quorum being 10% of total supply.
      */
     constructor(uint256 quorumBps_) {
         _updateQuorumBps(quorumBps_);
     }
 
     /**
-     * @dev Returns the current quorum bps. See {quorumDenominator}.
+     * @dev Returns the current quorum bps.
      */
     function quorumBps() public view virtual returns (uint256) {
         return _quorumBpsCheckpoints.latest();
     }
 
     /**
-     * @dev Returns the quorum bps at a specific timepoint. See {quorumDenominator}.
+     * @dev Returns the quorum bps at a specific timepoint.
      */
     function quorumBps(uint256 timepoint) public view virtual returns (uint256) {
         // Optimistic search, check the latest checkpoint
@@ -79,7 +78,7 @@ abstract contract GovernorVotesQuorumBps is GovernorVotes {
      * Requirements:
      *
      * - Must be called through a governance proposal.
-     * - New bps must be smaller or equal to the denominator.
+     * - New bps must be smaller or equal to 10_000.
      */
     function updateQuorumBps(uint256 newQuorumBps) external virtual onlyGovernance {
         _updateQuorumBps(newQuorumBps);
@@ -92,7 +91,7 @@ abstract contract GovernorVotesQuorumBps is GovernorVotes {
      *
      * Requirements:
      *
-     * - New bps must be smaller or equal to the denominator.
+     * - New bps must be smaller or equal to 10_000.
      */
     function _updateQuorumBps(uint256 newQuorumBps) internal virtual {
         require(
