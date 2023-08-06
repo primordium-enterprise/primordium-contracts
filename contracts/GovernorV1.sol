@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 
 import "./governance/executor/Executor.sol";
 import "./governance/governor/Governor.sol";
-import "./governance/governor/extensions/GovernorVotesQuorumFraction.sol";
+import "./governance/governor/extensions/GovernorVotesQuorumBps.sol";
 import "./governance/governor/extensions/GovernorSettings.sol";
 import "./governance/governor/extensions/GovernorCountingSimple.sol";
 import "./governance/governor/extensions/GovernorProposalDeadlineExtensions.sol";
@@ -13,7 +13,7 @@ import "./governance/governor/extensions/GovernorProposalDeadlineExtensions.sol"
 contract GovernorV1 is
     Governor,
     GovernorVotes,
-    GovernorVotesQuorumFraction,
+    GovernorVotesQuorumBps,
     GovernorSettings,
     GovernorCountingSimple,
     GovernorProposalDeadlineExtensions
@@ -23,13 +23,13 @@ contract GovernorV1 is
         Executor executor_,
         VotesProvisioner token_,
         uint256 governanceThreshold_,
-        uint256 quorumNumerator_,
+        uint256 quorumBps_,
         uint256 proposalThreshold_,
         uint256 votingDelay_,
         uint256 votingPeriod_
     )
         Governor(executor_, token_, governanceThreshold_)
-        GovernorVotesQuorumFraction(quorumNumerator_)
+        GovernorVotesQuorumBps(quorumBps_)
         GovernorSettings(proposalThreshold_, votingDelay_, votingPeriod_)
     { }
 

@@ -25,9 +25,9 @@ abstract contract GovernanceSetup is Test {
         VotesProvisioner(address(token)),
         1 ether / 10, // Governance threshold
         100, // 100 / 10_000 = 1% quorum initially,
-        2 days / 12, // Voting delay - Two days in blocks
-        3 days / 12, // Voting period - Three Days in blocks,
-        0 // Initial proposal threshold
+        0, // Initial proposal threshold bps
+        1 days / 12, // Voting delay - 1 day in blocks
+        1 days / 12 // Voting period - 1 day in blocks,
     );
 
     constructor() {
