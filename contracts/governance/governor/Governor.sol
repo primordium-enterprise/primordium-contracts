@@ -75,18 +75,6 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         _executor.transferOwnership(newOwner);
     }
 
-    /**
-     * @dev A helpful extension for initializing the Governor when deploying the first version
-     *
-     * 1. Deploy Executor (deployer address as the owner)
-     * 2. Deploy Governor with _executor address set to address(0)
-     * 3. Call initialize on Governor from deployer address (to set the _executor and complete the ownership transfer)
-     */
-    function initialize(Executor newExecutor) public virtual {
-        initializeExecutor(newExecutor);
-        _executor.acceptOwnership();
-    }
-
     // Tracking queued operations on the _executor
     mapping(uint256 => bytes32) private _executorIds;
 
@@ -127,13 +115,18 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      * governance protocol (since v4.6).
      */
     modifier onlyGovernance() {
-        require(_msgSender() == address(_executor), "Governor: onlyGovernance");
-        if (executor() != address(this)) {
+        _onlyGovernance();
+        _;
+    }
+
+    function _onlyGovernance() private {
+        address executorAddress = address(_executor);
+        require(msg.sender == executorAddress, "Governor: onlyGovernance");
+        if (executorAddress != address(this)) {
             bytes32 msgDataHash = keccak256(_msgData());
             // loop until popping the expected operation - throw if deque is empty (operation not authorized)
             while (_governanceCall.popFront() != msgDataHash) {}
         }
-        _;
     }
 
     /**
@@ -146,6 +139,18 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     ) EIP712(name(), version()) ExecutorControlled(executor_) {
         _token = token_;
         governanceThreshold = governanceThreshold_;
+    }
+
+    /**
+     * @dev A helpful extension for initializing the Governor when deploying the first version
+     *
+     * 1. Deploy Executor (deployer address as the owner)
+     * 2. Deploy Governor with _executor address set to address(0)
+     * 3. Call initialize on Governor from deployer address (to set the _executor and complete the ownership transfer)
+     */
+    function initialize(Executor newExecutor) public virtual {
+        initializeExecutor(newExecutor);
+        _executor.acceptOwnership();
     }
 
     /**
