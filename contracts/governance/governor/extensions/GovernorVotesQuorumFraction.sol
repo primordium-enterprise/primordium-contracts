@@ -31,8 +31,8 @@ abstract contract GovernorVotesQuorumFraction is GovernorVotes {
      * specified as a percent: a numerator of 1_000 corresponds to quorum being 10% of total supply. The denominator can
      * be customized by overriding {quorumDenominator}.
      */
-    constructor(uint256 initialQuorumNumerator) {
-        _updateQuorumNumerator(initialQuorumNumerator);
+    constructor(uint256 quorumNumerator_) {
+        _updateQuorumNumerator(quorumNumerator_);
     }
 
     /**

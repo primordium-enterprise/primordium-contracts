@@ -33,7 +33,12 @@ abstract contract GovernorSettings is Governor {
     /**
      * @dev Initialize the governance parameters.
      */
-    constructor(uint256 initialVotingDelay, uint256 initialVotingPeriod, uint256 initialProposalThreshold) {
+    constructor(
+        uint256 proposalThreshold_,
+        uint256 votingDelay_,
+        uint256 votingPeriod_
+    ) {
+        _setProposalThreshold(proposalThreshold_);
         // Initialize immutables based on clock (assumes seconds if not block number)
         bool usesBlockNumber = clock() == block.number;
         MAX_VOTING_DELAY = usesBlockNumber ?
@@ -46,9 +51,34 @@ abstract contract GovernorSettings is Governor {
             100_800 : // About 2 weeks at 12sec/block
             2 weeks;
 
-        _setVotingDelay(initialVotingDelay);
-        _setVotingPeriod(initialVotingPeriod);
-        _setProposalThreshold(initialProposalThreshold);
+        _setVotingDelay(votingDelay_);
+        _setVotingPeriod(votingPeriod_);
+    }
+
+    /**
+     * @dev See {Governor-proposalThreshold}.
+     */
+    function proposalThreshold() public view virtual override returns (uint256) {
+        return _proposalThreshold;
+    }
+
+    /**
+     * @dev Update the proposal threshold. This operation can only be performed through a governance proposal.
+     *
+     * Emits a {ProposalThresholdSet} event.
+     */
+    function setProposalThreshold(uint256 newProposalThreshold) public virtual onlyGovernance {
+        _setProposalThreshold(newProposalThreshold);
+    }
+
+    /**
+     * @dev Internal setter for the proposal threshold.
+     *
+     * Emits a {ProposalThresholdSet} event.
+     */
+    function _setProposalThreshold(uint256 newProposalThreshold) internal virtual {
+        emit ProposalThresholdSet(_proposalThreshold, newProposalThreshold);
+        _proposalThreshold = newProposalThreshold;
     }
 
     /**
@@ -59,44 +89,12 @@ abstract contract GovernorSettings is Governor {
     }
 
     /**
-     * @dev See {IGovernor-votingPeriod}.
-     */
-    function votingPeriod() public view virtual override returns (uint256) {
-        return _votingPeriod;
-    }
-
-    // /**
-    //  * @dev See {Governor-proposalThreshold}.
-    //  */
-    // function proposalThreshold() public view virtual override returns (uint256) {
-    //     return _proposalThreshold;
-    // }
-
-    /**
      * @dev Update the voting delay. This operation can only be performed through a governance proposal.
      *
      * Emits a {VotingDelaySet} event.
      */
     function setVotingDelay(uint256 newVotingDelay) public virtual onlyGovernance {
         _setVotingDelay(newVotingDelay);
-    }
-
-    /**
-     * @dev Update the voting period. This operation can only be performed through a governance proposal.
-     *
-     * Emits a {VotingPeriodSet} event.
-     */
-    function setVotingPeriod(uint256 newVotingPeriod) public virtual onlyGovernance {
-        _setVotingPeriod(newVotingPeriod);
-    }
-
-    /**
-     * @dev Update the proposal threshold. This operation can only be performed through a governance proposal.
-     *
-     * Emits a {ProposalThresholdSet} event.
-     */
-    function setProposalThreshold(uint256 newProposalThreshold) public virtual onlyGovernance {
-        _setProposalThreshold(newProposalThreshold);
     }
 
     /**
@@ -114,6 +112,22 @@ abstract contract GovernorSettings is Governor {
     }
 
     /**
+     * @dev See {IGovernor-votingPeriod}.
+     */
+    function votingPeriod() public view virtual override returns (uint256) {
+        return _votingPeriod;
+    }
+
+    /**
+     * @dev Update the voting period. This operation can only be performed through a governance proposal.
+     *
+     * Emits a {VotingPeriodSet} event.
+     */
+    function setVotingPeriod(uint256 newVotingPeriod) public virtual onlyGovernance {
+        _setVotingPeriod(newVotingPeriod);
+    }
+
+    /**
      * @dev Internal setter for the voting period.
      *
      * Emits a {VotingPeriodSet} event.
@@ -126,16 +140,6 @@ abstract contract GovernorSettings is Governor {
         );
         emit VotingPeriodSet(_votingPeriod, newVotingPeriod);
         _votingPeriod = newVotingPeriod;
-    }
-
-    /**
-     * @dev Internal setter for the proposal threshold.
-     *
-     * Emits a {ProposalThresholdSet} event.
-     */
-    function _setProposalThreshold(uint256 newProposalThreshold) internal virtual {
-        emit ProposalThresholdSet(_proposalThreshold, newProposalThreshold);
-        _proposalThreshold = newProposalThreshold;
     }
 
 }
