@@ -55,26 +55,6 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     // Proposals counter
     uint256 public proposalCount = 0;
 
-    /**
-     * @dev Public endpoint to update the underlying timelock instance. Restricted to the timelock itself, so updates
-     * must be proposed, scheduled, and executed through governance proposals.
-     *
-     * CAUTION: It is not recommended to change the timelock while there are other queued governance proposals.
-     */
-    function updateExecutor(Executor newExecutor) public virtual onlyGovernance {
-        _updateExecutor(newExecutor);
-    }
-
-    /**
-     * @dev Public endpoint to transfer ownership of the Executor contract to a new Governor. Restricted to the timelock
-     * itself, so updates must be proposed, scheduled, and executed through governance proposals.
-     *
-     * NOTE: This Governor can only transfer ownership if it is the current owner. The new owner must accept ownership.
-     */
-    function transferExecutorOwnership(address newOwner) public virtual onlyGovernance {
-        _executor.transferOwnership(newOwner);
-    }
-
     // Tracking queued operations on the _executor
     mapping(uint256 => bytes32) private _executorIds;
 
@@ -139,6 +119,26 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     ) EIP712(name(), version()) ExecutorControlled(executor_) {
         _token = token_;
         governanceThreshold = governanceThreshold_;
+    }
+
+    /**
+     * @dev Public endpoint to update the underlying timelock instance. Restricted to the timelock itself, so updates
+     * must be proposed, scheduled, and executed through governance proposals.
+     *
+     * CAUTION: It is not recommended to change the timelock while there are other queued governance proposals.
+     */
+    function updateExecutor(Executor newExecutor) public virtual onlyGovernance {
+        _updateExecutor(newExecutor);
+    }
+
+    /**
+     * @dev Public endpoint to transfer ownership of the Executor contract to a new Governor. Restricted to the timelock
+     * itself, so updates must be proposed, scheduled, and executed through governance proposals.
+     *
+     * NOTE: This Governor can only transfer ownership if it is the current owner. The new owner must accept ownership.
+     */
+    function transferExecutorOwnership(address newOwner) public virtual onlyGovernance {
+        _executor.transferOwnership(newOwner);
     }
 
     /**
