@@ -506,7 +506,7 @@ library BalanceShares {
         BalanceShare storage self,
         address account,
         uint256 decreaseBy
-    ) private returns (uint256) {
+    ) internal returns (uint256) {
         require(decreaseBy > 0);
         AccountShare storage accountShare = self._accounts[account];
         // Account must not have finished withdrawals (this also ensures that the account has been initialized)
