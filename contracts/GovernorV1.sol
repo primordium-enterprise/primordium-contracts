@@ -7,7 +7,7 @@ import "./governance/executor/Executor.sol";
 import "./governance/governor/Governor.sol";
 import "./governance/governor/extensions/GovernorVotesQuorumBps.sol";
 import "./governance/governor/extensions/GovernorSettings.sol";
-import "./governance/governor/extensions/GovernorCountingSimple.sol";
+import "./governance/governor/extensions/GovernorCountingPercentMajority.sol";
 import "./governance/governor/extensions/GovernorProposalDeadlineExtensions.sol";
 
 contract GovernorV1 is
@@ -15,7 +15,7 @@ contract GovernorV1 is
     GovernorVotes,
     GovernorVotesQuorumBps,
     GovernorSettings,
-    GovernorCountingSimple,
+    GovernorCountingPercentMajority,
     GovernorProposalDeadlineExtensions
 {
 
@@ -26,11 +26,13 @@ contract GovernorV1 is
         uint256 quorumBps_,
         uint256 proposalThresholdBps_,
         uint256 votingDelay_,
-        uint256 votingPeriod_
+        uint256 votingPeriod_,
+        uint256 percentMajority_
     )
         Governor(executor_, token_, governanceThreshold_)
         GovernorVotesQuorumBps(quorumBps_)
         GovernorSettings(proposalThresholdBps_, votingDelay_, votingPeriod_)
+        GovernorCountingPercentMajority(percentMajority_)
     { }
 
     function name() public pure override returns (string memory) {

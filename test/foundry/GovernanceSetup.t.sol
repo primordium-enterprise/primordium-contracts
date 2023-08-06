@@ -27,7 +27,8 @@ abstract contract GovernanceSetup is Test {
         100, // 100 / 10_000 = 1% quorum initially,
         0, // Initial proposal threshold bps
         1 days / 12, // Voting delay - 1 day in blocks
-        1 days / 12 // Voting period - 1 day in blocks,
+        1 days / 12, // Voting period - 1 day in blocks,
+        60 // 60% majority
     );
 
     constructor() {
