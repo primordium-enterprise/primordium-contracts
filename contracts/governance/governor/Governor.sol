@@ -2,7 +2,7 @@
 // Primordium Contracts
 // Based on OpenZeppelin Contracts (last updated v4.8.0) (governance/Governor.sol)
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
@@ -100,9 +100,10 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         _;
     }
 
+    error OnlyGovernance();
     function _onlyGovernance() private {
         address executorAddress = address(_executor);
-        require(msg.sender == executorAddress, "Governor: onlyGovernance");
+        if (msg.sender != executorAddress) revert OnlyGovernance();
         if (executorAddress != address(this)) {
             bytes32 msgDataHash = keccak256(_msgData());
             // loop until popping the expected operation - throw if deque is empty (operation not authorized)
@@ -344,6 +345,12 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         return keccak256(abi.encode(proposalId, bytes(version())));
     }
 
+    error InsufficientVotes();
+    error MissingActions();
+    error InvalidActionCounts();
+    error InsufficientVoteSupplyForGovernance();
+    error InvalidFoundingModeActions();
+    error InvalidSignature(uint256 index);
     /**
      * @dev See {IGovernor-propose}.
      */
@@ -357,41 +364,35 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         address proposer = _msgSender();
         uint256 currentTimepoint = clock();
 
-        require(
-            getVotes(proposer, currentTimepoint - 1) >= proposalThreshold(),
-            "Governor: proposer votes below proposal threshold"
-        );
+        if (
+            getVotes(proposer, currentTimepoint - 1) < proposalThreshold()
+        ) revert InsufficientVotes();
 
-        require(targets.length > 0, "Governor: proposal must provide actions");
-        require(
-            targets.length == values.length &&
-            targets.length == calldatas.length &&
-            targets.length == signatures.length,
-            "Governor: invalid proposal length"
-        );
+        if (targets.length == 0) revert MissingActions();
+        if (
+            targets.length != values.length ||
+            targets.length != calldatas.length ||
+            targets.length != signatures.length
+        ) revert InvalidActionCounts();
 
         if (_token.provisionMode() == IVotesProvisioner.ProvisionMode.Founding) {
-            require(
-                _token.totalSupply() >= governanceThreshold,
-                "Governor: Not enough votes to enter governance"
-            );
-            require(
-                targets.length == 1 && // Only allow a single action until we exit founding mode
-                targets[0] == address(_token) && // And the action must be to upgrade the provision mode on the token
-                bytes4(calldatas[0]) == _token.setProvisionMode.selector, // Selector must match
-                "Governor: Cannot propose additional actions until the token's provision mode is upgraded from founding mode"
-            );
+            if (_token.totalSupply() < governanceThreshold) revert InsufficientVoteSupplyForGovernance();
+            if (
+                targets.length != 1 || // Only allow a single action until we exit founding mode
+                targets[0] != address(_token) || // And the action must be to upgrade the token from founding mode
+                bytes4(calldatas[0]) != _token.setProvisionMode.selector // So the selector must match
+            ) revert InvalidFoundingModeActions();
         }
 
         // Verify the human-readable function signatures
         // Fail if calldata is included BUT the function signature doesn't match the calldata function identifier
-        for (uint256 i = 0; i < signatures.length; ++i) {
+        for (uint256 i = 0; i < signatures.length;) {
             if (calldatas[i].length > 0) {
-                require(
-                    bytes4(calldatas[i]) == bytes4(keccak256(bytes(signatures[i]))),
-                    "Governor: function signature(s) must match the calldata function identifiers"
-                );
+                if (
+                    bytes4(calldatas[i]) != bytes4(keccak256(bytes(signatures[i])))
+                ) revert InvalidSignature(i);
             }
+            unchecked { ++i; }
         }
 
         // Increment proposal counter
@@ -429,6 +430,8 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         return newProposalId;
     }
 
+    error ProposalUnsuccessful();
+    error InvalidActionsForProposal();
     /**
      * @dev Function to queue a proposal to the timelock.
      */
@@ -439,9 +442,10 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         bytes[] memory calldatas
     ) public virtual override returns (uint256) {
 
-        require(state(proposalId) == ProposalState.Succeeded, "Governor: proposal not successful");
-
-        require(_proposals[proposalId].actionsHash == hashProposalActions(proposalId, targets, values, calldatas));
+        if (state(proposalId) != ProposalState.Succeeded) revert ProposalUnsuccessful();
+        if(
+            _proposals[proposalId].actionsHash != hashProposalActions(proposalId, targets, values, calldatas)
+        ) revert InvalidActionsForProposal();
 
         uint256 delay = _executor.getMinDelay();
         bytes32 operationId = _executor.scheduleBatch(
@@ -459,6 +463,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         return proposalId;
     }
 
+
     /**
      * @dev See {IGovernor-execute}.
      */
@@ -470,10 +475,9 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     ) public virtual override returns (uint256) {
 
         ProposalState status = state(proposalId);
-        require(
-            status == ProposalState.Succeeded || status == ProposalState.Queued,
-            "Governor: proposal not successful"
-        );
+        if (
+            status != ProposalState.Succeeded && status != ProposalState.Queued
+        ) revert ProposalUnsuccessful();
         _proposals[proposalId].executed = true;
 
         emit ProposalExecuted(proposalId);
@@ -485,6 +489,8 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         return proposalId;
     }
 
+    error TooLateToCancel();
+    error UnauthorizedToCancel();
     /**
      * @dev See {IGovernor-cancel}.
      */
@@ -494,8 +500,8 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         uint256[] memory values,
         bytes[] memory calldatas
     ) public virtual override returns (uint256) {
-        require(state(proposalId) == ProposalState.Pending, "Governor: too late to cancel");
-        require(_msgSender() == _proposals[proposalId].proposer, "Governor: only proposer can cancel");
+        if (state(proposalId) != ProposalState.Pending) revert TooLateToCancel();
+        if (msg.sender != _proposals[proposalId].proposer) revert UnauthorizedToCancel();
         return _cancel(proposalId, targets, values, calldatas);
     }
 
@@ -545,6 +551,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         }
     }
 
+    error ProposalInactive();
     /**
      * @dev Internal cancel mechanism: locks up the proposal timer, preventing it from being re-submitted. Marks it as
      * canceled to allow distinguishing it from executed proposals.
@@ -563,10 +570,9 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
 
         ProposalState status = state(proposalId);
 
-        require(
-            status != ProposalState.Canceled && status != ProposalState.Expired && status != ProposalState.Executed,
-            "Governor: proposal not active"
-        );
+        if (
+            status == ProposalState.Canceled || status == ProposalState.Expired || status == ProposalState.Executed
+        ) revert ProposalInactive();
         _proposals[proposalId].canceled = true;
 
         // Added from "TimelockController"
@@ -719,7 +725,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         bytes memory params
     ) internal virtual returns (uint256) {
         ProposalCore storage proposal = _proposals[proposalId];
-        require(state(proposalId) == ProposalState.Active, "Governor: vote not currently active");
+        if (state(proposalId) != ProposalState.Active) revert ProposalInactive();
 
         uint256 weight = _getVotes(account, proposal.voteStart, params);
         _countVote(proposalId, account, support, weight, params);
