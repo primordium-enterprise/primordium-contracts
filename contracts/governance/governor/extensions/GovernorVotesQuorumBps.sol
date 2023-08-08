@@ -2,7 +2,7 @@
 // Primordium Contracts
 // Based on OpenZeppelin Contracts (last updated v4.8.0) (governance/extensions/GovernorVotesQuorumBps.sol)
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "./GovernorVotes.sol";
 import "@openzeppelin/contracts/utils/Checkpoints.sol";
@@ -84,6 +84,7 @@ abstract contract GovernorVotesQuorumBps is GovernorVotes {
         _updateQuorumBps(newQuorumBps);
     }
 
+    error QuorumBpsTooLarge();
     /**
      * @dev Changes the quorum bps.
      *
@@ -94,10 +95,7 @@ abstract contract GovernorVotesQuorumBps is GovernorVotes {
      * - New bps must be smaller or equal to 10_000.
      */
     function _updateQuorumBps(uint256 newQuorumBps) internal virtual {
-        require(
-            newQuorumBps <= MAX_BPS,
-            "GovernorVotesQuorumBps: quorumBps over 10_000"
-        );
+        if (newQuorumBps > MAX_BPS) revert QuorumBpsTooLarge();
 
         uint256 oldQuorumBps = quorumBps();
 

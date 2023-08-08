@@ -2,7 +2,7 @@
 // Primordium Contracts
 // Based on OpenZeppelin Contracts v4.4.1 (governance/extensions/GovernorSettings.sol)
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "../Governor.sol";
 
@@ -87,13 +87,17 @@ abstract contract GovernorSettings is Governor {
         _setProposalThresholdBps(newProposalThresholdBps);
     }
 
+    error ProposalThresholdBpsTooLarge(uint256 max);
     /**
      * @dev Internal setter for the proposal threshold BPS.
      *
      * Emits a {ProposalThresholdBpsSet} event.
      */
     function _setProposalThresholdBps(uint256 newProposalThresholdBps) internal virtual {
-        require(newProposalThresholdBps <= MAX_PROPOSAL_THRESHOLD_BPS);
+        if (
+            newProposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS
+        ) revert ProposalThresholdBpsTooLarge(MAX_PROPOSAL_THRESHOLD_BPS);
+
         emit ProposalThresholdBpsSet(_proposalThresholdBps, newProposalThresholdBps);
         _proposalThresholdBps = newProposalThresholdBps;
     }
@@ -114,16 +118,18 @@ abstract contract GovernorSettings is Governor {
         _setVotingDelay(newVotingDelay);
     }
 
+    error VotingDelayOutOfRange(uint256 min, uint256 max);
     /**
      * @dev Internal setter for the voting delay.
      *
      * Emits a {VotingDelaySet} event.
      */
     function _setVotingDelay(uint256 newVotingDelay) internal virtual {
-        require(
-            newVotingDelay >= MIN_VOTING_DELAY && newVotingDelay <= MAX_VOTING_DELAY,
-            "GovernorSettings: Invalid voting delay"
-        );
+        if (
+            newVotingDelay < MIN_VOTING_DELAY ||
+            newVotingDelay > MAX_VOTING_DELAY
+        ) revert VotingDelayOutOfRange(MIN_VOTING_DELAY, MAX_VOTING_DELAY);
+
         emit VotingDelaySet(_votingDelay, newVotingDelay);
         _votingDelay = newVotingDelay;
     }
@@ -144,6 +150,7 @@ abstract contract GovernorSettings is Governor {
         _setVotingPeriod(newVotingPeriod);
     }
 
+    error VotingPeriodOutOfRange(uint256 min, uint256 max);
     /**
      * @dev Internal setter for the voting period.
      *
@@ -151,10 +158,11 @@ abstract contract GovernorSettings is Governor {
      */
     function _setVotingPeriod(uint256 newVotingPeriod) internal virtual {
         // voting period must be at least one block long
-        require(
-            newVotingPeriod >= MIN_VOTING_PERIOD && newVotingPeriod <= MAX_VOTING_PERIOD,
-            "GovernorSettings: voting period too low"
-        );
+        if (
+            newVotingPeriod < MIN_VOTING_PERIOD ||
+            newVotingPeriod > MAX_VOTING_PERIOD
+        ) revert VotingPeriodOutOfRange(MIN_VOTING_PERIOD, MAX_VOTING_PERIOD);
+
         emit VotingPeriodSet(_votingPeriod, newVotingPeriod);
         _votingPeriod = newVotingPeriod;
     }

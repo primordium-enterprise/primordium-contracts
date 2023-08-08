@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "./GovernorCountingSimple.sol";
 import "@openzeppelin/contracts/utils/Checkpoints.sol";
@@ -141,14 +141,15 @@ abstract contract GovernorCountingPercentMajority is GovernorCountingSimple {
         _updatePercentMajority(newPercentMajority);
     }
 
+    error PercentMajorityOutOfRange(uint256 minRange, uint256 maxRange);
     /**
      * @dev Helper method to create a new percent majority checkpoint.
      */
     function _updatePercentMajority(uint256 newPercentMajority) internal virtual {
-        require(
-            newPercentMajority >= MIN_PERCENT_MAJORITY &&
-            newPercentMajority <= MAX_PERCENT_MAJORITY
-        );
+        if (
+            newPercentMajority < MIN_PERCENT_MAJORITY ||
+            newPercentMajority > MAX_PERCENT_MAJORITY
+        ) revert PercentMajorityOutOfRange(MIN_PERCENT_MAJORITY, MAX_PERCENT_MAJORITY);
 
         uint256 oldPercentMajority = percentMajority();
 

@@ -2,7 +2,7 @@
 // Primordium Contracts
 // Based on OpenZeppelin Contracts (last updated v4.8.0) (governance/extensions/GovernorCountingSimple.sol)
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "../Governor.sol";
 
@@ -91,6 +91,8 @@ abstract contract GovernorCountingSimple is Governor {
         return forVotes > againstVotes ? forVotes - againstVotes : againstVotes - forVotes;
     }
 
+    error VoteAlreadyCast();
+    error InvalidVoteValue();
     /**
      * @dev See {Governor-_countVote}. In this module, the support follows the `VoteType` enum (from Governor Bravo).
      */
@@ -103,7 +105,7 @@ abstract contract GovernorCountingSimple is Governor {
     ) internal virtual override {
         ProposalVote storage proposalVote = _proposalVotes[proposalId];
 
-        require(!proposalVote.hasVoted[account], "GovernorVotingSimple: vote already cast");
+        if (proposalVote.hasVoted[account]) revert VoteAlreadyCast();
         proposalVote.hasVoted[account] = true;
 
         if (support == uint8(VoteType.Against)) {
@@ -113,7 +115,7 @@ abstract contract GovernorCountingSimple is Governor {
         } else if (support == uint8(VoteType.Abstain)) {
             proposalVote.abstainVotes += weight;
         } else {
-            revert("GovernorVotingSimple: invalid value for enum VoteType");
+            revert InvalidVoteValue();
         }
     }
 }

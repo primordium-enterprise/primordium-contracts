@@ -2,7 +2,7 @@
 // Primordium Contracts
 // Based on OpenZeppelin Contracts (last updated v4.6.0) (governance/extensions/GovernorVotes.sol)
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "../Governor.sol";
 import "../../token/Votes.sol";

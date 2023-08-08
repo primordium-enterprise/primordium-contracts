@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "../Governor.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -54,9 +54,17 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
      */
     uint256 public immutable MIN_BASE_DEADLINE_EXTENSION;
     /**
+     * @notice The decay period must be greater than zero, so the minimum is 1.
+     */
+    uint256 public constant MIN_DECAY_PERIOD = 1;
+    /**
      * @notice The maximum decay period for additional deadline extensions, set to approximately 1 day.
      */
     uint256 public immutable MAX_DECAY_PERIOD;
+    /**
+     * @notice The percent decay must be greater than zero, so the minimum is 1.
+     */
+    uint256 public constant MIN_PERCENT_DECAY = 1;
     /**
      * @notice Maximum percent decay
      */
@@ -117,8 +125,12 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
         _updateMaxDeadlineExtension(newMaxDeadlineExtension);
     }
 
+    error MaxDeadlineExtensionTooLarge(uint256 max);
     function _updateMaxDeadlineExtension(uint256 newMaxDeadlineExtension) internal {
-        require(newMaxDeadlineExtension <= MAX_DEADLINE_EXTENSION, "maxDeadlineExtension too large");
+        if (
+            newMaxDeadlineExtension > MAX_DEADLINE_EXTENSION
+        ) revert MaxDeadlineExtensionTooLarge(MAX_DEADLINE_EXTENSION);
+
         emit MaxDeadlineExtensionSet(_maxDeadlineExtension, newMaxDeadlineExtension);
         // SafeCast unnecessary here as long as the MAX_BASE_DEADLINE_EXTENSION is less than type(uint64).max
         _maxDeadlineExtension = uint64(newMaxDeadlineExtension);
@@ -136,10 +148,13 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
         _updateBaseDeadlineExtension(newBaseDeadlineExtension);
     }
 
+    error BaseDeadlineExtensionOutOfRange(uint256 min, uint256 max);
     function _updateBaseDeadlineExtension(uint256 newBaseDeadlineExtension) internal {
-        require(
-            newBaseDeadlineExtension >= MIN_BASE_DEADLINE_EXTENSION &&
-            newBaseDeadlineExtension <= MAX_BASE_DEADLINE_EXTENSION, "baseDeadlineExtension out of range");
+        if (
+            newBaseDeadlineExtension < MIN_BASE_DEADLINE_EXTENSION ||
+            newBaseDeadlineExtension > MAX_BASE_DEADLINE_EXTENSION
+        ) revert BaseDeadlineExtensionOutOfRange(MIN_BASE_DEADLINE_EXTENSION, MAX_BASE_DEADLINE_EXTENSION);
+
         emit BaseDeadlineExtensionSet(_baseDeadlineExtension, newBaseDeadlineExtension);
         // SafeCast unnecessary here as long as the MAX_BASE_DEADLINE_EXTENSION is less than type(uint64).max
         _baseDeadlineExtension = uint64(newBaseDeadlineExtension);
@@ -157,9 +172,13 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
         _updateDecayPeriod(newDecayPeriod);
     }
 
+    error DecayPeriodOutOfRange(uint256 min, uint256 max);
     function _updateDecayPeriod(uint256 newDecayPeriod) internal {
-        require(newDecayPeriod <= MAX_DECAY_PERIOD, "decayPeriod too large");
-        require(newDecayPeriod > 0, "decayPeriod must be greater than zero");
+        if (
+            newDecayPeriod < MIN_DECAY_PERIOD ||
+            newDecayPeriod > MAX_DECAY_PERIOD
+        ) revert DecayPeriodOutOfRange(MIN_DECAY_PERIOD, MAX_DECAY_PERIOD);
+
         emit DecayPeriodSet(_decayPeriod, newDecayPeriod);
         // SafeCast unnecessary here as long as the MAX_DECAY_PERIOD is less than type(uint64).max
         _decayPeriod = uint64(newDecayPeriod);
@@ -176,9 +195,13 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
         _updatePercentDecay(newPercentDecay);
     }
 
+    error PercentDecayOutOfRange(uint256 min, uint256 max);
     function _updatePercentDecay(uint256 newPercentDecay) internal {
-        require(newPercentDecay <= MAX_PERCENT_DECAY, "percentDecay must be no greater than 100%");
-        require(newPercentDecay > 0, "percentDecay must be greater than 0%");
+        if (
+            newPercentDecay < MIN_PERCENT_DECAY ||
+            newPercentDecay > MAX_PERCENT_DECAY
+        ) revert PercentDecayOutOfRange(MIN_PERCENT_DECAY, MAX_PERCENT_DECAY);
+
         uint256 newInversePercentDecay = MAX_PERCENT_DECAY - newPercentDecay;
         emit PercentDecaySet(MAX_PERCENT_DECAY - _inversePercentDecay, newInversePercentDecay);
         // SafeCast unnecessary here as long as the MAX_PERCENT_DECAY is less than type(uint64).max
