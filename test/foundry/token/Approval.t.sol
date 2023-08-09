@@ -43,10 +43,12 @@ contract Approval is Test, TestAccountsSetup {
         vm.prank(a1);
         token.decreaseAllowance(address(this), 1);
         assertEq(token.allowance(a1, address(this)), allowance - 1);
-        vm.expectRevert(bytes("ERC20Checkpoints: insufficient allowance"));
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC20Checkpoints.InsufficientAllowance.selector, allowance - 1)
+        );
         token.transferFrom(a1, address(this), allowance);
         vm.startPrank(a1);
-        vm.expectRevert(bytes("ERC20Checkpoints: decreased allowance below zero"));
+        vm.expectRevert(ERC20Checkpoints.DecreasedAllowanceBelowZero.selector);
         token.decreaseAllowance(address(this), allowance);
     }
 

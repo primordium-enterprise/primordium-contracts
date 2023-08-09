@@ -33,7 +33,7 @@ contract Balances is Test, TestAccountsSetup {
         assertEq(token.getPastBalanceOf(a1, b1), a1Balance1);
         assertEq(token.getPastBalanceOf(a2, b1), a2Balance1);
 
-        vm.expectRevert(bytes("ERC20Checkpoints: future lookup"));
+        vm.expectRevert(ERC20Checkpoints.FutureLookup.selector);
         token.getPastBalanceOf(a1, block.number);
         vm.roll(b3);
         assertEq(token.getPastBalanceOf(a1, b2), a1Balance1 - transferAmount);
@@ -63,7 +63,7 @@ contract Balances is Test, TestAccountsSetup {
         assertEq(token.balanceOf(a1), a1Balance1 * 3 / 2);
         assertEq(token.totalSupply(), expectedSupply3);
 
-        vm.expectRevert("ERC20Checkpoints: future lookup");
+        vm.expectRevert(ERC20Checkpoints.FutureLookup.selector);
         token.getPastTotalSupply(block.number);
         assertEq(token.getPastTotalSupply(block.number - 1), supply2);
         assertEq(token.getPastTotalSupply(block.number - 2), supply1);
