@@ -57,13 +57,13 @@ contract DepositAndWithdrawal is Test, TestAccountsSetup {
 
         uint256 expiry = block.timestamp + 1 days;
         uint256 amount = token.balanceOf(a) / 2;
-        uint256 nonce = token.nonces(a);
         bytes32 structHash = keccak256(
             abi.encode(
-                keccak256("Withdraw(address receiver,uint256 amount,uint256 nonce,uint256 expiry)"),
+                keccak256("Withdraw(address owner,address receiver,uint256 amount,uint256 nonce,uint256 expiry)"),
+                a,
                 a,
                 amount,
-                nonce,
+                token.nonces(a),
                 expiry
             )
         );
@@ -72,8 +72,8 @@ contract DepositAndWithdrawal is Test, TestAccountsSetup {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, dataHash);
         token.withdrawBySig(
             a,
+            a,
             amount,
-            nonce,
             expiry,
             v,
             r,

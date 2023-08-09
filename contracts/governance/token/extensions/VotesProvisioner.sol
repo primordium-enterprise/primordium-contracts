@@ -28,7 +28,7 @@ uint256 constant COMPARE_FRACTIONS_MULTIPLIER = 1_000;
 abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControlled {
 
     bytes32 private constant _WITHDRAW_TYPEHASH = keccak256(
-        "Withdraw(address receiver,uint256 amount,uint256 nonce,uint256 expiry)"
+        "Withdraw(address owner,address receiver,uint256 amount,uint256 nonce,uint256 expiry)"
     );
 
     uint256 private constant MAX_MAX_SUPPLY = type(uint224).max;
@@ -305,9 +305,9 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      * @dev Allow withdrawal by EIP712 signature
      */
     function withdrawBySig(
+        address owner,
         address receiver,
         uint256 amount,
-        uint256 nonce,
         uint256 expiry,
         uint8 v,
         bytes32 r,
@@ -317,14 +317,14 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         address signer = ECDSA.recover(
             _hashTypedDataV4(
                 keccak256(
-                    abi.encode(_WITHDRAW_TYPEHASH, receiver, amount, nonce, expiry)
+                    abi.encode(_WITHDRAW_TYPEHASH, owner, receiver, amount, _useNonce(owner), expiry)
                 )
             ),
             v,
             r,
             s
         );
-        if (nonce != _useNonce(signer)) revert SignatureInvalid();
+        if (owner != signer) revert SignatureInvalid();
         return _withdraw(signer, receiver, amount);
     }
 
