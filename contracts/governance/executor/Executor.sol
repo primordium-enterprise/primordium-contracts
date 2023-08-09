@@ -2,7 +2,7 @@
 // Primordium Contracts
 // Based on OpenZeppelin Contracts (last updated v4.8.2) (governance/TimelockController.sol)
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
@@ -28,6 +28,9 @@ import "@openzeppelin/contracts/utils/Address.sol";
 abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
 
     uint256 internal constant _DONE_TIMESTAMP = uint256(1);
+
+    uint256 public constant MIN_DELAY = 2 days;
+    uint256 public constant MAX_DELAY = 30 days;
 
     mapping(bytes32 => uint256) private _timestamps;
     uint256 private _minDelay;
@@ -101,8 +104,9 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         _;
     }
 
+    error OnlyTimelock();
     function _onlyTimelock() private view {
-        require(msg.sender == address(this), "Executor: caller must be timelock");
+        if (msg.sender != address(this)) revert OnlyTimelock();
     }
 
     // Don't let contract renounce ownership (ownership cannot be recovered)
@@ -221,6 +225,7 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         return id;
     }
 
+    error ActionLengthsMismatch();
     /**
      * @dev Schedule an operation containing a batch of transactions.
      *
@@ -234,8 +239,10 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         bytes32 salt,
         uint256 delay
     ) public virtual onlyOwner returns (bytes32 operationId) {
-        require(targets.length == values.length, "Executor: length mismatch");
-        require(targets.length == payloads.length, "Executor: length mismatch");
+        if (
+            targets.length != values.length ||
+            targets.length != payloads.length
+        ) revert ActionLengthsMismatch();
 
         bytes32 id = hashOperationBatch(targets, values, payloads, predecessor, salt);
         _schedule(id, delay);
@@ -248,20 +255,23 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         return id;
     }
 
+    error OperationAlreadyScheduled();
+    error InsufficientDelay();
     /**
      * @dev Schedule an operation that is to become valid after a given delay.
      */
     function _schedule(bytes32 id, uint256 delay) private {
-        require(!isOperation(id), "Executor: operation already scheduled");
-        require(delay >= getMinDelay(), "Executor: insufficient delay");
+        if (isOperation(id)) revert OperationAlreadyScheduled();
+        if (delay < getMinDelay()) revert InsufficientDelay();
         _timestamps[id] = block.timestamp + delay;
     }
 
+    error OperationCannotBeCancelled();
     /**
      * @dev Cancel an operation.
      */
     function cancel(bytes32 id) public virtual onlyOwner {
-        require(isOperationPending(id), "Executor: operation cannot be cancelled");
+        if (!isOperationPending(id)) revert OperationCannotBeCancelled();
         delete _timestamps[id];
 
         emit Cancelled(id);
@@ -309,8 +319,10 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         bytes32 predecessor,
         bytes32 salt
     ) public payable virtual onlyOwner {
-        require(targets.length == values.length, "Executor: length mismatch");
-        require(targets.length == payloads.length, "Executor: length mismatch");
+        if (
+            targets.length != values.length ||
+            targets.length != payloads.length
+        ) revert ActionLengthsMismatch();
 
         bytes32 id = hashOperationBatch(targets, values, payloads, predecessor, salt);
 
@@ -325,13 +337,14 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         _afterCall(id);
     }
 
+    error OperationCallReverted(address target, uint256 value, bytes data);
     /**
      * @dev Execute an operation's call.
      */
     function _execute(address target, uint256 value, bytes calldata data) internal virtual {
         _beforeExecute(target, value, data);
         (bool success, ) = target.call{value: value}(data);
-        require(success, "Executor: underlying transaction reverted");
+        if (!success) revert OperationCallReverted(target, value, data);
     }
 
     /**
@@ -339,22 +352,25 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
      */
     function _beforeExecute(address target, uint256 value, bytes calldata data) internal virtual { }
 
+    error OperationNotReady();
+    error OperationMissingDependency(bytes32 missingPredecessor);
     /**
      * @dev Checks before execution of an operation's calls.
      */
     function _beforeCall(bytes32 id, bytes32 predecessor) private view {
-        require(isOperationReady(id), "Executor: operation is not ready");
-        require(predecessor == bytes32(0) || isOperationDone(predecessor), "Executor: missing dependency");
+        if (!isOperationReady(id)) revert OperationNotReady();
+        if (predecessor != bytes32(0) && !isOperationDone(predecessor)) revert OperationMissingDependency(predecessor);
     }
 
     /**
      * @dev Checks after execution of an operation's calls.
      */
     function _afterCall(bytes32 id) private {
-        require(isOperationReady(id), "Executor: operation is not ready");
+        if (!isOperationReady(id)) revert OperationNotReady();
         _timestamps[id] = _DONE_TIMESTAMP;
     }
 
+    error MinDelayOutOfRange(uint256 min, uint256 max);
     /**
      * @dev Changes the minimum timelock duration for future operations.
      *
@@ -365,8 +381,12 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
      * - the caller must be the timelock itself. This can only be achieved by scheduling and later executing
      * an operation where the timelock is the target and the data is the ABI-encoded call to this function.
      */
-    function updateDelay(uint256 newDelay) external virtual {
-        require(msg.sender == address(this), "Executor: caller must be timelock");
+    function updateDelay(uint256 newDelay) external virtual onlyTimelock {
+        if (
+            newDelay < MIN_DELAY ||
+            newDelay > MAX_DELAY
+        ) revert MinDelayOutOfRange(MIN_DELAY, MAX_DELAY);
+
         emit MinDelayChange(_minDelay, newDelay);
         _minDelay = newDelay;
     }

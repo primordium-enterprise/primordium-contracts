@@ -6,7 +6,7 @@ import "./governance/token/extensions/provisioners/VotesProvisionerETH.sol";
 import "./governance/token/extensions/provisioners/extensions/PermitWithdraw.sol";
 import "./governance/executor/Executor.sol";
 
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.4;
 
 string constant TOKEN_NAME = "Primordium";
 string constant TOKEN_SYMBOL = "MUSHI";

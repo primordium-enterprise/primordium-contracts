@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "../../token/extensions/VotesProvisioner.sol";
 import "../Executor.sol";
@@ -28,8 +28,9 @@ abstract contract Treasurer is Executor {
         _;
     }
 
+    error OnlyVotes();
     function _onlyVotes() private view {
-        require(msg.sender == address(_votes), "Treasurer: call must come from the _votes contract.");
+        if (msg.sender != address(_votes)) revert OnlyVotes();
     }
 
     function baseAsset() public view returns (address) {
@@ -48,6 +49,7 @@ abstract contract Treasurer is Executor {
      */
     function _treasuryBalance() internal view virtual returns (uint256);
 
+    error FailedToTransferBaseAsset(address to, uint256 amount);
     /**
      * @dev Internal function to transfer an amount of the base asset to the specified address.
      */
@@ -61,9 +63,10 @@ abstract contract Treasurer is Executor {
         _registerDeposit(depositAmount);
     }
 
+    error InvalidDepositAmount();
     /// @dev Can override and call super._registerDeposit for additional checks/functionality depending on baseAsset used
     function _registerDeposit(uint256 depositAmount) internal virtual {
-        require(depositAmount > 0, "Treasurer: Deposit amount must be greater than zero");
+        if (depositAmount == 0) revert InvalidDepositAmount();
     }
 
     /**

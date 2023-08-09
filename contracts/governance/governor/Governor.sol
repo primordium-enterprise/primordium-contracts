@@ -347,7 +347,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
 
     error InsufficientVotes();
     error MissingActions();
-    error InvalidActionCounts();
+    error ActionLengthsMismatch();
     error InsufficientVoteSupplyForGovernance();
     error InvalidFoundingModeActions();
     error InvalidActionSignature(uint256 index);
@@ -373,7 +373,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
             targets.length != values.length ||
             targets.length != calldatas.length ||
             targets.length != signatures.length
-        ) revert InvalidActionCounts();
+        ) revert ActionLengthsMismatch();
 
         if (_token.provisionMode() == IVotesProvisioner.ProvisionMode.Founding) {
             if (_token.totalSupply() < governanceThreshold) revert InsufficientVoteSupplyForGovernance();

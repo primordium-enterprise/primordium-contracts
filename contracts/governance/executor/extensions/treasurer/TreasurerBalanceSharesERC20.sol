@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "./TreasurerERC20.sol";
 import "./TreasurerBalanceShares.sol";
@@ -48,7 +48,7 @@ abstract contract TreasurerBalanceSharesERC20 is TreasurerERC20, TreasurerBalanc
      */
     function _checkExecutionBalanceTransfer(
         address target,
-        uint256 /*value*/,
+        uint256 value,
         bytes calldata data
     ) internal virtual override returns (uint256 balanceBeingTransferred) {
         if (target == address(_baseAsset)) {
@@ -66,10 +66,10 @@ abstract contract TreasurerBalanceSharesERC20 is TreasurerERC20, TreasurerBalanc
                     (address, address, uint256)
                 );
                 if (from == address(this)) {
-                    revert InvalidBaseAssetOperation();
+                    revert InvalidBaseAssetOperation(target, value, data);
                 }
             } else {
-                revert InvalidBaseAssetOperation();
+                revert InvalidBaseAssetOperation(target, value, data);
             }
         }
     }

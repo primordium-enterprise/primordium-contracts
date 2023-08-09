@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "./governance/executor/extensions/treasurer/TreasurerETH.sol";
 import "./governance/executor/extensions/treasurer/TreasurerBalanceSharesETH.sol";

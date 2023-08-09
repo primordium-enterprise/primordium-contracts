@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "../Treasurer.sol";
 import "contracts/governance/utils/BalanceShares.sol";
@@ -22,7 +22,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
     uint256 _stashedBalance;
 
     error InsufficientBaseAssetFunds(uint256 balanceTransferAmount, uint256 currentBalance);
-    error InvalidBaseAssetOperation();
+    error InvalidBaseAssetOperation(address target, uint256 value, bytes data);
 
     /**
      * @notice A method to retrieve a human-readable name for each enum value of the BalanceShareId enum.
