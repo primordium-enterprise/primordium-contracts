@@ -75,7 +75,6 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
         _delegate(_msgSender(), delegatee);
     }
 
-    error NonceInvalid();
     /**
      * @dev Delegates votes from signer to `delegatee`
      */
@@ -94,7 +93,7 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
             r,
             s
         );
-        if (nonce != _useNonce(signer)) revert NonceInvalid();
+        if (nonce != _useNonce(signer)) revert SignatureInvalid();
         _delegate(signer, delegatee);
     }
 

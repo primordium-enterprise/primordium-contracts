@@ -27,6 +27,10 @@ uint256 constant COMPARE_FRACTIONS_MULTIPLIER = 1_000;
  */
 abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControlled {
 
+    bytes32 private constant _WITHDRAW_TYPEHASH = keccak256(
+        "Withdraw(address receiver,uint256 amount,uint256 nonce,uint256 expiry)"
+    );
+
     uint256 private constant MAX_MAX_SUPPLY = type(uint224).max;
 
     ProvisionMode private _provisionMode;
@@ -295,6 +299,33 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      */
     function withdraw(uint256 amount) public virtual returns (uint256) {
         return _withdraw(_msgSender(), _msgSender(), amount);
+    }
+
+    /**
+     * @dev Allow withdrawal by EIP712 signature
+     */
+    function withdrawBySig(
+        address receiver,
+        uint256 amount,
+        uint256 nonce,
+        uint256 expiry,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) public virtual returns (uint256) {
+        if (block.timestamp > expiry) revert SignatureExpired();
+        address signer = ECDSA.recover(
+            _hashTypedDataV4(
+                keccak256(
+                    abi.encode(_WITHDRAW_TYPEHASH, receiver, amount, nonce, expiry)
+                )
+            ),
+            v,
+            r,
+            s
+        );
+        if (nonce != _useNonce(signer)) revert SignatureInvalid();
+        return _withdraw(signer, receiver, amount);
     }
 
     error WithdrawFromZeroAddress();

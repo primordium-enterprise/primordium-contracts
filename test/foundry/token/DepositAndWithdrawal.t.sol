@@ -55,26 +55,26 @@ contract DepositAndWithdrawal is Test, TestAccountsSetup {
         token.depositFor{ value: 1 ether}(a);
         assertEq(token.balanceOf(a), _expectedTokenBalance(n));
 
-        uint256 deadline = block.timestamp + 1 days;
+        uint256 expiry = block.timestamp + 1 days;
         uint256 amount = token.balanceOf(a) / 2;
+        uint256 nonce = token.nonces(a);
         bytes32 structHash = keccak256(
             abi.encode(
-                keccak256("PermitWithdraw(address owner,address receiver,uint256 amount,uint256 nonce,uint256 deadline)"),
-                a,
+                keccak256("Withdraw(address receiver,uint256 amount,uint256 nonce,uint256 expiry)"),
                 a,
                 amount,
-                token.nonces(a),
-                deadline
+                nonce,
+                expiry
             )
         );
         bytes32 dataHash = ECDSA.toTypedDataHash(_generateEIP712DomainSeperator(), structHash);
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, dataHash);
-        token.permitWithdraw(
-            a,
+        token.withdrawBySig(
             a,
             amount,
-            deadline,
+            nonce,
+            expiry,
             v,
             r,
             s
