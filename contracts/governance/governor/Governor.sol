@@ -350,7 +350,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     error InvalidActionCounts();
     error InsufficientVoteSupplyForGovernance();
     error InvalidFoundingModeActions();
-    error InvalidSignature(uint256 index);
+    error InvalidActionSignature(uint256 index);
     /**
      * @dev See {IGovernor-propose}.
      */
@@ -390,7 +390,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
             if (calldatas[i].length > 0) {
                 if (
                     bytes4(calldatas[i]) != bytes4(keccak256(bytes(signatures[i])))
-                ) revert InvalidSignature(i);
+                ) revert InvalidActionSignature(i);
             }
             unchecked { ++i; }
         }

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 
-
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "../Votes.sol";
 import "./IVotesProvisioner.sol";
@@ -28,10 +27,13 @@ uint256 constant COMPARE_FRACTIONS_MULTIPLIER = 1_000;
  */
 abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControlled {
 
+    uint256 private constant MAX_MAX_SUPPLY = type(uint224).max;
+
     ProvisionMode private _provisionMode;
 
     uint256 internal _maxSupply;
 
+    /// @dev _tokenPrice updates should always go through {_updateTokenPrice} to avoid setting price to zero
     TokenPrice private _tokenPrice = TokenPrice(1, 1); // Defaults to 1 to 1
 
     IERC20 internal immutable _baseAsset; // The address for the DAO's base asset (address(0) for ETH)
@@ -42,7 +44,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         TokenPrice memory tokenPrice_,
         IERC20 baseAsset_
     ) ExecutorControlled(executor_) {
-        require(address(baseAsset_) != address(this), "VotesProvisioner: cannot make itself the base asset.");
+        require(address(baseAsset_) != address(this), "VotesProvisioner: cannot make self the base asset.");
         if (address(baseAsset_) != address(0)) {
             require(address(baseAsset_).isContract(), "VotesProvisioner: base asset must be a deployed contract.");
         }
@@ -65,14 +67,14 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         _setProvisionMode(mode);
     }
 
+    error ProvisionModeTooLow();
     /**
      * @dev Internal function to set the provision mode.
      */
     function _setProvisionMode(ProvisionMode mode) internal virtual {
-        require(mode > ProvisionMode.Founding, "VotesProvisioner: cannot set the provision mode to founding mode");
-        ProvisionMode currentMode = _provisionMode;
-        require(mode != currentMode, "VotesProvisioner: provision mode is already equal to the provided mode");
-        emit ProvisionModeChange(currentMode, mode);
+        if (mode <= ProvisionMode.Founding) revert ProvisionModeTooLow();
+
+        emit ProvisionModeChange(_provisionMode, mode);
         _provisionMode = mode;
     }
 
@@ -92,6 +94,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         _updateMaxSupply(newMaxSupply);
     }
 
+    error MaxSupplyTooLarge(uint256 max);
     /**
      * @dev Internal function to update the max supply.
      * We DO allow the max supply to be set below the current totalSupply(), because this would allow a DAO to
@@ -99,7 +102,8 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      * May never be used, but preserves DAO optionality.
      */
     function _updateMaxSupply(uint256 newMaxSupply) internal virtual {
-        require(newMaxSupply <= type(uint224).max, "VotesProvisioner: max supply risks overflowing votes.");
+        if (newMaxSupply > MAX_MAX_SUPPLY) revert MaxSupplyTooLarge(MAX_MAX_SUPPLY);
+
         emit MaxSupplyChange(_maxSupply, newMaxSupply);
         _maxSupply = newMaxSupply;
     }
@@ -148,13 +152,16 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         _updateTokenPrice(0, newDenominator);
     }
 
+    error TokenPriceNumeratorTooLarge();
+    error TokenPriceDenominatorTooLarge();
     /**
      * @dev Private function to update the tokenPrice numerator and denominator. Skips update of zero values (neither can
      * be set to zero).
      */
     function _updateTokenPrice(uint256 newNumerator, uint256 newDenominator) private {
-        require(newNumerator <= 10e8, "VotesProvisioner: Numerator must be no greater than 10e8");
-        require(newDenominator <= 10e8, "VotesProvisioner: Denominator must be no greater than 10e3");
+        if (newNumerator > 10e8) revert TokenPriceNumeratorTooLarge();
+        if (newDenominator > 10e8) revert TokenPriceDenominatorTooLarge();
+
         uint256 prevNumerator = _tokenPrice.numerator;
         uint256 prevDenominator = _tokenPrice.denominator;
         if (newNumerator > 0) {
@@ -225,6 +232,10 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      */
     function _transferWithdrawalToReceiver(address receiver, uint256 withdrawAmount) internal virtual;
 
+    error DepositsUnavailable();
+    error InvalidDepositAmount();
+    error InvalidDepositAmountMultiple();
+    error TokenPriceTooLow();
     /**
      * @dev Internal function for processing the deposit. Calls _transferDepositToExecutor, which must be implemented in
      * an inheriting contract.
@@ -233,26 +244,30 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         address account,
         uint256 depositAmount
     ) internal virtual executorIsInitialized returns (uint256) {
-        require(_provisionMode != ProvisionMode.Governance, "VotesProvisioner: Deposits are not available.");
-        require(account != address(0));
-        require(depositAmount >= 0, "VotesProvisioner: Amount of base asset must be greater than zero.");
+        if (_provisionMode == ProvisionMode.Governance) revert DepositsUnavailable();
+        // Zero address is checked in the _mint function
+        if (depositAmount == 0) revert InvalidDepositAmount();
+
         uint256 tokenPriceNumerator = _tokenPrice.numerator;
         uint256 tokenPriceDenominator = _tokenPrice.denominator;
+
         // The "depositAmount" must be a multiple of the token price numerator
-        require(
-            depositAmount % tokenPriceNumerator == 0,
-            "VotesProvisioner: Amount of base asset must be a multiple of the token price numerator."
-        );
+        if (depositAmount % tokenPriceNumerator != 0) revert InvalidDepositAmountMultiple();
+
         // The current price per token must not exceed the current value per token, or the treasury will be at risk
         // NOTE: We can bypass this check in founding mode because no funds can leave the treasury yet through governance
         if (_provisionMode != ProvisionMode.Founding) {
-            // (tokenPriceNumerator / tokenPriceDenominator) >= (treasuryBalance / totalTokenSupply)
+            /**
+             * requirement:
+             * (tokenPriceNumerator / tokenPriceDenominator) >= (treasuryBalance / totalTokenSupply)
+             * which becomes...
+             * tokenPriceNumerator >= (treasuryBalance * tokenPriceDenominator) / totalTokenSupply
+             */
             (uint256 vpt, uint256 remainder) = _valueAndRemainderPerToken(tokenPriceDenominator);
-            require(
-                ( vpt < tokenPriceNumerator ) ||
-                ( vpt == tokenPriceNumerator && remainder == 0),
-                "VotesProvisioner: Token price is too low."
-            );
+            if (
+                ( vpt > tokenPriceNumerator ) ||
+                ( vpt == tokenPriceNumerator && remainder > 0)
+            ) revert TokenPriceTooLow();
         }
         uint256 mintAmount = depositAmount / tokenPriceNumerator * tokenPriceDenominator;
         _transferDepositToExecutor(account, depositAmount);
@@ -282,19 +297,27 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         return _withdraw(_msgSender(), _msgSender(), amount);
     }
 
+    error WithdrawFromZeroAddress();
+    error WithdrawToZeroAddress();
+    error WithdrawAmountInvalid();
     /**
      * @dev Internal function for processing the withdrawal. Calls _transferWithdrawalToReciever, which must be
      * implemented in an inheriting contract.
      */
     function _withdraw(address account, address receiver, uint256 amount) internal virtual returns(uint256) {
-        require(account != address(0), "VotesProvisioner: zero address cannot initiate withdrawal.");
-        require(receiver != address(0), "VotesProvisioner: Cannot withdraw to zero address.");
-        require(amount > 0, "VotesProvisioner: Amount of tokens withdrawing must be greater than zero.");
+        if (account == address(0)) revert WithdrawFromZeroAddress();
+        if (receiver == address(0)) revert WithdrawToZeroAddress();
+        if (amount == 0) revert WithdrawAmountInvalid();
 
         uint256 withdrawAmount = _valuePerToken(amount); // [ (amount/supply) * treasuryBalance ]
+
+        // _burn checks for InsufficientBalance
         _burn(account, amount);
+        // Transfer withdrawal funds AFTER burning tokens to ensure no re-entrancy
         _transferWithdrawalToReceiver(receiver, withdrawAmount);
+
         emit Withdrawal(account, receiver, withdrawAmount, amount);
+
         return withdrawAmount;
     }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "../VotesProvisioner.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
@@ -16,6 +16,7 @@ abstract contract VotesProvisionerERC20 is VotesProvisioner {
         require(address(_baseAsset) != address(0), "VotesProvisionerERC20: the address for the baseAsset cannot be address(0)");
     }
 
+    error CannotAcceptETHDeposits();
     /**
      * @notice Allows exchanging the depositAmount of base asset for votes (if votes are available for purchase).
      * @param account The account address to deposit to.
@@ -26,10 +27,11 @@ abstract contract VotesProvisionerERC20 is VotesProvisioner {
      * @return Amount of vote tokens minted.
      */
     function depositFor(address account, uint256 depositAmount) public payable virtual override returns(uint256) {
-        require(msg.value == 0, "VotesProvisionerERC20: Cannot accept ETH deposits.");
+        if (msg.value > 0) revert CannotAcceptETHDeposits();
         return _depositFor(account, depositAmount);
     }
 
+    error InvalidSpender(address providedSpender, address correctSpender);
     /**
      * @dev Additional function helper to use permit on the base asset contract to transfer in a single transaction
      * (if supported).
@@ -43,10 +45,7 @@ abstract contract VotesProvisionerERC20 is VotesProvisioner {
         bytes32 r,
         bytes32 s
     ) public virtual returns(uint256) {
-        require(
-            spender == address(this),
-            "VotesProvisionerERC20: deposits using ERC20 permit must set this contract address as the 'spender'"
-        );
+        if (spender != address(this)) revert InvalidSpender(spender, address(this));
         IERC20Permit(baseAsset()).permit(
             owner,
             spender,

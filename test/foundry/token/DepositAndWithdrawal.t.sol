@@ -59,11 +59,11 @@ contract DepositAndWithdrawal is Test, TestAccountsSetup {
         uint256 amount = token.balanceOf(a) / 2;
         bytes32 structHash = keccak256(
             abi.encode(
-                keccak256("PermitWithdraw(address owner,address receiver,uint256 amount,uint256 withdrawNonce,uint256 deadline)"),
+                keccak256("PermitWithdraw(address owner,address receiver,uint256 amount,uint256 nonce,uint256 deadline)"),
                 a,
                 a,
                 amount,
-                token.withdrawNonces(a),
+                token.nonces(a),
                 deadline
             )
         );

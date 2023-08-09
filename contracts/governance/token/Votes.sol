@@ -2,7 +2,7 @@
 // Primordium Contracts
 // Based on OpenZeppelin Contracts (last updated v4.8.1) (token/ERC20/extensions/ERC20Votes.sol)
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "./IVotes.sol";
 import "./ERC20Checkpoints.sol";
@@ -64,7 +64,7 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
      * - `timepoint` must be in the past
      */
     function getPastVotes(address account, uint256 timepoint) public view virtual override returns (uint256) {
-        require(timepoint < clock(), "ERC20Votes: future lookup");
+        _noFutureLookup(timepoint);
         return _checkpoints[account].upperLookupRecent(SafeCast.toUint32(timepoint));
     }
 
@@ -75,6 +75,7 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
         _delegate(_msgSender(), delegatee);
     }
 
+    error NonceInvalid();
     /**
      * @dev Delegates votes from signer to `delegatee`
      */
@@ -86,14 +87,14 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
         bytes32 r,
         bytes32 s
     ) public virtual override {
-        require(block.timestamp <= expiry, "ERC20Votes: signature expired");
+        if (block.timestamp > expiry) revert SignatureExpired();
         address signer = ECDSA.recover(
             _hashTypedDataV4(keccak256(abi.encode(_DELEGATION_TYPEHASH, delegatee, nonce, expiry))),
             v,
             r,
             s
         );
-        require(nonce == _useNonce(signer), "ERC20Votes: invalid nonce");
+        if (nonce != _useNonce(signer)) revert NonceInvalid();
         _delegate(signer, delegatee);
     }
 

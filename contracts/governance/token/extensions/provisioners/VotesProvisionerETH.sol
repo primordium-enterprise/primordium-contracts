@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "../VotesProvisioner.sol";
 
 abstract contract VotesProvisionerETH is VotesProvisioner {
 
     constructor() {
-        require(address(_baseAsset) == address(0));
+        require(address(_baseAsset) == address(0), "VotesProvisionerETH: base asset should be ETH (address(0)).");
     }
 
     /**

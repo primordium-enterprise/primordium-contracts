@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts (last updated v4.9.0) (token/ERC20/extensions/ERC20Permit.sol)
+// Primordium Contracts
+// Based on OpenZeppelin Contracts (last updated v4.9.0) (token/ERC20/extensions/ERC20Permit.sol)
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "../ERC20Checkpoints.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
@@ -43,6 +44,8 @@ abstract contract ERC20Permit is ERC20Checkpoints, IERC20Permit, EIP712 {
      */
     constructor(string memory name) EIP712(name, "1") {}
 
+    error SignatureExpired();
+    error SignatureInvalid();
     /**
      * @dev See {IERC20Permit-permit}.
      */
@@ -55,14 +58,14 @@ abstract contract ERC20Permit is ERC20Checkpoints, IERC20Permit, EIP712 {
         bytes32 r,
         bytes32 s
     ) public virtual override {
-        require(block.timestamp <= deadline, "ERC20Permit: expired deadline");
+        if (block.timestamp > deadline) revert SignatureExpired();
 
         bytes32 structHash = keccak256(abi.encode(_PERMIT_TYPEHASH, owner, spender, value, _useNonce(owner), deadline));
 
         bytes32 hash = _hashTypedDataV4(structHash);
 
         address signer = ECDSA.recover(hash, v, r, s);
-        require(signer == owner, "ERC20Permit: invalid signature");
+        if (signer != owner) revert SignatureInvalid();
 
         _approve(owner, spender, value);
     }
