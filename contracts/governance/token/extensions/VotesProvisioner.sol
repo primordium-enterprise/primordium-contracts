@@ -12,6 +12,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
+import "../../utils/Math512.sol";
 
 using SafeMath for uint256;
 using Address for address;
@@ -54,7 +55,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         }
         _baseAsset = baseAsset_;
         _updateMaxSupply(maxSupply_);
-        _updateTokenPrice(tokenPrice_.numerator, tokenPrice_.denominator);
+        updateTokenPrice(tokenPrice_.numerator, tokenPrice_.denominator);
     }
 
     /**
@@ -128,6 +129,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         return (_tokenPrice.numerator, _tokenPrice.denominator);
     }
 
+    error TokenPriceParametersMustBeGreaterThanZero();
     /**
      * @notice Public function to update the token price. Only the executor can make an update to the token price.
      * @param newNumerator The new numerator value (the amount of base asset required for {denominator} amount of votes).
@@ -136,6 +138,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      * asset). Set to zero to keep the denominator the same.
      */
     function updateTokenPrice(uint256 newNumerator, uint256 newDenominator) public virtual onlyExecutor {
+        if (newNumerator == 0 || newDenominator == 0) revert TokenPriceParametersMustBeGreaterThanZero();
         _updateTokenPrice(newNumerator, newDenominator);
     }
 
@@ -144,6 +147,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      * @param newNumerator The new numerator value (the amount of base asset required for {denominator} amount of votes).
      */
     function updateTokenPriceNumerator(uint256 newNumerator) public virtual onlyExecutor {
+        if (newNumerator == 0) revert TokenPriceParametersMustBeGreaterThanZero();
         _updateTokenPrice(newNumerator, 0);
     }
 
@@ -153,19 +157,15 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      * asset).
      */
     function updateTokenPriceDenominator(uint256 newDenominator) public virtual onlyExecutor {
+        if (newDenominator == 0) revert TokenPriceParametersMustBeGreaterThanZero();
         _updateTokenPrice(0, newDenominator);
     }
 
-    error TokenPriceNumeratorTooLarge();
-    error TokenPriceDenominatorTooLarge();
     /**
      * @dev Private function to update the tokenPrice numerator and denominator. Skips update of zero values (neither can
      * be set to zero).
      */
     function _updateTokenPrice(uint256 newNumerator, uint256 newDenominator) private {
-        if (newNumerator > 10e8) revert TokenPriceNumeratorTooLarge();
-        if (newDenominator > 10e8) revert TokenPriceDenominatorTooLarge();
-
         uint256 prevNumerator = _tokenPrice.numerator;
         uint256 prevDenominator = _tokenPrice.denominator;
         if (newNumerator > 0) {
@@ -182,22 +182,9 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     }
 
     function _valuePerToken(uint256 multiplier) internal view returns (uint256) {
-        return _valuePerTokenCalc(_treasuryBalance(), multiplier, totalSupply());
-    }
-
-    function _valuePerTokenCalc(uint256 balance, uint256 multiplier, uint256 supply) private pure returns (uint256) {
-        return supply > 0 ? Math.mulDiv(balance, multiplier, supply) : 0;
-    }
-
-    function _valueAndRemainderPerToken(uint256 multiplier) internal view returns (uint256, uint256) {
         uint256 supply = totalSupply();
         uint256 balance = _treasuryBalance();
-        return supply > 0 ?
-            (
-                Math.mulDiv(balance, multiplier, supply),
-                mulmod(balance, multiplier, supply)
-            ) :
-            (0, 0);
+        return supply > 0 ? Math.mulDiv(balance, multiplier, supply) : 0;
     }
 
     /**
@@ -248,7 +235,8 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         address account,
         uint256 depositAmount
     ) internal virtual executorIsInitialized returns (uint256) {
-        if (_provisionMode == ProvisionMode.Governance) revert DepositsUnavailable();
+        ProvisionMode currentProvisionMode = _provisionMode;
+        if (currentProvisionMode == ProvisionMode.Governance) revert DepositsUnavailable();
         // Zero address is checked in the _mint function
         if (depositAmount == 0) revert InvalidDepositAmount();
 
@@ -259,18 +247,10 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         if (depositAmount % tokenPriceNumerator != 0) revert InvalidDepositAmountMultiple();
 
         // The current price per token must not exceed the current value per token, or the treasury will be at risk
-        // NOTE: We can bypass this check in founding mode because no funds can leave the treasury yet through governance
-        if (_provisionMode != ProvisionMode.Founding) {
-            /**
-             * requirement:
-             * (tokenPriceNumerator / tokenPriceDenominator) >= (treasuryBalance / totalTokenSupply)
-             * which becomes...
-             * tokenPriceNumerator >= (treasuryBalance * tokenPriceDenominator) / totalTokenSupply
-             */
-            (uint256 vpt, uint256 remainder) = _valueAndRemainderPerToken(tokenPriceDenominator);
+        // NOTE: We should bypass this check in founding mode to prevent an attack locking deposits
+        if (currentProvisionMode != ProvisionMode.Founding) {
             if (
-                ( vpt > tokenPriceNumerator ) ||
-                ( vpt == tokenPriceNumerator && remainder > 0)
+                Math512.mul512_lt(tokenPriceNumerator, totalSupply(), tokenPriceDenominator, _treasuryBalance())
             ) revert TokenPriceTooLow();
         }
         uint256 mintAmount = depositAmount / tokenPriceNumerator * tokenPriceDenominator;
