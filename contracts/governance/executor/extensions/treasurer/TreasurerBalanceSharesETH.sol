@@ -12,7 +12,7 @@ abstract contract TreasurerBalanceSharesETH is TreasurerETH, TreasurerBalanceSha
      * @dev IMPORTANT to return the TreasurerBalanceShares function, as this is where BalanceShares internal accounting
      * occurs
      */
-    function _treasuryBalance() internal view virtual override(TreasurerETH, TreasurerBalanceShares) returns (uint256) {
+    function _treasuryBalance() internal view virtual override(Treasurer, TreasurerBalanceShares) returns (uint256) {
         return TreasurerBalanceShares._treasuryBalance();
     }
 
@@ -40,13 +40,6 @@ abstract contract TreasurerBalanceSharesETH is TreasurerETH, TreasurerBalanceSha
         bytes calldata /*data*/
     ) internal virtual override returns (uint256 balanceBeingTransferred) {
         return value;
-    }
-
-    /**
-     * @dev Total treasury balance is measured in ETH
-     */
-    function _getBaseAssetBalance() internal view virtual override returns (uint256) {
-        return address(this).balance;
     }
 
     function _registerDeposit(

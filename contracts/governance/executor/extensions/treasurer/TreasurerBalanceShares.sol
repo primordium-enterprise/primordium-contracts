@@ -15,12 +15,6 @@ abstract contract TreasurerBalanceShares is Treasurer {
     }
     mapping(BalanceShareId => BalanceShares.BalanceShare) private _balanceShares;
 
-    // The previously measured DAO balance (minus any _stashedBalance), for tracking changes to the balance amount
-    uint256 _balance;
-
-    // The total balance of the base asset that is not actually owned by the DAO (it is owed to BalanceShares, etc.)
-    uint256 _stashedBalance;
-
     error InsufficientBaseAssetFunds(uint256 balanceTransferAmount, uint256 currentBalance);
     error InvalidBaseAssetOperation(address target, uint256 value, bytes data);
 
@@ -59,7 +53,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * @dev Helper function to return the full base asset balance minus the _stashedBalance
      */
     function _currentTreasuryBalance() internal view virtual returns (uint256) {
-        return _getBaseAssetBalance() - _stashedBalance;
+        return _baseAssetBalance() - _stashedBalance;
     }
 
     /**
@@ -92,12 +86,6 @@ abstract contract TreasurerBalanceShares is Treasurer {
         }
         return currentBalance;
     }
-
-    /**
-     * @dev Internal function to return the total base asset owned by this address (needs to be overridden based on
-     * the base asset type)
-     */
-    function _getBaseAssetBalance() internal view virtual returns (uint256);
 
     /// @dev Override to implement balance updates on the treasury for deposit shares
     function _registerDeposit(uint256 depositAmount) internal virtual override {

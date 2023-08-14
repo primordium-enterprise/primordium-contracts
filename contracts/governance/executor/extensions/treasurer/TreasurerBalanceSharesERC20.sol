@@ -12,7 +12,7 @@ abstract contract TreasurerBalanceSharesERC20 is TreasurerERC20, TreasurerBalanc
      * @dev IMPORTANT to return the TreasurerBalanceShares function, as this is where BalanceShares internal accounting
      * occurs
      */
-    function _treasuryBalance() internal view virtual override(TreasurerERC20, TreasurerBalanceShares) returns (uint256) {
+    function _treasuryBalance() internal view virtual override(Treasurer, TreasurerBalanceShares) returns (uint256) {
         return TreasurerBalanceShares._treasuryBalance();
     }
 
@@ -72,13 +72,6 @@ abstract contract TreasurerBalanceSharesERC20 is TreasurerERC20, TreasurerBalanc
                 revert InvalidBaseAssetOperation(target, value, data);
             }
         }
-    }
-
-    /**
-     * @dev Total treasury balance is measured in ERC20 base asset
-     */
-    function _getBaseAssetBalance() internal view virtual override returns (uint256) {
-        return _baseAsset.balanceOf(address(this));
     }
 
     function _registerDeposit(

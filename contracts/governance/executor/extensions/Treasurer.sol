@@ -12,6 +12,11 @@ abstract contract Treasurer is Executor {
     VotesProvisioner internal immutable _votes;
     IERC20 internal immutable _baseAsset;
 
+    // The previously measured DAO balance (minus any _stashedBalance), for tracking changes to the balance amount
+    uint256 internal _balance;
+    // The total balance of the base asset that is allocated to Distributions, BalanceShares, etc.
+    uint256 internal _stashedBalance;
+
     constructor(
         VotesProvisioner votes_
     ) {
@@ -47,7 +52,14 @@ abstract contract Treasurer is Executor {
     /**
      * @dev An internal function that must be overridden to properly return the DAO treasury balance.
      */
-    function _treasuryBalance() internal view virtual returns (uint256);
+    function _treasuryBalance() internal view virtual returns (uint256) {
+        return _baseAssetBalance();
+    }
+
+    /**
+     * @dev An internal function that must be overridden to properly return the raw base asset balance.
+     */
+    function _baseAssetBalance() internal view virtual returns (uint256);
 
     error FailedToTransferBaseAsset(address to, uint256 amount);
     /**
