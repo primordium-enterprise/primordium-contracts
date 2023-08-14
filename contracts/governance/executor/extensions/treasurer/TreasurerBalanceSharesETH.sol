@@ -34,7 +34,7 @@ abstract contract TreasurerBalanceSharesETH is TreasurerETH, TreasurerBalanceSha
     /**
      * @dev Override to return the ETH value of the transaction
      */
-    function _checkExecutionBalanceTransfer(
+    function _checkExecutionBaseAssetTransfer(
         address /*target*/,
         uint256 value,
         bytes calldata /*data*/

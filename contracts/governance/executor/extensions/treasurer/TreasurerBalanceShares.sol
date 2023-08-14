@@ -39,7 +39,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * save gas)
      */
     function _treasuryBalance() internal view virtual override returns (uint256) {
-        uint256 currentBalance = _currentTreasuryBalance();
+        uint256 currentBalance = super._treasuryBalance();
         uint256 prevBalance = _balance;
         if (currentBalance > prevBalance) {
             currentBalance -= _balanceShares[BalanceShareId.Revenue].calculateBalanceToAddToShares(
@@ -47,13 +47,6 @@ abstract contract TreasurerBalanceShares is Treasurer {
             );
         }
         return currentBalance;
-    }
-
-    /**
-     * @dev Helper function to return the full base asset balance minus the _stashedBalance
-     */
-    function _currentTreasuryBalance() internal view virtual returns (uint256) {
-        return _baseAssetBalance() - _stashedBalance;
     }
 
     /**
@@ -73,7 +66,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * Calls BalanceShares.processBalance on the revenue shares to track any balance remainders as well.
      */
     function _stashRevenueShares() internal virtual returns (uint256) {
-        uint currentBalance = _currentTreasuryBalance();
+        uint currentBalance = super._treasuryBalance();
         uint prevBalance = _balance;
         // If revenue occurred, apply revenue shares and update the balances
         if (currentBalance > prevBalance) {
@@ -108,15 +101,15 @@ abstract contract TreasurerBalanceShares is Treasurer {
      */
     function _beforeExecute(address target, uint256 value, bytes calldata data) internal virtual override {
         super._beforeExecute(target, value, data);
-        uint transferAmount = _checkExecutionBalanceTransfer(target, value, data);
-        if (transferAmount > 0) {
+        uint baseAssetTransferAmount = _checkExecutionBaseAssetTransfer(target, value, data);
+        if (baseAssetTransferAmount > 0) {
             uint currentBalance = _treasuryBalance();
             // Revert if the attempted transfer amount is greater than the currentBalance
-            if (transferAmount > _treasuryBalance()) {
-                revert InsufficientBaseAssetFunds(transferAmount, currentBalance);
+            if (baseAssetTransferAmount > _treasuryBalance()) {
+                revert InsufficientBaseAssetFunds(baseAssetTransferAmount, currentBalance);
             }
             // Proactively update the treasury balance in anticipation of the base asset transfer
-            _balance -= transferAmount;
+            _balance -= baseAssetTransferAmount;
         }
     }
 
@@ -125,7 +118,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * asset type. This should return the amount being transferred from the Treasurer in the provided transaction so it
      * can be accounted for in the internal balance state.
      */
-    function _checkExecutionBalanceTransfer(
+    function _checkExecutionBaseAssetTransfer(
         address target,
         uint256 value,
         bytes calldata data
@@ -271,8 +264,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
     ) external virtual returns (uint256) {
         if (id == BalanceShareId.Revenue) _stashRevenueShares();
         uint256 withdrawAmount = _balanceShares[id].processAccountWithdrawal(account);
-        _stashedBalance -= withdrawAmount;
-        _transferBaseAsset(account, withdrawAmount);
+        _transferStashedBaseAsset(account, withdrawAmount);
         return withdrawAmount;
     }
 
@@ -301,7 +293,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
         BalanceShareId id,
         address account
     ) external view virtual returns (uint256) {
-        uint currentBalance = _currentTreasuryBalance();
+        uint currentBalance = super._treasuryBalance();
         uint prevBalance = _balance;
         uint balanceIncreasedBy = currentBalance > prevBalance ? currentBalance - prevBalance : 0;
         return _balanceShares[id].predictedAccountBalance(account, balanceIncreasedBy);

@@ -46,7 +46,7 @@ abstract contract TreasurerBalanceSharesERC20 is TreasurerERC20, TreasurerBalanc
      *
      * TODO: Create an additional helper contract for accomodating "approval" behavior.
      */
-    function _checkExecutionBalanceTransfer(
+    function _checkExecutionBaseAssetTransfer(
         address target,
         uint256 value,
         bytes calldata data

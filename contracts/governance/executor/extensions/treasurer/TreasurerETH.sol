@@ -17,7 +17,7 @@ abstract contract TreasurerETH is Treasurer {
     }
 
     /// @dev Transfers ETH.
-    function _transferBaseAsset(address to, uint256 amount) internal virtual override {
+    function _safeTransferBaseAsset(address to, uint256 amount) internal virtual override {
         (bool success,) = to.call{value: amount}("");
         if (!success) revert FailedToTransferBaseAsset(to, amount);
     }

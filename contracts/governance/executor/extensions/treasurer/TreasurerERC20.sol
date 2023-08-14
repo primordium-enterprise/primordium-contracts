@@ -17,7 +17,7 @@ abstract contract TreasurerERC20 is Treasurer {
     }
 
     /// @dev Transfers ERC20 base asset
-    function _transferBaseAsset(address to, uint256 amount) internal virtual override {
+    function _safeTransferBaseAsset(address to, uint256 amount) internal virtual override {
         SafeERC20.safeTransfer(_baseAsset, to, amount);
     }
 

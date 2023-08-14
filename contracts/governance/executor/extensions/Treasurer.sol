@@ -53,7 +53,7 @@ abstract contract Treasurer is Executor {
      * @dev An internal function that must be overridden to properly return the DAO treasury balance.
      */
     function _treasuryBalance() internal view virtual returns (uint256) {
-        return _baseAssetBalance();
+        return _baseAssetBalance() - _stashedBalance;
     }
 
     /**
@@ -65,7 +65,15 @@ abstract contract Treasurer is Executor {
     /**
      * @dev Internal function to transfer an amount of the base asset to the specified address.
      */
-    function _transferBaseAsset(address to, uint256 amount) internal virtual;
+    function _safeTransferBaseAsset(address to, uint256 amount) internal virtual;
+
+    /**
+     * @dev Internal function to transfer an amount of the base asset from the stashed balance.
+     */
+    function _transferStashedBaseAsset(address to, uint256 amount) internal virtual {
+        _stashedBalance -= amount;
+        _safeTransferBaseAsset(to, amount);
+    }
 
     /**
      * @notice Registers a deposit on the Treasurer. Only callable by the votes contract.
@@ -92,7 +100,7 @@ abstract contract Treasurer is Executor {
 
     /// @dev Must override to implement the actual transfer functionality depending on what baseAsset is used
     function _processWithdrawal(address receiver, uint256 withdrawAmount) internal virtual {
-        _transferBaseAsset(receiver, withdrawAmount);
+        _safeTransferBaseAsset(receiver, withdrawAmount);
     }
 
 }
