@@ -8,33 +8,41 @@ import "contracts/PrimordiumExecutor.sol";
 
 abstract contract GovernanceSetup is Test {
 
-    Mushi token = new Mushi(
-        Treasurer(payable(address(0))),
-        10 ether / 10,
-        IVotesProvisioner.TokenPrice(10, 1)
-    );
+    Mushi token;
 
-    PrimordiumExecutor executor = new PrimordiumExecutor(
-        2 days,
-        address(0),
-        VotesProvisioner(address(token))
-    );
+    PrimordiumExecutor executor;
 
-    GovernorV1 governor = new GovernorV1(
-        Executor(payable(address(0))),
-        VotesProvisioner(address(token)),
-        1 ether / 10, // Governance threshold
-        100, // 100 / 10_000 = 1% quorum initially,
-        0, // Initial proposal threshold bps
-        1 days / 12, // Voting delay - 1 day in blocks
-        1 days / 12, // Voting period - 1 day in blocks,
-        60 // 60% majority
-    );
+    GovernorV1 governor;
 
-    constructor() {
+    function setUp() public virtual {
+
+        token = new Mushi(
+            Treasurer(payable(address(0))),
+            10 ether / 10,
+            IVotesProvisioner.TokenPrice(10, 1)
+        );
+
+        executor = new PrimordiumExecutor(
+            2 days,
+            address(0),
+            VotesProvisioner(address(token))
+        );
+
+        governor = new GovernorV1(
+            Executor(payable(address(0))),
+            VotesProvisioner(address(token)),
+            1 ether / 10, // Governance threshold
+            100, // 100 / 10_000 = 1% quorum initially,
+            0, // Initial proposal threshold bps
+            1 days / 12, // Voting delay - 1 day in blocks
+            1 days / 12, // Voting period - 1 day in blocks,
+            60 // 60% majority
+        );
+
         token.initializeExecutor(Executor(payable(address(executor))));
         executor.transferOwnership(address(governor));
         governor.initialize(Executor(payable(address(executor))));
+
     }
 
 }

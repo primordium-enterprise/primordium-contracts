@@ -21,7 +21,8 @@ contract TestAccountsSetup is Test, GovernanceSetup {
         vm.deal(a2, amnt2);
     }
 
-    function setUp() public virtual {
+    function setUp() public virtual override {
+        super.setUp();
         // Test various deposit functions
         vm.prank(a1);
         token.deposit{value: amnt1}();

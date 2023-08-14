@@ -55,7 +55,11 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         }
         _baseAsset = baseAsset_;
         _updateMaxSupply(maxSupply_);
-        updateTokenPrice(tokenPrice_.numerator, tokenPrice_.denominator);
+        require(
+            tokenPrice_.numerator != 0 && tokenPrice_.denominator != 0,
+            "VotesProvisioner: Cannot set token price to 0."
+        );
+        _updateTokenPrice(tokenPrice_.numerator, tokenPrice_.denominator);
     }
 
     /**
