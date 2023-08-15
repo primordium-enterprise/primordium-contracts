@@ -67,7 +67,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * @notice A publicly callable function to update the treasury balances, processing any revenue shares and saving
      * these updates to the contract state. This does NOT send revenue shares to the receipient accounts, it simply
      * updates the internal accounting allocate the revenue shares to be withdrawable by the recipients.
-     * @return Returns the amount of the base asset that is stashed for revenue shares.
+     * @return Returns the amount of the base asset that stashed for revenue shares as part of this function call.
      */
     function stashRevenueShares() external returns (uint256) {
         return _stashRevenueShares();
@@ -81,14 +81,16 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * Calls BalanceShares.processBalance on the revenue shares to track any balance remainders as well.
      */
     function _stashRevenueShares() internal virtual returns (uint256 stashed) {
-        uint currentBalance = super._treasuryBalance();
+        uint currentBalance = Treasurer._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
         uint unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
         if (unprocessedRevenue > 0) {
             stashed = _balanceShares[BalanceShareId.Revenue].processBalance(unprocessedRevenue);
             _stashedBalance += stashed;
             currentBalance -= stashed;
-            _lastProcessedBalance = currentBalance; // Set the _lastProcessedBalance to the current treasury balance
-            _balanceTransfers = 0; // Zero out the value of _balanceTransfers
+             // Set the _lastProcessedBalance to the current treasury balance
+            _lastProcessedBalance = currentBalance;
+            // Zero out the value of _balanceTransfers
+            _balanceTransfers = 0;
         }
         return stashed;
     }
@@ -112,6 +114,16 @@ abstract contract TreasurerBalanceShares is Treasurer {
         _balanceTransfers += amount;
     }
 
+    /**
+     * @dev Modifier to stash revenue shares before proceeding with the rest of the function call. Important for many
+     * BalanceShare updates to ensure that all unprocessed revenue is stashed before writing any updates to the
+     * BalanceShare storage.
+     */
+    modifier stashRevenueSharesFirst(BalanceShareId id) {
+        if (id == BalanceShareId.Revenue) _stashRevenueShares();
+        _;
+    }
+
     event BalanceShareAdded(
         BalanceShareId indexed id,
         address indexed account,
@@ -133,8 +145,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
     function addBalanceShares(
         BalanceShareId id,
         BalanceShares.NewAccountShare[] calldata newAccountShares
-    ) public virtual onlyTimelock {
-        if (id == BalanceShareId.Revenue) _stashRevenueShares();
+    ) public virtual onlyTimelock stashRevenueSharesFirst(id) {
         _balanceShares[id].addAccountShares(newAccountShares);
         for (uint i = 0; i < newAccountShares.length;) {
             emit BalanceShareAdded(
@@ -161,8 +172,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
     function removeBalanceShares(
         BalanceShareId id,
         address[] calldata accounts
-    ) public virtual onlyTimelock {
-        if (id == BalanceShareId.Revenue) _stashRevenueShares();
+    ) public virtual onlyTimelock stashRevenueSharesFirst(id) {
         _balanceShares[id].removeAccountShares(accounts);
         for (uint i = 0; i < accounts.length;) {
             emit BalanceShareRemoved(
@@ -178,8 +188,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * balance withdrawal for msg.sender.
      * @param id The enum identifier indicating which balance share this applies to.
      */
-    function removeBalanceShareSelf(BalanceShareId id) external virtual {
-        if (id == BalanceShareId.Revenue) _stashRevenueShares();
+    function removeBalanceShareSelf(BalanceShareId id) external virtual stashRevenueSharesFirst(id) {
         _balanceShares[id].removeAccountShareSelf();
         emit BalanceShareRemoved(
             id,
@@ -248,10 +257,10 @@ abstract contract TreasurerBalanceShares is Treasurer {
     function processBalanceShareWithdrawal(
         BalanceShareId id,
         address account
-    ) external virtual returns (uint256) {
-        if (id == BalanceShareId.Revenue) _stashRevenueShares();
+    ) external virtual stashRevenueSharesFirst(id) returns (uint256) {
         uint256 withdrawAmount = _balanceShares[id].processAccountWithdrawal(account);
-        _transferStashedBaseAsset(account, withdrawAmount);
+        _transferStashedBaseAsset(account, withdrawAmount); // Subtracts from the stashed balance
+        emit BalanceShareWithdrawal(id, account, withdrawAmount);
         return withdrawAmount;
     }
 
@@ -281,9 +290,8 @@ abstract contract TreasurerBalanceShares is Treasurer {
         address account
     ) external view virtual returns (uint256) {
         uint currentBalance = super._treasuryBalance();
-        uint prevBalance = _lastProcessedBalance;
-        uint balanceIncreasedBy = currentBalance > prevBalance ? currentBalance - prevBalance : 0;
-        return _balanceShares[id].predictedAccountBalance(account, balanceIncreasedBy);
+        uint unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
+        return _balanceShares[id].predictedAccountBalance(account, unprocessedRevenue);
     }
 
     /**
@@ -313,8 +321,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
         BalanceShareId id,
         address account,
         uint256 increaseByBps
-    ) public virtual onlyTimelock returns (uint256) {
-        if (id == BalanceShareId.Revenue) _stashRevenueShares();
+    ) public virtual onlyTimelock stashRevenueSharesFirst(id) returns (uint256) {
         uint256 newAccountBps = _balanceShares[id].increaseAccountBps(account, increaseByBps);
         emit BalanceShareAccountBpsUpdated(id, account, newAccountBps);
         return newAccountBps;
@@ -358,8 +365,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
         BalanceShareId id,
         address account,
         uint256 decreaseByBps
-    ) internal virtual returns (uint256) {
-        if (id == BalanceShareId.Revenue) _stashRevenueShares();
+    ) internal virtual stashRevenueSharesFirst(id) returns (uint256) {
         uint256 newAccountBps = _balanceShares[id].decreaseAccountBps(account, decreaseByBps);
         emit BalanceShareAccountBpsUpdated(id, account, newAccountBps);
         return newAccountBps;
