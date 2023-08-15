@@ -42,7 +42,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * save gas)
      */
     function _treasuryBalance() internal view virtual override returns (uint256) {
-        uint256 currentBalance = super._treasuryBalance();
+        uint256 currentBalance = Treasurer._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
         uint256 unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
         if (unprocessedRevenue > 0) {
             currentBalance -= _balanceShares[BalanceShareId.Revenue].calculateBalanceToAddToShares(unprocessedRevenue);
@@ -51,8 +51,10 @@ abstract contract TreasurerBalanceShares is Treasurer {
     }
 
     function _getUnprocessedRevenue(uint256 treasuryBalance_) internal view virtual returns (uint256) {
-        // treasuryBalance_ = _baseAssetBalance() - _stashedBalance
-        // unprocessedRevenue = treasuryBalance_ - (_lastProcessedBalance - _balanceTransfers)
+        /**
+         * treasuryBalance_ = _baseAssetBalance() - _stashedBalance
+         * unprocessedRevenue = treasuryBalance_ - (_lastProcessedBalance - _balanceTransfers)
+         */
         uint256 prevBalance = _lastProcessedBalance;
         uint256 balanceTransfers = _balanceTransfers;
         // Double negative needs to become positive
@@ -96,18 +98,17 @@ abstract contract TreasurerBalanceShares is Treasurer {
         super._registerDeposit(depositAmount);
         // TODO: NEED TO BYPASS UNTIL INITIALIZATION, THEN APPLY RETROACTIVELY
         uint stashed = _balanceShares[BalanceShareId.Deposits].processBalance(depositAmount);
-        _lastProcessedBalance += depositAmount - stashed;
-        _stashedBalance += stashed;
+        if (stashed > 0) {
+            _lastProcessedBalance += depositAmount - stashed;
+            _stashedBalance += stashed;
+        }
     }
 
-    /// @dev Override to implement balance updates on the treasury
-    function _processWithdrawal(address receiver, uint256 withdrawAmount) internal virtual override {
-        super._processWithdrawal(receiver, withdrawAmount);
-        _balanceTransfers += withdrawAmount; // Inverse of subtracting withdrawAmount from _lastProcessedBalance
-    }
-
+    /**
+     * @dev Override to implement internal accounting to track all cumulative balance transfers since the last time
+     * revenue was stashed.
+     */
     function _processBaseAssetTransfer(uint256 amount) internal virtual override {
-        // super._processBaseAssetTransfer(amount);
         _balanceTransfers += amount;
     }
 

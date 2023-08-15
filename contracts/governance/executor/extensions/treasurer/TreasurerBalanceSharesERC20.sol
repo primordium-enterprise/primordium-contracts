@@ -22,11 +22,4 @@ abstract contract TreasurerBalanceSharesERC20 is TreasurerERC20, TreasurerBalanc
         super._registerDeposit(depositAmount);
     }
 
-    function _processWithdrawal(
-        address receiver,
-        uint256 withdrawAmount
-    ) internal virtual override(Treasurer, TreasurerBalanceShares) {
-        super._processWithdrawal(receiver, withdrawAmount);
-    }
-
 }

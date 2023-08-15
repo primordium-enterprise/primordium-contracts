@@ -248,7 +248,10 @@ library BalanceShares {
         BalanceShare storage self,
         uint256 balanceIncreasedBy
     ) internal view returns (uint256 balanceToAddToShares) {
-        (balanceToAddToShares,) = _calculateBalanceShare(self, balanceIncreasedBy, totalBps(self));
+        uint currentTotalBps = totalBps(self);
+        if (currentTotalBps > 0) {
+            (balanceToAddToShares,) = _calculateBalanceShare(self, balanceIncreasedBy, currentTotalBps);
+        }
     }
 
     /**

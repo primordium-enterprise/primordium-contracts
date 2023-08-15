@@ -68,6 +68,20 @@ abstract contract Treasurer is Executor {
      */
     function _safeTransferBaseAsset(address to, uint256 amount) internal virtual;
 
+        /**
+     * @dev Used to process any internal accounting updates after transferring the base asset out of the treasury.
+     */
+    function _processBaseAssetTransfer(uint256 amount) internal virtual;
+
+    /**
+     * @dev Internal function to transfer an amount of the base asset from the treasury balance.
+     * NOTE: Calls "_processBaseAssetTransfer" for any internal accounting used.
+     */
+    function _transferBaseAsset(address to, uint256 amount) internal virtual {
+        _processBaseAssetTransfer(amount);
+        _safeTransferBaseAsset(to, amount);
+    }
+
     /**
      * @dev Internal function to transfer an amount of the base asset from the stashed balance.
      */
@@ -105,11 +119,6 @@ abstract contract Treasurer is Executor {
     ) internal virtual returns (uint256 balanceBeingTransferred);
 
     /**
-     * @dev Used to process any internal accounting updates after transferring the base asset out of the treasury.
-     */
-    function _processBaseAssetTransfer(uint256 amount) internal virtual;
-
-    /**
      * @notice Registers a deposit on the Treasurer. Only callable by the votes contract.
      * @param depositAmount The amount being deposited.
      */
@@ -132,9 +141,12 @@ abstract contract Treasurer is Executor {
         _processWithdrawal(receiver, withdrawAmount);
     }
 
-    /// @dev Must override to implement the actual transfer functionality depending on what baseAsset is used
+    /**
+     * @dev Can override and call super._processWithdrawal for additional checks/functionality.
+     * Calls "_processBaseAssetTransfer" as part of the transfer functionality (for internal accounting)
+     */
     function _processWithdrawal(address receiver, uint256 withdrawAmount) internal virtual {
-        _safeTransferBaseAsset(receiver, withdrawAmount);
+        _transferBaseAsset(receiver, withdrawAmount);
     }
 
 }
