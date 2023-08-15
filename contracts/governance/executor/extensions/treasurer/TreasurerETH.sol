@@ -29,4 +29,12 @@ abstract contract TreasurerETH is Treasurer {
         super._registerDeposit(depositAmount);
     }
 
+    function _checkExecutionBaseAssetTransfer(
+        address /*target*/,
+        uint256 value,
+        bytes calldata /*data*/
+    ) internal virtual override returns (uint256) {
+        return value;
+    }
+
 }

@@ -9,11 +9,12 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 abstract contract Treasurer is Executor {
 
+    error InsufficientBaseAssetFunds(uint256 balanceTransferAmount, uint256 currentBalance);
+    error InvalidBaseAssetOperation(address target, uint256 value, bytes data);
+
     VotesProvisioner internal immutable _votes;
     IERC20 internal immutable _baseAsset;
 
-    // The previously measured DAO balance (minus any _stashedBalance), for tracking changes to the balance amount
-    uint256 internal _balance;
     // The total balance of the base asset that is allocated to Distributions, BalanceShares, etc.
     uint256 internal _stashedBalance;
 
@@ -74,6 +75,39 @@ abstract contract Treasurer is Executor {
         _stashedBalance -= amount;
         _safeTransferBaseAsset(to, amount);
     }
+
+    /**
+     * @dev Before execution of any action on the Executor, confirm that base asset transfers do not exceed DAO balance,
+     * and then update the balance to account for the transfer.
+     */
+    function _beforeExecute(address target, uint256 value, bytes calldata data) internal virtual override {
+        super._beforeExecute(target, value, data);
+        uint baseAssetTransferAmount = _checkExecutionBaseAssetTransfer(target, value, data);
+        if (baseAssetTransferAmount > 0) {
+            uint currentBalance = _treasuryBalance();
+            // Revert if the attempted transfer amount is greater than the currentBalance
+            if (baseAssetTransferAmount > currentBalance) {
+                revert InsufficientBaseAssetFunds(baseAssetTransferAmount, currentBalance);
+            }
+            _processBaseAssetTransfer(baseAssetTransferAmount);
+        }
+    }
+
+    /**
+     * @dev Used in the _beforeExecute hook to check for base asset transfers. Needs to be overridden based on the base
+     * asset type. This should return the amount being transferred from the Treasurer in the provided transaction so it
+     * can be accounted for in the internal balance state.
+     */
+    function _checkExecutionBaseAssetTransfer(
+        address target,
+        uint256 value,
+        bytes calldata data
+    ) internal virtual returns (uint256 balanceBeingTransferred);
+
+    /**
+     * @dev Used to process any internal accounting updates after transferring the base asset out of the treasury.
+     */
+    function _processBaseAssetTransfer(uint256 amount) internal virtual;
 
     /**
      * @notice Registers a deposit on the Treasurer. Only callable by the votes contract.

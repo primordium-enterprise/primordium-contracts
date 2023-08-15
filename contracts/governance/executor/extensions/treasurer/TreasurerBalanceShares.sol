@@ -15,8 +15,11 @@ abstract contract TreasurerBalanceShares is Treasurer {
     }
     mapping(BalanceShareId => BalanceShares.BalanceShare) private _balanceShares;
 
-    error InsufficientBaseAssetFunds(uint256 balanceTransferAmount, uint256 currentBalance);
-    error InvalidBaseAssetOperation(address target, uint256 value, bytes data);
+    // The previously measured DAO balance (minus any _stashedBalance), for tracking changes to the balance amount
+    uint256 private _lastProcessedBalance;
+
+    // Tracks cumulative balance transfers since the last storage write to _lastProcessedBalance
+    uint256 private _balanceTransfers;
 
     /**
      * @notice A method to retrieve a human-readable name for each enum value of the BalanceShareId enum.
@@ -40,19 +43,29 @@ abstract contract TreasurerBalanceShares is Treasurer {
      */
     function _treasuryBalance() internal view virtual override returns (uint256) {
         uint256 currentBalance = super._treasuryBalance();
-        uint256 prevBalance = _balance;
-        if (currentBalance > prevBalance) {
-            currentBalance -= _balanceShares[BalanceShareId.Revenue].calculateBalanceToAddToShares(
-                currentBalance - prevBalance
-            );
+        uint256 unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
+        if (unprocessedRevenue > 0) {
+            currentBalance -= _balanceShares[BalanceShareId.Revenue].calculateBalanceToAddToShares(unprocessedRevenue);
         }
         return currentBalance;
+    }
+
+    function _getUnprocessedRevenue(uint256 treasuryBalance_) internal view virtual returns (uint256) {
+        // treasuryBalance_ = _baseAssetBalance() - _stashedBalance
+        // unprocessedRevenue = treasuryBalance_ - (_lastProcessedBalance - _balanceTransfers)
+        uint256 prevBalance = _lastProcessedBalance;
+        uint256 balanceTransfers = _balanceTransfers;
+        // Double negative needs to become positive
+        return balanceTransfers > prevBalance ?
+            treasuryBalance_ + (balanceTransfers - prevBalance) :
+            treasuryBalance_ - (prevBalance - balanceTransfers);
     }
 
     /**
      * @notice A publicly callable function to update the treasury balances, processing any revenue shares and saving
      * these updates to the contract state. This does NOT send revenue shares to the receipient accounts, it simply
      * updates the internal accounting allocate the revenue shares to be withdrawable by the recipients.
+     * @return Returns the amount of the base asset that is stashed for revenue shares.
      */
     function stashRevenueShares() external returns (uint256) {
         return _stashRevenueShares();
@@ -61,69 +74,42 @@ abstract contract TreasurerBalanceShares is Treasurer {
     /**
      * @dev Update function that balances the treasury based on any revenue changes that occurred since the last update.
      *
-     * Saves these changes to the _balance and _stashedBalance storage state.
+     * Saves these changes to the _lastProcessedBalance and _stashedBalance storage state, return the amount stashed.
      *
      * Calls BalanceShares.processBalance on the revenue shares to track any balance remainders as well.
      */
-    function _stashRevenueShares() internal virtual returns (uint256) {
+    function _stashRevenueShares() internal virtual returns (uint256 stashed) {
         uint currentBalance = super._treasuryBalance();
-        uint prevBalance = _balance;
-        // If revenue occurred, apply revenue shares and update the balances
-        if (currentBalance > prevBalance) {
-            uint increasedBy = currentBalance - prevBalance;
-            // Use "processBalance" function to account for the remainder
-            uint stashed = _balanceShares[BalanceShareId.Revenue].processBalance(increasedBy);
+        uint unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
+        if (unprocessedRevenue > 0) {
+            stashed = _balanceShares[BalanceShareId.Revenue].processBalance(unprocessedRevenue);
             _stashedBalance += stashed;
             currentBalance -= stashed;
-            _balance = currentBalance;
+            _lastProcessedBalance = currentBalance; // Set the _lastProcessedBalance to the current treasury balance
+            _balanceTransfers = 0; // Zero out the value of _balanceTransfers
         }
-        return currentBalance;
+        return stashed;
     }
 
     /// @dev Override to implement balance updates on the treasury for deposit shares
     function _registerDeposit(uint256 depositAmount) internal virtual override {
         super._registerDeposit(depositAmount);
-        // NEED TO BYPASS UNTIL INITIALIZATION, THEN APPLY RETROACTIVELY
+        // TODO: NEED TO BYPASS UNTIL INITIALIZATION, THEN APPLY RETROACTIVELY
         uint stashed = _balanceShares[BalanceShareId.Deposits].processBalance(depositAmount);
-        _balance += depositAmount - stashed;
+        _lastProcessedBalance += depositAmount - stashed;
         _stashedBalance += stashed;
     }
 
     /// @dev Override to implement balance updates on the treasury
     function _processWithdrawal(address receiver, uint256 withdrawAmount) internal virtual override {
         super._processWithdrawal(receiver, withdrawAmount);
-        _balance -= withdrawAmount;
+        _balanceTransfers += withdrawAmount; // Inverse of subtracting withdrawAmount from _lastProcessedBalance
     }
 
-    /**
-     * @dev Before execution of any action on the Executor, confirm that base asset transfers do not exceed DAO balance,
-     * and then update the balance to account for the transfer.
-     */
-    function _beforeExecute(address target, uint256 value, bytes calldata data) internal virtual override {
-        super._beforeExecute(target, value, data);
-        uint baseAssetTransferAmount = _checkExecutionBaseAssetTransfer(target, value, data);
-        if (baseAssetTransferAmount > 0) {
-            uint currentBalance = _treasuryBalance();
-            // Revert if the attempted transfer amount is greater than the currentBalance
-            if (baseAssetTransferAmount > _treasuryBalance()) {
-                revert InsufficientBaseAssetFunds(baseAssetTransferAmount, currentBalance);
-            }
-            // Proactively update the treasury balance in anticipation of the base asset transfer
-            _balance -= baseAssetTransferAmount;
-        }
+    function _processBaseAssetTransfer(uint256 amount) internal virtual override {
+        // super._processBaseAssetTransfer(amount);
+        _balanceTransfers += amount;
     }
-
-    /**
-     * @dev Used in the _beforeExecute hook to check for base asset transfers. Needs to be overridden based on the base
-     * asset type. This should return the amount being transferred from the Treasurer in the provided transaction so it
-     * can be accounted for in the internal balance state.
-     */
-    function _checkExecutionBaseAssetTransfer(
-        address target,
-        uint256 value,
-        bytes calldata data
-    ) internal virtual returns (uint256 balanceBeingTransferred);
-
 
     event BalanceShareAdded(
         BalanceShareId indexed id,
@@ -294,7 +280,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
         address account
     ) external view virtual returns (uint256) {
         uint currentBalance = super._treasuryBalance();
-        uint prevBalance = _balance;
+        uint prevBalance = _lastProcessedBalance;
         uint balanceIncreasedBy = currentBalance > prevBalance ? currentBalance - prevBalance : 0;
         return _balanceShares[id].predictedAccountBalance(account, balanceIncreasedBy);
     }

@@ -20,7 +20,7 @@ contract PrimordiumExecutor is Executor, TreasurerBalanceSharesETH {
         address target,
         uint256 value,
         bytes calldata data
-    ) internal virtual override(Executor, TreasurerBalanceSharesETH) {
+    ) internal virtual override(Executor, Treasurer) {
         super._beforeExecute(target, value, data);
     }
 
