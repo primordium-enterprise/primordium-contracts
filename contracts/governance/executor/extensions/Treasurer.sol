@@ -12,31 +12,31 @@ abstract contract Treasurer is Executor {
     error InsufficientBaseAssetFunds(uint256 balanceTransferAmount, uint256 currentBalance);
     error InvalidBaseAssetOperation(address target, uint256 value, bytes data);
 
-    VotesProvisioner internal immutable _votes;
+    VotesProvisioner internal immutable _token;
     IERC20 internal immutable _baseAsset;
 
     // The total balance of the base asset that is allocated to Distributions, BalanceShares, etc.
     uint256 internal _stashedBalance;
 
     constructor(
-        VotesProvisioner votes_
+        VotesProvisioner token_
     ) {
-        _votes = votes_;
-        _baseAsset = IERC20(votes_.baseAsset());
+        _token = token_;
+        _baseAsset = IERC20(token_.baseAsset());
     }
 
     function votes() public view returns(address) {
-        return address(_votes);
+        return address(_token);
     }
 
-    modifier onlyVotes() {
-        _onlyVotes();
+    modifier onlyToken() {
+        _onlyToken();
         _;
     }
 
-    error OnlyVotes();
-    function _onlyVotes() private view {
-        if (msg.sender != address(_votes)) revert OnlyVotes();
+    error OnlyToken();
+    function _onlyToken() private view {
+        if (msg.sender != address(_token)) revert OnlyToken();
     }
 
     function baseAsset() public view returns (address) {
@@ -122,7 +122,7 @@ abstract contract Treasurer is Executor {
      * @notice Registers a deposit on the Treasurer. Only callable by the votes contract.
      * @param depositAmount The amount being deposited.
      */
-    function registerDeposit(uint256 depositAmount) public payable virtual onlyVotes {
+    function registerDeposit(uint256 depositAmount) public payable virtual onlyToken {
         _registerDeposit(depositAmount);
     }
 
@@ -137,7 +137,7 @@ abstract contract Treasurer is Executor {
      * @param receiver The address to send the base asset to.
      * @param withdrawAmount The amount of base asset to send.
      */
-    function processWithdrawal(address receiver, uint256 withdrawAmount) public virtual onlyVotes {
+    function processWithdrawal(address receiver, uint256 withdrawAmount) public virtual onlyToken {
         _processWithdrawal(receiver, withdrawAmount);
     }
 
