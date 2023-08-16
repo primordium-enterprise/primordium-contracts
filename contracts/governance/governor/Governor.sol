@@ -54,7 +54,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     }
 
     // Proposals counter
-    uint256 public proposalCount = 0;
+    uint256 public proposalCount;
 
     // Tracking queued operations on the _executor
     mapping(uint256 => bytes32) private _executorIds;
@@ -76,7 +76,6 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     }
     // solhint-enable var-name-mixedcase
 
-    /// @custom:oz-retyped-from mapping(uint256 => Governor.ProposalCore)
     mapping(uint256 => ProposalCore) private _proposals;
 
     // This queue keeps track of the governor operating on itself. Calls to functions protected by the
