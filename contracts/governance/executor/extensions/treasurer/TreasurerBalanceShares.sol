@@ -64,6 +64,16 @@ abstract contract TreasurerBalanceShares is Treasurer {
     }
 
     /**
+     * @notice Helper function for easily viewing the current internal accounting variables.
+     * @return stashedBalance The currently stashed balance.
+     * @return lastProcessedBalance The treasury balance last time revenue was stashed.
+     * @return balanceTransfers A sum of all balance transfers since the last time the revenue was stashed.
+     */
+    function internalAccounting() external view returns (uint256, uint256, uint256) {
+        return (_stashedBalance, _lastProcessedBalance, _balanceTransfers);
+    }
+
+    /**
      * @notice A publicly callable function to update the treasury balances, processing any revenue shares and saving
      * these updates to the contract state. This does NOT send revenue shares to the receipient accounts, it simply
      * updates the internal accounting allocate the revenue shares to be withdrawable by the recipients.
