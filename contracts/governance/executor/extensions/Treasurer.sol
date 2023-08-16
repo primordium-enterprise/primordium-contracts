@@ -25,7 +25,31 @@ abstract contract Treasurer is Executor {
         _baseAsset = IERC20(token_.baseAsset());
     }
 
-    function votes() public view returns(address) {
+    /**
+     * @dev Clock (as specified in EIP-6372) is set to match the token's clock. Fallback to block numbers if the token
+     * does not implement EIP-6372.
+     */
+    function clock() public view virtual returns (uint48) {
+        try _token.clock() returns (uint48 timepoint) {
+            return timepoint;
+        } catch {
+            return SafeCast.toUint48(block.number);
+        }
+    }
+
+    /**
+     * @dev Machine-readable description of the clock as specified in EIP-6372.
+     */
+    // solhint-disable-next-line func-name-mixedcase
+    function CLOCK_MODE() public view virtual returns (string memory) {
+        try _token.CLOCK_MODE() returns (string memory clockmode) {
+            return clockmode;
+        } catch {
+            return "mode=blocknumber&from=default";
+        }
+    }
+
+    function token() public view returns(address) {
         return address(_token);
     }
 
