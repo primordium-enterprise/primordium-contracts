@@ -12,7 +12,7 @@ abstract contract TreasurerDistributions is Treasurer {
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace224;
 
-    event DistributionCreated(uint256 clockStartTime, uint256 distributionBalance);
+    event DistributionCreated(uint256 distributionId, uint256 clockStartTime, uint256 distributionBalance);
     event DistributionClaimPeriodUpdated(uint256 oldClaimPeriod, uint256 newClaimPeriod);
 
     /**
@@ -102,10 +102,10 @@ abstract contract TreasurerDistributions is Treasurer {
             claimedBalance: 0
         });
 
-        // Increment the stashed balance
-        _stashedBalance += distributionBalance;
+        // Transfer to the stash
+        _transferBaseAssetToStash(distributionBalance);
 
-        emit DistributionCreated(clockStartTime, distributionBalance);
+        emit DistributionCreated(distributionId, clockStartTime, distributionBalance);
 
         return distributionId;
     }

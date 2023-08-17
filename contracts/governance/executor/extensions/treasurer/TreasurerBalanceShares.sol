@@ -79,7 +79,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * updates the internal accounting allocate the revenue shares to be withdrawable by the recipients.
      * @return Returns the amount of the base asset that stashed for revenue shares as part of this function call.
      */
-    function stashRevenueShares() external returns (uint256) {
+    function processRevenueShares() external returns (uint256) {
         return _stashRevenueShares();
     }
 
@@ -95,7 +95,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
         uint unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
         if (unprocessedRevenue > 0) {
             stashed = _balanceShares[BalanceShareId.Revenue].processBalance(unprocessedRevenue);
-            _stashedBalance += stashed;
+            _stashBaseAsset(stashed);
             currentBalance -= stashed;
              // Set the _lastProcessedBalance to the current treasury balance
             _lastProcessedBalance = currentBalance;
@@ -112,7 +112,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
         uint stashed = _balanceShares[BalanceShareId.Deposits].processBalance(depositAmount);
         if (stashed > 0) {
             _lastProcessedBalance += depositAmount - stashed;
-            _stashedBalance += stashed;
+            _stashBaseAsset(stashed);
         }
     }
 
@@ -122,6 +122,22 @@ abstract contract TreasurerBalanceShares is Treasurer {
      */
     function _processBaseAssetTransfer(uint256 amount) internal virtual override {
         _balanceTransfers += amount;
+    }
+
+    /**
+     * @dev Override to implement internal accounting to track all cumulative reverse balance transfers since the last
+     * time revenue was stashed.
+     *
+     * NOTE: If balance transfers risks underflow, then it will instead add to the _lastProcessedBalance (serving the
+     * same desired effect)
+     */
+    function _processReverseBaseAssetTransfer(uint256 amount) internal virtual override {
+        uint currentBalanceTransfers = _balanceTransfers;
+        if (currentBalanceTransfers >= amount) {
+            _balanceTransfers -= amount;
+        } else {
+            _lastProcessedBalance += amount;
+        }
     }
 
     /**

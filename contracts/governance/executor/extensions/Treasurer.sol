@@ -6,9 +6,11 @@ pragma solidity ^0.8.4;
 import "../../token/extensions/VotesProvisioner.sol";
 import "../Executor.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 abstract contract Treasurer is Executor {
 
+    error FailedToTransferBaseAsset(address to, uint256 amount);
     error InsufficientBaseAssetFunds(uint256 balanceTransferAmount, uint256 currentBalance);
     error InvalidBaseAssetOperation(address target, uint256 value, bytes data);
 
@@ -82,39 +84,6 @@ abstract contract Treasurer is Executor {
     }
 
     /**
-     * @dev An internal function that must be overridden to properly return the raw base asset balance.
-     */
-    function _baseAssetBalance() internal view virtual returns (uint256);
-
-    error FailedToTransferBaseAsset(address to, uint256 amount);
-    /**
-     * @dev Internal function to transfer an amount of the base asset to the specified address.
-     */
-    function _safeTransferBaseAsset(address to, uint256 amount) internal virtual;
-
-        /**
-     * @dev Used to process any internal accounting updates after transferring the base asset out of the treasury.
-     */
-    function _processBaseAssetTransfer(uint256 amount) internal virtual;
-
-    /**
-     * @dev Internal function to transfer an amount of the base asset from the treasury balance.
-     * NOTE: Calls "_processBaseAssetTransfer" for any internal accounting used.
-     */
-    function _transferBaseAsset(address to, uint256 amount) internal virtual {
-        _processBaseAssetTransfer(amount);
-        _safeTransferBaseAsset(to, amount);
-    }
-
-    /**
-     * @dev Internal function to transfer an amount of the base asset from the stashed balance.
-     */
-    function _transferStashedBaseAsset(address to, uint256 amount) internal virtual {
-        _stashedBalance -= amount;
-        _safeTransferBaseAsset(to, amount);
-    }
-
-    /**
      * @dev Before execution of any action on the Executor, confirm that base asset transfers do not exceed DAO balance,
      * and then update the balance to account for the transfer.
      */
@@ -171,6 +140,61 @@ abstract contract Treasurer is Executor {
      */
     function _processWithdrawal(address receiver, uint256 withdrawAmount) internal virtual {
         _transferBaseAsset(receiver, withdrawAmount);
+    }
+
+    /**
+     * @dev An internal function that must be overridden to properly return the raw base asset balance.
+     */
+    function _baseAssetBalance() internal view virtual returns (uint256);
+
+    /**
+     * @dev Internal function to transfer an amount of the base asset to the specified address.
+     */
+    function _safeTransferBaseAsset(address to, uint256 amount) internal virtual;
+
+    /**
+     * @dev Used to process any internal accounting updates after transferring the base asset out of the treasury.
+     */
+    function _processBaseAssetTransfer(uint256 amount) internal virtual;
+
+    /**
+     * @dev Used to process any internal accounting updates after stashed funds are unstashed.
+     */
+    function _processReverseBaseAssetTransfer(uint256 amount) internal virtual;
+
+    /**
+     * @dev Internal function to transfer an amount of the base asset from the treasury balance.
+     * NOTE: Calls "_processBaseAssetTransfer" for any internal accounting used.
+     */
+    function _transferBaseAsset(address to, uint256 amount) internal virtual {
+        _processBaseAssetTransfer(amount);
+        _safeTransferBaseAsset(to, amount);
+    }
+
+    function _stashBaseAsset(uint256 amount) internal virtual {
+        _stashedBalance += amount;
+    }
+
+    function _unstashBaseAsset(uint256 amount) internal virtual {
+        _stashedBalance -= amount;
+    }
+
+    function _transferBaseAssetToStash(uint256 amount) internal virtual {
+        _stashBaseAsset(amount);
+        _processBaseAssetTransfer(amount);
+    }
+
+    function _reclaimBaseAssetFromStash(uint256 amount) internal virtual {
+        _unstashBaseAsset(amount);
+        _processReverseBaseAssetTransfer(amount);
+    }
+
+    /**
+     * @dev Internal function to transfer an amount of the base asset from the stashed balance.
+     */
+    function _transferStashedBaseAsset(address to, uint256 amount) internal virtual {
+        _unstashBaseAsset(amount);
+        _safeTransferBaseAsset(to, amount);
     }
 
 }

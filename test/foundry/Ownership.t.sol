@@ -19,7 +19,7 @@ contract Ownership is Test, GovernanceSetup {
     }
 
     function test_VotesIsExecutorToken() external {
-        assertEq(address(token), executor.votes());
+        assertEq(address(token), executor.token());
     }
 
     function testFail_UpdateExecutorOnGovernor() external {
