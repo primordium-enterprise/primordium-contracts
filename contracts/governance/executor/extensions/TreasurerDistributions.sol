@@ -293,4 +293,45 @@ abstract contract TreasurerDistributions is Treasurer {
         emit DistributionClaimPeriodUpdated(oldClaimPeriod, newClaimPeriod);
     }
 
+    /**
+     * @notice Returns whether or not the provided address is approved to claim the distribution for the specified owner.
+     * @param owner The token holder.
+     * @param account The address to check for approval for claiming distributions to the owner.
+     */
+    function isAddressApprovedForDistributionClaims(
+        address owner,
+        address account
+    ) public view virtual returns (bool) {
+        return _approvedAddressesForClaims[owner][account];
+    }
+
+    /**
+     * @notice Allows the msg.sender to approve the provided list of addresses for processing distribution claims.
+     * Can approve address(0) to allow any address to process a distribution claim.
+     * @param approvedAddresses A list of addresses to approve.
+     */
+    function approveAddressesForDistributionClaims(
+        address[] calldata approvedAddresses
+    ) public virtual {
+        address owner = _msgSender();
+        for (uint i = 0; i < approvedAddresses.length;) {
+            _approvedAddressesForClaims[owner][approvedAddresses[i]] = true;
+            unchecked { ++i; }
+        }
+    }
+
+    /**
+     * @notice Allows the msg.sender to unapprove the provided list of addresses for processing distribution claims.
+     * @param unapprovedAddresses A list of addresses to unapprove.
+     */
+    function unapproveAddressesForDistributionClaims(
+        address[] calldata unapprovedAddresses
+    ) public virtual {
+        address owner = _msgSender();
+        for (uint i = 0; i < unapprovedAddresses.length;) {
+            _approvedAddressesForClaims[owner][unapprovedAddresses[i]] = false;
+            unchecked { i++; }
+        }
+    }
+
 }
