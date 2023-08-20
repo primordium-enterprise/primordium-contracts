@@ -63,6 +63,32 @@ abstract contract TreasurerDistributions is Treasurer {
     }
 
     /**
+     * @notice A public view function to see data about the specified distribution.
+     * @param distributionId The identifier for the distribution to view.
+     * @return isDistribitionClosed True if the distribution has been closed.
+     * @return clockStartTime The start time (according to the token clock mode), after which this distribution will be
+     * claimable.
+     * @return distributionBalance The total balance available to token holders for this distribution.
+     * @return claimedBalance The total balance that has been claimed by token holders for this distribution.
+     */
+    function getDistribution(uint256 distributionId) public view virtual returns(
+        bool,
+        uint256,
+        uint256,
+        uint256
+    ) {
+        Distribution storage distribution = _distributions[distributionId];
+        uint clockStartTime = distribution.clockStartTime;
+        if (clockStartTime == 0) revert DistributionDoesNotExist();
+        return (
+            _closedDistributions[distributionId],
+            clockStartTime,
+            distribution.balance,
+            distribution.claimedBalance
+        );
+    }
+
+    /**
      * @notice Creates a new distribution. Only callable by the Timelock itself.
      * @param clockStartTime The start timepoint (according to the token clock) when this distribution will become
      * active. Must be in the future (or will be set to the current execution timepoint if set to zero).
