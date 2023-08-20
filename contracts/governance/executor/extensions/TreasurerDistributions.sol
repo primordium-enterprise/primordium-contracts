@@ -12,8 +12,10 @@ abstract contract TreasurerDistributions is Treasurer {
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace224;
 
-    event DistributionCreated(uint256 distributionId, uint256 clockStartTime, uint256 distributionBalance);
+    event DistributionCreated(uint256 indexed distributionId, uint256 clockStartTime, uint256 distributionBalance);
     event DistributionClaimPeriodUpdated(uint256 oldClaimPeriod, uint256 newClaimPeriod);
+    event DistributionClaimed(uint256 indexed distributionId, address indexed claimedFor, uint256 claimedAmount);
+    event DistributionClosed(uint256 indexed distributionId, uint256 reclaimedAmount);
 
     /**
      * @notice The maximum claim period for new distributions.
@@ -35,11 +37,16 @@ abstract contract TreasurerDistributions is Treasurer {
         uint224 cachedTotalSupply;
         uint256 balance;
         uint256 claimedBalance;
+        mapping(address => bool) hasClaimed;
     }
 
+    // Tracks all distributions
     mapping(uint256 => Distribution) _distributions;
 
+    // Tracks whether or not a distribution has been closed
     mapping(uint256 => bool) _closedDistributions;
+
+    mapping(address => mapping(address => bool)) _approvedAddressesForClaims;
 
     constructor(uint256 distributionClaimPeriod_) {
         // Initialize immutables based on clock (assums block.timestamp if not block.number)
@@ -93,14 +100,13 @@ abstract contract TreasurerDistributions is Treasurer {
             currentTreasuryBalance
         );
 
+        // Increment the distributions count
         uint256 distributionId = ++distributionsCount;
 
-        _distributions[distributionId] = Distribution({
-            clockStartTime: clockStartTime.toUint32(),
-            cachedTotalSupply: 0,
-            balance: distributionBalance,
-            claimedBalance: 0
-        });
+        // Setup the new distribution
+        Distribution storage distribution = _distributions[distributionId];
+        distribution.clockStartTime = clockStartTime.toUint32();
+        distribution.balance = distributionBalance;
 
         // Transfer to the stash
         _transferBaseAssetToStash(distributionBalance);
@@ -108,6 +114,108 @@ abstract contract TreasurerDistributions is Treasurer {
         emit DistributionCreated(distributionId, clockStartTime, distributionBalance);
 
         return distributionId;
+    }
+
+    error DistributionIsClosed();
+    error UnapprovedForClaimingDistribution();
+    error AddressAlreadyClaimed();
+
+    function claimDistribution(
+        uint256 distributionId
+    ) public virtual returns (uint256) {
+        return _claimDistribution(distributionId, _msgSender());
+    }
+
+    function claimDistribution(
+        uint256 distributionId,
+        address claimFor
+    ) public virtual returns (uint256) {
+        return _claimDistribution(distributionId, claimFor);
+    }
+
+    function _claimDistribution(
+        uint256 distributionId,
+        address claimFor
+    ) internal virtual returns (uint256) {
+        // Distribution must not be closed
+        if (_closedDistributions[distributionId]) revert DistributionIsClosed();
+
+        // msg.sender must be claimFor, or must be approved
+        if (_msgSender() != claimFor) {
+            if (
+                !_approvedAddressesForClaims[claimFor][_msgSender()] &&
+                !_approvedAddressesForClaims[claimFor][address(0)]
+            ) revert UnapprovedForClaimingDistribution();
+        }
+
+        Distribution storage distribution = _distributions[distributionId];
+
+        // Must not have claimed already
+        if (distribution.hasClaimed[claimFor]) revert AddressAlreadyClaimed();
+
+        uint256 clockStartTime = distribution.clockStartTime;
+        uint256 totalSupply = distribution.cachedTotalSupply;
+
+        // If the cached total supply is zero, then this distribution needs to be initialized (meaning cached)
+        if (totalSupply == 0) {
+            _checkClockValidity(clockStartTime, clock());
+            totalSupply = _token.getPastTotalSupply(clockStartTime);
+            // If the total supply is still zero, then simply reclaim the distribution
+            if (totalSupply == 0) {
+                _reclaimRemainingDistributionFunds(distributionId);
+                return 0;
+            }
+            // Cache the result for future claims
+            distribution.cachedTotalSupply = totalSupply.toUint224();
+        }
+
+        uint256 claimAmount = Math.mulDiv(
+            _token.getPastBalanceOf(claimFor, clockStartTime),
+            distribution.balance,
+            totalSupply
+        );
+
+        distribution.hasClaimed[claimFor] = true;
+        distribution.claimedBalance += claimAmount;
+        _transferStashedBaseAsset(claimFor, claimAmount);
+
+        emit DistributionClaimed(distributionId, claimFor, claimAmount);
+
+        return claimAmount;
+    }
+
+    error DistributionClaimPeriodStillActive();
+
+    function closeDistribution(uint256 distributionId) external virtual onlyTimelock {
+        uint256 currentClock = clock();
+        uint256 clockStartTime = _distributions[distributionId].clockStartTime;
+
+        _checkClockValidity(clockStartTime, currentClock);
+        if (currentClock <= clockStartTime + distributionClaimPeriod(clockStartTime)) {
+            revert DistributionClaimPeriodStillActive();
+        }
+
+        _reclaimRemainingDistributionFunds(distributionId);
+    }
+
+    function _reclaimRemainingDistributionFunds(uint256 distributionId) internal virtual {
+        Distribution storage distribution = _distributions[distributionId];
+        uint256 reclaimAmount = distribution.balance - distribution.claimedBalance;
+
+        _closedDistributions[distributionId] = true;
+        _reclaimBaseAssetFromStash(reclaimAmount);
+
+        emit DistributionClosed(distributionId, reclaimAmount);
+    }
+
+    error DistributionDoesNotExist();
+    error DistributionHasNotStarted();
+    function _checkClockValidity(
+        uint256 clockStartTime,
+        uint256 currentClock
+    ) private pure {
+        if (clockStartTime == 0) revert DistributionDoesNotExist();
+        if (currentClock <= clockStartTime) revert DistributionHasNotStarted();
     }
 
     /**
