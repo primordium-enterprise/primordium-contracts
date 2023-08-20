@@ -47,6 +47,7 @@ abstract contract TreasurerDistributions is Treasurer {
     mapping(uint256 => bool) _closedDistributions;
 
     mapping(address => mapping(address => bool)) _approvedAddressesForClaims;
+    mapping(address => bool) _approvedAddressesForClosingDistributions;
 
     constructor(uint256 distributionClaimPeriod_) {
         // Initialize immutables based on clock (assums block.timestamp if not block.number)
@@ -88,7 +89,10 @@ abstract contract TreasurerDistributions is Treasurer {
 
         if (clockStartTime == 0) {
             clockStartTime = currentClock;
-        } else if (clockStartTime <= currentClock) {
+        } else if (
+            clockStartTime < currentClock ||
+            clockStartTime > currentClock + MAX_DISTRIBUTION_CLAIM_PERIOD
+        ) {
             revert ClockStartDateOutOfRange();
         }
 
@@ -116,16 +120,24 @@ abstract contract TreasurerDistributions is Treasurer {
         return distributionId;
     }
 
-    error DistributionIsClosed();
-    error UnapprovedForClaimingDistribution();
-    error AddressAlreadyClaimed();
-
+    /**
+     * @notice Public function for claiming a distribution for the msg.sender
+     * @param distributionId The distribution identifier to claim.
+     * @return claimAmount Returns the amount of base asset transferred to the claim recipient.
+     */
     function claimDistribution(
         uint256 distributionId
     ) public virtual returns (uint256) {
         return _claimDistribution(distributionId, _msgSender());
     }
 
+    /**
+     * @notice Public function for claiming a distribution on behalf of another account (but the msg.sender must be
+     * approved for claims).
+     * @param distributionId The distribution identifier to claim.
+     * @param claimFor The address of the token holder to claim the distribution for.
+     * @return claimAmount Returns the amount of base asset transferred to the claim recipient.
+     */
     function claimDistribution(
         uint256 distributionId,
         address claimFor
@@ -133,6 +145,12 @@ abstract contract TreasurerDistributions is Treasurer {
         return _claimDistribution(distributionId, claimFor);
     }
 
+    error DistributionIsClosed();
+    error UnapprovedForClaimingDistribution();
+    error AddressAlreadyClaimed();
+    /**
+     * @dev Internal function for claiming a distribution as a token holder
+     */
     function _claimDistribution(
         uint256 distributionId,
         address claimFor
@@ -184,9 +202,21 @@ abstract contract TreasurerDistributions is Treasurer {
         return claimAmount;
     }
 
+    error UnapprovedForClosingDistributions();
     error DistributionClaimPeriodStillActive();
-
-    function closeDistribution(uint256 distributionId) external virtual onlyTimelock {
+    /**
+     * @notice A function to close a distribution and reclaim the remaining unclaimed distribution balance to the DAO
+     * treasury. Only callable by approved addresses (or anyone if address(0) is approved). Fails if the claim period for
+     * the distribution is still active.
+     * @param distributionId The identifier of the distribution to be closed.
+     */
+    function closeDistribution(uint256 distributionId) external virtual {
+        if (msg.sender != address(this)) {
+            if (
+                !_approvedAddressesForClosingDistributions[address(0)] &&
+                !_approvedAddressesForClosingDistributions[_msgSender()]
+            ) revert UnapprovedForClosingDistributions();
+        }
         uint256 currentClock = clock();
         uint256 clockStartTime = _distributions[distributionId].clockStartTime;
 
