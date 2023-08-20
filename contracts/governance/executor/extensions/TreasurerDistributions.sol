@@ -249,6 +249,41 @@ abstract contract TreasurerDistributions is Treasurer {
     }
 
     /**
+     * @notice Returns whether or not the provided address is approved for closing distributions once the claim period
+     * has expired for a distribution.
+     * @param account The address to check the status for.
+     */
+    function isAddressApprovedForClosingDistributions(address account) public view virtual returns (bool) {
+        return _approvedAddressesForClosingDistributions[account];
+    }
+
+    /**
+     * @notice A timelock-only function to approve addresses to close distributions.
+     * @param approvedAddresses A list of addresses to approve.
+     */
+    function approveAddressesForClosingDistributions(
+        address[] calldata approvedAddresses
+    ) external virtual onlyTimelock {
+        for (uint i = 0; i < approvedAddresses.length;) {
+            _approvedAddressesForClosingDistributions[approvedAddresses[i]] = true;
+            unchecked { ++i; }
+        }
+    }
+
+    /**
+     * @notice A timelock-only function to unapprove addresses for closing distributions.
+     * @param unapprovedAddresses A list of addresses to unapprove.
+     */
+    function unapproveAddressesForClosingDistributions(
+        address[] calldata unapprovedAddresses
+    ) external virtual onlyTimelock {
+        for (uint i = 0; i < unapprovedAddresses.length;) {
+            _approvedAddressesForClosingDistributions[unapprovedAddresses[i]] = false;
+            unchecked { ++i; }
+        }
+    }
+
+    /**
      * @notice Returns the current distribution claim period.
      */
     function distributionClaimPeriod() public view virtual returns (uint256) {
