@@ -91,7 +91,8 @@ abstract contract TreasurerDistributions is Treasurer {
     /**
      * @notice Creates a new distribution. Only callable by the Timelock itself.
      * @param clockStartTime The start timepoint (according to the token clock) when this distribution will become
-     * active. Must be in the future (or will be set to the current execution timepoint if set to zero).
+     * active. Must be in the future, no greater than the MAX_DISTRIBUTION_CLAIM_PERIOD. If the provided value is zero,
+     * then it will be set to the current clock timepoint at the transaction execution.
      * @param distributionBalance The balance to be set aside as a distribution, claimable by all token holders according
      * to their token balance at the clockStartTime.
      */
@@ -185,9 +186,10 @@ abstract contract TreasurerDistributions is Treasurer {
         if (_closedDistributions[distributionId]) revert DistributionIsClosed();
 
         // msg.sender must be claimFor, or must be approved
-        if (_msgSender() != claimFor) {
+        address msgSender = _msgSender();
+        if (msgSender != claimFor) {
             if (
-                !_approvedAddressesForClaims[claimFor][_msgSender()] &&
+                !_approvedAddressesForClaims[claimFor][msgSender] &&
                 !_approvedAddressesForClaims[claimFor][address(0)]
             ) revert UnapprovedForClaimingDistribution();
         }
