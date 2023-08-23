@@ -12,10 +12,14 @@ abstract contract TreasurerDistributions is Treasurer {
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace224;
 
-    event DistributionCreated(uint256 indexed distributionId, uint256 clockStartTime, uint256 distributionBalance);
-    event DistributionClaimPeriodUpdated(uint256 oldClaimPeriod, uint256 newClaimPeriod);
-    event DistributionClaimed(uint256 indexed distributionId, address indexed claimedFor, uint256 claimedAmount);
-    event DistributionClosed(uint256 indexed distributionId, uint256 reclaimedAmount);
+    struct Distribution {
+        // The ERC20Checkpoints clock date that this distribution should begin
+        uint32 clockStartTime;
+        uint224 cachedTotalSupply;
+        uint256 balance;
+        uint256 claimedBalance;
+        mapping(address => bool) hasClaimed;
+    }
 
     /**
      * @notice The maximum claim period for new distributions.
@@ -26,28 +30,25 @@ abstract contract TreasurerDistributions is Treasurer {
      */
     uint256 public immutable MIN_DISTRIBUTION_CLAIM_PERIOD;
 
-    // The distribution claim period, after which the Timelock can close the distribution to reclaim leftover funds.
-    Checkpoints.Trace224 private _claimPeriodCheckpoints;
-
     // Distributions counter
     uint256 public distributionsCount;
 
-    struct Distribution {
-        uint32 clockStartTime; // The ERC20Checkpoints clock date that this distribution should begin
-        uint224 cachedTotalSupply;
-        uint256 balance;
-        uint256 claimedBalance;
-        mapping(address => bool) hasClaimed;
-    }
+    // The distribution claim period, after which the Timelock can close the distribution to reclaim leftover funds.
+    Checkpoints.Trace224 private _claimPeriodCheckpoints;
 
     // Tracks all distributions
-    mapping(uint256 => Distribution) _distributions;
+    mapping(uint256 => Distribution) private _distributions;
 
     // Tracks whether or not a distribution has been closed
-    mapping(uint256 => bool) _closedDistributions;
+    mapping(uint256 => bool) private _closedDistributions;
 
-    mapping(address => mapping(address => bool)) _approvedAddressesForClaims;
-    mapping(address => bool) _approvedAddressesForClosingDistributions;
+    mapping(address => mapping(address => bool)) private _approvedAddressesForClaims;
+    mapping(address => bool) private _approvedAddressesForClosingDistributions;
+
+    event DistributionCreated(uint256 indexed distributionId, uint256 clockStartTime, uint256 distributionBalance);
+    event DistributionClaimPeriodUpdated(uint256 oldClaimPeriod, uint256 newClaimPeriod);
+    event DistributionClaimed(uint256 indexed distributionId, address indexed claimedFor, uint256 claimedAmount);
+    event DistributionClosed(uint256 indexed distributionId, uint256 reclaimedAmount);
 
     constructor(uint256 distributionClaimPeriod_) {
         // Initialize immutables based on clock (assums block.timestamp if not block.number)
