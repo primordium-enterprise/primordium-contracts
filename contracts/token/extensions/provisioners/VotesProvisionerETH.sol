@@ -7,8 +7,10 @@ import "../VotesProvisioner.sol";
 
 abstract contract VotesProvisionerETH is VotesProvisioner {
 
+    error MustInitializeBaseAssetToETH();
+
     constructor() {
-        require(address(_baseAsset) == address(0), "VotesProvisionerETH: base asset should be ETH (address(0)).");
+        if (address(_baseAsset) != address(0)) revert MustInitializeBaseAssetToETH();
     }
 
     /**

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
-// Based on OpenZeppelin Contracts (last updated v4.8.0) (governance/extensions/GovernorCountingSimple.sol)
+// Based on OpenZeppelin Contracts (last updated v4.8.0) (extensions/GovernorCountingSimple.sol)
 
 pragma solidity ^0.8.4;
 

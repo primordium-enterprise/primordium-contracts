@@ -3,12 +3,12 @@
 
 pragma solidity ^0.8.4;
 
-import "./governance/executor/Executor.sol";
-import "./governance/governor/Governor.sol";
-import "./governance/governor/extensions/GovernorVotesQuorumBps.sol";
-import "./governance/governor/extensions/GovernorSettings.sol";
-import "./governance/governor/extensions/GovernorCountingPercentMajority.sol";
-import "./governance/governor/extensions/GovernorProposalDeadlineExtensions.sol";
+import "./executor/Executor.sol";
+import "./governor/Governor.sol";
+import "./governor/extensions/GovernorVotesQuorumBps.sol";
+import "./governor/extensions/GovernorSettings.sol";
+import "./governor/extensions/GovernorCountingPercentMajority.sol";
+import "./governor/extensions/GovernorProposalDeadlineExtensions.sol";
 
 contract GovernorV1 is
     Governor,

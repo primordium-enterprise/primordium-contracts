@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
-// Based on OpenZeppelin Contracts (last updated v4.8.0) (governance/Governor.sol)
+// Based on OpenZeppelin Contracts (last updated v4.8.0) (Governor.sol)
 
 pragma solidity ^0.8.4;
 
@@ -215,7 +215,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         uint256 snapshot = proposalSnapshot(proposalId);
 
         if (snapshot == 0) {
-            revert("Governor: unknown proposal id");
+            revert UnknownProposalId(proposalId);
         }
 
         uint256 currentTimepoint = clock();

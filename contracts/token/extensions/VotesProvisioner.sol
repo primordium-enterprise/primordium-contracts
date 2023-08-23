@@ -17,7 +17,6 @@ import "../../utils/Math512.sol";
 using SafeMath for uint256;
 using Address for address;
 
-uint256 constant COMPARE_FRACTIONS_MULTIPLIER = 1_000;
 
 /**
  * @dev Extension of {Votes} to support decentralized DAO formation.
@@ -28,11 +27,12 @@ uint256 constant COMPARE_FRACTIONS_MULTIPLIER = 1_000;
  */
 abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControlled {
 
+    uint256 private constant COMPARE_FRACTIONS_MULTIPLIER = 1_000;
+    uint256 private constant MAX_MAX_SUPPLY = type(uint224).max;
+
     bytes32 private constant _WITHDRAW_TYPEHASH = keccak256(
         "Withdraw(address owner,address receiver,uint256 amount,uint256 nonce,uint256 expiry)"
     );
-
-    uint256 private constant MAX_MAX_SUPPLY = type(uint224).max;
 
     ProvisionMode private _provisionMode;
 
@@ -43,22 +43,19 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
 
     IERC20 internal immutable _baseAsset; // The address for the DAO's base asset (address(0) for ETH)
 
+    error CannotInitializeBaseAssetToSelf();
+    error CannotInitializeTokenPriceToZero();
+
     constructor(
         Treasurer executor_,
         uint256 maxSupply_,
         TokenPrice memory tokenPrice_,
         IERC20 baseAsset_
     ) ExecutorControlled(executor_) {
-        require(address(baseAsset_) != address(this), "VotesProvisioner: cannot make self the base asset.");
-        if (address(baseAsset_) != address(0)) {
-            require(address(baseAsset_).isContract(), "VotesProvisioner: base asset must be a deployed contract.");
-        }
+        if (address(baseAsset_) == address(this)) revert CannotInitializeBaseAssetToSelf();
         _baseAsset = baseAsset_;
         _updateMaxSupply(maxSupply_);
-        require(
-            tokenPrice_.numerator != 0 && tokenPrice_.denominator != 0,
-            "VotesProvisioner: Cannot set token price to 0."
-        );
+        if (tokenPrice_.numerator == 0 || tokenPrice_.denominator == 0) revert CannotInitializeTokenPriceToZero();
         _updateTokenPrice(tokenPrice_.numerator, tokenPrice_.denominator);
     }
 
@@ -255,7 +252,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         // NOTE: We should bypass this check in founding mode to prevent an attack locking deposits
         if (currentProvisionMode != ProvisionMode.Founding) {
             if (
-                Math512.mul512_lt(tokenPriceNumerator, totalSupply(), tokenPriceDenominator, _treasuryBalance())
+                Math512.mul512Lt(tokenPriceNumerator, totalSupply(), tokenPriceDenominator, _treasuryBalance())
             ) revert TokenPriceTooLow();
         }
         uint256 mintAmount = depositAmount / tokenPriceNumerator * tokenPriceDenominator;

@@ -7,8 +7,10 @@ import "../Treasurer.sol";
 
 abstract contract TreasurerETH is Treasurer {
 
+    error MustInitializeBaseAssetToETH();
+
     constructor() {
-        require(address(_baseAsset) == address(0), "TreasurerETH: Invalid baseAsset address");
+        if (address(_baseAsset) != address(0)) revert MustInitializeBaseAssetToETH();
     }
 
     /// @dev Override to return the raw base asset balance of this address with ETH as the base asset

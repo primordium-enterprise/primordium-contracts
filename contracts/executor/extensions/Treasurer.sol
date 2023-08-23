@@ -89,9 +89,9 @@ abstract contract Treasurer is Executor {
      */
     function _beforeExecute(address target, uint256 value, bytes calldata data) internal virtual override {
         super._beforeExecute(target, value, data);
-        uint baseAssetTransferAmount = _checkExecutionBaseAssetTransfer(target, value, data);
+        uint256 baseAssetTransferAmount = _checkExecutionBaseAssetTransfer(target, value, data);
         if (baseAssetTransferAmount > 0) {
-            uint currentBalance = _treasuryBalance();
+            uint256 currentBalance = _treasuryBalance();
             // Revert if the attempted transfer amount is greater than the currentBalance
             if (baseAssetTransferAmount > currentBalance) {
                 revert InsufficientBaseAssetFunds(baseAssetTransferAmount, currentBalance);

@@ -12,11 +12,10 @@ using SafeMath for uint256;
 
 abstract contract VotesProvisionerERC20 is VotesProvisioner {
 
+    error CannotInitializeBaseAssetToETH();
+
     constructor() {
-        require(
-            address(_baseAsset) != address(0),
-            "VotesProvisionerERC20: the address for the baseAsset cannot be address(0)"
-        );
+        if (address(_baseAsset) == address(0)) revert CannotInitializeBaseAssetToETH();
     }
 
     error CannotAcceptETHDeposits();

@@ -4,7 +4,7 @@
 pragma solidity ^0.8.4;
 
 import "../Treasurer.sol";
-import "contracts/governance/utils/BalanceShares.sol";
+import "contracts/utils/BalanceShares.sol";
 
 abstract contract TreasurerBalanceShares is Treasurer {
 
@@ -32,6 +32,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
         } else if (id == BalanceShareId.Revenue) {
             return "RevenueShares";
         }
+        // solhint-disable-next-line
         revert();
     }
 
@@ -91,8 +92,8 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * Calls BalanceShares.processBalance on the revenue shares to track any balance remainders as well.
      */
     function _stashRevenueShares() internal virtual returns (uint256 stashed) {
-        uint currentBalance = Treasurer._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
-        uint unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
+        uint256 currentBalance = Treasurer._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
+        uint256 unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
         if (unprocessedRevenue > 0) {
             stashed = _balanceShares[BalanceShareId.Revenue].processBalance(unprocessedRevenue);
             _stashBaseAsset(stashed);
@@ -109,7 +110,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
     function _registerDeposit(uint256 depositAmount) internal virtual override {
         super._registerDeposit(depositAmount);
         // TODO: NEED TO BYPASS UNTIL INITIALIZATION, THEN APPLY RETROACTIVELY
-        uint stashed = _balanceShares[BalanceShareId.Deposits].processBalance(depositAmount);
+        uint256 stashed = _balanceShares[BalanceShareId.Deposits].processBalance(depositAmount);
         if (stashed > 0) {
             _lastProcessedBalance += depositAmount - stashed;
             _stashBaseAsset(stashed);
@@ -132,7 +133,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * same desired effect)
      */
     function _processReverseBaseAssetTransfer(uint256 amount) internal virtual override {
-        uint currentBalanceTransfers = _balanceTransfers;
+        uint256 currentBalanceTransfers = _balanceTransfers;
         if (currentBalanceTransfers >= amount) {
             _balanceTransfers -= amount;
         } else {
@@ -173,7 +174,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
         BalanceShares.NewAccountShare[] calldata newAccountShares
     ) public virtual onlyTimelock stashRevenueSharesFirst(id) {
         _balanceShares[id].addAccountShares(newAccountShares);
-        for (uint i = 0; i < newAccountShares.length;) {
+        for (uint256 i = 0; i < newAccountShares.length;) {
             emit BalanceShareAdded(
                 id,
                 newAccountShares[i].account,
@@ -200,7 +201,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
         address[] calldata accounts
     ) public virtual onlyTimelock stashRevenueSharesFirst(id) {
         _balanceShares[id].removeAccountShares(accounts);
-        for (uint i = 0; i < accounts.length;) {
+        for (uint256 i = 0; i < accounts.length;) {
             emit BalanceShareRemoved(
                 id,
                 accounts[i]
@@ -315,8 +316,8 @@ abstract contract TreasurerBalanceShares is Treasurer {
         BalanceShareId id,
         address account
     ) external view virtual returns (uint256) {
-        uint currentBalance = super._treasuryBalance();
-        uint unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
+        uint256 currentBalance = super._treasuryBalance();
+        uint256 unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
         return _balanceShares[id].predictedAccountBalance(account, unprocessedRevenue);
     }
 

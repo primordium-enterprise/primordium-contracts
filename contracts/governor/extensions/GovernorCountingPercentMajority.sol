@@ -15,8 +15,8 @@ abstract contract GovernorCountingPercentMajority is GovernorCountingSimple {
     using Checkpoints for Checkpoints.Trace224;
     Checkpoints.Trace224 private _percentMajorityCheckpoints;
 
-    uint256 public MIN_PERCENT_MAJORITY = 50;
-    uint256 public MAX_PERCENT_MAJORITY = 66;
+    uint256 public constant MIN_PERCENT_MAJORITY = 50;
+    uint256 public constant MAX_PERCENT_MAJORITY = 66;
 
     event PercentMajorityUpdated(uint256 oldPercentMajority, uint256 newPercentMajority);
 

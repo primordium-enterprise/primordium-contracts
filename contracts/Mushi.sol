@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 
-import "./governance/token/Votes.sol";
-import "./governance/token/extensions/provisioners/VotesProvisionerETH.sol";
-import "./governance/executor/Executor.sol";
+import "./token/Votes.sol";
+import "./token/extensions/provisioners/VotesProvisionerETH.sol";
+import "./executor/Executor.sol";
 
 pragma solidity ^0.8.4;
 

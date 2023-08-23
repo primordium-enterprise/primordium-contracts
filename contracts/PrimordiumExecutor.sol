@@ -3,8 +3,8 @@
 
 pragma solidity ^0.8.4;
 
-import "./governance/executor/extensions/treasurer/TreasurerETH.sol";
-import "./governance/executor/extensions/treasurer/TreasurerBalanceShares.sol";
+import "./executor/extensions/treasurer/TreasurerETH.sol";
+import "./executor/extensions/treasurer/TreasurerBalanceShares.sol";
 
 contract PrimordiumExecutor is Executor, TreasurerETH, TreasurerBalanceShares {
 

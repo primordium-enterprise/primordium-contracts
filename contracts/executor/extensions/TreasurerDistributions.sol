@@ -79,7 +79,7 @@ abstract contract TreasurerDistributions is Treasurer {
         uint256
     ) {
         Distribution storage distribution = _distributions[distributionId];
-        uint clockStartTime = distribution.clockStartTime;
+        uint256 clockStartTime = distribution.clockStartTime;
         if (clockStartTime == 0) revert DistributionDoesNotExist();
         return (
             _closedDistributions[distributionId],
@@ -113,7 +113,7 @@ abstract contract TreasurerDistributions is Treasurer {
         uint256 clockStartTime,
         uint256 distributionBalance
     ) internal virtual returns (uint256) {
-        uint currentClock = clock();
+        uint256 currentClock = clock();
 
         if (clockStartTime == 0) {
             clockStartTime = currentClock;
@@ -126,7 +126,7 @@ abstract contract TreasurerDistributions is Treasurer {
 
         if (distributionBalance == 0) revert DistributionBalanceTooLow();
 
-        uint currentTreasuryBalance = _treasuryBalance();
+        uint256 currentTreasuryBalance = _treasuryBalance();
         if (distributionBalance > currentTreasuryBalance) revert InsufficientBaseAssetFunds(
             distributionBalance,
             currentTreasuryBalance
@@ -293,7 +293,7 @@ abstract contract TreasurerDistributions is Treasurer {
     function approveAddressesForClosingDistributions(
         address[] calldata approvedAddresses
     ) external virtual onlyTimelock {
-        for (uint i = 0; i < approvedAddresses.length;) {
+        for (uint256 i = 0; i < approvedAddresses.length;) {
             _approvedAddressesForClosingDistributions[approvedAddresses[i]] = true;
             unchecked { ++i; }
         }
@@ -306,7 +306,7 @@ abstract contract TreasurerDistributions is Treasurer {
     function unapproveAddressesForClosingDistributions(
         address[] calldata unapprovedAddresses
     ) external virtual onlyTimelock {
-        for (uint i = 0; i < unapprovedAddresses.length;) {
+        for (uint256 i = 0; i < unapprovedAddresses.length;) {
             _approvedAddressesForClosingDistributions[unapprovedAddresses[i]] = false;
             unchecked { ++i; }
         }
@@ -379,7 +379,7 @@ abstract contract TreasurerDistributions is Treasurer {
         address[] calldata approvedAddresses
     ) public virtual {
         address owner = _msgSender();
-        for (uint i = 0; i < approvedAddresses.length;) {
+        for (uint256 i = 0; i < approvedAddresses.length;) {
             _approvedAddressesForClaims[owner][approvedAddresses[i]] = true;
             unchecked { ++i; }
         }
@@ -393,7 +393,7 @@ abstract contract TreasurerDistributions is Treasurer {
         address[] calldata unapprovedAddresses
     ) public virtual {
         address owner = _msgSender();
-        for (uint i = 0; i < unapprovedAddresses.length;) {
+        for (uint256 i = 0; i < unapprovedAddresses.length;) {
             _approvedAddressesForClaims[owner][unapprovedAddresses[i]] = false;
             unchecked { i++; }
         }

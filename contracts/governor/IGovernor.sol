@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
-// Based on OpenZeppelin Contracts (last updated v4.8.0) (governance/IGovernor.sol)
+// Based on OpenZeppelin Contracts (last updated v4.8.0) (IGovernor.sol)
 
 pragma solidity ^0.8.4;
 
@@ -83,6 +83,8 @@ abstract contract IGovernor is IERC165, IERC6372, ExecutorControlled {
         string reason,
         bytes params
     );
+
+    error UnknownProposalId(uint256 proposalId);
 
     /**
      * @dev Name of the governor instance (used in building the ERC712 domain separator).

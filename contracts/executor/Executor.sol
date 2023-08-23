@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
-// Based on OpenZeppelin Contracts (last updated v4.8.2) (governance/TimelockController.sol)
+// Based on OpenZeppelin Contracts (last updated v4.8.2) (TimelockController.sol)
 
 pragma solidity ^0.8.4;
 
@@ -68,6 +68,8 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
      */
     event MinDelayChange(uint256 oldDuration, uint256 newDuration);
 
+    error OwnershipCannotBeRevoked();
+
     /**
      * @dev Initializes the contract with the following parameters:
      *
@@ -111,7 +113,7 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
 
     // Don't let contract renounce ownership (ownership cannot be recovered)
     function renounceOwnership() public pure override {
-        revert("Ownable Override: This Executor contract cannot have the ownership revoked.");
+        revert OwnershipCannotBeRevoked();
     }
 
     /**

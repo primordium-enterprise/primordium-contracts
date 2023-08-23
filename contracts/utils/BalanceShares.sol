@@ -8,13 +8,14 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 
 library BalanceShares {
 
-    uint constant MAX_BPS = 10_000; // Max total BPS (1 basis point == 0.01%, which is 1 / 10_000)
-    uint40 constant MAX_INDEX = type(uint40).max;
-    uint256 constant MAX_CHECK_BALANCE_AMOUNT = type(uint240).max;
+    uint256 constant private MAX_BPS = 10_000; // Max total BPS (1 basis point == 0.01%, which is 1 / 10_000)
+    uint40 constant private MAX_INDEX = type(uint40).max;
+    uint256 constant private MAX_CHECK_BALANCE_AMOUNT = type(uint240).max;
 
     struct BalanceShare {
         // Tracks the balance remainder when processing account balance updates
         uint16 _balanceRemainder;
+        // solhint-disable-next-line
         bytes30 __gap_unused_0;
         // New balanceCheck pushed every time totalBps changes, or when overflow occurs, max length is type(uint40).max
         BalanceCheck[] _balanceChecks;
@@ -63,7 +64,7 @@ library BalanceShares {
         BalanceCheck memory latestBalanceCheck = BalanceCheck(0, 0);
 
         // Get startIndex of the nextBalanceCheck (assumed to be equal to length since we are pushing new balanceCheck)
-        uint startIndex = self._balanceChecks.length;
+        uint256 startIndex = self._balanceChecks.length;
 
         // If length is greater than zero, then copy the last array element to the nextBalanceCheck
         if (startIndex > 0) {
@@ -81,10 +82,10 @@ library BalanceShares {
         uint40 startIndexUint40 = SafeCast.toUint40(startIndex);
 
         // Loop through accounts and track BPS changes
-        uint addToTotalBps;
+        uint256 addToTotalBps;
         uint40 currentTimestamp = uint40(block.timestamp); // Cache timestamp in memory to save gas in loop
 
-        for (uint i = 0; i < newAccountShares.length;) {
+        for (uint256 i = 0; i < newAccountShares.length;) {
             NewAccountShare calldata newAccountShare = newAccountShares[i];
 
             // No zero addresses
@@ -115,7 +116,7 @@ library BalanceShares {
         }
 
         // Calculate the new totalBps, and make sure it is valid
-        uint newTotalBps = latestBalanceCheck.totalBps + addToTotalBps;
+        uint256 newTotalBps = latestBalanceCheck.totalBps + addToTotalBps;
 
         // Update the totalBps
         _updateTotalBps(self, latestBalanceCheck.balance, startIndex, newTotalBps);
@@ -134,9 +135,9 @@ library BalanceShares {
         BalanceShare storage self,
         address[] calldata accounts
     ) internal {
-        uint subFromTotalBps;
-        uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
-        for (uint i = 0; i < accounts.length;) {
+        uint256 subFromTotalBps;
+        uint256 latestBalanceCheckIndex = self._balanceChecks.length - 1;
+        for (uint256 i = 0; i < accounts.length;) {
             unchecked {
                 // Can be unchecked, bps was checked when the account share was added
                 subFromTotalBps += _destroyAccountShare(self, accounts[i], latestBalanceCheckIndex);
@@ -146,7 +147,7 @@ library BalanceShares {
 
         // Update the totalBps
         BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
-        uint newTotalBps = latestBalanceCheck.totalBps - subFromTotalBps;
+        uint256 newTotalBps = latestBalanceCheck.totalBps - subFromTotalBps;
         _updateTotalBps(self, latestBalanceCheck.balance, latestBalanceCheckIndex, newTotalBps);
     }
 
@@ -158,9 +159,9 @@ library BalanceShares {
     function removeAccountShareSelf(
         BalanceShare storage self
     ) internal {
-        uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
+        uint256 latestBalanceCheckIndex = self._balanceChecks.length - 1;
         BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
-        uint newTotalBps =
+        uint256 newTotalBps =
             latestBalanceCheck.totalBps - _destroyAccountShare(self, msg.sender, latestBalanceCheckIndex);
         _updateTotalBps(self, latestBalanceCheck.balance, latestBalanceCheckIndex, newTotalBps);
     }
@@ -171,9 +172,9 @@ library BalanceShares {
         uint256 latestBalanceCheckIndex
     ) private returns (uint256) {
         AccountShare storage accountShare = self._accounts[account];
-        uint bps = accountShare.bps;
-        uint endIndex = accountShare.endIndex;
-        uint removableAt = accountShare.removableAt;
+        uint256 bps = accountShare.bps;
+        uint256 endIndex = accountShare.endIndex;
+        uint256 removableAt = accountShare.removableAt;
         // The account share must be active to be removed
         require(endIndex == MAX_INDEX);
         // The current timestamp must be greater than the removableAt timestamp (unless the msg.sender owns the account)
@@ -192,7 +193,7 @@ library BalanceShares {
     function totalBps(
         BalanceShare storage self
     ) internal view returns (uint256) {
-        uint length = self._balanceChecks.length;
+        uint256 length = self._balanceChecks.length;
         return length > 0 ?
             self._balanceChecks[length - 1].totalBps :
             0;
@@ -210,11 +211,11 @@ library BalanceShares {
         BalanceShare storage self,
         uint256 balanceIncreasedBy
     ) internal returns (uint256 balanceAddedToShares) {
-        uint length = self._balanceChecks.length;
+        uint256 length = self._balanceChecks.length;
         // Only continue if the length is greater than zero, otherwise returns zero by default
         if (length > 0) {
             BalanceCheck storage latestBalanceCheck = self._balanceChecks[length - 1];
-            uint currentTotalBps = latestBalanceCheck.totalBps;
+            uint256 currentTotalBps = latestBalanceCheck.totalBps;
             if (currentTotalBps > 0) {
                 balanceAddedToShares = _processBalance(self, currentTotalBps, balanceIncreasedBy);
                 _addBalance(self, latestBalanceCheck, balanceAddedToShares);
@@ -252,7 +253,7 @@ library BalanceShares {
         BalanceShare storage self,
         uint256 balanceIncreasedBy
     ) internal view returns (uint256 balanceToAddToShares) {
-        uint currentTotalBps = totalBps(self);
+        uint256 currentTotalBps = totalBps(self);
         if (currentTotalBps > 0) {
             (balanceToAddToShares,) = _calculateBalanceShare(self, balanceIncreasedBy, currentTotalBps);
         }
@@ -283,7 +284,7 @@ library BalanceShares {
         BalanceShare storage self,
         uint256 amount
     ) internal {
-        uint length = self._balanceChecks.length;
+        uint256 length = self._balanceChecks.length;
         if (length > 0) {
             BalanceCheck storage latestBalanceCheck = self._balanceChecks[length - 1];
             _addBalance(self, latestBalanceCheck, amount);
@@ -302,11 +303,11 @@ library BalanceShares {
             // Unchecked because manual checks ensure no overflow/underflow
             unchecked {
                 // Start with a reference to the current balance
-                uint currentBalance = latestBalanceCheck.balance;
+                uint256 currentBalance = latestBalanceCheck.balance;
                 // Loop until break
                 while (true) {
                     // Can only increase current balanceCheck up to the MAX_CHECK_BALANCE_AMOUNT
-                    uint balanceIncrease = Math.min(amount, MAX_CHECK_BALANCE_AMOUNT - currentBalance);
+                    uint256 balanceIncrease = Math.min(amount, MAX_CHECK_BALANCE_AMOUNT - currentBalance);
                     latestBalanceCheck.balance = uint240(currentBalance + balanceIncrease);
                     amount -= balanceIncrease;
                     // If there is still more balance remaining, push a new balanceCheck and zero out the currentBalance
@@ -348,9 +349,9 @@ library BalanceShares {
 
         AccountShare storage accountShare = self._accounts[account];
         (
-            uint balanceToBePaid,
-            uint lastBalanceCheckIndex,
-            uint lastBalancePulled
+            uint256 balanceToBePaid,
+            uint256 lastBalanceCheckIndex,
+            uint256 lastBalancePulled
         ) = _calculateAccountBalance(
             self,
             accountShare,
@@ -374,7 +375,7 @@ library BalanceShares {
         address account
     ) internal view returns (uint256) {
         AccountShare storage accountShare = self._accounts[account];
-        (uint balanceAvailable,,) = _calculateAccountBalance(
+        (uint256 balanceAvailable,,) = _calculateAccountBalance(
             self,
             accountShare,
             false // Show the zero balance
@@ -393,12 +394,12 @@ library BalanceShares {
         uint256 balanceIncreasedBy
     ) internal view returns (uint256) {
         AccountShare storage accountShare = self._accounts[account];
-        (uint balanceAvailable,,) = _calculateAccountBalance(
+        (uint256 balanceAvailable,,) = _calculateAccountBalance(
             self,
             accountShare,
             false
         );
-        (uint addedTotalBalance,) = _calculateBalanceShare(
+        (uint256 addedTotalBalance,) = _calculateBalanceShare(
             self,
             balanceIncreasedBy,
             accountShare.bps
@@ -422,11 +423,11 @@ library BalanceShares {
         uint256
     ) {
         (
-            uint bps,
-            uint createdAt,
-            uint endIndex,
-            uint lastBalanceCheckIndex,
-            uint lastBalancePulled
+            uint256 bps,
+            uint256 createdAt,
+            uint256 endIndex,
+            uint256 lastBalanceCheckIndex,
+            uint256 lastBalancePulled
         ) = (
             accountShare.bps,
             accountShare.createdAt,
@@ -443,12 +444,12 @@ library BalanceShares {
             return (accountBalanceOwed, lastBalanceCheckIndex, lastBalancePulled);
         }
 
-        uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
+        uint256 latestBalanceCheckIndex = self._balanceChecks.length - 1;
 
         // Process each balanceCheck while in range of the endIndex, summing the total balance to be paid
         while (lastBalanceCheckIndex <= endIndex) {
             BalanceCheck memory balanceCheck = self._balanceChecks[lastBalanceCheckIndex];
-            uint diff = balanceCheck.balance - lastBalancePulled;
+            uint256 diff = balanceCheck.balance - lastBalancePulled;
             if (diff > 0 && balanceCheck.totalBps > 0) {
                 // For each check, add (balanceCheck.balance - lastBalancePulled) * (accountBps / balanceCheck.totalBps)
                 accountBalanceOwed += Math.mulDiv(diff, bps, balanceCheck.totalBps);
@@ -491,11 +492,11 @@ library BalanceShares {
         AccountShare storage accountShare = self._accounts[account];
         // Account must not have finished withdrawals (this also ensures that the account has been initialized)
         require(!_accountHasFinishedWithdrawals(accountShare));
-        uint newAccountBps = accountShare.bps + increaseBy;
+        uint256 newAccountBps = accountShare.bps + increaseBy;
         accountShare.bps = SafeCast.toUint16(newAccountBps);
 
         // Also update the totalBps
-        uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
+        uint256 latestBalanceCheckIndex = self._balanceChecks.length - 1;
         BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
         _updateTotalBps(
             self,
@@ -520,8 +521,8 @@ library BalanceShares {
         // Account must not have finished withdrawals (this also ensures that the account has been initialized)
         require(!_accountHasFinishedWithdrawals(accountShare));
         (
-            uint bps,
-            uint removableAt
+            uint256 bps,
+            uint256 removableAt
         ) = (
             accountShare.bps,
             accountShare.removableAt
@@ -532,11 +533,11 @@ library BalanceShares {
         require(block.timestamp >= removableAt || msg.sender == account);
 
         // Update the account bps
-        uint newAccountBps = bps - decreaseBy;
+        uint256 newAccountBps = bps - decreaseBy;
         accountShare.bps = uint16(newAccountBps);
 
         // Update the totalBps too
-        uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
+        uint256 latestBalanceCheckIndex = self._balanceChecks.length - 1;
         BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
         _updateTotalBps(
             self,
@@ -576,7 +577,7 @@ library BalanceShares {
         address account,
         uint256 newRemovableAt
     ) internal {
-        uint currentRemovableAt = self._accounts[account].removableAt;
+        uint256 currentRemovableAt = self._accounts[account].removableAt;
         // If msg.sender, then can decrease, otherwise can only increase
         // NOTE: This also ensures uninitiated accounts don't change anything as well. If msg.sender is the account,
         // then currentRemovableAt will be zero, which will throw an error
@@ -597,7 +598,7 @@ library BalanceShares {
         address account,
         address[] calldata approvedAddresses
     ) internal {
-        for (uint i = 0; i < approvedAddresses.length;) {
+        for (uint256 i = 0; i < approvedAddresses.length;) {
             self._accountWithdrawalApprovals[account][approvedAddresses[i]] = true;
             unchecked { i++; }
         }
@@ -611,7 +612,7 @@ library BalanceShares {
         address account,
         address[] calldata unapprovedAddresses
     ) internal {
-        for (uint i = 0; i < unapprovedAddresses.length;) {
+        for (uint256 i = 0; i < unapprovedAddresses.length;) {
             self._accountWithdrawalApprovals[account][unapprovedAddresses[i]] = false;
             unchecked { i++; }
         }
@@ -667,7 +668,7 @@ library BalanceShares {
     function _accountHasFinishedWithdrawals(
         AccountShare storage accountShare
     ) private view returns (bool) {
-        (uint createdAt, uint lastBalanceCheckIndex, uint endIndex) = (
+        (uint256 createdAt, uint256 lastBalanceCheckIndex, uint256 endIndex) = (
             accountShare.createdAt,
             accountShare.lastBalanceCheckIndex,
             accountShare.endIndex
@@ -679,9 +680,9 @@ library BalanceShares {
      * @dev Overload for checking if these values are already loaded into memory (to save gas).
      */
     function _accountHasFinishedWithdrawals(
-        uint createdAt,
-        uint lastBalanceCheckIndex,
-        uint endIndex
+        uint256 createdAt,
+        uint256 lastBalanceCheckIndex,
+        uint256 endIndex
     ) private pure returns (bool) {
         return createdAt == 0 || lastBalanceCheckIndex > endIndex;
     }

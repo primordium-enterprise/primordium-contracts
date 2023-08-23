@@ -112,6 +112,7 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
     // solhint-disable-next-line func-name-mixedcase
     function CLOCK_MODE() public view virtual override returns (string memory) {
         // Check that the clock was not modified
+        // solhint-disable-next-line reason-string, custom-errors
         if (clock() != block.number) revert();
         return "mode=blocknumber&from=default";
     }

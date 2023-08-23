@@ -7,8 +7,10 @@ import "../Treasurer.sol";
 
 abstract contract TreasurerERC20 is Treasurer {
 
+    error CannotInitializeBaseAssetToETH();
+
     constructor() {
-        require(address(_baseAsset) != address(0));
+        if (address(_baseAsset) == address(0)) revert CannotInitializeBaseAssetToETH();
     }
 
     /// @dev Override to return the raw base asset balance of this address with an ERC20 as the base asset
