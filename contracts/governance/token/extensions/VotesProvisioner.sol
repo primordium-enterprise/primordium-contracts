@@ -136,10 +136,10 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     error TokenPriceParametersMustBeGreaterThanZero();
     /**
      * @notice Public function to update the token price. Only the executor can make an update to the token price.
-     * @param newNumerator The new numerator value (the amount of base asset required for {denominator} amount of votes).
-     * Set to zero to keep the numerator the same.
-     * @param newDenominator The new denominator value (the amount of votes minted for every {numerator} amount of the base
-     * asset). Set to zero to keep the denominator the same.
+     * @param newNumerator The new numerator value (the amount of base asset required for {denominator} amount of
+     * votes). Set to zero to keep the numerator the same.
+     * @param newDenominator The new denominator value (the amount of votes minted for every {numerator} amount of the
+     * base asset). Set to zero to keep the denominator the same.
      */
     function updateTokenPrice(uint256 newNumerator, uint256 newDenominator) public virtual onlyExecutor {
         if (newNumerator == 0 || newDenominator == 0) revert TokenPriceParametersMustBeGreaterThanZero();
@@ -148,7 +148,8 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
 
     /**
      * @notice Public function to update the token price numerator. Only executor can update.
-     * @param newNumerator The new numerator value (the amount of base asset required for {denominator} amount of votes).
+     * @param newNumerator The new numerator value (the amount of base asset required for {denominator} amount of
+     * votes).
      */
     function updateTokenPriceNumerator(uint256 newNumerator) public virtual onlyExecutor {
         if (newNumerator == 0) revert TokenPriceParametersMustBeGreaterThanZero();
@@ -157,8 +158,8 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
 
     /**
      * @notice Public function to update the token price. Only executor can update.
-     * @param newDenominator The new denominator value (the amount of votes minted for every {numerator} amount of the base
-     * asset).
+     * @param newDenominator The new denominator value (the amount of votes minted for every {numerator} amount of the
+     * base asset).
      */
     function updateTokenPriceDenominator(uint256 newDenominator) public virtual onlyExecutor {
         if (newDenominator == 0) revert TokenPriceParametersMustBeGreaterThanZero();
@@ -166,8 +167,8 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     }
 
     /**
-     * @dev Private function to update the tokenPrice numerator and denominator. Skips update of zero values (neither can
-     * be set to zero).
+     * @dev Private function to update the tokenPrice numerator and denominator. Skips update of zero values (neither
+     * can be set to zero).
      */
     function _updateTokenPrice(uint256 newNumerator, uint256 newDenominator) private {
         uint256 prevNumerator = _tokenPrice.numerator;
@@ -210,8 +211,8 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
 
     /**
      * @notice Calls {depositFor} with msg.sender as the account.
-     * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for every
-     * tokenPrice.numerator count of base asset tokens.
+     * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for
+     * every tokenPrice.numerator count of base asset tokens.
      */
     function deposit(uint256 depositAmount) public payable virtual returns (uint256) {
         return depositFor(_msgSender(), depositAmount);
@@ -276,8 +277,8 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     }
 
     /**
-     * @notice Allows burning the provided amount of vote tokens and withdrawing the proportional share of the base asset
-     * from the treasury. The tokens are burned for msg.sender, and the base asset is sent to msg.sender as well.
+     * @notice Allows burning the provided amount of vote tokens and withdrawing the proportional share of the base
+     * asset from the treasury. The tokens are burned for msg.sender, and the base asset is sent to msg.sender as well.
      * @param amount The amount of vote tokens to be burned.
      * @return The amount of base asset withdrawn.
      */

@@ -30,8 +30,8 @@ abstract contract TreasurerERC20 is Treasurer {
      * - transferFrom(address from, address to, uint256 amount) WHEN from != address(this)
      *
      * Why? The BalanceShares on the treasury require internal accounting to make sure that the Executor does not spend
-     * base assets that are owed to the BalanceShares accounts. If the Executor was allowed to approve another account to
-     * spend the base asset on its behalf, then those spends would not be accounted for in the internal revenue
+     * base assets that are owed to the BalanceShares accounts. If the Executor was allowed to approve another account
+     * to spend the base asset on its behalf, then those spends would not be accounted for in the internal revenue
      * accounting process.
      *
      * TODO: Create an additional helper contract for accomodating "approval" behavior.

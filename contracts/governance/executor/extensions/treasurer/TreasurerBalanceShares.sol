@@ -190,8 +190,8 @@ abstract contract TreasurerBalanceShares is Treasurer {
     );
 
     /**
-     * @notice Removes the provided accounts from the specified balance shares. Only callable by the timelock itself, and
-     * only works if past the "removableAt" timestamp for the account.
+     * @notice Removes the provided accounts from the specified balance shares. Only callable by the timelock itself,
+     * and only works if past the "removableAt" timestamp for the account.
      * @param id The enum identifier indicating which balance share this applies to.
      * @param accounts An array of accounts to remove from the specified balance share.
      */

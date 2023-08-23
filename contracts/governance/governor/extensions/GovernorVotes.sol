@@ -8,7 +8,8 @@ import "../Governor.sol";
 import "../../token/Votes.sol";
 
 /**
- * @dev Extension of {Governor} for voting weight extraction from an {ERC20Votes} token, or since v4.5 an {ERC721Votes} token.
+ * @dev Extension of {Governor} for voting weight extraction from an {ERC20Votes} token, or since v4.5 an {ERC721Votes}
+ * token.
  *
  * _Available since v4.3._
  */

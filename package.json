@@ -25,7 +25,8 @@
   "homepage": "https://github.com/BCJdevelopment/primordium-contracts#readme",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^2.0.2",
-    "hardhat": "^2.13.0"
+    "hardhat": "^2.13.0",
+    "solhint": "^3.6.2"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^4.8.2"

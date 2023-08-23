@@ -13,9 +13,11 @@ library BalanceShares {
     uint256 constant MAX_CHECK_BALANCE_AMOUNT = type(uint240).max;
 
     struct BalanceShare {
-        uint16 _balanceRemainder; // Tracks the balance remainder when processing account balance updates
+        // Tracks the balance remainder when processing account balance updates
+        uint16 _balanceRemainder;
         bytes30 __gap_unused_0;
-        BalanceCheck[] _balanceChecks; // New balanceCheck pushed every time totalBps changes, or when balance overflow occurs, max length is type(uint40).max
+        // New balanceCheck pushed every time totalBps changes, or when overflow occurs, max length is type(uint40).max
+        BalanceCheck[] _balanceChecks;
         mapping(address => AccountShare) _accounts;
         mapping(address => mapping(address => bool)) _accountWithdrawalApprovals;
     }
@@ -60,7 +62,7 @@ library BalanceShares {
         // Initialize the latestBalanceCheck
         BalanceCheck memory latestBalanceCheck = BalanceCheck(0, 0);
 
-        // Get startIndex of the nextBalanceCheck (assumed to be equal to length since we are pushing a new balanceCheck)
+        // Get startIndex of the nextBalanceCheck (assumed to be equal to length since we are pushing new balanceCheck)
         uint startIndex = self._balanceChecks.length;
 
         // If length is greater than zero, then copy the last array element to the nextBalanceCheck
@@ -90,7 +92,8 @@ library BalanceShares {
             // Check that the account has zeroed out previous balances (on the off chance that it existed previously)
             require(_accountHasFinishedWithdrawals(self._accounts[newAccountShare.account]));
 
-            addToTotalBps += newAccountShare.bps; // We don't verify the BPS amount here, because total will be verified below
+            // We don't verify the BPS amount here, because total will be verified below
+            addToTotalBps += newAccountShare.bps;
             // Initialize the new AccountShare
             self._accounts[newAccountShare.account] = AccountShare({
                 bps: SafeCast.toUint16(newAccountShare.bps),
@@ -157,7 +160,8 @@ library BalanceShares {
     ) internal {
         uint latestBalanceCheckIndex = self._balanceChecks.length - 1;
         BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
-        uint newTotalBps = latestBalanceCheck.totalBps - _destroyAccountShare(self, msg.sender, latestBalanceCheckIndex);
+        uint newTotalBps =
+            latestBalanceCheck.totalBps - _destroyAccountShare(self, msg.sender, latestBalanceCheckIndex);
         _updateTotalBps(self, latestBalanceCheck.balance, latestBalanceCheckIndex, newTotalBps);
     }
 
@@ -255,8 +259,9 @@ library BalanceShares {
     }
 
     /**
-     * @dev Private function that returns the balanceToAddToShares, and the mulmod remainder of the operation. NOTE: This
-     * function adds the previous _balanceRemainder to the balanceIncreasedBy parameter before running the calculations.
+     * @dev Private function that returns the balanceToAddToShares, and the mulmod remainder of the operation.
+     * NOTE: This function adds the previous _balanceRemainder to the balanceIncreasedBy parameter before running the
+     * calculations.
      */
     function _calculateBalanceShare(
         BalanceShare storage self,
@@ -445,7 +450,7 @@ library BalanceShares {
             BalanceCheck memory balanceCheck = self._balanceChecks[lastBalanceCheckIndex];
             uint diff = balanceCheck.balance - lastBalancePulled;
             if (diff > 0 && balanceCheck.totalBps > 0) {
-                // For each check, add ( balanceCheck.balance - lastBalancePulled ) * ( accountBps / balanceCheck.totalBps )
+                // For each check, add (balanceCheck.balance - lastBalancePulled) * (accountBps / balanceCheck.totalBps)
                 accountBalanceOwed += Math.mulDiv(diff, bps, balanceCheck.totalBps);
             }
             // Do not increment past the end of the balanceChecks array
@@ -460,7 +465,7 @@ library BalanceShares {
              * @dev Notice that this increments the lastBalanceCheckIndex PAST the endIndex for an account that has had
              * their balance share removed at some point.
              *
-             * This is the desired behavior. See the private {_accountHasFinishedWithdrawals} function. This considers an
+             * This is the desired behavior. See the private _accountHasFinishedWithdrawals function. This considers an
              * account to be finished with withdrawals once the lastBalanceCheckIndex is greater than the endIndex.
              */
             unchecked {

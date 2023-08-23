@@ -41,6 +41,13 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
  */
 abstract contract GovernorProposalDeadlineExtensions is Governor {
 
+    struct DeadlineData {
+        uint64 originalDeadline;
+        uint64 extendedBy;
+        uint64 currentDeadline;
+        bool quorumReached;
+    }
+
     /**
      * @notice The absolute max amount that the deadline can be extended by, set to approximately 2 weeks.
      */
@@ -70,30 +77,30 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
      */
     uint256 public constant MAX_PERCENT_DECAY = 100;
 
-    uint64 private _maxDeadlineExtension; // Setable by DAO, the max extension period for any given proposal
+    // Setable by DAO, the max extension period for any given proposal
+    uint64 private _maxDeadlineExtension;
     event MaxDeadlineExtensionSet(uint256 oldMaxDeadlineExtension, uint256 newMaxDeadlineExtension);
-    uint64 private _baseDeadlineExtension; // Setable by DAO, the base extension period for deadline extension calculations
-    event BaseDeadlineExtensionSet(uint256 oldBaseDeadlineExtension, uint256 newBaseDeadlineExtension);
-    uint64 private _decayPeriod; // Setable by DAO, base extension amount decays by {percentDecay()} every period
-    event DecayPeriodSet(uint256 oldDecayPeriod, uint256 newDecayPeriod);
-    uint64 private _inversePercentDecay; // Setable by DAO, store inverted (100% - percentDecay), saves a subtract op
-    event PercentDecaySet(uint256 oldPercentDecay, uint256 newPercentDecay);
 
-    struct DeadlineData {
-        uint64 originalDeadline;
-        uint64 extendedBy;
-        uint64 currentDeadline;
-        bool quorumReached;
-    }
+    // Setable by DAO, the base extension period for deadline extension calculations
+    uint64 private _baseDeadlineExtension;
+    event BaseDeadlineExtensionSet(uint256 oldBaseDeadlineExtension, uint256 newBaseDeadlineExtension);
+
+    // Setable by DAO, base extension amount decays by {percentDecay()} every period
+    uint64 private _decayPeriod;
+    event DecayPeriodSet(uint256 oldDecayPeriod, uint256 newDecayPeriod);
+
+    // Setable by DAO, store inverted (100% - percentDecay), saves a subtract op
+    uint64 private _inversePercentDecay;
+    event PercentDecaySet(uint256 oldPercentDecay, uint256 newPercentDecay);
 
     // Tracking the deadlines for a proposal
     mapping(uint256 => DeadlineData) private _deadlineDatas;
 
-    event ProposalExtended(uint256 indexed proposalId, uint256 extendedDeadline);
-
     /// @dev The fraction multiple used in the vote weight calculation
-    uint256 constant FRACTION_MULTIPLE = 1000;
-    uint256 constant FRACTION_MULTIPLE_MAX = FRACTION_MULTIPLE * 5 / 4; // Max 1.25 multiple on the vote weight
+    uint256 private constant FRACTION_MULTIPLE = 1000;
+    uint256 private constant FRACTION_MULTIPLE_MAX = FRACTION_MULTIPLE * 5 / 4; // Max 1.25 multiple on the vote weight
+
+    event ProposalExtended(uint256 indexed proposalId, uint256 extendedDeadline);
 
     constructor() {
         // Initialize immutables based on clock (assumes seconds if not block number)
@@ -290,8 +297,9 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
 
             // Extend amount decays past the original deadline
             if (currentTimepoint > dd.originalDeadline) {
-                uint256 periodsElapsed = ( currentTimepoint - dd.originalDeadline ) / decayPeriod_;
-                uint256 extend = ( baseDeadlineExtension_ * inversePercentDecay_ ** periodsElapsed) / ( 100 ** periodsElapsed );
+                uint256 periodsElapsed = (currentTimepoint - dd.originalDeadline) / decayPeriod_;
+                uint256 extend =
+                    (baseDeadlineExtension_ * inversePercentDecay_**periodsElapsed) / (100**periodsElapsed);
                 // Check again for distance from the deadline. If extend is too small, just return.
                 if (extend < distanceFromDeadline) return voteWeight;
                 extendMultiple = extend - distanceFromDeadline;
@@ -305,7 +313,7 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
         uint256 deadlineExtension = extendMultiple * Math.min(
             FRACTION_MULTIPLE_MAX,
             (
-                voteWeight * FRACTION_MULTIPLE / ( _voteMargin(proposalId) + 1 ) // Add 1 to denominator to avoid divide by zero error
+                voteWeight * FRACTION_MULTIPLE / ( _voteMargin(proposalId) + 1 ) // Add 1 to avoid divide by zero error
             )
         ) / FRACTION_MULTIPLE;
 

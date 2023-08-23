@@ -317,8 +317,8 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     /**
      * @dev See {IGovernor-hashProposaActions}.
      *
-     * The actionsHash is produced by hashing the ABI encoded 'proposalId', the `targets` array, the `values` array, and the
-     * `calldatas` array.
+     * The actionsHash is produced by hashing the ABI encoded 'proposalId', the `targets` array, the `values` array, and
+     *  the `calldatas` array.
      * This can be reproduced from the proposal data which is part of the {ProposalCreated} event.
      *
      * Note that the chainId and the governor address are not part of the proposal id computation. Consequently, the

@@ -120,7 +120,9 @@ abstract contract Treasurer is Executor {
     }
 
     error InvalidDepositAmount();
-    /// @dev Can override and call super._registerDeposit for additional checks/functionality depending on baseAsset used
+    /**
+     * @dev Can override and call super._registerDeposit for additional checks/functionality depending on baseAsset used
+    */
     function _registerDeposit(uint256 depositAmount) internal virtual {
         if (depositAmount == 0) revert InvalidDepositAmount();
     }

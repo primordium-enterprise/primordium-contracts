@@ -26,7 +26,7 @@ abstract contract TreasurerDistributions is Treasurer {
      */
     uint256 public immutable MIN_DISTRIBUTION_CLAIM_PERIOD;
 
-    // The claim period for distributions, after which the Timelock can close the distribution to reclaim leftover funds.
+    // The distribution claim period, after which the Timelock can close the distribution to reclaim leftover funds.
     Checkpoints.Trace224 private _claimPeriodCheckpoints;
 
     // Distributions counter
@@ -93,8 +93,8 @@ abstract contract TreasurerDistributions is Treasurer {
      * @param clockStartTime The start timepoint (according to the token clock) when this distribution will become
      * active. Must be in the future, no greater than the MAX_DISTRIBUTION_CLAIM_PERIOD. If the provided value is zero,
      * then it will be set to the current clock timepoint at the transaction execution.
-     * @param distributionBalance The balance to be set aside as a distribution, claimable by all token holders according
-     * to their token balance at the clockStartTime.
+     * @param distributionBalance The balance to be set aside as a distribution, claimable by all token holders
+     * according to their token balance at the clockStartTime.
      */
     function createDistribution(
         uint256 clockStartTime,
@@ -234,8 +234,8 @@ abstract contract TreasurerDistributions is Treasurer {
     error DistributionClaimPeriodStillActive();
     /**
      * @notice A function to close a distribution and reclaim the remaining unclaimed distribution balance to the DAO
-     * treasury. Only callable by approved addresses (or anyone if address(0) is approved). Fails if the claim period for
-     * the distribution is still active.
+     * treasury. Only callable by approved addresses (or anyone if address(0) is approved). Fails if the claim period
+     * for the distribution is still active.
      * @param distributionId The identifier of the distribution to be closed.
      */
     function closeDistribution(uint256 distributionId) external virtual {
@@ -357,7 +357,8 @@ abstract contract TreasurerDistributions is Treasurer {
     }
 
     /**
-     * @notice Returns whether or not the provided address is approved to claim the distribution for the specified owner.
+     * @notice Returns whether or not the provided address is approved to claim the distribution for the specified
+     * owner.
      * @param owner The token holder.
      * @param account The address to check for approval for claiming distributions to the owner.
      */

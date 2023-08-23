@@ -13,17 +13,21 @@ using SafeMath for uint256;
 abstract contract VotesProvisionerERC20 is VotesProvisioner {
 
     constructor() {
-        require(address(_baseAsset) != address(0), "VotesProvisionerERC20: the address for the baseAsset cannot be address(0)");
+        require(
+            address(_baseAsset) != address(0),
+            "VotesProvisionerERC20: the address for the baseAsset cannot be address(0)"
+        );
     }
 
     error CannotAcceptETHDeposits();
     /**
      * @notice Allows exchanging the depositAmount of base asset for votes (if votes are available for purchase).
      * @param account The account address to deposit to.
-     * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for every
-     * tokenPrice.numerator count of base asset tokens.
+     * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for
+     * every `tokenPrice.numerator` count of base asset tokens.
      * @dev Override to deposit ERC20 base asset in exchange for votes.
-     * While this function is marked as "payable" (since it overrides VotesProvisioner), it requires msg.value to be zero.
+     * While this function is marked as "payable" (since it overrides VotesProvisioner), it requires msg.value to be
+     * zero.
      * @return Amount of vote tokens minted.
      */
     function depositFor(address account, uint256 depositAmount) public payable virtual override returns(uint256) {
