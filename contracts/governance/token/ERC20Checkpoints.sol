@@ -40,18 +40,21 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
  */
 abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Checkpoints, IERC6372 {
 
-    error FutureLookup();
-
-    using Checkpoints for Checkpoints.Trace224; // We use Trace224 to be agnostic towards the clock mode
+    using Checkpoints for Checkpoints.Trace224;
 
     mapping(address => Checkpoints.Trace224) private _balances;
-
     mapping(address => mapping(address => uint256)) private _allowances;
 
     Checkpoints.Trace224 private _totalSupplyCheckpoints;
 
     string private _name;
     string private _symbol;
+
+    modifier noFutureLookup(uint256 timepoint) {
+        uint256 currentClock = clock();
+        if (timepoint >= currentClock) revert FutureLookup(currentClock);
+        _;
+    }
 
     /**
      * @dev Sets the values for {name} and {symbol}.
@@ -128,8 +131,7 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
      *
      * - `timepoint` must be in the past
      */
-    function getPastTotalSupply(uint256 timepoint) public view virtual returns (uint256) {
-        _noFutureLookup(timepoint);
+    function getPastTotalSupply(uint256 timepoint) public view virtual noFutureLookup(timepoint) returns (uint256) {
         return _totalSupplyCheckpoints.upperLookupRecent(SafeCast.toUint32(timepoint));
     }
 
@@ -154,8 +156,7 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
      *
      * - `timepoint` must be in the past
      */
-    function getPastBalanceOf(address account, uint256 timepoint) public view virtual returns (uint256) {
-        _noFutureLookup(timepoint);
+    function getPastBalanceOf(address account, uint256 timepoint) public view virtual noFutureLookup(timepoint) returns (uint256) {
         return _balances[account].upperLookupRecent(SafeCast.toUint32(timepoint));
     }
 
@@ -237,35 +238,31 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
         return true;
     }
 
-    error DecreasedAllowanceBelowZero();
     /**
      * @dev Atomically decreases the allowance granted to `spender` by the caller.
      *
      * This is an alternative to {approve} that can be used as a mitigation for
      * problems described in {IERC20-approve}.
      *
+     * Sets the allowance to zero if the `spender` allowance is less than the `subtractedValue`.
+     *
      * Emits an {Approval} event indicating the updated allowance.
      *
      * Requirements:
      *
      * - `spender` cannot be the zero address.
-     * - `spender` must have allowance for the caller of at least
-     * `subtractedValue`.
      */
     function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
         address owner = _msgSender();
         uint256 currentAllowance = allowance(owner, spender);
-        if (currentAllowance < subtractedValue) revert DecreasedAllowanceBelowZero();
+        uint256 newAllowance = currentAllowance < subtractedValue ? 0 : currentAllowance - subtractedValue;
         unchecked {
-            _approve(owner, spender, currentAllowance - subtractedValue);
+            _approve(owner, spender, newAllowance);
         }
 
         return true;
     }
 
-    error TransferFromZeroAddress();
-    error TransferToZeroAddress();
-    error InsufficientBalance(uint256 currentBalance);
     /**
      * @dev Moves `amount` of tokens from `from` to `to`.
      *
@@ -281,13 +278,13 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
      * - `from` must have a balance of at least `amount`.
      */
     function _transfer(address from, address to, uint256 amount) internal virtual {
-        if (from == address(0)) revert TransferFromZeroAddress();
-        if (to == address(0)) revert TransferToZeroAddress();
+        if (from == address(0)) revert ERC20InvalidSender(from);
+        if (to == address(0)) revert ERC20InvalidReceiver(to);
 
         _beforeTokenTransfer(from, to, amount);
 
         uint256 fromBalance = uint256(_balances[from].latest());
-        if (fromBalance < amount) revert InsufficientBalance(fromBalance);
+        if (fromBalance < amount) revert ERC20InsufficientBalance(from, fromBalance, amount);
 
         unchecked {
             _writeCheckpoint(_balances[from], _subtract, amount);
@@ -301,8 +298,6 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
         _afterTokenTransfer(from, to, amount);
     }
 
-    error MintToZeroAddress();
-    error MaxSupplyOverflow();
     /** @dev Creates `amount` tokens and assigns them to `account`, increasing
      * the total supply.
      *
@@ -313,13 +308,14 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
      * - `account` cannot be the zero address.
      */
     function _mint(address account, uint256 amount) internal virtual {
-        if (account == address(0)) revert MintToZeroAddress();
+        if (account == address(0)) revert ERC20InvalidReceiver(account);
 
         _beforeTokenTransfer(address(0), account, amount);
 
         // Update total supply, but don't allow minting past the maxSupply
         (,uint256 newSupply) = _writeCheckpoint(_totalSupplyCheckpoints, _add, amount);
-        if (newSupply > maxSupply()) revert MaxSupplyOverflow();
+        uint256 maxSupply_ = maxSupply();
+        if (newSupply > maxSupply_) revert MaxSupplyOverflow(maxSupply_, newSupply);
         unchecked {
             // Overflow not possible: balance + amount is at most totalSupply + amount, which is checked above.
             _writeCheckpoint(_balances[account], _add, amount);
@@ -329,7 +325,6 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
         _afterTokenTransfer(address(0), account, amount);
     }
 
-    error BurnFromZeroAddress();
     /**
      * @dev Destroys `amount` tokens from `account`, reducing the
      * total supply.
@@ -342,12 +337,12 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
      * - `account` must have at least `amount` tokens.
      */
     function _burn(address account, uint256 amount) internal virtual {
-        if (account == address(0)) revert BurnFromZeroAddress();
+        if (account == address(0)) revert ERC20InvalidSender(account);
 
         _beforeTokenTransfer(account, address(0), amount);
 
         uint256 accountBalance = uint256(_balances[account].latest());
-        if (accountBalance < amount) revert InsufficientBalance(accountBalance);
+        if (accountBalance < amount) revert ERC20InsufficientBalance(account, accountBalance, amount);
         unchecked {
             _writeCheckpoint(_balances[account], _subtract, amount);
             // Overflow not possible: amount <= accountBalance <= totalSupply.
@@ -359,8 +354,6 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
         _afterTokenTransfer(account, address(0), amount);
     }
 
-    error ApproveFromZeroAddress();
-    error ApproveToZeroAddress();
     /**
      * @dev Sets `amount` as the allowance of `spender` over the `owner` s tokens.
      *
@@ -375,14 +368,13 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
      * - `spender` cannot be the zero address.
      */
     function _approve(address owner, address spender, uint256 amount) internal virtual {
-        if (owner == address(0)) revert ApproveFromZeroAddress();
-        if (spender == address(0)) revert ApproveToZeroAddress();
+        if (owner == address(0)) revert ERC20InvalidApprover(owner);
+        if (spender == address(0)) revert ERC20InvalidSpender(spender);
 
         _allowances[owner][spender] = amount;
         emit Approval(owner, spender, amount);
     }
 
-    error InsufficientAllowance(uint256 currentAllowance);
     /**
      * @dev Updates `owner` s allowance for `spender` based on spent `amount`.
      *
@@ -394,7 +386,7 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
     function _spendAllowance(address owner, address spender, uint256 amount) internal virtual {
         uint256 currentAllowance = allowance(owner, spender);
         if (currentAllowance != type(uint256).max) {
-            if (currentAllowance < amount) revert InsufficientAllowance(currentAllowance);
+            if (currentAllowance < amount) revert ERC20InsufficientAllowance(spender, currentAllowance, amount);
             unchecked {
                 _approve(owner, spender, currentAllowance - amount);
             }
@@ -433,15 +425,6 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
      */
     function _afterTokenTransfer(address from, address to, uint256 amount) internal virtual {}
 
-
-    function _add(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a + b;
-    }
-
-    function _subtract(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a - b;
-    }
-
     function _writeCheckpoint(
         Checkpoints.Trace224 storage store,
         function(uint256, uint256) view returns (uint256) op,
@@ -453,11 +436,12 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
         );
     }
 
-    /**
-     * @dev Throws a FutureLookup error if the timepoint is not less than the current clock() timestamp
-     */
-    function _noFutureLookup(uint256 timepoint) internal view virtual {
-        if (timepoint >= clock()) revert FutureLookup();
+    function _add(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a + b;
+    }
+
+    function _subtract(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a - b;
     }
 
 }

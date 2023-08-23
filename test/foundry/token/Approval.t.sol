@@ -44,12 +44,17 @@ contract Approval is Test, TestAccountsSetup {
         token.decreaseAllowance(address(this), 1);
         assertEq(token.allowance(a1, address(this)), allowance - 1);
         vm.expectRevert(
-            abi.encodeWithSelector(ERC20Checkpoints.InsufficientAllowance.selector, allowance - 1)
+            abi.encodeWithSelector(
+                IERC20Checkpoints.ERC20InsufficientAllowance.selector,
+                address(this),
+                allowance - 1,
+                allowance
+            )
         );
         token.transferFrom(a1, address(this), allowance);
         vm.startPrank(a1);
-        vm.expectRevert(ERC20Checkpoints.DecreasedAllowanceBelowZero.selector);
         token.decreaseAllowance(address(this), allowance);
+        assertEq(token.allowance(a1, address(this)), 0);
     }
 
     function test_ERC20Permit() public {

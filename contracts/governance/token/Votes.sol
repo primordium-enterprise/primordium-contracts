@@ -63,8 +63,10 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
      *
      * - `timepoint` must be in the past
      */
-    function getPastVotes(address account, uint256 timepoint) public view virtual override returns (uint256) {
-        _noFutureLookup(timepoint);
+    function getPastVotes(
+        address account,
+        uint256 timepoint
+    ) public view virtual noFutureLookup(timepoint) returns (uint256) {
         return _checkpoints[account].upperLookupRecent(SafeCast.toUint32(timepoint));
     }
 

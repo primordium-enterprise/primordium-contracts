@@ -8,6 +8,17 @@ pragma solidity ^0.8.4;
  */
 interface IERC20Checkpoints {
 
+    error FutureLookup(uint256 currentClock);
+    error MaxSupplyOverflow(uint256 maxSupply, uint256 resultingSupply);
+
+    // EIP-6093 ERC-20 errors
+    error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed);
+    error ERC20InvalidSender(address sender);
+    error ERC20InvalidReceiver(address receiver);
+    error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed);
+    error ERC20InvalidApprover(address approver);
+    error ERC20InvalidSpender(address spender);
+
     /**
      * @dev Maximum token supply. Should default to (and never be greater than) `type(uint224).max` (2^224^ - 1).
      */
