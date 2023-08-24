@@ -179,39 +179,6 @@ library BalanceShares {
         _updateTotalBps(self, latestBalanceCheck.balance, latestBalanceCheckIndex, newTotalBps);
     }
 
-    function _destroyAccountShare(
-        BalanceShare storage self,
-        address account,
-        uint256 latestBalanceCheckIndex
-    ) private returns (uint256) {
-        AccountShare storage accountShare = self._accounts[account];
-        uint256 bps = accountShare.bps;
-        uint256 endIndex = accountShare.endIndex;
-        uint256 removableAt = accountShare.removableAt;
-        // The account share must be active to be removed
-        if (endIndex != MAX_INDEX) revert AccountNotActive(account);
-        // The current timestamp must be greater than the removableAt timestamp (unless the msg.sender owns the account)
-        if (block.timestamp < removableAt && msg.sender != account) revert AccountShareStillLocked(account);
-
-        // Set the bps to 0, and the endIndex to be the current balance share index
-        accountShare.bps = 0;
-        accountShare.endIndex = uint40(latestBalanceCheckIndex);
-        return bps;
-    }
-
-    /**
-     * @dev The total basis points sum for all currently active account shares.
-     * @return totalBps An integer representing the total basis points sum. 1 basis point = 0.01%
-     */
-    function totalBps(
-        BalanceShare storage self
-    ) internal view returns (uint256) {
-        uint256 length = self._balanceChecks.length;
-        return length > 0 ?
-            self._balanceChecks[length - 1].totalBps :
-            0;
-    }
-
     /**
      * @dev Method to add to the total pool of balance available to the account shares, at the rate of:
      * balanceIncreasedBy * totalBps / 10_000
@@ -237,59 +204,6 @@ library BalanceShares {
     }
 
     /**
-     * @dev Private function that takes the balanceIncreasedBy, adds the previous _balanceRemainder, and returns the
-     * balanceToAddToShares, updating the stored _balanceRemainder in the process.
-     */
-    function _processBalance(
-        BalanceShare storage self,
-        uint256 currentTotalBps,
-        uint256 balanceIncreasedBy
-    ) private returns (uint256) {
-        (
-            uint256 balanceToAddToShares,
-            uint256 newBalanceRemainder
-        ) = _calculateBalanceShare(self, balanceIncreasedBy, currentTotalBps);
-        // Update with the new remainder
-        self._balanceRemainder = SafeCast.toUint16(newBalanceRemainder);
-        return balanceToAddToShares;
-    }
-
-    /**
-     * @dev A function to calculate the balance to be added to the shares provided the amount the balance increased by
-     * and the current total BPS. Returns both the calculated balance to be added to the balance shares, as well as the
-     * remainder (useful for storing for next time).
-     * @param balanceIncreasedBy A uint256 representing how much the core balance increased by, which will be multiplied
-     * by the totalBps for all active balance shares to be made available to those accounts.
-     * @return balanceToAddToShares The calculated balance to add the shares
-     */
-    function calculateBalanceToAddToShares(
-        BalanceShare storage self,
-        uint256 balanceIncreasedBy
-    ) internal view returns (uint256 balanceToAddToShares) {
-        uint256 currentTotalBps = totalBps(self);
-        if (currentTotalBps > 0) {
-            (balanceToAddToShares,) = _calculateBalanceShare(self, balanceIncreasedBy, currentTotalBps);
-        }
-    }
-
-    /**
-     * @dev Private function that returns the balanceToAddToShares, and the mulmod remainder of the operation.
-     * NOTE: This function adds the previous _balanceRemainder to the balanceIncreasedBy parameter before running the
-     * calculations.
-     */
-    function _calculateBalanceShare(
-        BalanceShare storage self,
-        uint256 balanceIncreasedBy,
-        uint256 bps
-    ) private view returns (uint256, uint256) {
-        balanceIncreasedBy += self._balanceRemainder; // Adds the previous remainder into the calculation
-        return (
-            Math.mulDiv(balanceIncreasedBy, bps, MAX_BPS),
-            mulmod(balanceIncreasedBy, bps, MAX_BPS)
-        );
-    }
-
-    /**
      * @dev A function to directly add a given amount to the balance shares. This amount should be accounted for in the
      * host contract.
      */
@@ -301,38 +215,6 @@ library BalanceShares {
         if (length > 0) {
             BalanceCheck storage latestBalanceCheck = self._balanceChecks[length - 1];
             _addBalance(self, latestBalanceCheck, amount);
-        }
-    }
-
-    /**
-     * @dev Private function, adds the provided balance amount to the shared balances.
-     */
-    function _addBalance(
-        BalanceShare storage self,
-        BalanceCheck storage latestBalanceCheck,
-        uint256 amount
-    ) private {
-        if (amount > 0) {
-            // Unchecked because manual checks ensure no overflow/underflow
-            unchecked {
-                // Start with a reference to the current balance
-                uint256 currentBalance = latestBalanceCheck.balance;
-                // Loop until break
-                while (true) {
-                    // Can only increase current balanceCheck up to the MAX_CHECK_BALANCE_AMOUNT
-                    uint256 balanceIncrease = Math.min(amount, MAX_CHECK_BALANCE_AMOUNT - currentBalance);
-                    latestBalanceCheck.balance = uint240(currentBalance + balanceIncrease);
-                    amount -= balanceIncrease;
-                    // If there is still more balance remaining, push a new balanceCheck and zero out the currentBalance
-                    if (amount > 0) {
-                        self._balanceChecks.push(BalanceCheck(latestBalanceCheck.totalBps, 0));
-                        latestBalanceCheck = self._balanceChecks[self._balanceChecks.length - 1];
-                        currentBalance = 0;
-                    } else {
-                        break; // Can complete once amount remaining is zero
-                    }
-                }
-            }
         }
     }
 
@@ -379,6 +261,189 @@ library BalanceShares {
     }
 
     /**
+     * @dev Increases the account BPS, updating the total BPS and returning the new account BPS.
+     * @return accountBps Returns the new account BPS.
+     */
+    function increaseAccountBps(
+        BalanceShare storage self,
+        address account,
+        uint256 increaseBy
+    ) internal returns (uint256) {
+        if (increaseBy == 0) revert ZeroValueNotAllowed();
+        AccountShare storage accountShare = self._accounts[account];
+        // Account must not have finished withdrawals (this also ensures that the account has been initialized)
+        if (_accountHasFinishedWithdrawals(accountShare)) revert AccountNotActive(account);
+        uint256 newAccountBps = accountShare.bps + increaseBy;
+        accountShare.bps = SafeCast.toUint16(newAccountBps);
+
+        // Also update the totalBps
+        uint256 latestBalanceCheckIndex = self._balanceChecks.length - 1;
+        BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
+        _updateTotalBps(
+            self,
+            latestBalanceCheck.balance,
+            latestBalanceCheckIndex,
+            latestBalanceCheck.totalBps + increaseBy
+        );
+        return newAccountBps;
+    }
+
+    /**
+     * @dev Function to decrease the basis points share for an account. Defaults to not allowing the bps decrease if the
+     * current timestamp is earlier than the account's "removableAt" timestamp.
+     */
+    function decreaseAccountBps(
+        BalanceShare storage self,
+        address account,
+        uint256 decreaseBy
+    ) internal returns (uint256) {
+        if (decreaseBy == 0) revert ZeroValueNotAllowed();
+        AccountShare storage accountShare = self._accounts[account];
+        // Account must not have finished withdrawals (this also ensures that the account has been initialized)
+        if (_accountHasFinishedWithdrawals(accountShare)) revert AccountNotActive(account);
+        (
+            uint256 bps,
+            uint256 removableAt
+        ) = (
+            accountShare.bps,
+            accountShare.removableAt
+        );
+        // Cannot decrease to zero (should call remove account share in that case)
+        if (decreaseBy >= bps) revert CannotDecreaseAccountBPSToZero();
+        // The current timestamp must be greater than the removableAt timestamp (unless explicitly skipped)
+        if (block.timestamp < removableAt && msg.sender != account) revert AccountShareStillLocked(account);
+
+        // Update the account bps
+        uint256 newAccountBps = bps - decreaseBy;
+        accountShare.bps = uint16(newAccountBps);
+
+        // Update the totalBps too
+        uint256 latestBalanceCheckIndex = self._balanceChecks.length - 1;
+        BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
+        _updateTotalBps(
+            self,
+            latestBalanceCheck.balance,
+            latestBalanceCheckIndex,
+            latestBalanceCheck.totalBps - decreaseBy
+        );
+
+        return newAccountBps;
+    }
+
+    /**
+     * @dev Helper method to update the "removableAt" timestamp for an account. Can only decrease if msg.sender is the
+     * account, otherwise can only increase.
+     */
+    function updateAccountRemovableAt(
+        BalanceShare storage self,
+        address account,
+        uint256 newRemovableAt
+    ) internal {
+        uint256 currentRemovableAt = self._accounts[account].removableAt;
+        // If msg.sender, then can decrease, otherwise can only increase
+        // NOTE: This also ensures uninitiated accounts don't change anything as well. If msg.sender is the account,
+        // then currentRemovableAt will be zero, which will throw an error
+        if (
+            msg.sender == account ?
+            newRemovableAt >= currentRemovableAt :
+            newRemovableAt <= currentRemovableAt
+        ) revert Unauthorized();
+        self._accounts[account].removableAt = SafeCast.toUint40(newRemovableAt);
+    }
+
+    /**
+     * @dev Approve the provided list of addresses to initiate withdrawal on the account. Approve address(0) to allow
+     * anyone.
+     */
+    function approveAddressesForWithdrawal(
+        BalanceShare storage self,
+        address account,
+        address[] calldata approvedAddresses
+    ) internal {
+        for (uint256 i = 0; i < approvedAddresses.length;) {
+            self._accountWithdrawalApprovals[account][approvedAddresses[i]] = true;
+            unchecked { ++i; }
+        }
+    }
+
+    /**
+     * @dev Unapprove the provided list of addresses for initiating withdrawals on the account.
+     */
+    function unapproveAddressesForWithdrawal(
+        BalanceShare storage self,
+        address account,
+        address[] calldata unapprovedAddresses
+    ) internal {
+        for (uint256 i = 0; i < unapprovedAddresses.length;) {
+            self._accountWithdrawalApprovals[account][unapprovedAddresses[i]] = false;
+            unchecked { ++i; }
+        }
+    }
+
+    /**
+     * @dev A function for changing the address that an account receives its shares to. This is only callable by the
+     * account owner. A list of approved addresses for withdrawal can be provided.
+     *
+     * Note that by default, if the address(0) was approved (meaning anyone can process a withdrawal to the account),
+     * then address(0) will be approved for the new account address as well.
+     *
+     * @param account The address for the current account share (which must be msg.sender)
+     * @param newAccount The new address to copy the account share over to.
+     * @param approvedAddresses A list of addresses to be approved for processing withdrawals to the account receiver.
+     */
+    function changeAccountAddress(
+        BalanceShare storage self,
+        address account,
+        address newAccount,
+        address[] calldata approvedAddresses
+    ) internal {
+        if (msg.sender != account) revert Unauthorized();
+        if (newAccount == address(0)) revert InvalidAddress(newAccount);
+        // Copy it over
+        self._accounts[newAccount] = self._accounts[account];
+        // Zero out the old account
+        delete self._accounts[account];
+
+        // Approve addresses
+        approveAddressesForWithdrawal(self, newAccount, approvedAddresses);
+
+        if (self._accountWithdrawalApprovals[account][address(0)]) {
+            self._accountWithdrawalApprovals[newAccount][address(0)] = true;
+        }
+    }
+
+    /**
+     * @dev The total basis points sum for all currently active account shares.
+     * @return totalBps An integer representing the total basis points sum. 1 basis point = 0.01%
+     */
+    function totalBps(
+        BalanceShare storage self
+    ) internal view returns (uint256) {
+        uint256 length = self._balanceChecks.length;
+        return length > 0 ?
+            self._balanceChecks[length - 1].totalBps :
+            0;
+    }
+
+    /**
+     * @dev A function to calculate the balance to be added to the shares provided the amount the balance increased by
+     * and the current total BPS. Returns both the calculated balance to be added to the balance shares, as well as the
+     * remainder (useful for storing for next time).
+     * @param balanceIncreasedBy A uint256 representing how much the core balance increased by, which will be multiplied
+     * by the totalBps for all active balance shares to be made available to those accounts.
+     * @return balanceToAddToShares The calculated balance to add the shares
+     */
+    function calculateBalanceToAddToShares(
+        BalanceShare storage self,
+        uint256 balanceIncreasedBy
+    ) internal view returns (uint256 balanceToAddToShares) {
+        uint256 currentTotalBps = totalBps(self);
+        if (currentTotalBps > 0) {
+            (balanceToAddToShares,) = _calculateBalanceShare(self, balanceIncreasedBy, currentTotalBps);
+        }
+    }
+
+    /**
      * @dev Returns the current withdrawable balance for an account share.
      * @return balanceAvailable The balance available for withdraw from this account.
      */
@@ -417,6 +482,137 @@ library BalanceShares {
             accountShare.bps
         );
         return balanceAvailable + Math.mulDiv(addedTotalBalance, accountShare.bps, MAX_BPS);
+    }
+
+    /**
+     * @dev Returns a bool indicating whether or not the address is approved for withdrawal on the specified account.
+     */
+    function isAddressApprovedForWithdrawal(
+        BalanceShare storage self,
+        address account,
+        address address_
+    ) internal view returns (bool) {
+        return self._accountWithdrawalApprovals[account][address_];
+    }
+
+    /**
+     * @dev Returns the following details (in order) for the specified account:
+     * - bps
+     * - createdAt
+     * - removableAt
+     * - lastWithdrawnAt
+     */
+    function accountDetails(
+        BalanceShare storage self,
+        address account
+    ) internal view returns (uint256, uint256, uint256, uint256) {
+        AccountShare storage accountShare = self._accounts[account];
+        return (
+            accountShare.bps,
+            accountShare.createdAt,
+            accountShare.removableAt,
+            accountShare.lastWithdrawnAt
+        );
+    }
+
+    /**
+     * @dev An account is considered to be finished with withdrawals when the account's "lastBalanceCheckIndex" is
+     * greater than the account's "endIndex".
+     *
+     * Returns true if the account has not been initialized with any shares yet.
+     */
+    function accountHasFinishedWithdrawals(
+        BalanceShare storage self,
+        address account
+    ) internal view returns (bool) {
+        return _accountHasFinishedWithdrawals(self._accounts[account]);
+    }
+
+    function _destroyAccountShare(
+        BalanceShare storage self,
+        address account,
+        uint256 latestBalanceCheckIndex
+    ) private returns (uint256) {
+        AccountShare storage accountShare = self._accounts[account];
+        uint256 bps = accountShare.bps;
+        uint256 endIndex = accountShare.endIndex;
+        uint256 removableAt = accountShare.removableAt;
+        // The account share must be active to be removed
+        if (endIndex != MAX_INDEX) revert AccountNotActive(account);
+        // The current timestamp must be greater than the removableAt timestamp (unless the msg.sender owns the account)
+        if (block.timestamp < removableAt && msg.sender != account) revert AccountShareStillLocked(account);
+
+        // Set the bps to 0, and the endIndex to be the current balance share index
+        accountShare.bps = 0;
+        accountShare.endIndex = uint40(latestBalanceCheckIndex);
+        return bps;
+    }
+
+    /**
+     * @dev Private function that takes the balanceIncreasedBy, adds the previous _balanceRemainder, and returns the
+     * balanceToAddToShares, updating the stored _balanceRemainder in the process.
+     */
+    function _processBalance(
+        BalanceShare storage self,
+        uint256 currentTotalBps,
+        uint256 balanceIncreasedBy
+    ) private returns (uint256) {
+        (
+            uint256 balanceToAddToShares,
+            uint256 newBalanceRemainder
+        ) = _calculateBalanceShare(self, balanceIncreasedBy, currentTotalBps);
+        // Update with the new remainder
+        self._balanceRemainder = SafeCast.toUint16(newBalanceRemainder);
+        return balanceToAddToShares;
+    }
+
+    /**
+     * @dev Private function that returns the balanceToAddToShares, and the mulmod remainder of the operation.
+     * NOTE: This function adds the previous _balanceRemainder to the balanceIncreasedBy parameter before running the
+     * calculations.
+     */
+    function _calculateBalanceShare(
+        BalanceShare storage self,
+        uint256 balanceIncreasedBy,
+        uint256 bps
+    ) private view returns (uint256, uint256) {
+        balanceIncreasedBy += self._balanceRemainder; // Adds the previous remainder into the calculation
+        return (
+            Math.mulDiv(balanceIncreasedBy, bps, MAX_BPS),
+            mulmod(balanceIncreasedBy, bps, MAX_BPS)
+        );
+    }
+
+    /**
+     * @dev Private function, adds the provided balance amount to the shared balances.
+     */
+    function _addBalance(
+        BalanceShare storage self,
+        BalanceCheck storage latestBalanceCheck,
+        uint256 amount
+    ) private {
+        if (amount > 0) {
+            // Unchecked because manual checks ensure no overflow/underflow
+            unchecked {
+                // Start with a reference to the current balance
+                uint256 currentBalance = latestBalanceCheck.balance;
+                // Loop until break
+                while (true) {
+                    // Can only increase current balanceCheck up to the MAX_CHECK_BALANCE_AMOUNT
+                    uint256 balanceIncrease = Math.min(amount, MAX_CHECK_BALANCE_AMOUNT - currentBalance);
+                    latestBalanceCheck.balance = uint240(currentBalance + balanceIncrease);
+                    amount -= balanceIncrease;
+                    // If there is still more balance remaining, push a new balanceCheck and zero out the currentBalance
+                    if (amount > 0) {
+                        self._balanceChecks.push(BalanceCheck(latestBalanceCheck.totalBps, 0));
+                        latestBalanceCheck = self._balanceChecks[self._balanceChecks.length - 1];
+                        currentBalance = 0;
+                    } else {
+                        break; // Can complete once amount remaining is zero
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -492,76 +688,6 @@ library BalanceShares {
     }
 
     /**
-     * @dev Increases the account BPS, updating the total BPS and returning the new account BPS.
-     * @return accountBps Returns the new account BPS.
-     */
-    function increaseAccountBps(
-        BalanceShare storage self,
-        address account,
-        uint256 increaseBy
-    ) internal returns (uint256) {
-        if (increaseBy == 0) revert ZeroValueNotAllowed();
-        AccountShare storage accountShare = self._accounts[account];
-        // Account must not have finished withdrawals (this also ensures that the account has been initialized)
-        if (_accountHasFinishedWithdrawals(accountShare)) revert AccountNotActive(account);
-        uint256 newAccountBps = accountShare.bps + increaseBy;
-        accountShare.bps = SafeCast.toUint16(newAccountBps);
-
-        // Also update the totalBps
-        uint256 latestBalanceCheckIndex = self._balanceChecks.length - 1;
-        BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
-        _updateTotalBps(
-            self,
-            latestBalanceCheck.balance,
-            latestBalanceCheckIndex,
-            latestBalanceCheck.totalBps + increaseBy
-        );
-        return newAccountBps;
-    }
-
-    /**
-     * @dev Function to decrease the basis points share for an account. Defaults to not allowing the bps decrease if the
-     * current timestamp is earlier than the account's "removableAt" timestamp.
-     */
-    function decreaseAccountBps(
-        BalanceShare storage self,
-        address account,
-        uint256 decreaseBy
-    ) internal returns (uint256) {
-        if (decreaseBy == 0) revert ZeroValueNotAllowed();
-        AccountShare storage accountShare = self._accounts[account];
-        // Account must not have finished withdrawals (this also ensures that the account has been initialized)
-        if (_accountHasFinishedWithdrawals(accountShare)) revert AccountNotActive(account);
-        (
-            uint256 bps,
-            uint256 removableAt
-        ) = (
-            accountShare.bps,
-            accountShare.removableAt
-        );
-        // Cannot decrease to zero (should call remove account share in that case)
-        if (decreaseBy >= bps) revert CannotDecreaseAccountBPSToZero();
-        // The current timestamp must be greater than the removableAt timestamp (unless explicitly skipped)
-        if (block.timestamp < removableAt && msg.sender != account) revert AccountShareStillLocked(account);
-
-        // Update the account bps
-        uint256 newAccountBps = bps - decreaseBy;
-        accountShare.bps = uint16(newAccountBps);
-
-        // Update the totalBps too
-        uint256 latestBalanceCheckIndex = self._balanceChecks.length - 1;
-        BalanceCheck memory latestBalanceCheck = self._balanceChecks[latestBalanceCheckIndex];
-        _updateTotalBps(
-            self,
-            latestBalanceCheck.balance,
-            latestBalanceCheckIndex,
-            latestBalanceCheck.totalBps - decreaseBy
-        );
-
-        return newAccountBps;
-    }
-
-    /**
      * @dev Helper method for updating the totalBps for a BalanceShare. Checks if it needs to push a new BalanceCheck
      * item to the array, or if it can just update the totalBps for the latest item (if the balance is already zero).
      */
@@ -578,100 +704,6 @@ library BalanceShares {
         } else {
             self._balanceChecks[latestBalanceCheckIndex].totalBps = uint16(newTotalBps);
         }
-    }
-
-    /**
-     * @dev Helper method to update the "removableAt" timestamp for an account. Can only decrease if msg.sender is the
-     * account, otherwise can only increase.
-     */
-    function updateAccountRemovableAt(
-        BalanceShare storage self,
-        address account,
-        uint256 newRemovableAt
-    ) internal {
-        uint256 currentRemovableAt = self._accounts[account].removableAt;
-        // If msg.sender, then can decrease, otherwise can only increase
-        // NOTE: This also ensures uninitiated accounts don't change anything as well. If msg.sender is the account,
-        // then currentRemovableAt will be zero, which will throw an error
-        if (
-            msg.sender == account ?
-            newRemovableAt >= currentRemovableAt :
-            newRemovableAt <= currentRemovableAt
-        ) revert Unauthorized();
-        self._accounts[account].removableAt = SafeCast.toUint40(newRemovableAt);
-    }
-
-    /**
-     * @dev Approve the provided list of addresses to initiate withdrawal on the account. Approve address(0) to allow
-     * anyone.
-     */
-    function approveAddressesForWithdrawal(
-        BalanceShare storage self,
-        address account,
-        address[] calldata approvedAddresses
-    ) internal {
-        for (uint256 i = 0; i < approvedAddresses.length;) {
-            self._accountWithdrawalApprovals[account][approvedAddresses[i]] = true;
-            unchecked { i++; }
-        }
-    }
-
-    /**
-     * @dev Unapprove the provided list of addresses for initiating withdrawals on the account.
-     */
-    function unapproveAddressesForWithdrawal(
-        BalanceShare storage self,
-        address account,
-        address[] calldata unapprovedAddresses
-    ) internal {
-        for (uint256 i = 0; i < unapprovedAddresses.length;) {
-            self._accountWithdrawalApprovals[account][unapprovedAddresses[i]] = false;
-            unchecked { i++; }
-        }
-    }
-
-    /**
-     * @dev Returns a bool indicating whether or not the address is approved for withdrawal on the specified account.
-     */
-    function isAddressApprovedForWithdrawal(
-        BalanceShare storage self,
-        address account,
-        address address_
-    ) internal view returns (bool) {
-        return self._accountWithdrawalApprovals[account][address_];
-    }
-
-    /**
-     * @dev Returns the following details (in order) for the specified account:
-     * - bps
-     * - createdAt
-     * - removableAt
-     * - lastWithdrawnAt
-     */
-    function accountDetails(
-        BalanceShare storage self,
-        address account
-    ) internal view returns (uint256, uint256, uint256, uint256) {
-        AccountShare storage accountShare = self._accounts[account];
-        return (
-            accountShare.bps,
-            accountShare.createdAt,
-            accountShare.removableAt,
-            accountShare.lastWithdrawnAt
-        );
-    }
-
-    /**
-     * @dev An account is considered to be finished with withdrawals when the account's "lastBalanceCheckIndex" is
-     * greater than the account's "endIndex".
-     *
-     * Returns true if the account has not been initialized with any shares yet.
-     */
-    function accountHasFinishedWithdrawals(
-        BalanceShare storage self,
-        address account
-    ) internal view returns (bool) {
-        return _accountHasFinishedWithdrawals(self._accounts[account]);
     }
 
     /**
@@ -697,38 +729,6 @@ library BalanceShares {
         uint256 endIndex
     ) private pure returns (bool) {
         return createdAt == 0 || lastBalanceCheckIndex > endIndex;
-    }
-
-    /**
-     * @dev A function for changing the address that an account receives its shares to. This is only callable by the
-     * account owner. A list of approved addresses for withdrawal can be provided.
-     *
-     * Note that by default, if the address(0) was approved (meaning anyone can process a withdrawal to the account),
-     * then address(0) will be approved for the new account address as well.
-     *
-     * @param account The address for the current account share (which must be msg.sender)
-     * @param newAccount The new address to copy the account share over to.
-     * @param approvedAddresses A list of addresses to be approved for processing withdrawals to the account receiver.
-     */
-    function changeAccountAddress(
-        BalanceShare storage self,
-        address account,
-        address newAccount,
-        address[] calldata approvedAddresses
-    ) internal {
-        if (msg.sender != account) revert Unauthorized();
-        if (newAccount == address(0)) revert InvalidAddress(newAccount);
-        // Copy it over
-        self._accounts[newAccount] = self._accounts[account];
-        // Zero out the old account
-        delete self._accounts[account];
-
-        // Approve addresses
-        approveAddressesForWithdrawal(self, newAccount, approvedAddresses);
-
-        if (self._accountWithdrawalApprovals[account][address(0)]) {
-            self._accountWithdrawalApprovals[newAccount][address(0)] = true;
-        }
     }
 
 }
