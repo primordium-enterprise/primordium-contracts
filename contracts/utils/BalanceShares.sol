@@ -8,10 +8,6 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 
 library BalanceShares {
 
-    uint256 constant private MAX_BPS = 10_000; // Max total BPS (1 basis point == 0.01%, which is 1 / 10_000)
-    uint40 constant private MAX_INDEX = type(uint40).max;
-    uint256 constant private MAX_CHECK_BALANCE_AMOUNT = type(uint240).max;
-
     struct BalanceShare {
         // Tracks the balance remainder when processing account balance updates
         uint16 _balanceRemainder;
@@ -46,6 +42,21 @@ library BalanceShares {
         address[] approvedAddressesForWithdrawal;
     }
 
+    uint256 constant private MAX_BPS = 10_000; // Max total BPS (1 basis point == 0.01%, which is 1 / 10_000)
+    uint40 constant private MAX_INDEX = type(uint40).max;
+    uint256 constant private MAX_CHECK_BALANCE_AMOUNT = type(uint240).max;
+
+    error MissingNewAccountShares();
+    error InvalidAddress(address account);
+    error AccountAlreadyExists(address account);
+    error AccountNotActive(address account);
+    error AccountShareStillLocked(address account);
+    error Unauthorized();
+    error AccountWithdrawalsFinished();
+    error ZeroValueNotAllowed();
+    error CannotDecreaseAccountBPSToZero();
+    error UpdateExceedsMaxBps(uint256 newTotalBps, uint256 maxBps);
+
     /**
      * @dev Adds the provided account shares to the total balance shares being tracked.
      * For accounts that cannot claim their withdrawals on their own (because they don't have functions to do so),
@@ -58,7 +69,7 @@ library BalanceShares {
         BalanceShare storage self,
         NewAccountShare[] calldata newAccountShares
     ) internal {
-        require(newAccountShares.length > 0);
+        if (newAccountShares.length == 0) revert MissingNewAccountShares();
 
         // Initialize the latestBalanceCheck
         BalanceCheck memory latestBalanceCheck = BalanceCheck(0, 0);
@@ -89,9 +100,11 @@ library BalanceShares {
             NewAccountShare calldata newAccountShare = newAccountShares[i];
 
             // No zero addresses
-            require(newAccountShare.account != address(0));
+            if (newAccountShare.account == address(0)) revert InvalidAddress(newAccountShare.account);
             // Check that the account has zeroed out previous balances (on the off chance that it existed previously)
-            require(_accountHasFinishedWithdrawals(self._accounts[newAccountShare.account]));
+            if (
+                !_accountHasFinishedWithdrawals(self._accounts[newAccountShare.account])
+            ) revert AccountAlreadyExists(newAccountShare.account);
 
             // We don't verify the BPS amount here, because total will be verified below
             addToTotalBps += newAccountShare.bps;
@@ -112,7 +125,7 @@ library BalanceShares {
                 newAccountShare.account,
                 newAccountShare.approvedAddressesForWithdrawal
             );
-            unchecked { i++; }
+            unchecked { ++i; }
         }
 
         // Calculate the new totalBps, and make sure it is valid
@@ -141,7 +154,7 @@ library BalanceShares {
             unchecked {
                 // Can be unchecked, bps was checked when the account share was added
                 subFromTotalBps += _destroyAccountShare(self, accounts[i], latestBalanceCheckIndex);
-                i++;
+                ++i;
             }
         }
 
@@ -176,9 +189,9 @@ library BalanceShares {
         uint256 endIndex = accountShare.endIndex;
         uint256 removableAt = accountShare.removableAt;
         // The account share must be active to be removed
-        require(endIndex == MAX_INDEX);
+        if (endIndex != MAX_INDEX) revert AccountNotActive(account);
         // The current timestamp must be greater than the removableAt timestamp (unless the msg.sender owns the account)
-        require(block.timestamp >= removableAt || msg.sender == account);
+        if (block.timestamp < removableAt && msg.sender != account) revert AccountShareStillLocked(account);
 
         // Set the bps to 0, and the endIndex to be the current balance share index
         accountShare.bps = 0;
@@ -340,12 +353,11 @@ library BalanceShares {
     ) internal returns (uint256) {
 
         // Authorize the msg.sender
-        require(
-            msg.sender == account ||
-            self._accountWithdrawalApprovals[account][msg.sender] ||
-            self._accountWithdrawalApprovals[account][address(0)],
-            "Unauthorized."
-        );
+        if (
+            msg.sender != account &&
+            !self._accountWithdrawalApprovals[account][msg.sender] &&
+            !self._accountWithdrawalApprovals[account][address(0)]
+        ) revert Unauthorized();
 
         AccountShare storage accountShare = self._accounts[account];
         (
@@ -439,7 +451,7 @@ library BalanceShares {
         // If account is not active or is already finished with withdrawals, return zero
         if (_accountHasFinishedWithdrawals(createdAt, lastBalanceCheckIndex, endIndex)) {
             if (revertOnWithdrawalsFinished) {
-                revert("Account has completed withdrawals.");
+                revert AccountWithdrawalsFinished();
             }
             return (accountBalanceOwed, lastBalanceCheckIndex, lastBalancePulled);
         }
@@ -488,10 +500,10 @@ library BalanceShares {
         address account,
         uint256 increaseBy
     ) internal returns (uint256) {
-        require(increaseBy > 0);
+        if (increaseBy == 0) revert ZeroValueNotAllowed();
         AccountShare storage accountShare = self._accounts[account];
         // Account must not have finished withdrawals (this also ensures that the account has been initialized)
-        require(!_accountHasFinishedWithdrawals(accountShare));
+        if (_accountHasFinishedWithdrawals(accountShare)) revert AccountNotActive(account);
         uint256 newAccountBps = accountShare.bps + increaseBy;
         accountShare.bps = SafeCast.toUint16(newAccountBps);
 
@@ -516,10 +528,10 @@ library BalanceShares {
         address account,
         uint256 decreaseBy
     ) internal returns (uint256) {
-        require(decreaseBy > 0);
+        if (decreaseBy == 0) revert ZeroValueNotAllowed();
         AccountShare storage accountShare = self._accounts[account];
         // Account must not have finished withdrawals (this also ensures that the account has been initialized)
-        require(!_accountHasFinishedWithdrawals(accountShare));
+        if (_accountHasFinishedWithdrawals(accountShare)) revert AccountNotActive(account);
         (
             uint256 bps,
             uint256 removableAt
@@ -528,9 +540,9 @@ library BalanceShares {
             accountShare.removableAt
         );
         // Cannot decrease to zero (should call remove account share in that case)
-        require(decreaseBy < bps);
+        if (decreaseBy >= bps) revert CannotDecreaseAccountBPSToZero();
         // The current timestamp must be greater than the removableAt timestamp (unless explicitly skipped)
-        require(block.timestamp >= removableAt || msg.sender == account);
+        if (block.timestamp < removableAt && msg.sender != account) revert AccountShareStillLocked(account);
 
         // Update the account bps
         uint256 newAccountBps = bps - decreaseBy;
@@ -559,7 +571,7 @@ library BalanceShares {
         uint256 latestBalanceCheckIndex,
         uint256 newTotalBps
     ) private {
-        require(newTotalBps <= MAX_BPS);
+        if (newTotalBps > MAX_BPS) revert UpdateExceedsMaxBps(newTotalBps, MAX_BPS);
         // If the latestBalance is greater than 0, then push a new item, otherwise just update the current item
         if (latestBalance > 0) {
             self._balanceChecks.push(BalanceCheck(uint16(newTotalBps), 0));
@@ -581,11 +593,11 @@ library BalanceShares {
         // If msg.sender, then can decrease, otherwise can only increase
         // NOTE: This also ensures uninitiated accounts don't change anything as well. If msg.sender is the account,
         // then currentRemovableAt will be zero, which will throw an error
-        require(
+        if (
             msg.sender == account ?
-            newRemovableAt < currentRemovableAt :
-            newRemovableAt > currentRemovableAt
-        );
+            newRemovableAt >= currentRemovableAt :
+            newRemovableAt <= currentRemovableAt
+        ) revert Unauthorized();
         self._accounts[account].removableAt = SafeCast.toUint40(newRemovableAt);
     }
 
@@ -704,8 +716,8 @@ library BalanceShares {
         address newAccount,
         address[] calldata approvedAddresses
     ) internal {
-        require(msg.sender == account);
-        require(newAccount != address(0));
+        if (msg.sender != account) revert Unauthorized();
+        if (newAccount == address(0)) revert InvalidAddress(newAccount);
         // Copy it over
         self._accounts[newAccount] = self._accounts[account];
         // Zero out the old account
