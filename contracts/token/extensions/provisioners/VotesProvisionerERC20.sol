@@ -13,12 +13,13 @@ using SafeMath for uint256;
 abstract contract VotesProvisionerERC20 is VotesProvisioner {
 
     error CannotInitializeBaseAssetToETH();
+    error CannotAcceptETHDeposits();
+    error InvalidSpender(address providedSpender, address correctSpender);
 
     constructor() {
         if (address(_baseAsset) == address(0)) revert CannotInitializeBaseAssetToETH();
     }
 
-    error CannotAcceptETHDeposits();
     /**
      * @notice Allows exchanging the depositAmount of base asset for votes (if votes are available for purchase).
      * @param account The account address to deposit to.
@@ -31,10 +32,9 @@ abstract contract VotesProvisionerERC20 is VotesProvisioner {
      */
     function depositFor(address account, uint256 depositAmount) public payable virtual override returns(uint256) {
         if (msg.value > 0) revert CannotAcceptETHDeposits();
-        return _depositFor(account, depositAmount);
+        return super.depositFor(account, depositAmount);
     }
 
-    error InvalidSpender(address providedSpender, address correctSpender);
     /**
      * @dev Additional function helper to use permit on the base asset contract to transfer in a single transaction
      * (if supported).

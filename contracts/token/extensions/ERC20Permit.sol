@@ -37,6 +37,9 @@ abstract contract ERC20Permit is ERC20Checkpoints, IERC20Permit, EIP712 {
     // solhint-disable-next-line var-name-mixedcase
     bytes32 private _PERMIT_TYPEHASH_DEPRECATED_SLOT;
 
+    error SignatureExpired();
+    error SignatureInvalid();
+
     /**
      * @dev Initializes the {EIP712} domain separator using the `name` parameter, and setting `version` to `"1"`.
      *
@@ -44,8 +47,6 @@ abstract contract ERC20Permit is ERC20Checkpoints, IERC20Permit, EIP712 {
      */
     constructor(string memory name) EIP712(name, "1") {}
 
-    error SignatureExpired();
-    error SignatureInvalid();
     /**
      * @dev See {IERC20Permit-permit}.
      */

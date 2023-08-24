@@ -10,13 +10,8 @@ import "../../utils/ExecutorControlled.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "../../utils/Math512.sol";
-
-using SafeMath for uint256;
-using Address for address;
-
 
 /**
  * @dev Extension of {Votes} to support decentralized DAO formation.
@@ -27,6 +22,11 @@ using Address for address;
  */
 abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControlled {
 
+    using SafeMath for uint256;
+
+    IERC20 internal immutable _baseAsset; // The address for the DAO's base asset (address(0) for ETH)
+    uint256 internal _maxSupply;
+
     uint256 private constant COMPARE_FRACTIONS_MULTIPLIER = 1_000;
     uint256 private constant MAX_MAX_SUPPLY = type(uint224).max;
 
@@ -36,15 +36,8 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
 
     ProvisionMode private _provisionMode;
 
-    uint256 internal _maxSupply;
-
     /// @dev _tokenPrice updates should always go through {_updateTokenPrice} to avoid setting price to zero
     TokenPrice private _tokenPrice = TokenPrice(1, 1); // Defaults to 1 to 1
-
-    IERC20 internal immutable _baseAsset; // The address for the DAO's base asset (address(0) for ETH)
-
-    error CannotInitializeBaseAssetToSelf();
-    error CannotInitializeTokenPriceToZero();
 
     constructor(
         Treasurer executor_,
@@ -67,51 +60,11 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     }
 
     /**
-     * @notice Executor-only function to update the provision mode.
-     */
-    function setProvisionMode(ProvisionMode mode) public virtual onlyExecutor {
-        _setProvisionMode(mode);
-    }
-
-    error ProvisionModeTooLow();
-    /**
-     * @dev Internal function to set the provision mode.
-     */
-    function _setProvisionMode(ProvisionMode mode) internal virtual {
-        if (mode <= ProvisionMode.Founding) revert ProvisionModeTooLow();
-
-        emit ProvisionModeChange(_provisionMode, mode);
-        _provisionMode = mode;
-    }
-
-    /**
      * @notice Function to get the current max supply of vote tokens available for minting.
      * @dev Overrides to use the updateable _maxSupply
      */
     function maxSupply() public view virtual override(ERC20Checkpoints, IVotesProvisioner) returns (uint256) {
         return _maxSupply;
-    }
-
-    /**
-     * @notice Executor-only function to update the max supply of vote tokens.
-     * @param newMaxSupply The new max supply. Must be no greater than type(uint224).max.
-     */
-    function updateMaxSupply(uint256 newMaxSupply) external virtual onlyExecutor {
-        _updateMaxSupply(newMaxSupply);
-    }
-
-    error MaxSupplyTooLarge(uint256 max);
-    /**
-     * @dev Internal function to update the max supply.
-     * We DO allow the max supply to be set below the current totalSupply(), because this would allow a DAO to
-     * remain in Funding mode, and continue to reject deposits ABOVE the max supply threshold of tokens minted.
-     * May never be used, but preserves DAO optionality.
-     */
-    function _updateMaxSupply(uint256 newMaxSupply) internal virtual {
-        if (newMaxSupply > MAX_MAX_SUPPLY) revert MaxSupplyTooLarge(MAX_MAX_SUPPLY);
-
-        emit MaxSupplyChange(_maxSupply, newMaxSupply);
-        _maxSupply = newMaxSupply;
     }
 
     /**
@@ -130,7 +83,25 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         return (_tokenPrice.numerator, _tokenPrice.denominator);
     }
 
-    error TokenPriceParametersMustBeGreaterThanZero();
+    function valuePerToken() public view returns (uint256) {
+        return _valuePerToken(1);
+    }
+
+    /**
+     * @notice Executor-only function to update the provision mode.
+     */
+    function setProvisionMode(ProvisionMode mode) public virtual onlyExecutor {
+        _setProvisionMode(mode);
+    }
+
+    /**
+     * @notice Executor-only function to update the max supply of vote tokens.
+     * @param newMaxSupply The new max supply. Must be no greater than type(uint224).max.
+     */
+    function updateMaxSupply(uint256 newMaxSupply) external virtual onlyExecutor {
+        _updateMaxSupply(newMaxSupply);
+    }
+
     /**
      * @notice Public function to update the token price. Only the executor can make an update to the token price.
      * @param newNumerator The new numerator value (the amount of base asset required for {denominator} amount of
@@ -164,47 +135,16 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     }
 
     /**
-     * @dev Private function to update the tokenPrice numerator and denominator. Skips update of zero values (neither
-     * can be set to zero).
-     */
-    function _updateTokenPrice(uint256 newNumerator, uint256 newDenominator) private {
-        uint256 prevNumerator = _tokenPrice.numerator;
-        uint256 prevDenominator = _tokenPrice.denominator;
-        if (newNumerator > 0) {
-            _tokenPrice.numerator = SafeCast.toUint128(newNumerator);
-        }
-        if (newDenominator > 0) {
-            _tokenPrice.denominator = SafeCast.toUint128(newDenominator);
-        }
-        emit TokenPriceChange(prevNumerator, newNumerator, prevDenominator, newDenominator);
-    }
-
-    function valuePerToken() public view returns (uint256) {
-        return _valuePerToken(1);
-    }
-
-    function _valuePerToken(uint256 multiplier) internal view returns (uint256) {
-        uint256 supply = totalSupply();
-        uint256 balance = _treasuryBalance();
-        return supply > 0 ? Math.mulDiv(balance, multiplier, supply) : 0;
-    }
-
-    /**
-     * @dev Internal function that returns the balance of the base asset in the Executor.
-     */
-    function _treasuryBalance() internal view virtual returns (uint256) {
-        return _getTreasurer().treasuryBalance();
-    }
-
-    /**
      * @notice Allows exchanging the depositAmount of base asset for votes (if votes are available for purchase).
      * @param account The account address to deposit to.
      * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for
      * every tokenPrice.numerator count of base asset tokens.
-     * @dev This is abstract, and should be overridden to provide functionality based on the _baseAsset (ETH vs ERC20)
+     * @dev This calls _depositFor, but should be overridden for any additional checks.
      * @return Amount of vote tokens minted.
      */
-    function depositFor(address account, uint256 depositAmount) public payable virtual returns (uint256);
+    function depositFor(address account, uint256 depositAmount) public payable virtual returns (uint256) {
+        return _depositFor(account, depositAmount);
+    }
 
     /**
      * @notice Calls {depositFor} with msg.sender as the account.
@@ -213,53 +153,6 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      */
     function deposit(uint256 depositAmount) public payable virtual returns (uint256) {
         return depositFor(_msgSender(), depositAmount);
-    }
-
-    /**
-     * @dev Internal function that should be overridden with functionality to transfer the deposit to the Executor.
-     */
-    function _transferDepositToExecutor(address account, uint256 depositAmount) internal virtual;
-
-    /**
-     * @dev Internal function that should be overridden with functionality to transfer the withdrawal to the recipient.
-     */
-    function _transferWithdrawalToReceiver(address receiver, uint256 withdrawAmount) internal virtual;
-
-    error DepositsUnavailable();
-    error InvalidDepositAmount();
-    error InvalidDepositAmountMultiple();
-    error TokenPriceTooLow();
-    /**
-     * @dev Internal function for processing the deposit. Calls _transferDepositToExecutor, which must be implemented in
-     * an inheriting contract.
-     */
-    function _depositFor(
-        address account,
-        uint256 depositAmount
-    ) internal virtual executorIsInitialized returns (uint256) {
-        ProvisionMode currentProvisionMode = _provisionMode;
-        if (currentProvisionMode == ProvisionMode.Governance) revert DepositsUnavailable();
-        // Zero address is checked in the _mint function
-        if (depositAmount == 0) revert InvalidDepositAmount();
-
-        uint256 tokenPriceNumerator = _tokenPrice.numerator;
-        uint256 tokenPriceDenominator = _tokenPrice.denominator;
-
-        // The "depositAmount" must be a multiple of the token price numerator
-        if (depositAmount % tokenPriceNumerator != 0) revert InvalidDepositAmountMultiple();
-
-        // The current price per token must not exceed the current value per token, or the treasury will be at risk
-        // NOTE: We should bypass this check in founding mode to prevent an attack locking deposits
-        if (currentProvisionMode != ProvisionMode.Founding) {
-            if (
-                Math512.mul512Lt(tokenPriceNumerator, totalSupply(), tokenPriceDenominator, _treasuryBalance())
-            ) revert TokenPriceTooLow();
-        }
-        uint256 mintAmount = depositAmount / tokenPriceNumerator * tokenPriceDenominator;
-        _transferDepositToExecutor(account, depositAmount);
-        _mint(account, mintAmount);
-        emit Deposit(account, depositAmount, mintAmount);
-        return mintAmount;
     }
 
     /**
@@ -310,9 +203,101 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         return _withdraw(signer, receiver, amount);
     }
 
-    error WithdrawFromZeroAddress();
-    error WithdrawToZeroAddress();
-    error WithdrawAmountInvalid();
+    /**
+     * @dev Internal function to set the provision mode.
+     */
+    function _setProvisionMode(ProvisionMode mode) internal virtual {
+        if (mode <= ProvisionMode.Founding) revert ProvisionModeTooLow();
+
+        emit ProvisionModeChange(_provisionMode, mode);
+        _provisionMode = mode;
+    }
+
+    /**
+     * @dev Internal function to update the max supply.
+     * We DO allow the max supply to be set below the current totalSupply(), because this would allow a DAO to
+     * remain in Funding mode, and continue to reject deposits ABOVE the max supply threshold of tokens minted.
+     * May never be used, but preserves DAO optionality.
+     */
+    function _updateMaxSupply(uint256 newMaxSupply) internal virtual {
+        if (newMaxSupply > MAX_MAX_SUPPLY) revert MaxSupplyTooLarge(MAX_MAX_SUPPLY);
+
+        emit MaxSupplyChange(_maxSupply, newMaxSupply);
+        _maxSupply = newMaxSupply;
+    }
+
+    /**
+     * @dev Private function to update the tokenPrice numerator and denominator. Skips update of zero values (neither
+     * can be set to zero).
+     */
+    function _updateTokenPrice(uint256 newNumerator, uint256 newDenominator) private {
+        uint256 prevNumerator = _tokenPrice.numerator;
+        uint256 prevDenominator = _tokenPrice.denominator;
+        if (newNumerator > 0) {
+            _tokenPrice.numerator = SafeCast.toUint128(newNumerator);
+        }
+        if (newDenominator > 0) {
+            _tokenPrice.denominator = SafeCast.toUint128(newDenominator);
+        }
+        emit TokenPriceChange(prevNumerator, newNumerator, prevDenominator, newDenominator);
+    }
+
+    function _valuePerToken(uint256 multiplier) internal view returns (uint256) {
+        uint256 supply = totalSupply();
+        uint256 balance = _treasuryBalance();
+        return supply > 0 ? Math.mulDiv(balance, multiplier, supply) : 0;
+    }
+
+    /**
+     * @dev Internal function that returns the balance of the base asset in the Executor.
+     */
+    function _treasuryBalance() internal view virtual returns (uint256) {
+        return _getTreasurer().treasuryBalance();
+    }
+
+    /**
+     * @dev Internal function that should be overridden with functionality to transfer the deposit to the Executor.
+     */
+    function _transferDepositToExecutor(address account, uint256 depositAmount) internal virtual;
+
+    /**
+     * @dev Internal function that should be overridden with functionality to transfer the withdrawal to the recipient.
+     */
+    function _transferWithdrawalToReceiver(address receiver, uint256 withdrawAmount) internal virtual;
+
+    /**
+     * @dev Internal function for processing the deposit. Calls _transferDepositToExecutor, which must be implemented in
+     * an inheriting contract.
+     */
+    function _depositFor(
+        address account,
+        uint256 depositAmount
+    ) internal virtual executorIsInitialized returns (uint256) {
+        ProvisionMode currentProvisionMode = _provisionMode;
+        if (currentProvisionMode == ProvisionMode.Governance) revert DepositsUnavailable();
+        // Zero address is checked in the _mint function
+        if (depositAmount == 0) revert InvalidDepositAmount();
+
+        uint256 tokenPriceNumerator = _tokenPrice.numerator;
+        uint256 tokenPriceDenominator = _tokenPrice.denominator;
+
+        // The "depositAmount" must be a multiple of the token price numerator
+        if (depositAmount % tokenPriceNumerator != 0) revert InvalidDepositAmountMultiple();
+
+        // The current price per token must not exceed the current value per token, or the treasury will be at risk
+        // NOTE: We should bypass this check in founding mode to prevent an attack locking deposits
+        if (currentProvisionMode != ProvisionMode.Founding) {
+            if (
+                Math512.mul512Lt(tokenPriceNumerator, totalSupply(), tokenPriceDenominator, _treasuryBalance())
+            ) revert TokenPriceTooLow();
+        }
+        uint256 mintAmount = depositAmount / tokenPriceNumerator * tokenPriceDenominator;
+        _transferDepositToExecutor(account, depositAmount);
+        _mint(account, mintAmount);
+        emit Deposit(account, depositAmount, mintAmount);
+        return mintAmount;
+    }
+
     /**
      * @dev Internal function for processing the withdrawal. Calls _transferWithdrawalToReciever, which must be
      * implemented in an inheriting contract.

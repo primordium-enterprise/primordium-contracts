@@ -64,6 +64,19 @@ interface IVotesProvisioner {
      */
     event Withdrawal(address indexed account, address receiver, uint256 amountWithdrawn, uint256 votesBurned);
 
+    error CannotInitializeBaseAssetToSelf();
+    error CannotInitializeTokenPriceToZero();
+    error ProvisionModeTooLow();
+    error MaxSupplyTooLarge(uint256 max);
+    error TokenPriceParametersMustBeGreaterThanZero();
+    error DepositsUnavailable();
+    error InvalidDepositAmount();
+    error InvalidDepositAmountMultiple();
+    error TokenPriceTooLow();
+    error WithdrawFromZeroAddress();
+    error WithdrawToZeroAddress();
+    error WithdrawAmountInvalid();
+
     // Function to query the current provision mode
     function provisionMode() external view returns(ProvisionMode);
 
