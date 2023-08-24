@@ -84,7 +84,19 @@ abstract contract IGovernor is IERC165, IERC6372, ExecutorControlled {
         bytes params
     );
 
+    error OnlyGovernance();
     error UnknownProposalId(uint256 proposalId);
+    error InsufficientVotes();
+    error MissingActions();
+    error ActionLengthsMismatch();
+    error InsufficientVoteSupplyForGovernance();
+    error InvalidFoundingModeActions();
+    error InvalidActionSignature(uint256 index);
+    error ProposalUnsuccessful();
+    error InvalidActionsForProposal();
+    error TooLateToCancelProposal();
+    error UnauthorizedToCancelProposal();
+    error ProposalInactive();
 
     /**
      * @dev Name of the governor instance (used in building the ERC712 domain separator).

@@ -9,19 +9,43 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 abstract contract GovernorCountingPercentMajority is GovernorCountingSimple {
 
-    uint256 constant private MAX_PERCENT = 100;
-
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace224;
+
     Checkpoints.Trace224 private _percentMajorityCheckpoints;
 
+    uint256 constant private MAX_PERCENT = 100;
     uint256 public constant MIN_PERCENT_MAJORITY = 50;
     uint256 public constant MAX_PERCENT_MAJORITY = 66;
 
     event PercentMajorityUpdated(uint256 oldPercentMajority, uint256 newPercentMajority);
 
+    error PercentMajorityOutOfRange(uint256 minRange, uint256 maxRange);
+
     constructor(uint256 percentMajority_) {
         _updatePercentMajority(percentMajority_);
+    }
+
+    /**
+     * @notice Returns the current percent majority required for passing proposals.
+     */
+    function percentMajority() public view virtual returns (uint256) {
+        return _percentMajorityCheckpoints.latest();
+    }
+
+    /**
+     * @notice Returns the percent majority at the specified timepoint.
+     * @param timepoint The timepoint according to the clock mode of the Governor.
+     */
+    function percentMajority(uint256 timepoint) public view virtual returns (uint256) {
+        return _percentMajority(timepoint);
+    }
+
+    /**
+     * @notice A method to update the percent majority for future proposals. Only setable through governance.
+     */
+    function updatePercentMajority(uint256 newPercentMajority) public virtual onlyGovernance {
+        _updatePercentMajority(newPercentMajority);
     }
 
     /**
@@ -106,21 +130,6 @@ abstract contract GovernorCountingPercentMajority is GovernorCountingSimple {
     }
 
     /**
-     * @notice Returns the current percent majority required for passing proposals.
-     */
-    function percentMajority() public view virtual returns (uint256) {
-        return _percentMajorityCheckpoints.latest();
-    }
-
-    /**
-     * @notice Returns the percent majority at the specified timepoint.
-     * @param timepoint The timepoint according to the clock mode of the Governor.
-     */
-    function percentMajority(uint256 timepoint) public view virtual returns (uint256) {
-        return _percentMajority(timepoint);
-    }
-
-    /**
      * @dev Helper method to return the percent majority at the specified timepoint.
      */
     function _percentMajority(uint256 timepoint) internal view virtual returns (uint256) {
@@ -134,14 +143,6 @@ abstract contract GovernorCountingPercentMajority is GovernorCountingSimple {
         return _percentMajorityCheckpoints.upperLookupRecent(timepoint.toUint32());
     }
 
-    /**
-     * @notice A method to update the percent majority for future proposals. Only setable through governance.
-     */
-    function updatePercentMajority(uint256 newPercentMajority) public virtual onlyGovernance {
-        _updatePercentMajority(newPercentMajority);
-    }
-
-    error PercentMajorityOutOfRange(uint256 minRange, uint256 maxRange);
     /**
      * @dev Helper method to create a new percent majority checkpoint.
      */

@@ -30,34 +30,8 @@ import "../utils/ExecutorControlled.sol";
  */
 abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGovernor {
 
-    /**
-     * @notice The minimum supply of vote tokens that must be in circulation before proposals to enter governance mode
-     * can be submitted.
-     */
-    uint256 public immutable governanceThreshold;
-
-    VotesProvisioner internal immutable _token;
-
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
     using SafeCast for uint256;
-
-    bytes32 public constant BALLOT_TYPEHASH = keccak256("Ballot(uint256 proposalId,uint8 support)");
-    bytes32 public constant EXTENDED_BALLOT_TYPEHASH =
-        keccak256("ExtendedBallot(uint256 proposalId,uint8 support,string reason,bytes params)");
-
-    function name() public view virtual override returns (string memory) {
-        return "__Governor";
-    }
-
-    function version() public view virtual override returns (string memory) {
-        return "1";
-    }
-
-    // Proposals counter
-    uint256 public proposalCount;
-
-    // Tracking queued operations on the _executor
-    mapping(uint256 => bytes32) private _executorIds;
 
     // solhint-disable var-name-mixedcase
     struct ProposalCore {
@@ -75,6 +49,24 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         bool canceled;
     }
     // solhint-enable var-name-mixedcase
+
+    /**
+     * @notice The minimum supply of vote tokens that must be in circulation before proposals to enter governance mode
+     * can be submitted.
+     */
+    uint256 public immutable governanceThreshold;
+
+    bytes32 public constant BALLOT_TYPEHASH = keccak256("Ballot(uint256 proposalId,uint8 support)");
+    bytes32 public constant EXTENDED_BALLOT_TYPEHASH =
+        keccak256("ExtendedBallot(uint256 proposalId,uint8 support,string reason,bytes params)");
+
+    // Proposals counter
+    uint256 public proposalCount;
+
+    VotesProvisioner internal immutable _token;
+
+    // Tracking queued operations on the _executor
+    mapping(uint256 => bytes32) private _executorIds;
 
     mapping(uint256 => ProposalCore) private _proposals;
 
@@ -99,7 +91,6 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         _;
     }
 
-    error OnlyGovernance();
     function _onlyGovernance() private {
         address executorAddress = address(_executor);
         if (msg.sender != executorAddress) revert OnlyGovernance();
@@ -122,36 +113,12 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         governanceThreshold = governanceThreshold_;
     }
 
-    /**
-     * @dev Public endpoint to update the underlying timelock instance. Restricted to the timelock itself, so updates
-     * must be proposed, scheduled, and executed through governance proposals.
-     *
-     * CAUTION: It is not recommended to change the timelock while there are other queued governance proposals.
-     */
-    function updateExecutor(Executor newExecutor) public virtual onlyGovernance {
-        _updateExecutor(newExecutor);
+    function name() public view virtual override returns (string memory) {
+        return "__Governor";
     }
 
-    /**
-     * @dev Public endpoint to transfer ownership of the Executor contract to a new Governor. Restricted to the timelock
-     * itself, so updates must be proposed, scheduled, and executed through governance proposals.
-     *
-     * NOTE: This Governor can only transfer ownership if it is the current owner. The new owner must accept ownership.
-     */
-    function transferExecutorOwnership(address newOwner) public virtual onlyGovernance {
-        _executor.transferOwnership(newOwner);
-    }
-
-    /**
-     * @dev A helpful extension for initializing the Governor when deploying the first version
-     *
-     * 1. Deploy Executor (deployer address as the owner)
-     * 2. Deploy Governor with _executor address set to address(0)
-     * 3. Call initialize on Governor from deployer address (to set the _executor and complete the ownership transfer)
-     */
-    function initialize(Executor newExecutor) public virtual {
-        initializeExecutor(newExecutor);
-        _executor.acceptOwnership();
+    function version() public view virtual override returns (string memory) {
+        return "1";
     }
 
     /**
@@ -196,6 +163,38 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
             // Previous interface for backwards compatibility
             interfaceId == (type(IGovernor).interfaceId ^ type(IERC6372).interfaceId ^ this.cancel.selector) ||
             super.supportsInterface(interfaceId);
+    }
+
+    /**
+     * @dev A helpful extension for initializing the Governor when deploying the first version
+     *
+     * 1. Deploy Executor (deployer address as the owner)
+     * 2. Deploy Governor with _executor address set to address(0)
+     * 3. Call initialize on Governor from deployer address (to set the _executor and complete the ownership transfer)
+     */
+    function initialize(Executor newExecutor) public virtual {
+        initializeExecutor(newExecutor);
+        _executor.acceptOwnership();
+    }
+
+    /**
+     * @dev Public endpoint to update the underlying timelock instance. Restricted to the timelock itself, so updates
+     * must be proposed, scheduled, and executed through governance proposals.
+     *
+     * CAUTION: It is not recommended to change the timelock while there are other queued governance proposals.
+     */
+    function updateExecutor(Executor newExecutor) public virtual onlyGovernance {
+        _updateExecutor(newExecutor);
+    }
+
+    /**
+     * @dev Public endpoint to transfer ownership of the Executor contract to a new Governor. Restricted to the timelock
+     * itself, so updates must be proposed, scheduled, and executed through governance proposals.
+     *
+     * NOTE: This Governor can only transfer ownership if it is the current owner. The new owner must accept ownership.
+     */
+    function transferExecutorOwnership(address newOwner) public virtual onlyGovernance {
+        _executor.transferOwnership(newOwner);
     }
 
     /**
@@ -344,12 +343,6 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         return keccak256(abi.encode(proposalId, bytes(version())));
     }
 
-    error InsufficientVotes();
-    error MissingActions();
-    error ActionLengthsMismatch();
-    error InsufficientVoteSupplyForGovernance();
-    error InvalidFoundingModeActions();
-    error InvalidActionSignature(uint256 index);
     /**
      * @dev See {IGovernor-propose}.
      */
@@ -429,8 +422,6 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         return newProposalId;
     }
 
-    error ProposalUnsuccessful();
-    error InvalidActionsForProposal();
     /**
      * @dev Function to queue a proposal to the timelock.
      */
@@ -488,8 +479,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         return proposalId;
     }
 
-    error TooLateToCancel();
-    error UnauthorizedToCancel();
+
     /**
      * @dev See {IGovernor-cancel}.
      */
@@ -499,8 +489,8 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         uint256[] memory values,
         bytes[] memory calldatas
     ) public virtual override returns (uint256) {
-        if (state(proposalId) != ProposalState.Pending) revert TooLateToCancel();
-        if (msg.sender != _proposals[proposalId].proposer) revert UnauthorizedToCancel();
+        if (state(proposalId) != ProposalState.Pending) revert TooLateToCancelProposal();
+        if (msg.sender != _proposals[proposalId].proposer) revert UnauthorizedToCancelProposal();
         return _cancel(proposalId, targets, values, calldatas);
     }
 
@@ -550,7 +540,6 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         }
     }
 
-    error ProposalInactive();
     /**
      * @dev Internal cancel mechanism: locks up the proposal timer, preventing it from being re-submitted. Marks it as
      * canceled to allow distinguishing it from executed proposals.

@@ -30,6 +30,9 @@ abstract contract GovernorCountingSimple is Governor {
 
     mapping(uint256 => ProposalVote) private _proposalVotes;
 
+    error VoteAlreadyCast();
+    error InvalidVoteValue();
+
     /**
      * @dev See {IGovernor-COUNTING_MODE}.
      */
@@ -91,8 +94,6 @@ abstract contract GovernorCountingSimple is Governor {
         return forVotes > againstVotes ? forVotes - againstVotes : againstVotes - forVotes;
     }
 
-    error VoteAlreadyCast();
-    error InvalidVoteValue();
     /**
      * @dev See {Governor-_countVote}. In this module, the support follows the `VoteType` enum (from Governor Bravo).
      */

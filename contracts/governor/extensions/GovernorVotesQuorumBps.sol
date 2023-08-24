@@ -19,14 +19,16 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
  */
 abstract contract GovernorVotesQuorumBps is GovernorVotes {
 
-    uint256 constant private MAX_BPS = 10_000;
-
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace224;
+
+    uint256 constant private MAX_BPS = 10_000;
 
     Checkpoints.Trace224 private _quorumBpsCheckpoints;
 
     event QuorumBpsUpdated(uint256 oldQuorumBps, uint256 newQuorumBps);
+
+    error QuorumBpsTooLarge();
 
     /**
      * @dev Initialize quorum as a fraction of the token's total supply.
@@ -84,7 +86,6 @@ abstract contract GovernorVotesQuorumBps is GovernorVotes {
         _updateQuorumBps(newQuorumBps);
     }
 
-    error QuorumBpsTooLarge();
     /**
      * @dev Changes the quorum bps.
      *

@@ -102,6 +102,11 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
 
     event ProposalExtended(uint256 indexed proposalId, uint256 extendedDeadline);
 
+    error MaxDeadlineExtensionTooLarge(uint256 max);
+    error BaseDeadlineExtensionOutOfRange(uint256 min, uint256 max);
+    error DecayPeriodOutOfRange(uint256 min, uint256 max);
+    error PercentDecayOutOfRange(uint256 min, uint256 max);
+
     constructor() {
         // Initialize immutables based on clock (assumes seconds if not block number)
         bool usesBlockNumber = clock() == block.number;
@@ -119,102 +124,6 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
             1 days;
     }
 
-
-    /**
-     * @notice The current max extension period for any given proposal. The voting period cannot be extended past the
-     * original deadline more than this amount. DAOs can set this to zero for no extensions whatsoever.
-     */
-    function maxDeadlineExtension() public view returns (uint256) {
-        return _maxDeadlineExtension;
-    }
-
-    function updateMaxDeadlineExtension(uint256 newMaxDeadlineExtension) public virtual onlyGovernance {
-        _updateMaxDeadlineExtension(newMaxDeadlineExtension);
-    }
-
-    error MaxDeadlineExtensionTooLarge(uint256 max);
-    function _updateMaxDeadlineExtension(uint256 newMaxDeadlineExtension) internal {
-        if (
-            newMaxDeadlineExtension > MAX_DEADLINE_EXTENSION
-        ) revert MaxDeadlineExtensionTooLarge(MAX_DEADLINE_EXTENSION);
-
-        emit MaxDeadlineExtensionSet(_maxDeadlineExtension, newMaxDeadlineExtension);
-        // SafeCast unnecessary here as long as the MAX_BASE_DEADLINE_EXTENSION is less than type(uint64).max
-        _maxDeadlineExtension = uint64(newMaxDeadlineExtension);
-    }
-
-    /**
-     * @notice The base extension period used in the deadline extension calculations. This amount by {percentDecay} for
-     * every {decayPeriod} past the original proposal deadline.
-     */
-    function baseDeadlineExtension() public view virtual returns (uint256) {
-        return _baseDeadlineExtension;
-    }
-
-    function updateBaseDeadlineExtension(uint256 newBaseDeadlineExtension) public virtual onlyGovernance {
-        _updateBaseDeadlineExtension(newBaseDeadlineExtension);
-    }
-
-    error BaseDeadlineExtensionOutOfRange(uint256 min, uint256 max);
-    function _updateBaseDeadlineExtension(uint256 newBaseDeadlineExtension) internal {
-        if (
-            newBaseDeadlineExtension < MIN_BASE_DEADLINE_EXTENSION ||
-            newBaseDeadlineExtension > MAX_BASE_DEADLINE_EXTENSION
-        ) revert BaseDeadlineExtensionOutOfRange(MIN_BASE_DEADLINE_EXTENSION, MAX_BASE_DEADLINE_EXTENSION);
-
-        emit BaseDeadlineExtensionSet(_baseDeadlineExtension, newBaseDeadlineExtension);
-        // SafeCast unnecessary here as long as the MAX_BASE_DEADLINE_EXTENSION is less than type(uint64).max
-        _baseDeadlineExtension = uint64(newBaseDeadlineExtension);
-    }
-
-    /**
-     * @notice The base extension period decays by {percentDecay} for every period set by this parameter. DAOs should be
-     * sure to set this period in accordance with their clock mode.
-     */
-    function decayPeriod() public view virtual returns (uint256) {
-        return _decayPeriod;
-    }
-
-    function updateDecayPeriod(uint256 newDecayPeriod) public virtual onlyGovernance {
-        _updateDecayPeriod(newDecayPeriod);
-    }
-
-    error DecayPeriodOutOfRange(uint256 min, uint256 max);
-    function _updateDecayPeriod(uint256 newDecayPeriod) internal {
-        if (
-            newDecayPeriod < MIN_DECAY_PERIOD ||
-            newDecayPeriod > MAX_DECAY_PERIOD
-        ) revert DecayPeriodOutOfRange(MIN_DECAY_PERIOD, MAX_DECAY_PERIOD);
-
-        emit DecayPeriodSet(_decayPeriod, newDecayPeriod);
-        // SafeCast unnecessary here as long as the MAX_DECAY_PERIOD is less than type(uint64).max
-        _decayPeriod = uint64(newDecayPeriod);
-    }
-
-    /**
-     * @notice The percentage that the base extension period decays by for every {decayPeriod}.
-     */
-    function percentDecay() public view virtual returns (uint256) {
-        return MAX_PERCENT_DECAY - _inversePercentDecay;
-    }
-
-    function updatePercentDecay(uint256 newPercentDecay) public virtual onlyGovernance {
-        _updatePercentDecay(newPercentDecay);
-    }
-
-    error PercentDecayOutOfRange(uint256 min, uint256 max);
-    function _updatePercentDecay(uint256 newPercentDecay) internal {
-        if (
-            newPercentDecay < MIN_PERCENT_DECAY ||
-            newPercentDecay > MAX_PERCENT_DECAY
-        ) revert PercentDecayOutOfRange(MIN_PERCENT_DECAY, MAX_PERCENT_DECAY);
-
-        uint256 newInversePercentDecay = MAX_PERCENT_DECAY - newPercentDecay;
-        emit PercentDecaySet(MAX_PERCENT_DECAY - _inversePercentDecay, newInversePercentDecay);
-        // SafeCast unnecessary here as long as the MAX_PERCENT_DECAY is less than type(uint64).max
-        _inversePercentDecay = uint64(newInversePercentDecay);
-    }
-
     /**
      * @dev We override to provide the extended deadline (if applicable)
      */
@@ -229,6 +138,97 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
 
     function proposalOriginalDeadline(uint256 proposalId) public view virtual returns (uint256) {
         return Governor.proposalDeadline(proposalId);
+    }
+
+    /**
+     * @notice The current max extension period for any given proposal. The voting period cannot be extended past the
+     * original deadline more than this amount. DAOs can set this to zero for no extensions whatsoever.
+     */
+    function maxDeadlineExtension() public view returns (uint256) {
+        return _maxDeadlineExtension;
+    }
+
+    /**
+     * @notice The base extension period used in the deadline extension calculations. This amount by {percentDecay} for
+     * every {decayPeriod} past the original proposal deadline.
+     */
+    function baseDeadlineExtension() public view virtual returns (uint256) {
+        return _baseDeadlineExtension;
+    }
+
+    /**
+     * @notice The base extension period decays by {percentDecay} for every period set by this parameter. DAOs should be
+     * sure to set this period in accordance with their clock mode.
+     */
+    function decayPeriod() public view virtual returns (uint256) {
+        return _decayPeriod;
+    }
+
+    /**
+     * @notice The percentage that the base extension period decays by for every {decayPeriod}.
+     */
+    function percentDecay() public view virtual returns (uint256) {
+        return MAX_PERCENT_DECAY - _inversePercentDecay;
+    }
+
+    function updateMaxDeadlineExtension(uint256 newMaxDeadlineExtension) public virtual onlyGovernance {
+        _updateMaxDeadlineExtension(newMaxDeadlineExtension);
+    }
+
+    function updateBaseDeadlineExtension(uint256 newBaseDeadlineExtension) public virtual onlyGovernance {
+        _updateBaseDeadlineExtension(newBaseDeadlineExtension);
+    }
+
+    function updateDecayPeriod(uint256 newDecayPeriod) public virtual onlyGovernance {
+        _updateDecayPeriod(newDecayPeriod);
+    }
+
+    function updatePercentDecay(uint256 newPercentDecay) public virtual onlyGovernance {
+        _updatePercentDecay(newPercentDecay);
+    }
+
+    function _updateMaxDeadlineExtension(uint256 newMaxDeadlineExtension) internal {
+        if (
+            newMaxDeadlineExtension > MAX_DEADLINE_EXTENSION
+        ) revert MaxDeadlineExtensionTooLarge(MAX_DEADLINE_EXTENSION);
+
+        emit MaxDeadlineExtensionSet(_maxDeadlineExtension, newMaxDeadlineExtension);
+        // SafeCast unnecessary here as long as the MAX_BASE_DEADLINE_EXTENSION is less than type(uint64).max
+        _maxDeadlineExtension = uint64(newMaxDeadlineExtension);
+    }
+
+    function _updateBaseDeadlineExtension(uint256 newBaseDeadlineExtension) internal {
+        if (
+            newBaseDeadlineExtension < MIN_BASE_DEADLINE_EXTENSION ||
+            newBaseDeadlineExtension > MAX_BASE_DEADLINE_EXTENSION
+        ) revert BaseDeadlineExtensionOutOfRange(MIN_BASE_DEADLINE_EXTENSION, MAX_BASE_DEADLINE_EXTENSION);
+
+        emit BaseDeadlineExtensionSet(_baseDeadlineExtension, newBaseDeadlineExtension);
+        // SafeCast unnecessary here as long as the MAX_BASE_DEADLINE_EXTENSION is less than type(uint64).max
+        _baseDeadlineExtension = uint64(newBaseDeadlineExtension);
+    }
+
+    function _updateDecayPeriod(uint256 newDecayPeriod) internal {
+        if (
+            newDecayPeriod < MIN_DECAY_PERIOD ||
+            newDecayPeriod > MAX_DECAY_PERIOD
+        ) revert DecayPeriodOutOfRange(MIN_DECAY_PERIOD, MAX_DECAY_PERIOD);
+
+        emit DecayPeriodSet(_decayPeriod, newDecayPeriod);
+        // SafeCast unnecessary here as long as the MAX_DECAY_PERIOD is less than type(uint64).max
+        _decayPeriod = uint64(newDecayPeriod);
+    }
+
+    function _updatePercentDecay(uint256 newPercentDecay) internal {
+        if (
+            newPercentDecay < MIN_PERCENT_DECAY ||
+            newPercentDecay > MAX_PERCENT_DECAY
+        ) revert PercentDecayOutOfRange(MIN_PERCENT_DECAY, MAX_PERCENT_DECAY);
+
+        uint256 newInversePercentDecay = MAX_PERCENT_DECAY - newPercentDecay;
+        emit PercentDecaySet(MAX_PERCENT_DECAY - _inversePercentDecay, newInversePercentDecay);
+        // SafeCast unnecessary here as long as the MAX_PERCENT_DECAY is less than type(uint64).max
+        _inversePercentDecay = uint64(newInversePercentDecay);
     }
 
     function _castVote(

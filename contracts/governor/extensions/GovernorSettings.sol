@@ -19,22 +19,27 @@ abstract contract GovernorSettings is Governor {
     uint256 constant private MAX_BPS = 10_000;
     uint256 constant public MAX_PROPOSAL_THRESHOLD_BPS = 1_000;
 
-    uint256 private _proposalThresholdBps;
-    event ProposalThresholdBpsSet(uint256 oldProposalThresholdBps, uint256 newProposalThresholdBps);
-
-    uint256 private _votingDelay;
     /// @notice The minimum setable voting delay, set to 1.
     uint256 public constant MIN_VOTING_DELAY = 1;
     /// @notice The maximum setable voting delay, set to approximately 1 week.
     uint256 public immutable MAX_VOTING_DELAY;
-    event VotingDelaySet(uint256 oldVotingDelay, uint256 newVotingDelay);
 
-    uint256 private _votingPeriod;
     /// @notice The minimum setable voting period, set to approximately 24 hours.
     uint256 public immutable MIN_VOTING_PERIOD;
     /// @notice The maximum setable voting period, set to approximately 2 weeks.
     uint256 public immutable MAX_VOTING_PERIOD;
+
+    uint256 private _proposalThresholdBps;
+    uint256 private _votingDelay;
+    uint256 private _votingPeriod;
+
+    event ProposalThresholdBpsSet(uint256 oldProposalThresholdBps, uint256 newProposalThresholdBps);
+    event VotingDelaySet(uint256 oldVotingDelay, uint256 newVotingDelay);
     event VotingPeriodSet(uint256 oldVotingPeriod, uint256 newVotingPeriod);
+
+    error ProposalThresholdBpsTooLarge(uint256 max);
+    error VotingDelayOutOfRange(uint256 min, uint256 max);
+    error VotingPeriodOutOfRange(uint256 min, uint256 max);
 
     /**
      * @dev Initialize the governance parameters.
@@ -79,6 +84,20 @@ abstract contract GovernorSettings is Governor {
     }
 
     /**
+     * @dev See {IGovernor-votingDelay}.
+     */
+    function votingDelay() public view virtual override returns (uint256) {
+        return _votingDelay;
+    }
+
+    /**
+     * @dev See {IGovernor-votingPeriod}.
+     */
+    function votingPeriod() public view virtual override returns (uint256) {
+        return _votingPeriod;
+    }
+
+    /**
      * @dev Update the proposal threshold BPS. This operation can only be performed through a governance proposal.
      *
      * Emits a {ProposalThresholdBpsSet} event.
@@ -87,7 +106,24 @@ abstract contract GovernorSettings is Governor {
         _setProposalThresholdBps(newProposalThresholdBps);
     }
 
-    error ProposalThresholdBpsTooLarge(uint256 max);
+    /**
+     * @dev Update the voting delay. This operation can only be performed through a governance proposal.
+     *
+     * Emits a {VotingDelaySet} event.
+     */
+    function setVotingDelay(uint256 newVotingDelay) public virtual onlyGovernance {
+        _setVotingDelay(newVotingDelay);
+    }
+
+    /**
+     * @dev Update the voting period. This operation can only be performed through a governance proposal.
+     *
+     * Emits a {VotingPeriodSet} event.
+     */
+    function setVotingPeriod(uint256 newVotingPeriod) public virtual onlyGovernance {
+        _setVotingPeriod(newVotingPeriod);
+    }
+
     /**
      * @dev Internal setter for the proposal threshold BPS.
      *
@@ -103,23 +139,6 @@ abstract contract GovernorSettings is Governor {
     }
 
     /**
-     * @dev See {IGovernor-votingDelay}.
-     */
-    function votingDelay() public view virtual override returns (uint256) {
-        return _votingDelay;
-    }
-
-    /**
-     * @dev Update the voting delay. This operation can only be performed through a governance proposal.
-     *
-     * Emits a {VotingDelaySet} event.
-     */
-    function setVotingDelay(uint256 newVotingDelay) public virtual onlyGovernance {
-        _setVotingDelay(newVotingDelay);
-    }
-
-    error VotingDelayOutOfRange(uint256 min, uint256 max);
-    /**
      * @dev Internal setter for the voting delay.
      *
      * Emits a {VotingDelaySet} event.
@@ -134,23 +153,6 @@ abstract contract GovernorSettings is Governor {
         _votingDelay = newVotingDelay;
     }
 
-    /**
-     * @dev See {IGovernor-votingPeriod}.
-     */
-    function votingPeriod() public view virtual override returns (uint256) {
-        return _votingPeriod;
-    }
-
-    /**
-     * @dev Update the voting period. This operation can only be performed through a governance proposal.
-     *
-     * Emits a {VotingPeriodSet} event.
-     */
-    function setVotingPeriod(uint256 newVotingPeriod) public virtual onlyGovernance {
-        _setVotingPeriod(newVotingPeriod);
-    }
-
-    error VotingPeriodOutOfRange(uint256 min, uint256 max);
     /**
      * @dev Internal setter for the voting period.
      *
