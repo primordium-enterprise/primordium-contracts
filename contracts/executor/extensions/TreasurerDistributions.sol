@@ -50,6 +50,17 @@ abstract contract TreasurerDistributions is Treasurer {
     event DistributionClaimed(uint256 indexed distributionId, address indexed claimedFor, uint256 claimedAmount);
     event DistributionClosed(uint256 indexed distributionId, uint256 reclaimedAmount);
 
+    error ClockStartDateOutOfRange();
+    error DistributionBalanceTooLow();
+    error DistributionIsClosed();
+    error UnapprovedForClaimingDistribution();
+    error AddressAlreadyClaimed();
+    error UnapprovedForClosingDistributions();
+    error DistributionClaimPeriodStillActive();
+    error DistributionDoesNotExist();
+    error DistributionHasNotStarted();
+    error DistributionClaimPeriodOutOfRange(uint256 min, uint256 max);
+
     constructor(uint256 distributionClaimPeriod_) {
         // Initialize immutables based on clock (assums block.timestamp if not block.number)
         bool usesBlockNumber = clock() == block.number;
@@ -61,6 +72,27 @@ abstract contract TreasurerDistributions is Treasurer {
             4 weeks;
 
         _updateDistributionClaimPeriod(distributionClaimPeriod_);
+    }
+
+    /**
+     * @notice Returns the current distribution claim period.
+     */
+    function distributionClaimPeriod() public view virtual returns (uint256) {
+        return _claimPeriodCheckpoints.latest();
+    }
+
+    /**
+     * @notice Returns the distribution claim period at a specific timepoint.
+     */
+    function distributionClaimPeriod(uint256 timepoint) public view virtual returns (uint256) {
+        // Optimistic search, check the latest checkpoint
+        (bool exists, uint256 _key, uint256 _value) = _claimPeriodCheckpoints.latestCheckpoint();
+        if (exists && _key <= timepoint) {
+            return _value;
+        }
+
+        // Otherwise, do the binary search
+        return _claimPeriodCheckpoints.upperLookupRecent(timepoint.toUint32());
     }
 
     /**
@@ -90,6 +122,35 @@ abstract contract TreasurerDistributions is Treasurer {
     }
 
     /**
+     * @notice Returns whether or not the provided address is approved for closing distributions once the claim period
+     * has expired for a distribution.
+     * @param account The address to check the status for.
+     */
+    function isAddressApprovedForClosingDistributions(address account) public view virtual returns (bool) {
+        return _approvedAddressesForClosingDistributions[account];
+    }
+
+    /**
+     * @notice Returns whether or not the provided address is approved to claim the distribution for the specified
+     * owner.
+     * @param owner The token holder.
+     * @param account The address to check for approval for claiming distributions to the owner.
+     */
+    function isAddressApprovedForDistributionClaims(
+        address owner,
+        address account
+    ) public view virtual returns (bool) {
+        return _approvedAddressesForClaims[owner][account];
+    }
+
+    /**
+     * @notice Changes the distribution claim period.
+     */
+    function updateDistributionClaimPeriod(uint256 newClaimPeriod) external virtual onlyTimelock {
+        _updateDistributionClaimPeriod(newClaimPeriod);
+    }
+
+    /**
      * @notice Creates a new distribution. Only callable by the Timelock itself.
      * @param clockStartTime The start timepoint (according to the token clock) when this distribution will become
      * active. Must be in the future, no greater than the MAX_DISTRIBUTION_CLAIM_PERIOD. If the provided value is zero,
@@ -104,8 +165,110 @@ abstract contract TreasurerDistributions is Treasurer {
         return _createDistribution(clockStartTime, distributionBalance);
     }
 
-    error ClockStartDateOutOfRange();
-    error DistributionBalanceTooLow();
+    /**
+     * @notice A function to close a distribution and reclaim the remaining unclaimed distribution balance to the DAO
+     * treasury. Only callable by approved addresses (or anyone if address(0) is approved). Fails if the claim period
+     * for the distribution is still active.
+     * @param distributionId The identifier of the distribution to be closed.
+     */
+    function closeDistribution(uint256 distributionId) external virtual {
+        if (msg.sender != address(this)) {
+            if (
+                !_approvedAddressesForClosingDistributions[address(0)] &&
+                !_approvedAddressesForClosingDistributions[_msgSender()]
+            ) revert UnapprovedForClosingDistributions();
+        }
+        uint256 currentClock = clock();
+        uint256 clockStartTime = _distributions[distributionId].clockStartTime;
+
+        _checkClockValidity(clockStartTime, currentClock);
+        if (currentClock <= clockStartTime + distributionClaimPeriod(clockStartTime)) {
+            revert DistributionClaimPeriodStillActive();
+        }
+
+        _reclaimRemainingDistributionFunds(distributionId);
+    }
+
+    /**
+     * @notice A timelock-only function to approve addresses to close distributions.
+     * @param approvedAddresses A list of addresses to approve.
+     */
+    function approveAddressesForClosingDistributions(
+        address[] calldata approvedAddresses
+    ) external virtual onlyTimelock {
+        for (uint256 i = 0; i < approvedAddresses.length;) {
+            _approvedAddressesForClosingDistributions[approvedAddresses[i]] = true;
+            unchecked { ++i; }
+        }
+    }
+
+    /**
+     * @notice A timelock-only function to unapprove addresses for closing distributions.
+     * @param unapprovedAddresses A list of addresses to unapprove.
+     */
+    function unapproveAddressesForClosingDistributions(
+        address[] calldata unapprovedAddresses
+    ) external virtual onlyTimelock {
+        for (uint256 i = 0; i < unapprovedAddresses.length;) {
+            _approvedAddressesForClosingDistributions[unapprovedAddresses[i]] = false;
+            unchecked { ++i; }
+        }
+    }
+
+    /**
+     * @notice Public function for claiming a distribution for the msg.sender
+     * @param distributionId The distribution identifier to claim.
+     * @return claimAmount Returns the amount of base asset transferred to the claim recipient.
+     */
+    function claimDistribution(
+        uint256 distributionId
+    ) public virtual returns (uint256) {
+        return _claimDistribution(distributionId, _msgSender());
+    }
+
+    /**
+     * @notice Public function for claiming a distribution on behalf of another account (but the msg.sender must be
+     * approved for claims).
+     * @param distributionId The distribution identifier to claim.
+     * @param claimFor The address of the token holder to claim the distribution for.
+     * @return claimAmount Returns the amount of base asset transferred to the claim recipient.
+     */
+    function claimDistribution(
+        uint256 distributionId,
+        address claimFor
+    ) public virtual returns (uint256) {
+        return _claimDistribution(distributionId, claimFor);
+    }
+
+    /**
+     * @notice Allows the msg.sender to approve the provided list of addresses for processing distribution claims.
+     * Can approve address(0) to allow any address to process a distribution claim.
+     * @param approvedAddresses A list of addresses to approve.
+     */
+    function approveAddressesForDistributionClaims(
+        address[] calldata approvedAddresses
+    ) public virtual {
+        address owner = _msgSender();
+        for (uint256 i = 0; i < approvedAddresses.length;) {
+            _approvedAddressesForClaims[owner][approvedAddresses[i]] = true;
+            unchecked { ++i; }
+        }
+    }
+
+    /**
+     * @notice Allows the msg.sender to unapprove the provided list of addresses for processing distribution claims.
+     * @param unapprovedAddresses A list of addresses to unapprove.
+     */
+    function unapproveAddressesForDistributionClaims(
+        address[] calldata unapprovedAddresses
+    ) public virtual {
+        address owner = _msgSender();
+        for (uint256 i = 0; i < unapprovedAddresses.length;) {
+            _approvedAddressesForClaims[owner][unapprovedAddresses[i]] = false;
+            unchecked { i++; }
+        }
+    }
+
     /**
      * @dev Internal function to create a new distribution.
      */
@@ -148,34 +311,6 @@ abstract contract TreasurerDistributions is Treasurer {
         return distributionId;
     }
 
-    /**
-     * @notice Public function for claiming a distribution for the msg.sender
-     * @param distributionId The distribution identifier to claim.
-     * @return claimAmount Returns the amount of base asset transferred to the claim recipient.
-     */
-    function claimDistribution(
-        uint256 distributionId
-    ) public virtual returns (uint256) {
-        return _claimDistribution(distributionId, _msgSender());
-    }
-
-    /**
-     * @notice Public function for claiming a distribution on behalf of another account (but the msg.sender must be
-     * approved for claims).
-     * @param distributionId The distribution identifier to claim.
-     * @param claimFor The address of the token holder to claim the distribution for.
-     * @return claimAmount Returns the amount of base asset transferred to the claim recipient.
-     */
-    function claimDistribution(
-        uint256 distributionId,
-        address claimFor
-    ) public virtual returns (uint256) {
-        return _claimDistribution(distributionId, claimFor);
-    }
-
-    error DistributionIsClosed();
-    error UnapprovedForClaimingDistribution();
-    error AddressAlreadyClaimed();
     /**
      * @dev Internal function for claiming a distribution as a token holder
      */
@@ -231,32 +366,6 @@ abstract contract TreasurerDistributions is Treasurer {
         return claimAmount;
     }
 
-    error UnapprovedForClosingDistributions();
-    error DistributionClaimPeriodStillActive();
-    /**
-     * @notice A function to close a distribution and reclaim the remaining unclaimed distribution balance to the DAO
-     * treasury. Only callable by approved addresses (or anyone if address(0) is approved). Fails if the claim period
-     * for the distribution is still active.
-     * @param distributionId The identifier of the distribution to be closed.
-     */
-    function closeDistribution(uint256 distributionId) external virtual {
-        if (msg.sender != address(this)) {
-            if (
-                !_approvedAddressesForClosingDistributions[address(0)] &&
-                !_approvedAddressesForClosingDistributions[_msgSender()]
-            ) revert UnapprovedForClosingDistributions();
-        }
-        uint256 currentClock = clock();
-        uint256 clockStartTime = _distributions[distributionId].clockStartTime;
-
-        _checkClockValidity(clockStartTime, currentClock);
-        if (currentClock <= clockStartTime + distributionClaimPeriod(clockStartTime)) {
-            revert DistributionClaimPeriodStillActive();
-        }
-
-        _reclaimRemainingDistributionFunds(distributionId);
-    }
-
     function _reclaimRemainingDistributionFunds(uint256 distributionId) internal virtual {
         Distribution storage distribution = _distributions[distributionId];
         uint256 reclaimAmount = distribution.balance - distribution.claimedBalance;
@@ -267,80 +376,6 @@ abstract contract TreasurerDistributions is Treasurer {
         emit DistributionClosed(distributionId, reclaimAmount);
     }
 
-    error DistributionDoesNotExist();
-    error DistributionHasNotStarted();
-    function _checkClockValidity(
-        uint256 clockStartTime,
-        uint256 currentClock
-    ) private pure {
-        if (clockStartTime == 0) revert DistributionDoesNotExist();
-        if (currentClock <= clockStartTime) revert DistributionHasNotStarted();
-    }
-
-    /**
-     * @notice Returns whether or not the provided address is approved for closing distributions once the claim period
-     * has expired for a distribution.
-     * @param account The address to check the status for.
-     */
-    function isAddressApprovedForClosingDistributions(address account) public view virtual returns (bool) {
-        return _approvedAddressesForClosingDistributions[account];
-    }
-
-    /**
-     * @notice A timelock-only function to approve addresses to close distributions.
-     * @param approvedAddresses A list of addresses to approve.
-     */
-    function approveAddressesForClosingDistributions(
-        address[] calldata approvedAddresses
-    ) external virtual onlyTimelock {
-        for (uint256 i = 0; i < approvedAddresses.length;) {
-            _approvedAddressesForClosingDistributions[approvedAddresses[i]] = true;
-            unchecked { ++i; }
-        }
-    }
-
-    /**
-     * @notice A timelock-only function to unapprove addresses for closing distributions.
-     * @param unapprovedAddresses A list of addresses to unapprove.
-     */
-    function unapproveAddressesForClosingDistributions(
-        address[] calldata unapprovedAddresses
-    ) external virtual onlyTimelock {
-        for (uint256 i = 0; i < unapprovedAddresses.length;) {
-            _approvedAddressesForClosingDistributions[unapprovedAddresses[i]] = false;
-            unchecked { ++i; }
-        }
-    }
-
-    /**
-     * @notice Returns the current distribution claim period.
-     */
-    function distributionClaimPeriod() public view virtual returns (uint256) {
-        return _claimPeriodCheckpoints.latest();
-    }
-
-    /**
-     * @notice Returns the distribution claim period at a specific timepoint.
-     */
-    function distributionClaimPeriod(uint256 timepoint) public view virtual returns (uint256) {
-        // Optimistic search, check the latest checkpoint
-        (bool exists, uint256 _key, uint256 _value) = _claimPeriodCheckpoints.latestCheckpoint();
-        if (exists && _key <= timepoint) {
-            return _value;
-        }
-
-        // Otherwise, do the binary search
-        return _claimPeriodCheckpoints.upperLookupRecent(timepoint.toUint32());
-    }
-
-    /**
-     * @notice Changes the distribution claim period.
-     */
-    function updateDistributionClaimPeriod(uint256 newClaimPeriod) external virtual onlyTimelock {
-        _updateDistributionClaimPeriod(newClaimPeriod);
-    }
-
-    error DistributionClaimPeriodOutOfRange(uint256 min, uint256 max);
     /**
      * @dev Internal function to update the distribution claim period.
      */
@@ -357,46 +392,12 @@ abstract contract TreasurerDistributions is Treasurer {
         emit DistributionClaimPeriodUpdated(oldClaimPeriod, newClaimPeriod);
     }
 
-    /**
-     * @notice Returns whether or not the provided address is approved to claim the distribution for the specified
-     * owner.
-     * @param owner The token holder.
-     * @param account The address to check for approval for claiming distributions to the owner.
-     */
-    function isAddressApprovedForDistributionClaims(
-        address owner,
-        address account
-    ) public view virtual returns (bool) {
-        return _approvedAddressesForClaims[owner][account];
-    }
-
-    /**
-     * @notice Allows the msg.sender to approve the provided list of addresses for processing distribution claims.
-     * Can approve address(0) to allow any address to process a distribution claim.
-     * @param approvedAddresses A list of addresses to approve.
-     */
-    function approveAddressesForDistributionClaims(
-        address[] calldata approvedAddresses
-    ) public virtual {
-        address owner = _msgSender();
-        for (uint256 i = 0; i < approvedAddresses.length;) {
-            _approvedAddressesForClaims[owner][approvedAddresses[i]] = true;
-            unchecked { ++i; }
-        }
-    }
-
-    /**
-     * @notice Allows the msg.sender to unapprove the provided list of addresses for processing distribution claims.
-     * @param unapprovedAddresses A list of addresses to unapprove.
-     */
-    function unapproveAddressesForDistributionClaims(
-        address[] calldata unapprovedAddresses
-    ) public virtual {
-        address owner = _msgSender();
-        for (uint256 i = 0; i < unapprovedAddresses.length;) {
-            _approvedAddressesForClaims[owner][unapprovedAddresses[i]] = false;
-            unchecked { i++; }
-        }
+    function _checkClockValidity(
+        uint256 clockStartTime,
+        uint256 currentClock
+    ) private pure {
+        if (clockStartTime == 0) revert DistributionDoesNotExist();
+        if (currentClock <= clockStartTime) revert DistributionHasNotStarted();
     }
 
 }

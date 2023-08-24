@@ -8,6 +8,8 @@ import "../Treasurer.sol";
 abstract contract TreasurerETH is Treasurer {
 
     error MustInitializeBaseAssetToETH();
+    error DepositAmountAndMsgValueMismatch(uint256 depositAmount, uint256 msgValue);
+
 
     constructor() {
         if (address(_baseAsset) != address(0)) revert MustInitializeBaseAssetToETH();
@@ -24,7 +26,6 @@ abstract contract TreasurerETH is Treasurer {
         if (!success) revert FailedToTransferBaseAsset(to, amount);
     }
 
-    error DepositAmountAndMsgValueMismatch(uint256 depositAmount, uint256 msgValue);
     /// @dev Override to ensure that the depositAmount is equal to the msg.value
     function _registerDeposit(uint256 depositAmount) internal virtual override {
         if (msg.value != depositAmount) revert DepositAmountAndMsgValueMismatch(depositAmount, msg.value);

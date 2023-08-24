@@ -10,15 +10,27 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 abstract contract Treasurer is Executor {
 
-    error FailedToTransferBaseAsset(address to, uint256 amount);
-    error InsufficientBaseAssetFunds(uint256 balanceTransferAmount, uint256 currentBalance);
-    error InvalidBaseAssetOperation(address target, uint256 value, bytes data);
-
     VotesProvisioner internal immutable _token;
     IERC20 internal immutable _baseAsset;
 
     // The total balance of the base asset that is allocated to Distributions, BalanceShares, etc.
     uint256 internal _stashedBalance;
+
+    error OnlyToken();
+    error FailedToTransferBaseAsset(address to, uint256 amount);
+    error InsufficientBaseAssetFunds(uint256 balanceTransferAmount, uint256 currentBalance);
+    error InvalidBaseAssetOperation(address target, uint256 value, bytes data);
+    error InvalidDepositAmount();
+
+
+    modifier onlyToken() {
+        _onlyToken();
+        _;
+    }
+
+    function _onlyToken() private view {
+        if (msg.sender != address(_token)) revert OnlyToken();
+    }
 
     constructor(
         VotesProvisioner token_
@@ -55,16 +67,6 @@ abstract contract Treasurer is Executor {
         return address(_token);
     }
 
-    modifier onlyToken() {
-        _onlyToken();
-        _;
-    }
-
-    error OnlyToken();
-    function _onlyToken() private view {
-        if (msg.sender != address(_token)) revert OnlyToken();
-    }
-
     function baseAsset() public view returns (address) {
         return address(_baseAsset);
     }
@@ -72,7 +74,7 @@ abstract contract Treasurer is Executor {
     /**
      * @notice Returns the current DAO balance of the base asset in the treasury.
      */
-    function treasuryBalance() external view returns (uint256) {
+    function treasuryBalance() public view returns (uint256) {
         return _treasuryBalance();
     }
 
@@ -81,6 +83,23 @@ abstract contract Treasurer is Executor {
      */
     function _treasuryBalance() internal view virtual returns (uint256) {
         return _baseAssetBalance() - _stashedBalance;
+    }
+
+    /**
+     * @notice Registers a deposit on the Treasurer. Only callable by the votes contract.
+     * @param depositAmount The amount being deposited.
+     */
+    function registerDeposit(uint256 depositAmount) public payable virtual onlyToken {
+        _registerDeposit(depositAmount);
+    }
+
+    /**
+     * @notice Processes a withdrawal from the Treasurer to the withdrawing member. Only callable by the votes contract.
+     * @param receiver The address to send the base asset to.
+     * @param withdrawAmount The amount of base asset to send.
+     */
+    function processWithdrawal(address receiver, uint256 withdrawAmount) public virtual onlyToken {
+        _processWithdrawal(receiver, withdrawAmount);
     }
 
     /**
@@ -112,28 +131,10 @@ abstract contract Treasurer is Executor {
     ) internal virtual returns (uint256 balanceBeingTransferred);
 
     /**
-     * @notice Registers a deposit on the Treasurer. Only callable by the votes contract.
-     * @param depositAmount The amount being deposited.
-     */
-    function registerDeposit(uint256 depositAmount) public payable virtual onlyToken {
-        _registerDeposit(depositAmount);
-    }
-
-    error InvalidDepositAmount();
-    /**
      * @dev Can override and call super._registerDeposit for additional checks/functionality depending on baseAsset used
     */
     function _registerDeposit(uint256 depositAmount) internal virtual {
         if (depositAmount == 0) revert InvalidDepositAmount();
-    }
-
-    /**
-     * @notice Processes a withdrawal from the Treasurer to the withdrawing member. Only callable by the votes contract.
-     * @param receiver The address to send the base asset to.
-     * @param withdrawAmount The amount of base asset to send.
-     */
-    function processWithdrawal(address receiver, uint256 withdrawAmount) public virtual onlyToken {
-        _processWithdrawal(receiver, withdrawAmount);
     }
 
     /**

@@ -9,10 +9,12 @@ import "contracts/utils/BalanceShares.sol";
 abstract contract TreasurerBalanceShares is Treasurer {
 
     using BalanceShares for BalanceShares.BalanceShare;
+
     enum BalanceShareId {
         Deposits,
         Revenue
     }
+
     mapping(BalanceShareId => BalanceShares.BalanceShare) private _balanceShares;
 
     // The previously measured DAO balance (minus any _stashedBalance), for tracking changes to the balance amount
@@ -20,6 +22,46 @@ abstract contract TreasurerBalanceShares is Treasurer {
 
     // Tracks cumulative balance transfers since the last storage write to _lastProcessedBalance
     uint256 private _balanceTransfers;
+
+    event BalanceShareAdded(
+        BalanceShareId indexed id,
+        address indexed account,
+        uint256 bps,
+        uint256 removableAt
+    );
+
+    event BalanceShareRemoved(
+        BalanceShareId indexed id,
+        address indexed account
+    );
+
+    event BalanceShareWithdrawal(
+        BalanceShareId indexed id,
+        address indexed account,
+        uint256 amount
+    );
+
+    event BalanceShareAccountBpsUpdated(
+        BalanceShareId indexed id,
+        address indexed account,
+        uint256 newAccountBps
+    );
+
+    event BalanceShareAccountRemovableAtUpdated(
+        BalanceShareId indexed id,
+        address indexed account,
+        uint256 newRemovableAt
+    );
+
+    /**
+     * @dev Modifier to stash revenue shares before proceeding with the rest of the function call. Important for many
+     * BalanceShare updates to ensure that all unprocessed revenue is stashed before writing any updates to the
+     * BalanceShare storage.
+     */
+    modifier stashRevenueSharesFirst(BalanceShareId id) {
+        if (id == BalanceShareId.Revenue) _stashRevenueShares();
+        _;
+    }
 
     /**
      * @notice A method to retrieve a human-readable name for each enum value of the BalanceShareId enum.
@@ -34,34 +76,6 @@ abstract contract TreasurerBalanceShares is Treasurer {
         }
         // solhint-disable-next-line
         revert();
-    }
-
-    /**
-     * @dev Override to retrieve the base asset balance available to the DAO.
-     *
-     * Calculates any revenue shares that would need to be applied first (but doesn't save these to state in order to
-     * save gas)
-     */
-    function _treasuryBalance() internal view virtual override returns (uint256) {
-        uint256 currentBalance = Treasurer._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
-        uint256 unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
-        if (unprocessedRevenue > 0) {
-            currentBalance -= _balanceShares[BalanceShareId.Revenue].calculateBalanceToAddToShares(unprocessedRevenue);
-        }
-        return currentBalance;
-    }
-
-    function _getUnprocessedRevenue(uint256 treasuryBalance_) internal view virtual returns (uint256) {
-        /**
-         * treasuryBalance_ = _baseAssetBalance() - _stashedBalance
-         * unprocessedRevenue = treasuryBalance_ - (_lastProcessedBalance - _balanceTransfers)
-         */
-        uint256 prevBalance = _lastProcessedBalance;
-        uint256 balanceTransfers = _balanceTransfers;
-        // Double negative needs to become positive
-        return balanceTransfers > prevBalance ?
-            treasuryBalance_ + (balanceTransfers - prevBalance) :
-            treasuryBalance_ - (prevBalance - balanceTransfers);
     }
 
     /**
@@ -83,80 +97,6 @@ abstract contract TreasurerBalanceShares is Treasurer {
     function processRevenueShares() external returns (uint256) {
         return _stashRevenueShares();
     }
-
-    /**
-     * @dev Update function that balances the treasury based on any revenue changes that occurred since the last update.
-     *
-     * Saves these changes to the _lastProcessedBalance and _stashedBalance storage state, return the amount stashed.
-     *
-     * Calls BalanceShares.processBalance on the revenue shares to track any balance remainders as well.
-     */
-    function _stashRevenueShares() internal virtual returns (uint256 stashed) {
-        uint256 currentBalance = Treasurer._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
-        uint256 unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
-        if (unprocessedRevenue > 0) {
-            stashed = _balanceShares[BalanceShareId.Revenue].processBalance(unprocessedRevenue);
-            _stashBaseAsset(stashed);
-            currentBalance -= stashed;
-             // Set the _lastProcessedBalance to the current treasury balance
-            _lastProcessedBalance = currentBalance;
-            // Zero out the value of _balanceTransfers
-            _balanceTransfers = 0;
-        }
-        return stashed;
-    }
-
-    /// @dev Override to implement balance updates on the treasury for deposit shares
-    function _registerDeposit(uint256 depositAmount) internal virtual override {
-        super._registerDeposit(depositAmount);
-        // TODO: NEED TO BYPASS UNTIL INITIALIZATION, THEN APPLY RETROACTIVELY
-        uint256 stashed = _balanceShares[BalanceShareId.Deposits].processBalance(depositAmount);
-        if (stashed > 0) {
-            _lastProcessedBalance += depositAmount - stashed;
-            _stashBaseAsset(stashed);
-        }
-    }
-
-    /**
-     * @dev Override to implement internal accounting to track all cumulative balance transfers since the last time
-     * revenue was stashed.
-     */
-    function _processBaseAssetTransfer(uint256 amount) internal virtual override {
-        _balanceTransfers += amount;
-    }
-
-    /**
-     * @dev Override to implement internal accounting to track all cumulative reverse balance transfers since the last
-     * time revenue was stashed.
-     *
-     * NOTE: If balance transfers risks underflow, then it will instead add to the _lastProcessedBalance (serving the
-     * same desired effect)
-     */
-    function _processReverseBaseAssetTransfer(uint256 amount) internal virtual override {
-        uint256 currentBalanceTransfers = _balanceTransfers;
-        if (currentBalanceTransfers >= amount) {
-            _balanceTransfers -= amount;
-        } else {
-            _lastProcessedBalance += amount;
-        }
-    }
-
-    /**
-     * @dev Modifier to stash revenue shares before proceeding with the rest of the function call. Important for many
-     * BalanceShare updates to ensure that all unprocessed revenue is stashed before writing any updates to the
-     * BalanceShare storage.
-     */
-    modifier stashRevenueSharesFirst(BalanceShareId id) {
-        if (id == BalanceShareId.Revenue) _stashRevenueShares();
-        _;
-    }
-
-    event BalanceShareAdded(
-        BalanceShareId indexed id,
-        address indexed account,
-        uint256 bps,
-        uint256 removableAt
-    );
 
     /**
      * @notice Adds the specified balance shares to the treasury. Only callable by the timelock itself.
@@ -184,11 +124,6 @@ abstract contract TreasurerBalanceShares is Treasurer {
             unchecked { i++; }
         }
     }
-
-    event BalanceShareRemoved(
-        BalanceShareId indexed id,
-        address indexed account
-    );
 
     /**
      * @notice Removes the provided accounts from the specified balance shares. Only callable by the timelock itself,
@@ -269,12 +204,6 @@ abstract contract TreasurerBalanceShares is Treasurer {
         return _balanceShares[id].isAddressApprovedForWithdrawal(account, addressToCheck);
     }
 
-    event BalanceShareWithdrawal(
-        BalanceShareId indexed id,
-        address indexed account,
-        uint256 amount
-    );
-
     /**
      * @notice Sends any balance share owed to the provided account. Only callable by the account recipient or approved
      * addresses.
@@ -329,12 +258,6 @@ abstract contract TreasurerBalanceShares is Treasurer {
         return _balanceShares[id].totalBps();
     }
 
-    event BalanceShareAccountBpsUpdated(
-        BalanceShareId indexed id,
-        address indexed account,
-        uint256 newAccountBps
-    );
-
     /**
      * @notice Increases the BPS share for an account on the specified balance share. Only callable by the timelock
      * itself.
@@ -386,25 +309,6 @@ abstract contract TreasurerBalanceShares is Treasurer {
     }
 
     /**
-     * @dev Helper method to decrease the BPS share for an account.
-     */
-    function _decreaseBalanceShareAccountBps(
-        BalanceShareId id,
-        address account,
-        uint256 decreaseByBps
-    ) internal virtual stashRevenueSharesFirst(id) returns (uint256) {
-        uint256 newAccountBps = _balanceShares[id].decreaseAccountBps(account, decreaseByBps);
-        emit BalanceShareAccountBpsUpdated(id, account, newAccountBps);
-        return newAccountBps;
-    }
-
-    event BalanceShareAccountRemovableAtUpdated(
-        BalanceShareId indexed id,
-        address indexed account,
-        uint256 newRemovableAt
-    );
-
-    /**
      * @notice Increase the "removableAt" timestamp on the account for the specified balance share. Only callable by the
      * timelock, and only works if past the current "removableAt" timestamp for the account.
      * @param id The enum identifier indicating which balance share this applies to.
@@ -432,18 +336,6 @@ abstract contract TreasurerBalanceShares is Treasurer {
     }
 
     /**
-     * @dev Internal method to update the balance share account's "removableAt" timestamp.
-     */
-    function _updateBalanceShareAccountRemovableAt(
-        BalanceShareId id,
-        address account,
-        uint256 newRemovableAt
-    ) internal virtual {
-        _balanceShares[id].updateAccountRemovableAt(account, newRemovableAt);
-        emit BalanceShareAccountRemovableAtUpdated(id, account, newRemovableAt);
-    }
-
-    /**
      * @notice Returns whether or not the specified account has finished it's withdrawals from it's balance share.
      * @param id The enum identifier indicating which balance share this applies to.
      * @param account The address of the account to check.
@@ -456,4 +348,115 @@ abstract contract TreasurerBalanceShares is Treasurer {
     ) external virtual returns (bool) {
         return _balanceShares[id].accountHasFinishedWithdrawals(account);
     }
+
+    /**
+     * @dev Override to retrieve the base asset balance available to the DAO.
+     *
+     * Calculates any revenue shares that would need to be applied first (but doesn't save these to state in order to
+     * save gas)
+     */
+    function _treasuryBalance() internal view virtual override returns (uint256) {
+        uint256 currentBalance = Treasurer._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
+        uint256 unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
+        if (unprocessedRevenue > 0) {
+            currentBalance -= _balanceShares[BalanceShareId.Revenue].calculateBalanceToAddToShares(unprocessedRevenue);
+        }
+        return currentBalance;
+    }
+
+    function _getUnprocessedRevenue(uint256 treasuryBalance_) internal view virtual returns (uint256) {
+        /**
+         * treasuryBalance_ = _baseAssetBalance() - _stashedBalance
+         * unprocessedRevenue = treasuryBalance_ - (_lastProcessedBalance - _balanceTransfers)
+         */
+        uint256 prevBalance = _lastProcessedBalance;
+        uint256 balanceTransfers = _balanceTransfers;
+        // Double negative needs to become positive
+        return balanceTransfers > prevBalance ?
+            treasuryBalance_ + (balanceTransfers - prevBalance) :
+            treasuryBalance_ - (prevBalance - balanceTransfers);
+    }
+
+    /**
+     * @dev Update function that balances the treasury based on any revenue changes that occurred since the last update.
+     *
+     * Saves these changes to the _lastProcessedBalance and _stashedBalance storage state, return the amount stashed.
+     *
+     * Calls BalanceShares.processBalance on the revenue shares to track any balance remainders as well.
+     */
+    function _stashRevenueShares() internal virtual returns (uint256 stashed) {
+        uint256 currentBalance = Treasurer._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
+        uint256 unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
+        if (unprocessedRevenue > 0) {
+            stashed = _balanceShares[BalanceShareId.Revenue].processBalance(unprocessedRevenue);
+            _stashBaseAsset(stashed);
+            currentBalance -= stashed;
+             // Set the _lastProcessedBalance to the current treasury balance
+            _lastProcessedBalance = currentBalance;
+            // Zero out the value of _balanceTransfers
+            _balanceTransfers = 0;
+        }
+        return stashed;
+    }
+
+    /// @dev Override to implement balance updates on the treasury for deposit shares
+    function _registerDeposit(uint256 depositAmount) internal virtual override {
+        super._registerDeposit(depositAmount);
+        // TODO: NEED TO BYPASS UNTIL INITIALIZATION, THEN APPLY RETROACTIVELY
+        uint256 stashed = _balanceShares[BalanceShareId.Deposits].processBalance(depositAmount);
+        if (stashed > 0) {
+            _lastProcessedBalance += depositAmount - stashed;
+            _stashBaseAsset(stashed);
+        }
+    }
+
+    /**
+     * @dev Override to implement internal accounting to track all cumulative balance transfers since the last time
+     * revenue was stashed.
+     */
+    function _processBaseAssetTransfer(uint256 amount) internal virtual override {
+        _balanceTransfers += amount;
+    }
+
+    /**
+     * @dev Override to implement internal accounting to track all cumulative reverse balance transfers since the last
+     * time revenue was stashed.
+     *
+     * NOTE: If balance transfers risks underflow, then it will instead add to the _lastProcessedBalance (serving the
+     * same desired effect)
+     */
+    function _processReverseBaseAssetTransfer(uint256 amount) internal virtual override {
+        uint256 currentBalanceTransfers = _balanceTransfers;
+        if (currentBalanceTransfers >= amount) {
+            _balanceTransfers -= amount;
+        } else {
+            _lastProcessedBalance += amount;
+        }
+    }
+
+    /**
+     * @dev Helper method to decrease the BPS share for an account.
+     */
+    function _decreaseBalanceShareAccountBps(
+        BalanceShareId id,
+        address account,
+        uint256 decreaseByBps
+    ) internal virtual stashRevenueSharesFirst(id) returns (uint256) {
+        uint256 newAccountBps = _balanceShares[id].decreaseAccountBps(account, decreaseByBps);
+        emit BalanceShareAccountBpsUpdated(id, account, newAccountBps);
+        return newAccountBps;
+    }
+
+    /**
+     * @dev Internal method to update the balance share account's "removableAt" timestamp.
+     */
+    function _updateBalanceShareAccountRemovableAt(
+        BalanceShareId id,
+        address account,
+        uint256 newRemovableAt
+    ) internal virtual {
+        _balanceShares[id].updateAccountRemovableAt(account, newRemovableAt);
+        emit BalanceShareAccountRemovableAtUpdated(id, account, newRemovableAt);
+    }
+
 }
