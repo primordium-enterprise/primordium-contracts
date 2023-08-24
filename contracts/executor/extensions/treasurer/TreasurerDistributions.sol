@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.4;
 
-import "./Treasurer.sol";
+import "../Treasurer.sol";
 import "@openzeppelin/contracts/utils/Checkpoints.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
