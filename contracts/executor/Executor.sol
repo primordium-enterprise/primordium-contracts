@@ -69,22 +69,15 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
     event MinDelayChange(uint256 oldDuration, uint256 newDuration);
 
     error OwnershipCannotBeRevoked();
-
-    /**
-     * @dev Initializes the contract with the following parameters:
-     *
-     * - `minDelay`: initial minimum delay for operations
-     * - `owner`: optional account to transfer ownership to; default to msg.sender() with 0 address.
-     */
-    constructor(uint256 minDelay, address owner) {
-        // optional owner
-        if (owner != address(0)) {
-            transferOwnership(owner);
-        }
-
-        _minDelay = minDelay;
-        emit MinDelayChange(0, minDelay);
-    }
+    error OnlyTimelock();
+    error ActionLengthsMismatch();
+    error OperationAlreadyScheduled();
+    error InsufficientDelay();
+    error OperationCannotBeCancelled();
+    error OperationCallReverted(address target, uint256 value, bytes data);
+    error OperationNotReady();
+    error OperationMissingDependency(bytes32 missingPredecessor);
+    error MinDelayOutOfRange(uint256 min, uint256 max);
 
     /**
      * @dev Modifier to make a function callable only by the owner, or by the Executor itself through the execution
@@ -106,14 +99,24 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         _;
     }
 
-    error OnlyTimelock();
     function _onlyTimelock() private view {
         if (msg.sender != address(this)) revert OnlyTimelock();
     }
 
-    // Don't let contract renounce ownership (ownership cannot be recovered)
-    function renounceOwnership() public pure override {
-        revert OwnershipCannotBeRevoked();
+    /**
+     * @dev Initializes the contract with the following parameters:
+     *
+     * - `minDelay`: initial minimum delay for operations
+     * - `owner`: optional account to transfer ownership to; default to msg.sender() with 0 address.
+     */
+    constructor(uint256 minDelay, address owner) {
+        // optional owner
+        if (owner != address(0)) {
+            transferOwnership(owner);
+        }
+
+        _minDelay = minDelay;
+        emit MinDelayChange(0, minDelay);
     }
 
     /**
@@ -122,6 +125,11 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
     receive() external payable {}
 
     fallback() external payable {}
+
+    // Don't let contract renounce ownership (ownership cannot be recovered)
+    function renounceOwnership() public pure override {
+        revert OwnershipCannotBeRevoked();
+    }
 
     /**
      * @dev See {IERC165-supportsInterface}.
@@ -206,6 +214,26 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
     }
 
     /**
+     * @dev Changes the minimum timelock duration for future operations.
+     *
+     * Emits a {MinDelayChange} event.
+     *
+     * Requirements:
+     *
+     * - the caller must be the timelock itself. This can only be achieved by scheduling and later executing
+     * an operation where the timelock is the target and the data is the ABI-encoded call to this function.
+     */
+    function updateDelay(uint256 newDelay) external virtual onlyTimelock {
+        if (
+            newDelay < MIN_DELAY ||
+            newDelay > MAX_DELAY
+        ) revert MinDelayOutOfRange(MIN_DELAY, MAX_DELAY);
+
+        emit MinDelayChange(_minDelay, newDelay);
+        _minDelay = newDelay;
+    }
+
+    /**
      * @dev Schedule an operation containing a single transaction.
      *
      * Emits events {CallScheduled} and {CallSalt}.
@@ -227,7 +255,6 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         return id;
     }
 
-    error ActionLengthsMismatch();
     /**
      * @dev Schedule an operation containing a batch of transactions.
      *
@@ -257,8 +284,6 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         return id;
     }
 
-    error OperationAlreadyScheduled();
-    error InsufficientDelay();
     /**
      * @dev Schedule an operation that is to become valid after a given delay.
      */
@@ -268,7 +293,6 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         _timestamps[id] = block.timestamp + delay;
     }
 
-    error OperationCannotBeCancelled();
     /**
      * @dev Cancel an operation.
      */
@@ -339,7 +363,6 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
         _afterCall(id);
     }
 
-    error OperationCallReverted(address target, uint256 value, bytes data);
     /**
      * @dev Execute an operation's call.
      */
@@ -354,8 +377,6 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
      */
     function _beforeExecute(address target, uint256 value, bytes calldata data) internal virtual { }
 
-    error OperationNotReady();
-    error OperationMissingDependency(bytes32 missingPredecessor);
     /**
      * @dev Checks before execution of an operation's calls.
      */
@@ -370,27 +391,6 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
     function _afterCall(bytes32 id) private {
         if (!isOperationReady(id)) revert OperationNotReady();
         _timestamps[id] = _DONE_TIMESTAMP;
-    }
-
-    error MinDelayOutOfRange(uint256 min, uint256 max);
-    /**
-     * @dev Changes the minimum timelock duration for future operations.
-     *
-     * Emits a {MinDelayChange} event.
-     *
-     * Requirements:
-     *
-     * - the caller must be the timelock itself. This can only be achieved by scheduling and later executing
-     * an operation where the timelock is the target and the data is the ABI-encoded call to this function.
-     */
-    function updateDelay(uint256 newDelay) external virtual onlyTimelock {
-        if (
-            newDelay < MIN_DELAY ||
-            newDelay > MAX_DELAY
-        ) revert MinDelayOutOfRange(MIN_DELAY, MAX_DELAY);
-
-        emit MinDelayChange(_minDelay, newDelay);
-        _minDelay = newDelay;
     }
 
     /**
