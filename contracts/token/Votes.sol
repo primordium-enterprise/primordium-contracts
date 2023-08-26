@@ -88,14 +88,14 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
         bytes32 r,
         bytes32 s
     ) public virtual override {
-        if (block.timestamp > expiry) revert SignatureExpired();
+        if (block.timestamp > expiry) revert ERC2612SignatureExpired();
         address signer = ECDSA.recover(
             _hashTypedDataV4(keccak256(abi.encode(_DELEGATION_TYPEHASH, delegatee, nonce, expiry))),
             v,
             r,
             s
         );
-        if (nonce != _useNonce(signer)) revert SignatureInvalid();
+        if (nonce != _useNonce(signer)) revert ERC2612SignatureInvalid();
         _delegate(signer, delegatee);
     }
 

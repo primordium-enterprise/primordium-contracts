@@ -37,8 +37,8 @@ abstract contract ERC20Permit is ERC20Checkpoints, IERC20Permit, EIP712 {
     // solhint-disable-next-line var-name-mixedcase
     bytes32 private _PERMIT_TYPEHASH_DEPRECATED_SLOT;
 
-    error SignatureExpired();
-    error SignatureInvalid();
+    error ERC2612SignatureExpired();
+    error ERC2612SignatureInvalid();
 
     /**
      * @dev Initializes the {EIP712} domain separator using the `name` parameter, and setting `version` to `"1"`.
@@ -59,14 +59,14 @@ abstract contract ERC20Permit is ERC20Checkpoints, IERC20Permit, EIP712 {
         bytes32 r,
         bytes32 s
     ) public virtual override {
-        if (block.timestamp > deadline) revert SignatureExpired();
+        if (block.timestamp > deadline) revert ERC2612SignatureExpired();
 
         bytes32 structHash = keccak256(abi.encode(_PERMIT_TYPEHASH, owner, spender, value, _useNonce(owner), deadline));
 
         bytes32 hash = _hashTypedDataV4(structHash);
 
         address signer = ECDSA.recover(hash, v, r, s);
-        if (signer != owner) revert SignatureInvalid();
+        if (signer != owner) revert ERC2612SignatureInvalid();
 
         _approve(owner, spender, value);
     }
