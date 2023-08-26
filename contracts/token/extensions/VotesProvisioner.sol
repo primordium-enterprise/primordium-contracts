@@ -23,6 +23,7 @@ import "../../utils/Math512.sol";
 abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControlled {
 
     using SafeMath for uint256;
+    using SafeCast for *;
 
     IERC20 internal immutable _baseAsset; // The address for the DAO's base asset (address(0) for ETH)
     uint256 internal _maxSupply;
@@ -39,17 +40,25 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     /// @dev _tokenPrice updates should always go through {_updateTokenPrice} to avoid setting price to zero
     TokenPrice private _tokenPrice = TokenPrice(1, 1); // Defaults to 1 to 1
 
+    // Timestamps for when token sales begin and when governance can begin
+    uint256 private immutable _tokenSaleBeginsAt;
+    uint256 private immutable _governanceCanBeginAt;
+
     constructor(
         Treasurer executor_,
         uint256 maxSupply_,
         TokenPrice memory tokenPrice_,
-        IERC20 baseAsset_
+        IERC20 baseAsset_,
+        uint256 tokenSaleBeginsAt_,
+        uint256 governanceCanBeginAt_
     ) ExecutorControlled(executor_) {
         if (address(baseAsset_) == address(this)) revert CannotInitializeBaseAssetToSelf();
         _baseAsset = baseAsset_;
         _updateMaxSupply(maxSupply_);
         if (tokenPrice_.numerator == 0 || tokenPrice_.denominator == 0) revert CannotInitializeTokenPriceToZero();
         _updateTokenPrice(tokenPrice_.numerator, tokenPrice_.denominator);
+        _tokenSaleBeginsAt = tokenSaleBeginsAt_;
+        _governanceCanBeginAt = governanceCanBeginAt_;
     }
 
     /**
@@ -85,6 +94,14 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
 
     function valuePerToken() public view returns (uint256) {
         return _valuePerToken(1);
+    }
+
+    function tokenSaleBeginsAt() public view returns (uint256) {
+        return _tokenSaleBeginsAt;
+    }
+
+    function governanceCanBeginAt() public view returns (uint256) {
+        return _governanceCanBeginAt;
     }
 
     /**
@@ -207,6 +224,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      * @dev Internal function to set the provision mode.
      */
     function _setProvisionMode(ProvisionMode mode) internal virtual {
+        if (block.timestamp < _governanceCanBeginAt) revert CannotSetProvisionModeYet(_governanceCanBeginAt);
         if (mode <= ProvisionMode.Founding) revert ProvisionModeTooLow();
 
         emit ProvisionModeChange(_provisionMode, mode);
@@ -284,9 +302,12 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         // The "depositAmount" must be a multiple of the token price numerator
         if (depositAmount % tokenPriceNumerator != 0) revert InvalidDepositAmountMultiple();
 
+        // In founding mode, block.timestamp must be past the _tokenSaleBeginsAt timestamp
+        if (currentProvisionMode == ProvisionMode.Founding) {
+            if (block.timestamp < _tokenSaleBeginsAt) revert TokenSalesNotAvailableYet(_tokenSaleBeginsAt);
         // The current price per token must not exceed the current value per token, or the treasury will be at risk
         // NOTE: We should bypass this check in founding mode to prevent an attack locking deposits
-        if (currentProvisionMode != ProvisionMode.Founding) {
+        } else {
             if (
                 Math512.mul512Lt(tokenPriceNumerator, totalSupply(), tokenPriceDenominator, _treasuryBalance())
             ) revert TokenPriceTooLow();

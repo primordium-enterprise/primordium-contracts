@@ -66,11 +66,13 @@ interface IVotesProvisioner {
 
     error CannotInitializeBaseAssetToSelf();
     error CannotInitializeTokenPriceToZero();
+    error CannotSetProvisionModeYet(uint256 governanceCanBeginAt);
     error ProvisionModeTooLow();
     error MaxSupplyTooLarge(uint256 max);
     error TokenPriceParametersMustBeGreaterThanZero();
     error DepositsUnavailable();
     error InvalidDepositAmount();
+    error TokenSalesNotAvailableYet(uint256 tokenSaleBeginsAt);
     error InvalidDepositAmountMultiple();
     error TokenPriceTooLow();
     error WithdrawFromZeroAddress();
