@@ -347,4 +347,22 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         return Treasurer(payable(address(_executor)));
     }
 
+    /**
+     * @dev Relays a transaction or function call to an arbitrary target, only callable by the executor. If the relay
+     * target is the executor, only allows sending ETH via the value (as the calldata length is required to be zero in
+     * this case). This is to protect against relay functions calling token-only functions on the executor.
+     */
+    function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyExecutor {
+        if (
+            target == address(_executor) && data.length > 0
+        ) revert RelayDataToExecutorNotAllowed(data);
+        (bool success, bytes memory returndata) = target.call{value: value}(data);
+        // Revert with return data on unsuccessful calls
+        if (!success) {
+            assembly {
+                revert(add(32, returndata), mload(returndata))
+            }
+        }
+    }
+
 }

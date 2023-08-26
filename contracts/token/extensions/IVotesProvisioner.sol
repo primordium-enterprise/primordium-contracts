@@ -78,6 +78,7 @@ interface IVotesProvisioner {
     error WithdrawFromZeroAddress();
     error WithdrawToZeroAddress();
     error WithdrawAmountInvalid();
+    error RelayDataToExecutorNotAllowed(bytes data);
 
     // Function to query the current provision mode
     function provisionMode() external view returns(ProvisionMode);
