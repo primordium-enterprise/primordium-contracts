@@ -227,8 +227,21 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
         if (block.timestamp < _governanceCanBeginAt) revert CannotSetProvisionModeYet(_governanceCanBeginAt);
         if (mode <= ProvisionMode.Founding) revert ProvisionModeTooLow();
 
+        ProvisionMode currentProvisionMode = _provisionMode;
+        if (currentProvisionMode == ProvisionMode.Founding) {
+            _governanceInitialized();
+        }
+
         emit ProvisionModeChange(_provisionMode, mode);
         _provisionMode = mode;
+    }
+
+    function _governanceInitialized() internal virtual {
+        uint256 tokenPriceNumerator = _tokenPrice.numerator;
+        uint256 tokenPriceDenominator = _tokenPrice.denominator;
+        uint256 currentTotalSupply = totalSupply();
+        uint256 baseAssetDeposits = Math.mulDiv(currentTotalSupply, tokenPriceNumerator, tokenPriceDenominator);
+        _getTreasurer().governanceInitialized(baseAssetDeposits);
     }
 
     /**
@@ -276,7 +289,11 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     /**
      * @dev Internal function that should be overridden with functionality to transfer the deposit to the Executor.
      */
-    function _transferDepositToExecutor(address account, uint256 depositAmount) internal virtual;
+    function _transferDepositToExecutor(
+        address account,
+        uint256 depositAmount,
+        bool governanceIsInitialized
+    ) internal virtual;
 
     /**
      * @dev Internal function that should be overridden with functionality to transfer the withdrawal to the recipient.
@@ -313,7 +330,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
             ) revert TokenPriceTooLow();
         }
         uint256 mintAmount = depositAmount / tokenPriceNumerator * tokenPriceDenominator;
-        _transferDepositToExecutor(account, depositAmount);
+        _transferDepositToExecutor(account, depositAmount, currentProvisionMode > ProvisionMode.Founding);
         _mint(account, mintAmount);
         emit Deposit(account, depositAmount, mintAmount);
         return mintAmount;

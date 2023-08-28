@@ -28,8 +28,17 @@ contract PrimordiumExecutor is Executor, TreasurerETH, TreasurerBalanceShares {
         return TreasurerBalanceShares._treasuryBalance();
     }
 
-    function _registerDeposit(uint256 depositAmount) internal virtual override(TreasurerETH, TreasurerBalanceShares) {
-        super._registerDeposit(depositAmount);
+    function _governanceInitialized(
+        uint256 baseAssetAmount
+    ) internal virtual override(Treasurer, TreasurerBalanceShares) {
+        super._governanceInitialized(baseAssetAmount);
+    }
+
+    function _registerDeposit(
+        uint256 depositAmount,
+        bool governanceIsInitialized
+    ) internal virtual override(TreasurerETH, TreasurerBalanceShares) {
+        super._registerDeposit(depositAmount, governanceIsInitialized);
     }
 
 }

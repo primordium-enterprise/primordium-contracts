@@ -78,19 +78,16 @@ abstract contract Treasurer is Executor {
         return _treasuryBalance();
     }
 
-    /**
-     * @dev An internal function that must be overridden to properly return the DAO treasury balance.
-     */
-    function _treasuryBalance() internal view virtual returns (uint256) {
-        return _baseAssetBalance() - _stashedBalance;
+    function governanceInitialized(uint256 baseAssetDeposits) external onlyToken {
+        _governanceInitialized(baseAssetDeposits);
     }
 
     /**
      * @notice Registers a deposit on the Treasurer. Only callable by the votes contract.
      * @param depositAmount The amount being deposited.
      */
-    function registerDeposit(uint256 depositAmount) public payable virtual onlyToken {
-        _registerDeposit(depositAmount);
+    function registerDeposit(uint256 depositAmount, bool governanceIsInitialized) external payable virtual onlyToken {
+        _registerDeposit(depositAmount, governanceIsInitialized);
     }
 
     /**
@@ -98,8 +95,17 @@ abstract contract Treasurer is Executor {
      * @param receiver The address to send the base asset to.
      * @param withdrawAmount The amount of base asset to send.
      */
-    function processWithdrawal(address receiver, uint256 withdrawAmount) public virtual onlyToken {
+    function processWithdrawal(address receiver, uint256 withdrawAmount) external virtual onlyToken {
         _processWithdrawal(receiver, withdrawAmount);
+    }
+
+    function _governanceInitialized(uint256 baseAssetDeposits) internal virtual { }
+
+    /**
+     * @dev An internal function that must be overridden to properly return the DAO treasury balance.
+     */
+    function _treasuryBalance() internal view virtual returns (uint256) {
+        return _baseAssetBalance() - _stashedBalance;
     }
 
     /**
@@ -133,7 +139,7 @@ abstract contract Treasurer is Executor {
     /**
      * @dev Can override and call super._registerDeposit for additional checks/functionality depending on baseAsset used
     */
-    function _registerDeposit(uint256 depositAmount) internal virtual {
+    function _registerDeposit(uint256 depositAmount, bool governanceIsInitialized) internal virtual {
         if (depositAmount == 0) revert InvalidDepositAmount();
     }
 

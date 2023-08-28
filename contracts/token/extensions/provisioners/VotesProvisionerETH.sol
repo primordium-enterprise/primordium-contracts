@@ -47,8 +47,12 @@ abstract contract VotesProvisionerETH is VotesProvisioner {
      * @dev Override to transfer the ETH deposit to the Executor, and register it on the Executor.
      */
 
-    function _transferDepositToExecutor(address /*account*/, uint256 depositAmount) internal virtual override {
-        _getTreasurer().registerDeposit{value: msg.value}(depositAmount);
+    function _transferDepositToExecutor(
+        address /*account*/,
+        uint256 depositAmount,
+        bool governanceIsInitialized
+    ) internal virtual override {
+        _getTreasurer().registerDeposit{value: msg.value}(depositAmount, governanceIsInitialized);
     }
 
     /**

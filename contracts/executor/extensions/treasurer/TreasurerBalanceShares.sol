@@ -399,15 +399,25 @@ abstract contract TreasurerBalanceShares is Treasurer {
         return stashed;
     }
 
-    /// @dev Override to implement balance updates on the treasury for deposit shares
-    function _registerDeposit(uint256 depositAmount) internal virtual override {
-        super._registerDeposit(depositAmount);
-        // TODO: NEED TO BYPASS UNTIL INITIALIZATION, THEN APPLY RETROACTIVELY
+    function _processDepositShares(uint256 depositAmount) internal virtual {
         uint256 stashed = _balanceShares[BalanceShareId.Deposits].processBalance(depositAmount);
         if (stashed > 0) {
             _lastProcessedBalance += depositAmount - stashed;
             _stashBaseAsset(stashed);
         }
+    }
+
+    /// @dev Override to implement balance updates on the treasury for deposit shares
+    function _registerDeposit(uint256 depositAmount, bool governanceIsInitialized) internal virtual override {
+        super._registerDeposit(depositAmount, governanceIsInitialized);
+        if (governanceIsInitialized) {
+            _processDepositShares(depositAmount);
+        }
+    }
+
+    function _governanceInitialized(uint256 baseAssetDeposits) internal virtual override {
+        super._governanceInitialized(baseAssetDeposits);
+        _processDepositShares(baseAssetDeposits);
     }
 
     /**

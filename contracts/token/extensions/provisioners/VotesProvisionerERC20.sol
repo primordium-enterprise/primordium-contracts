@@ -64,9 +64,13 @@ abstract contract VotesProvisionerERC20 is VotesProvisioner {
     /**
      * @dev Override to transfer the ERC20 deposit to the Executor, and register on the Executor.
      */
-    function _transferDepositToExecutor(address account, uint256 depositAmount) internal virtual override {
+    function _transferDepositToExecutor(
+        address account,
+        uint256 depositAmount,
+        bool governanceIsInitialized
+    ) internal virtual override {
         SafeERC20.safeTransferFrom(_baseAsset, account, executor(), depositAmount);
-        _getTreasurer().registerDeposit(depositAmount);
+        _getTreasurer().registerDeposit(depositAmount, governanceIsInitialized);
     }
 
     /**
