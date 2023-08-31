@@ -15,6 +15,7 @@ import "../token/extensions/VotesProvisioner.sol";
 import "../executor/Executor.sol";
 import "./IGovernor.sol";
 import "../utils/ExecutorControlled.sol";
+import "../utils/Roles.sol";
 
 /**
  * @dev Core of the governance system, designed to be extended though various modules.
@@ -28,7 +29,7 @@ import "../utils/ExecutorControlled.sol";
  *
  * _Available since v4.3._
  */
-abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGovernor {
+abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGovernor, Roles {
 
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
     using SafeCast for uint256;
@@ -59,6 +60,9 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     bytes32 public constant BALLOT_TYPEHASH = keccak256("Ballot(uint256 proposalId,uint8 support)");
     bytes32 public constant EXTENDED_BALLOT_TYPEHASH =
         keccak256("ExtendedBallot(uint256 proposalId,uint8 support,string reason,bytes params)");
+
+    bytes32 public constant PROPOSER_ROLE = keccak256("PROPOSER");
+    bytes32 public constant CANCELER_ROLE = keccak256("CANCELER");
 
     // Proposals counter
     uint256 public proposalCount;
@@ -357,8 +361,9 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         uint256 currentTimepoint = clock();
 
         if (
-            getVotes(proposer, currentTimepoint - 1) < proposalThreshold()
-        ) revert InsufficientVotes();
+            getVotes(proposer, currentTimepoint - 1) < proposalThreshold() &&
+            !_hasRole(PROPOSER_ROLE, proposer)
+        ) revert UnauthorizedToSubmitProposal();
 
         if (targets.length == 0) revert MissingActions();
         if (
@@ -479,19 +484,18 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         return proposalId;
     }
 
-
-    /**
-     * @dev See {IGovernor-cancel}.
-     */
     function cancel(
-        uint256 proposalId,
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas
+        uint256 proposalId
     ) public virtual override returns (uint256) {
-        if (state(proposalId) != ProposalState.Pending) revert TooLateToCancelProposal();
-        if (msg.sender != _proposals[proposalId].proposer) revert UnauthorizedToCancelProposal();
-        return _cancel(proposalId, targets, values, calldatas);
+        // Only allow cancellation if the sender is canceler role, or if the proposer cancels before voting starts
+        if (!(
+            _hasRole(CANCELER_ROLE, msg.sender) || (
+                msg.sender == _proposals[proposalId].proposer &&
+                state(proposalId) == ProposalState.Pending
+            )
+        )) revert UnauthorizedToCancelProposal();
+
+        return _cancel(proposalId);
     }
 
     /**
@@ -550,17 +554,14 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     // well behaved (according to TimelockController) and this will not happen.
     // slither-disable-next-line reentrancy-no-eth
     function _cancel(
-        uint256 proposalId,
-        address[] memory /*targets*/,
-        uint256[] memory /*values*/,
-        bytes[] memory /*calldatas*/
+        uint256 proposalId
     ) internal virtual returns (uint256) {
 
         ProposalState status = state(proposalId);
 
         if (
             status == ProposalState.Canceled || status == ProposalState.Expired || status == ProposalState.Executed
-        ) revert ProposalInactive();
+        ) revert ProposalAlreadyFinished();
         _proposals[proposalId].canceled = true;
 
         // Added from "TimelockController"
@@ -713,7 +714,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         bytes memory params
     ) internal virtual returns (uint256) {
         ProposalCore storage proposal = _proposals[proposalId];
-        if (state(proposalId) != ProposalState.Active) revert ProposalInactive();
+        if (state(proposalId) != ProposalState.Active) revert ProposalVotingInactive();
 
         uint256 weight = _getVotes(account, proposal.voteStart, params);
         _countVote(proposalId, account, support, weight, params);

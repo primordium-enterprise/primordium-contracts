@@ -28,7 +28,7 @@ contract Roles is Context {
      * @param account The account to be checked.
      */
     function hasRole(bytes32 role, address account) public view virtual returns (bool) {
-        return _roleMembers[role][account] > block.timestamp;
+        return _hasRole(role, account);
     }
 
     /**
@@ -38,6 +38,13 @@ contract Roles is Context {
      */
     function roleExpiresAt(bytes32 role, address account) public view virtual returns (uint256) {
         return _roleMembers[role][account];
+    }
+
+    /**
+     * @dev Internal utility to see whether or not an account has a specified role.
+     */
+    function _hasRole(bytes32 role, address account) internal view virtual returns (bool) {
+        return _roleMembers[role][account] > block.timestamp;
     }
 
     /**
@@ -51,7 +58,7 @@ contract Roles is Context {
      * @dev An internal utility to check the role of the specified account, reverts if the role is not granted.
      */
     function _checkRole(bytes32 role, address account) internal view virtual {
-        if (_roleMembers[role][account] <= block.timestamp) {
+        if (!_hasRole(role, account)) {
             revert UnauthorizedRole(role, account);
         }
     }

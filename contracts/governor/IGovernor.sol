@@ -86,17 +86,18 @@ abstract contract IGovernor is IERC165, IERC6372, ExecutorControlled {
 
     error OnlyGovernance();
     error UnknownProposalId(uint256 proposalId);
-    error InsufficientVotes();
+    error UnauthorizedToSubmitProposal();
+    error UnauthorizedToCancelProposal();
     error MissingActions();
     error ActionLengthsMismatch();
     error InsufficientVoteSupplyForGovernance();
     error InvalidFoundingModeActions();
     error InvalidActionSignature(uint256 index);
     error ProposalUnsuccessful();
+    error ProposalVotingInactive();
     error InvalidActionsForProposal();
     error TooLateToCancelProposal();
-    error UnauthorizedToCancelProposal();
-    error ProposalInactive();
+    error ProposalAlreadyFinished();
 
     /**
      * @dev Name of the governor instance (used in building the ERC712 domain separator).
@@ -239,6 +240,8 @@ abstract contract IGovernor is IERC165, IERC6372, ExecutorControlled {
      * duration specified by {IGovernor-votingPeriod}.
      *
      * Emits a {ProposalCreated} event.
+     *
+     * Accounts with the PROPOSER_ROLE can submit proposals regardless of delegation.
      */
     function propose(
         address[] memory targets,
@@ -280,12 +283,11 @@ abstract contract IGovernor is IERC165, IERC6372, ExecutorControlled {
      * before the vote starts.
      *
      * Emits a {ProposalCanceled} event.
+     *
+     * Accounts with the CANCELER_ROLE can cancel the proposal anytime before execution.
      */
     function cancel(
-        uint256 proposalId,
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas
+        uint256 proposalId
     ) public virtual returns (uint256 proposalId_);
 
     /**
