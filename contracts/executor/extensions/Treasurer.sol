@@ -4,6 +4,7 @@
 pragma solidity ^0.8.4;
 
 import "../../token/extensions/VotesProvisioner.sol";
+import "../../token/extensions/IVotesProvisioner.sol";
 import "../Executor.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -21,7 +22,6 @@ abstract contract Treasurer is Executor {
     error InsufficientBaseAssetFunds(uint256 balanceTransferAmount, uint256 currentBalance);
     error InvalidBaseAssetOperation(address target, uint256 value, bytes data);
     error InvalidDepositAmount();
-
 
     modifier onlyToken() {
         _onlyToken();
@@ -86,8 +86,11 @@ abstract contract Treasurer is Executor {
      * @notice Registers a deposit on the Treasurer. Only callable by the votes contract.
      * @param depositAmount The amount being deposited.
      */
-    function registerDeposit(uint256 depositAmount, bool governanceIsInitialized) external payable virtual onlyToken {
-        _registerDeposit(depositAmount, governanceIsInitialized);
+    function registerDeposit(
+        uint256 depositAmount,
+        IVotesProvisioner.ProvisionMode provisionMode
+    ) external payable virtual onlyToken {
+        _registerDeposit(depositAmount, provisionMode);
     }
 
     /**
@@ -102,7 +105,7 @@ abstract contract Treasurer is Executor {
     function _governanceInitialized(uint256 baseAssetDeposits) internal virtual { }
 
     /**
-     * @dev An internal function that must be overridden to properly return the DAO treasury balance.
+     * @dev An internal function to return the DAO treasury balance, minus any stashed funds.
      */
     function _treasuryBalance() internal view virtual returns (uint256) {
         return _baseAssetBalance() - _stashedBalance;
@@ -139,7 +142,7 @@ abstract contract Treasurer is Executor {
     /**
      * @dev Can override and call super._registerDeposit for additional checks/functionality depending on baseAsset used
     */
-    function _registerDeposit(uint256 depositAmount, bool governanceIsInitialized) internal virtual {
+    function _registerDeposit(uint256 depositAmount, IVotesProvisioner.ProvisionMode /*provisionMode*/) internal virtual {
         if (depositAmount == 0) revert InvalidDepositAmount();
     }
 

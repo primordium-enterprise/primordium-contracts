@@ -292,7 +292,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     function _transferDepositToExecutor(
         address account,
         uint256 depositAmount,
-        bool governanceIsInitialized
+        ProvisionMode currentProvisionMode
     ) internal virtual;
 
     /**
@@ -330,7 +330,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
             ) revert TokenPriceTooLow();
         }
         uint256 mintAmount = depositAmount / tokenPriceNumerator * tokenPriceDenominator;
-        _transferDepositToExecutor(account, depositAmount, currentProvisionMode > ProvisionMode.Founding);
+        _transferDepositToExecutor(account, depositAmount, currentProvisionMode);
         _mint(account, mintAmount);
         emit Deposit(account, depositAmount, mintAmount);
         return mintAmount;

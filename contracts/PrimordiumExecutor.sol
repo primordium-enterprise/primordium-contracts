@@ -36,9 +36,9 @@ contract PrimordiumExecutor is Executor, TreasurerETH, TreasurerBalanceShares {
 
     function _registerDeposit(
         uint256 depositAmount,
-        bool governanceIsInitialized
+        IVotesProvisioner.ProvisionMode currentProvisionMode
     ) internal virtual override(TreasurerETH, TreasurerBalanceShares) {
-        super._registerDeposit(depositAmount, governanceIsInitialized);
+        super._registerDeposit(depositAmount, currentProvisionMode);
     }
 
 }
