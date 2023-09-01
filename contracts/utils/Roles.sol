@@ -12,6 +12,7 @@ contract Roles is Context {
     event RoleGranted(bytes32 role, address account, uint256 expiresAt);
     event RoleRevoked(bytes32 role, address account);
 
+    error MismatchingBatchLengths();
     error UnauthorizedRole(bytes32 role, address account);
 
     /**
@@ -79,12 +80,48 @@ contract Roles is Context {
     }
 
     /**
+     * @dev Batch method for granting roles.
+     */
+    function _grantRolesBatch(
+        bytes32[] calldata roles,
+        address[] calldata accounts,
+        uint256[] calldata expiresAts
+    ) internal virtual {
+        if (
+            roles.length == 0 ||
+            roles.length != accounts.length ||
+            roles.length != expiresAts.length
+        ) revert MismatchingBatchLengths();
+        for (uint256 i = 0; i < roles.length;) {
+            _grantRole(roles[i], accounts[i], expiresAts[i]);
+            unchecked { ++i; }
+        }
+    }
+
+    /**
      * @dev Internal utility to revoke the role for the specified account.
      */
     function _revokeRole(bytes32 role, address account) internal virtual {
         if (hasRole(role, account)) {
             delete _roleMembers[role][account];
             emit RoleRevoked(role, account);
+        }
+    }
+
+    /**
+     * @dev Batch method for revoking roles.
+     */
+    function _revokeRolesBatch(
+        bytes32[] calldata roles,
+        address[] calldata accounts
+    ) internal virtual {
+        if (
+            roles.length == 0 ||
+            roles.length != accounts.length
+        ) revert MismatchingBatchLengths();
+        for (uint256 i = 0; i < roles.length;) {
+            _revokeRole(roles[i], accounts[i]);
+            unchecked { ++i; }
         }
     }
 

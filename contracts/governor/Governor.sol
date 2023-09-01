@@ -202,6 +202,48 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     }
 
     /**
+     * @dev Governance-only function to add a role to the specified account.
+     */
+    function grantRole(bytes32 role, address account) public virtual onlyGovernance {
+        _grantRole(role, account);
+    }
+
+    /**
+     * @dev Governance-only function to add a role to the specified account that expires at the specified timestamp.
+     */
+    function grantRole(bytes32 role, address account, uint256 expiresAt) public virtual onlyGovernance {
+        _grantRole(role, account, expiresAt);
+    }
+
+    /**
+     * @dev Batch method for granting roles.
+     */
+    function grantRolesBatch(
+        bytes32[] calldata roles,
+        address[] calldata accounts,
+        uint256[] calldata expiresAts
+    ) public virtual onlyGovernance {
+        _grantRolesBatch(roles, accounts, expiresAts);
+    }
+
+    /**
+     * @dev Governance-only function to revoke a role from the specified account.
+     */
+    function revokeRole(bytes32 role, address account) public virtual onlyGovernance {
+        _revokeRole(role, account);
+    }
+
+    /**
+     * @dev Batch method for revoking roles.
+     */
+    function revokeRolesBatch(
+        bytes32[] calldata roles,
+        address[] calldata accounts
+    ) public virtual onlyGovernance {
+        _revokeRolesBatch(roles, accounts);
+    }
+
+    /**
      * @dev See {IGovernor-state}.
      */
     function state(uint256 proposalId) public view virtual override returns (ProposalState) {
