@@ -8,7 +8,7 @@ import "../ERC20Checkpoints.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
+import "contracts/utils/Nonces.sol";
 
 /**
  * @dev Implementation of the ERC20 Permit extension allowing approvals to be made via signatures, as defined in
@@ -20,10 +20,9 @@ import "@openzeppelin/contracts/utils/Counters.sol";
  *
  * _Available since v3.4._
  */
-abstract contract ERC20Permit is ERC20Checkpoints, IERC20Permit, EIP712 {
-    using Counters for Counters.Counter;
+abstract contract ERC20Permit is ERC20Checkpoints, IERC20Permit, EIP712, Nonces {
 
-    mapping(address => Counters.Counter) private _nonces;
+    mapping(address => uint256) private _nonces;
 
     // solhint-disable-next-line var-name-mixedcase
     bytes32 private constant _PERMIT_TYPEHASH =
@@ -71,11 +70,8 @@ abstract contract ERC20Permit is ERC20Checkpoints, IERC20Permit, EIP712 {
         _approve(owner, spender, value);
     }
 
-    /**
-     * @dev See {IERC20Permit-nonces}.
-     */
-    function nonces(address owner) public view virtual override returns (uint256) {
-        return _nonces[owner].current();
+    function nonces(address owner) public view virtual override(IERC20Permit, Nonces) returns (uint256) {
+        return super.nonces(owner);
     }
 
     /**
@@ -86,14 +82,4 @@ abstract contract ERC20Permit is ERC20Checkpoints, IERC20Permit, EIP712 {
         return _domainSeparatorV4();
     }
 
-    /**
-     * @dev "Consume a nonce": return the current value and increment.
-     *
-     * _Available since v4.1._
-     */
-    function _useNonce(address owner) internal virtual returns (uint256 current) {
-        Counters.Counter storage nonce = _nonces[owner];
-        current = nonce.current();
-        nonce.increment();
-    }
 }

@@ -216,7 +216,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
             r,
             s
         );
-        if (owner != signer) revert ERC2612SignatureInvalid();
+        if (signer != owner) revert ERC2612SignatureInvalid();
         return _withdraw(signer, receiver, amount);
     }
 

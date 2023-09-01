@@ -95,7 +95,7 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
             r,
             s
         );
-        if (nonce != _useNonce(signer)) revert ERC2612SignatureInvalid();
+        _useCheckedNonce(signer, nonce);
         _delegate(signer, delegatee);
     }
 
