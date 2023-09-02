@@ -284,22 +284,44 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
     function _transfer(address from, address to, uint256 amount) internal virtual {
         if (from == address(0)) revert ERC20InvalidSender(from);
         if (to == address(0)) revert ERC20InvalidReceiver(to);
+        _update(from, to, amount);
+    }
 
-        _beforeTokenTransfer(from, to, amount);
+    /**
+     * @dev Transfers an `amount` of tokens from `from` to `to`, or alternatively mints (or burns) if `from` (or `to`)
+     * is the zero address. All customizations to transfers, mints, and burns should be done by overriding this
+     * function.
+     *
+     * Emits a {Transfer} event.
+     */
+    function _update(address from, address to, uint256 amount) internal virtual {
+        if (from == address(0)) {
+            // Increase the total supply, but not past the maxSupply
+            (,uint256 newTotalSupply) = _writeCheckpoint(_totalSupplyCheckpoints, _add, amount);
+            uint256 maxSupply_ = maxSupply();
+            if (newTotalSupply > maxSupply_) revert MaxSupplyOverflow(maxSupply_, newTotalSupply);
+        } else {
+            uint256 fromBalance = uint256(_balances[from].latest());
+            if (fromBalance < amount) revert ERC20InsufficientBalance(from, fromBalance, amount);
+            unchecked {
+                // Overflow not possible: amount <= fromBalance <= totalSupply
+                _writeCheckpoint(_balances[from], _subtract, amount);
+            }
+        }
 
-        uint256 fromBalance = uint256(_balances[from].latest());
-        if (fromBalance < amount) revert ERC20InsufficientBalance(from, fromBalance, amount);
-
-        unchecked {
-            _writeCheckpoint(_balances[from], _subtract, amount);
-            // Overflow not possible: the sum of all balances is capped by totalSupply, and the sum is preserved by
-            // decrementing then incrementing.
-            _writeCheckpoint(_balances[to], _add, amount);
+        if (to == address(0)) {
+            unchecked {
+                // Overflow not possible: amount <= totalSupply or amount <= fromBalance <= totalSupply
+                _writeCheckpoint(_totalSupplyCheckpoints, _subtract, amount);
+            }
+        } else {
+            unchecked {
+                // Overflow not possible: balance + amount is at most totalSupply
+                _writeCheckpoint(_balances[to], _add, amount);
+            }
         }
 
         emit Transfer(from, to, amount);
-
-        _afterTokenTransfer(from, to, amount);
     }
 
     /** @dev Creates `amount` tokens and assigns them to `account`, increasing
@@ -313,20 +335,7 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
      */
     function _mint(address account, uint256 amount) internal virtual {
         if (account == address(0)) revert ERC20InvalidReceiver(account);
-
-        _beforeTokenTransfer(address(0), account, amount);
-
-        // Update total supply, but don't allow minting past the maxSupply
-        (,uint256 newSupply) = _writeCheckpoint(_totalSupplyCheckpoints, _add, amount);
-        uint256 maxSupply_ = maxSupply();
-        if (newSupply > maxSupply_) revert MaxSupplyOverflow(maxSupply_, newSupply);
-        unchecked {
-            // Overflow not possible: balance + amount is at most totalSupply + amount, which is checked above.
-            _writeCheckpoint(_balances[account], _add, amount);
-        }
-        emit Transfer(address(0), account, amount);
-
-        _afterTokenTransfer(address(0), account, amount);
+        _update(address(0), account, amount);
     }
 
     /**
@@ -342,20 +351,7 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
      */
     function _burn(address account, uint256 amount) internal virtual {
         if (account == address(0)) revert ERC20InvalidSender(account);
-
-        _beforeTokenTransfer(account, address(0), amount);
-
-        uint256 accountBalance = uint256(_balances[account].latest());
-        if (accountBalance < amount) revert ERC20InsufficientBalance(account, accountBalance, amount);
-        unchecked {
-            _writeCheckpoint(_balances[account], _subtract, amount);
-            // Overflow not possible: amount <= accountBalance <= totalSupply.
-            _writeCheckpoint(_totalSupplyCheckpoints, _subtract, amount);
-        }
-
-        emit Transfer(account, address(0), amount);
-
-        _afterTokenTransfer(account, address(0), amount);
+        _update(account, address(0), amount);
     }
 
     /**
@@ -396,38 +392,6 @@ abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Che
             }
         }
     }
-
-    /**
-     * @dev Hook that is called before any transfer of tokens. This includes
-     * minting and burning.
-     *
-     * Calling conditions:
-     *
-     * - when `from` and `to` are both non-zero, `amount` of ``from``'s tokens
-     * will be transferred to `to`.
-     * - when `from` is zero, `amount` tokens will be minted for `to`.
-     * - when `to` is zero, `amount` of ``from``'s tokens will be burned.
-     * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
-     */
-    function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual {}
-
-    /**
-     * @dev Hook that is called after any transfer of tokens. This includes
-     * minting and burning.
-     *
-     * Calling conditions:
-     *
-     * - when `from` and `to` are both non-zero, `amount` of ``from``'s tokens
-     * has been transferred to `to`.
-     * - when `from` is zero, `amount` tokens have been minted for `to`.
-     * - when `to` is zero, `amount` of ``from``'s tokens have been burned.
-     * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
-     */
-    function _afterTokenTransfer(address from, address to, uint256 amount) internal virtual {}
 
     function _writeCheckpoint(
         Checkpoints.Trace224 storage store,

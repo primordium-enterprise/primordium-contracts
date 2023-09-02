@@ -104,9 +104,8 @@ abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
      *
      * Emits a {IVotes-DelegateVotesChanged} event.
      */
-    function _afterTokenTransfer(address from, address to, uint256 amount) internal virtual override {
-        super._afterTokenTransfer(from, to, amount);
-
+    function _update(address from, address to, uint256 amount) internal virtual override {
+        super._update(from, to, amount);
         _moveVotingPower(delegates(from), delegates(to), amount);
     }
 
