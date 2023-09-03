@@ -2,9 +2,36 @@
 pragma solidity ^0.8.4;
 
 import "forge-std/Test.sol";
+import "contracts/token/extensions/VotesProvisioner.sol";
 import "contracts/token/extensions/IVotesProvisioner.sol";
+import "contracts/token/extensions/provisioners/VotesProvisionerETH.sol";
 
-contract TokenSetupTest is Test {
+contract TokenETH is VotesProvisionerETH {
+
+    constructor(
+        Treasurer executor_,
+        string memory name_,
+        string memory symbol_,
+        uint256 maxSupply_,
+        TokenPrice memory tokenPrice_,
+        uint256 tokenSaleBeginsAt_,
+        uint256 governanceCanBeginAt_
+    )
+        ERC20Permit(name_)
+        ERC20Checkpoints(name_, symbol_)
+        VotesProvisioner(
+            executor_,
+            maxSupply_,
+            tokenPrice_,
+            IERC20(address(0)),
+            tokenSaleBeginsAt_,
+            governanceCanBeginAt_
+        )
+    {}
+
+}
+
+contract TokenHelper is Test {
 
     struct TokenSettings {
         string name;
@@ -33,7 +60,7 @@ contract TokenSetupTest is Test {
         uint256 f;
     }
 
-    TokenSettings internal TOKEN_CONFIG;
+    TokenSettings internal tokenConfig;
 
     TestAccounts internal testAccounts = TestAccounts(
         address(0x01),
@@ -48,14 +75,16 @@ contract TokenSetupTest is Test {
         1 ether,
         2 ether,
         3 ether,
-        4 ether,
-        5 ether,
-        6 ether
+        0,
+        0,
+        0
     );
+
+    VotesProvisioner token;
 
     constructor() {
 
-        TOKEN_CONFIG = TokenSettings({
+        tokenConfig = TokenSettings({
             name: "TestToken",
             symbol: "TEST",
             maxSupply: 1 ether,
@@ -66,6 +95,16 @@ contract TokenSetupTest is Test {
 
     }
 
-
+    function _setupTokenETH(Treasurer executor_) internal virtual {
+        token = new TokenETH(
+            executor_,
+            tokenConfig.name,
+            tokenConfig.symbol,
+            tokenConfig.maxSupply,
+            tokenConfig.tokenPrice,
+            tokenConfig.tokenSaleBeginsAt,
+            tokenConfig.governanceCanBeginAt
+        );
+    }
 
 }
