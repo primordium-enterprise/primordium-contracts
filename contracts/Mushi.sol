@@ -21,9 +21,9 @@ contract Mushi is VotesProvisionerETH {
         ERC20Checkpoints(TOKEN_NAME, TOKEN_SYMBOL)
         VotesProvisioner(
             executor_,
+            IERC20(address(0)),
             maxSupply_,
             tokenPrice_,
-            IERC20(address(0)),
             block.timestamp,
             block.timestamp + 1
         )

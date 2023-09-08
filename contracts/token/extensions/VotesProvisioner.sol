@@ -46,9 +46,9 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
 
     constructor(
         Treasurer executor_,
+        IERC20 baseAsset_,
         uint256 maxSupply_,
         TokenPrice memory tokenPrice_,
-        IERC20 baseAsset_,
         uint256 tokenSaleBeginsAt_,
         uint256 governanceCanBeginAt_
     ) ExecutorControlled(executor_) {
