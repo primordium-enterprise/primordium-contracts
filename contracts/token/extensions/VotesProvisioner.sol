@@ -287,10 +287,10 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     }
 
     /**
-     * @dev Internal function that should be overridden with functionality to transfer the deposit to the Executor.
+     * @dev Internal function that should be overridden with functionality to transfer the depositAmount of base asset
+     * to the Executor from the msg.sender.
      */
     function _transferDepositToExecutor(
-        address account,
         uint256 depositAmount,
         ProvisionMode currentProvisionMode
     ) internal virtual;
@@ -330,7 +330,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
             ) revert TokenPriceTooLow();
         }
         uint256 mintAmount = depositAmount / tokenPriceNumerator * tokenPriceDenominator;
-        _transferDepositToExecutor(account, depositAmount, currentProvisionMode);
+        _transferDepositToExecutor(depositAmount, currentProvisionMode);
         _mint(account, mintAmount);
         emit Deposit(account, depositAmount, mintAmount);
         return mintAmount;

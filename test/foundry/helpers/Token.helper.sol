@@ -2,6 +2,7 @@
 pragma solidity ^0.8.4;
 
 import "forge-std/Test.sol";
+import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetMinterPauser.sol";
 import "contracts/token/extensions/VotesProvisioner.sol";
 import "contracts/token/extensions/IVotesProvisioner.sol";
 import "contracts/token/extensions/provisioners/VotesProvisionerETH.sol";
@@ -155,6 +156,8 @@ contract TokenHelperETH is TokenHelper {
 
 contract TokenHelperERC20 is TokenHelper {
 
+    ERC20PresetMinterPauser erc20BaseAsset = new ERC20PresetMinterPauser("BaseAsset", "BA");
+
     constructor(address executor, address baseAsset) {
         token = new TokenERC20(
             tokenConfig,
@@ -164,6 +167,8 @@ contract TokenHelperERC20 is TokenHelper {
     }
 
     function _tokenDepositFor(address account, uint256 depositAmount) internal virtual override returns (uint256) {
+        erc20BaseAsset.mint(address(this), depositAmount);
+        erc20BaseAsset.approve(address(token), depositAmount);
         return token.depositFor(account, depositAmount);
     }
 

@@ -21,8 +21,10 @@ abstract contract VotesProvisionerERC20 is VotesProvisioner {
     }
 
     /**
-     * @notice Allows exchanging the depositAmount of base asset for votes (if votes are available for purchase).
-     * @param account The account address to deposit to.
+     * @notice Allows exchanging the "depositAmount" of base asset for votes (if votes are available for purchase).
+     * The "depositAmount" is transferred from the msg.sender's account, so this contract must be approved to spend at
+     * least the "depositAmount" of the ERC20 base asset.
+     * @param account The account address to make the deposit for.
      * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for
      * every `tokenPrice.numerator` count of base asset tokens.
      * @dev Override to deposit ERC20 base asset in exchange for votes.
@@ -33,6 +35,14 @@ abstract contract VotesProvisionerERC20 is VotesProvisioner {
     function depositFor(address account, uint256 depositAmount) public payable virtual override returns(uint256) {
         if (msg.value > 0) revert CannotAcceptETHDeposits();
         return super.depositFor(account, depositAmount);
+    }
+
+    /**
+     * @dev Additional depositFor function, but ommitting the "account" parameter to make the deposit for the
+     * msg.sender.
+     */
+    function depositFor(uint256 depositAmount) public virtual returns(uint256) {
+        return super.depositFor(_msgSender(), depositAmount);
     }
 
     /**
@@ -49,7 +59,7 @@ abstract contract VotesProvisionerERC20 is VotesProvisioner {
         bytes32 s
     ) public virtual returns(uint256) {
         if (spender != address(this)) revert InvalidSpender(spender, address(this));
-        IERC20Permit(baseAsset()).permit(
+        IERC20Permit(address(_baseAsset)).permit(
             owner,
             spender,
             value,
@@ -65,11 +75,10 @@ abstract contract VotesProvisionerERC20 is VotesProvisioner {
      * @dev Override to transfer the ERC20 deposit to the Executor, and register on the Executor.
      */
     function _transferDepositToExecutor(
-        address account,
         uint256 depositAmount,
         ProvisionMode currentProvisionMode
     ) internal virtual override {
-        SafeERC20.safeTransferFrom(_baseAsset, account, executor(), depositAmount);
+        SafeERC20.safeTransferFrom(_baseAsset, _msgSender(), executor(), depositAmount);
         _getTreasurer().registerDeposit(depositAmount, currentProvisionMode);
     }
 
