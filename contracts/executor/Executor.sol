@@ -106,17 +106,17 @@ abstract contract Executor is Ownable2Step, IERC721Receiver, IERC1155Receiver {
     /**
      * @dev Initializes the contract with the following parameters:
      *
-     * - `minDelay`: initial minimum delay for operations
-     * - `owner`: optional account to transfer ownership to; default to msg.sender() with 0 address.
+     * - `minDelay_`: initial minimum delay for operations
+     * - `owner_`: optional account to transfer ownership to; default to msg.sender() with 0 address.
      */
-    constructor(uint256 minDelay, address owner) {
+    constructor(uint256 minDelay_, address owner_) {
         // optional owner
-        if (owner != address(0)) {
-            transferOwnership(owner);
+        if (owner_ != address(0)) {
+            transferOwnership(owner_);
         }
 
-        _minDelay = minDelay;
-        emit MinDelayChange(0, minDelay);
+        _minDelay = minDelay_;
+        emit MinDelayChange(0, minDelay_);
     }
 
     /**

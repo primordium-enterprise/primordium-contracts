@@ -9,10 +9,10 @@ import "./executor/extensions/treasurer/TreasurerBalanceShares.sol";
 contract PrimordiumExecutor is Executor, TreasurerETH, TreasurerBalanceShares {
 
     constructor(
-        uint256 minDelay,
-        address owner,
+        uint256 minDelay_,
+        address owner_,
         VotesProvisioner votes_
-    ) Executor(minDelay, owner) Treasurer(votes_) {
+    ) Executor(minDelay_, owner_) Treasurer(votes_) {
 
     }
 

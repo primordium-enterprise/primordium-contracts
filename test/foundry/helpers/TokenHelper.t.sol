@@ -10,7 +10,7 @@ import "contracts/token/extensions/provisioners/VotesProvisionerERC20.sol";
 import "contracts/executor/extensions/treasurer/TreasurerETH.sol";
 import "contracts/executor/extensions/treasurer/TreasurerERC20.sol";
 
-abstract contract TokenBase is Test, VotesProvisioner {
+abstract contract TokenBase is VotesProvisioner {
 
     constructor(
         TokenHelper.TokenConfig memory tokenConfig,
