@@ -18,6 +18,10 @@ abstract contract ExecutorBase is Test, Treasurer, TreasurerDistributions, Treas
 
     }
 
+    function _treasuryBalance() internal view virtual override(Treasurer, TreasurerBalanceShares) returns (uint256) {
+        return super._treasuryBalance();
+    }
+
     function _governanceInitialized(
         uint256 baseAssetAmount
     ) internal virtual override(Treasurer, TreasurerBalanceShares) {
