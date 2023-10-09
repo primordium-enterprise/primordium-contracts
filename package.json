@@ -4,7 +4,7 @@
   "description": "The Primordium on-chain governance framework.",
   "main": "index.js",
   "scripts": {
-    "compile": "npx hardhat compile",
+    "compile": "forge build",
     "test": "forge test -vvv --no-match-path 'test/foundry/.*/*'",
     "lint": "solhint 'contracts/**/*.sol'"
   },
@@ -18,7 +18,7 @@
     "ethereum",
     "governance"
   ],
-  "author": "Ben Jett, BCJ Development",
+  "author": "Ben Jett @BCJdevelopment",
   "license": "GPL-3.0-or-later",
   "bugs": {
     "url": "https://github.com/BCJdevelopment/primordium-contracts/issues"
