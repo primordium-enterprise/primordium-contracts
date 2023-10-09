@@ -4,6 +4,8 @@
 
 pragma solidity 0.8.4;
 
+import {ExecutorBaseCallOnly} from "./ExecutorBaseCallOnly.sol";
+
 /**
  * LICENSE
  *
@@ -29,7 +31,7 @@ pragma solidity 0.8.4;
  * Additional Modifications:
  * @author Ben Jett - @BCJdevelopment
  */
-contract MultiSendCallOnly {
+abstract contract MultiSendCallOnly is ExecutorBaseCallOnly {
     /**
      * @dev Sends multiple transactions and reverts all if one fails.
      * @param transactions Encoded transactions. Each transaction is encoded as a packed bytes of
@@ -44,7 +46,7 @@ contract MultiSendCallOnly {
      * @notice This method is payable as delegatecalls keep the msg.value from the previous call
      *         If the calling method (e.g. execTransaction) received ETH this would revert otherwise
      */
-    function multiSend(bytes memory transactions) public payable {
+    function multiSend(bytes calldata transactions) external payable onlyExecutor {
         /* solhint-disable no-inline-assembly */
         /// @solidity memory-safe-assembly
         assembly {
