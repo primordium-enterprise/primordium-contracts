@@ -2,7 +2,7 @@
 // Primordium Contracts
 // Based on Safe Contracts (MultiSendCallOnly.sol)
 
-pragma solidity 0.8.4;
+pragma solidity ^0.8.4;
 
 import {ExecutorBaseCallOnly} from "./ExecutorBaseCallOnly.sol";
 
@@ -16,10 +16,9 @@ import {ExecutorBaseCallOnly} from "./ExecutorBaseCallOnly.sol";
  *
  * Modifications made by Ben Jett (@BCJdevelopment) include:
  * - Inherits ExecutorBaseCallOnly and includes a modifier ensuring only the Executor can call this function on itself.
- * - Uses "calldata" instead of "memory" for the multiSend() function.
  * - The multiSend() function is also changed from public to external visibility.
  * - This contract is made abstract as it is not intended to be deployed on its own.
- * - For each successful call, the CallExecuted event is logged for easier offchain tracking of multiSend transactions.
+ * - For successful calls, the MultiSendCallExecuted event is emitted to log each operation.
  */
 
 /**
@@ -32,6 +31,21 @@ import {ExecutorBaseCallOnly} from "./ExecutorBaseCallOnly.sol";
  * @author Ben Jett - @BCJdevelopment
  */
 abstract contract MultiSendCallOnly is ExecutorBaseCallOnly {
+
+    event MultiSendCallExecuted(
+        address indexed target,
+        uint256 value,
+        uint256 dataLength,
+        bytes data
+    );
+
+    constructor() {
+        // We check to make sure the hash of the CallExecuted event signature has not changed
+        require(
+            MultiSendCallExecuted.selector == 0x6e39a901e1305f4f6a54eec2b50de611aa5a49552f9c2b26d577a27a00aa8792,
+            "MultiSendCallExecuted.selector doesn't match the hash used in multiSend()"
+        );
+    }
     /**
      * @dev Sends multiple transactions and reverts all if one fails.
      * @param transactions Encoded transactions. Each transaction is encoded as a packed bytes of
@@ -46,7 +60,7 @@ abstract contract MultiSendCallOnly is ExecutorBaseCallOnly {
      * @notice This method is payable as delegatecalls keep the msg.value from the previous call
      *         If the calling method (e.g. execTransaction) received ETH this would revert otherwise
      */
-    function multiSend(bytes calldata transactions) external payable onlyExecutor {
+    function multiSend(bytes memory transactions) external payable onlyExecutor {
         /* solhint-disable no-inline-assembly */
         /// @solidity memory-safe-assembly
         assembly {
@@ -84,6 +98,10 @@ abstract contract MultiSendCallOnly is ExecutorBaseCallOnly {
                     returndatacopy(0, 0, errorLength)
                     revert(0, errorLength)
                 }
+                // Log the MultiSendCallExecuted event
+                let eventSelector := 0x6e39a901e1305f4f6a54eec2b50de611aa5a49552f9c2b26d577a27a00aa8792
+                // Log data from (data - 32 data length bytes - 32 value bytes) to (data + dataLength)
+                log2(sub(data, 0x40), add(data, dataLength), eventSelector, to)
                 // Next entry starts at 85 byte + data length
                 i := add(i, add(0x55, dataLength))
             }
