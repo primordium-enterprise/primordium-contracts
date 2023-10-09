@@ -7,17 +7,16 @@ import {Enum} from "contracts/common/Enum.sol";
 
 /**
  * @title Executor Base Call Only - Only allows CALL operations (no DELEGATECALL)
+ *
+ * @author Ben Jett @BCJdevelopment
  */
 abstract contract ExecutorBaseCallOnly {
 
+    event CallExecuted(address indexed target, uint256 value, bytes data);
+
     error OnlyExecutor();
-
     error ExecutorIsCallOnly();
-
-    /**
-     * Throws when a call fails to execute.
-     */
-    error OperationCallReverted(address target, uint256 value, bytes data);
+    error CallReverted(address target, uint256 value, bytes data);
 
     /**
      * @dev Modifier to make a function callable only by the Executor itself, meaning this Executor contract must make
@@ -47,7 +46,8 @@ abstract contract ExecutorBaseCallOnly {
             revert ExecutorIsCallOnly();
         }
         (bool success,) = target.call{value: value}(data);
-        if (!success) revert OperationCallReverted(target, value, data);
+        if (!success) revert CallReverted(target, value, data);
+        emit CallExecuted(target, value, data);
     }
 
 }
