@@ -85,7 +85,7 @@ abstract contract ModuleTimelockAdmin is MultiSendCallOnly, IAvatar {
     function execTransactionFromModule(
         address to,
         uint256 value,
-        bytes memory data,
+        bytes calldata data,
         Enum.Operation operation
     ) external returns (bool success) {
         // Operations are CALL only for this timelock
@@ -96,7 +96,7 @@ abstract contract ModuleTimelockAdmin is MultiSendCallOnly, IAvatar {
     function execTransactionFromModuleReturnData(
         address to,
         uint256 value,
-        bytes memory data,
+        bytes calldata data,
         Enum.Operation operation
     ) external returns (bool success, bytes memory returnData) {
         // Operations are CALL only for this timelock
@@ -107,7 +107,7 @@ abstract contract ModuleTimelockAdmin is MultiSendCallOnly, IAvatar {
     function _execTransactionFromModule(
         address to,
         uint256 value,
-        bytes memory data
+        bytes calldata data
     ) internal returns (bool, bytes memory) {
 
     }

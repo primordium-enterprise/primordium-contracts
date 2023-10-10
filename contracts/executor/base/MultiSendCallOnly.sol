@@ -4,6 +4,7 @@
 
 pragma solidity ^0.8.4;
 
+import {Enum} from "contracts/common/Enum.sol";
 import {ExecutorBaseCallOnly} from "./ExecutorBaseCallOnly.sol";
 
 /**
@@ -32,20 +33,19 @@ import {ExecutorBaseCallOnly} from "./ExecutorBaseCallOnly.sol";
  */
 abstract contract MultiSendCallOnly is ExecutorBaseCallOnly {
 
-    event MultiSendCallExecuted(
-        address indexed target,
-        uint256 value,
-        uint256 dataLength,
-        bytes data
-    );
+    // event MultiSendCallExecuted(
+    //     address indexed target,
+    //     uint256 value,
+    //     bytes data
+    // );
 
-    constructor() {
-        // We check to make sure the hash of the CallExecuted event signature has not changed
-        require(
-            MultiSendCallExecuted.selector == 0x6e39a901e1305f4f6a54eec2b50de611aa5a49552f9c2b26d577a27a00aa8792,
-            "MultiSendCallExecuted.selector doesn't match the hash used in multiSend()"
-        );
-    }
+    // constructor() {
+    //     // We check to make sure the hash of the CallExecuted event signature has not changed
+    //     require(
+    //         MultiSendCallExecuted.selector == 0x6e39a901e1305f4f6a54eec2b50de611aa5a49552f9c2b26d577a27a00aa8792,
+    //         "MultiSendCallExecuted.selector doesn't match the hash used in multiSend()"
+    //     );
+    // }
     /**
      * @dev Sends multiple transactions and reverts all if one fails.
      * @param transactions Encoded transactions. Each transaction is encoded as a packed bytes of
@@ -60,52 +60,39 @@ abstract contract MultiSendCallOnly is ExecutorBaseCallOnly {
      * @notice This method is payable as delegatecalls keep the msg.value from the previous call
      *         If the calling method (e.g. execTransaction) received ETH this would revert otherwise
      */
-    function multiSend(bytes memory transactions) external payable onlyExecutor {
+    function multiSend(bytes calldata transactions) external payable onlyExecutor {
         /* solhint-disable no-inline-assembly */
-        /// @solidity memory-safe-assembly
-        assembly {
-            let length := mload(transactions)
-            let i := 0x20
-            for {
-                // Pre block is not used in "while mode"
-            } lt(i, length) {
-                // Post block is not used in "while mode"
-            } {
+        uint256 operation;
+        address to;
+        uint256 value;
+        bytes calldata data;
+
+        uint256 i = 0;
+        while (i < transactions.length) {
+            /// @solidity memory-safe-assembly
+            assembly {
                 // First byte of the data is the operation.
-                // We shift by 248 bits (256 - 8 [operation byte]) it right since mload will always load 32 bytes (a word).
+                // We shift right by 248 bits (256 - 8 [operation byte]) since it will always load 32 bytes (a word).
                 // This will also zero out unused data.
-                let operation := shr(0xf8, mload(add(transactions, i)))
+                operation := shr(0xf8, calldataload(add(transactions.offset, i)))
                 // We offset the load address by 1 byte (operation byte)
                 // We shift it right by 96 bits (256 - 160 [20 address bytes]) to right-align the data and zero out unused data.
-                let to := shr(0x60, mload(add(transactions, add(i, 0x01))))
+                to := shr(0x60, calldataload(add(transactions.offset, add(i, 0x01))))
                 // We offset the load address by 21 byte (operation byte + 20 address bytes)
-                let value := mload(add(transactions, add(i, 0x15)))
+                value := calldataload(add(transactions.offset, add(i, 0x15)))
                 // We offset the load address by 53 byte (operation byte + 20 address bytes + 32 value bytes)
-                let dataLength := mload(add(transactions, add(i, 0x35)))
-                // We offset the load address by 85 byte (operation byte + 20 address bytes + 32 value bytes + 32 data length bytes)
-                let data := add(transactions, add(i, 0x55))
-                let success := 0
-                switch operation
-                case 0 {
-                    success := call(gas(), to, value, data, dataLength, 0, 0)
-                }
-                // This version does not allow delegatecalls
-                case 1 {
-                    revert(0, 0)
-                }
-                if eq(success, 0) {
-                    let errorLength := returndatasize()
-                    returndatacopy(0, 0, errorLength)
-                    revert(0, errorLength)
-                }
-                // Log the MultiSendCallExecuted event
-                let eventSelector := 0x6e39a901e1305f4f6a54eec2b50de611aa5a49552f9c2b26d577a27a00aa8792
-                // Log data from (data - 32 data length bytes - 32 value bytes) to (data + dataLength)
-                log2(sub(data, 0x40), add(data, dataLength), eventSelector, to)
+                data.length := calldataload(add(transactions.offset, add(i, 0x35)))
+                // The data.offset should be offset by 85 byte (operation byte + 20 address bytes + 32 value bytes + 32 data length bytes)
+                data.offset := add(transactions.offset, add(i, 0x55))
+            }
+            // Call the execution function
+            _execute(to, value, data, Enum.Operation(operation));
+            // Increment the position in the transactions
+            unchecked {
                 // Next entry starts at 85 byte + data length
-                i := add(i, add(0x55, dataLength))
+                i += 85 + data.length;
             }
         }
-        /* solhint-enable no-inline-assembly */
     }
+    /* solhint-enable no-inline-assembly */
 }

@@ -42,7 +42,7 @@ abstract contract ExecutorBaseCallOnly {
         bytes calldata data,
         Enum.Operation operation
     ) internal virtual {
-        if (operation > Enum.Operation.Call) {
+        if (operation != Enum.Operation.Call) {
             revert ExecutorIsCallOnly();
         }
         (bool success,) = target.call{value: value}(data);
