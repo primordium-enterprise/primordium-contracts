@@ -3,6 +3,7 @@
 
 pragma solidity ^0.8.4;
 
+import {Enum} from "contracts/common/Enum.sol";
 import {MultiSendCallOnly} from "./MultiSendCallOnly.sol";
 import {IAvatar} from "../interfaces/IAvatar.sol";
 
@@ -79,6 +80,36 @@ abstract contract ModuleTimelockAdmin is MultiSendCallOnly, IAvatar {
         modules[prevModule] = modules[module];
         modules[module] = address(0);
         emit DisabledModule(module);
+    }
+
+    function execTransactionFromModule(
+        address to,
+        uint256 value,
+        bytes memory data,
+        Enum.Operation operation
+    ) external returns (bool success) {
+        // Operations are CALL only for this timelock
+        if (operation != Enum.Operation.Call) revert ExecutorIsCallOnly();
+        (success,) = _execTransactionFromModule(to, value, data);
+    }
+
+    function execTransactionFromModuleReturnData(
+        address to,
+        uint256 value,
+        bytes memory data,
+        Enum.Operation operation
+    ) external returns (bool success, bytes memory returnData) {
+        // Operations are CALL only for this timelock
+        if (operation != Enum.Operation.Call) revert ExecutorIsCallOnly();
+        (success, returnData) = _execTransactionFromModule(to, value, data);
+    }
+
+    function _execTransactionFromModule(
+        address to,
+        uint256 value,
+        bytes memory data
+    ) internal returns (bool, bytes memory) {
+
     }
 
 
