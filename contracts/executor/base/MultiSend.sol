@@ -49,7 +49,7 @@ abstract contract MultiSend is ExecutorBaseCallOnly {
                 // To set the start of the data, offset by 85 byte (53 byte offset + 32 data length bytes)
                 data.offset := add(transactions.offset, add(i, 0x55))
             }
-            // Call the execution function
+            // Call the execution function (which will revert if operation is not call only)
             _execute(to, value, data, Enum.Operation(operation));
             // Increment the position in the transactions
             unchecked {

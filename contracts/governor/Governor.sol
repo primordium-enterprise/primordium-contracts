@@ -407,12 +407,12 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
             !_hasRole(PROPOSER_ROLE, proposer)
         ) revert UnauthorizedToSubmitProposal();
 
-        if (targets.length == 0) revert MissingActions();
+        if (targets.length == 0) revert MissingArrayItems();
         if (
             targets.length != values.length ||
             targets.length != calldatas.length ||
             targets.length != signatures.length
-        ) revert ActionLengthsMismatch();
+        ) revert MismatchingArrayLengths();
 
         if (_token.provisionMode() == IVotesProvisioner.ProvisionMode.Founding) {
             if (_token.totalSupply() < governanceThreshold) revert InsufficientVoteSupplyForGovernance();

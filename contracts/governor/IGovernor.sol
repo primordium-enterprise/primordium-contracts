@@ -4,6 +4,7 @@
 
 pragma solidity ^0.8.4;
 
+import {IArrayLengthErrors} from "contracts/interfaces/IArrayLengthErrors.sol";
 import "@openzeppelin/contracts/interfaces/IERC165.sol";
 import "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import "../utils/ExecutorControlled.sol";
@@ -13,7 +14,7 @@ import "../utils/ExecutorControlled.sol";
  *
  * _Available since v4.3._
  */
-abstract contract IGovernor is IERC165, IERC6372, ExecutorControlled {
+abstract contract IGovernor is IArrayLengthErrors, IERC165, IERC6372, ExecutorControlled {
 
     enum ProposalState {
         Pending,
@@ -88,8 +89,6 @@ abstract contract IGovernor is IERC165, IERC6372, ExecutorControlled {
     error UnknownProposalId(uint256 proposalId);
     error UnauthorizedToSubmitProposal();
     error UnauthorizedToCancelProposal();
-    error MissingActions();
-    error ActionLengthsMismatch();
     error InsufficientVoteSupplyForGovernance();
     error InvalidFoundingModeActions();
     error InvalidActionSignature(uint256 index);
