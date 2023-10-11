@@ -4,7 +4,7 @@
 pragma solidity ^0.8.4;
 
 import {Enum} from "contracts/common/Enum.sol";
-import {MultiSendCallOnly} from "./MultiSendCallOnly.sol";
+import {MultiSend} from "./MultiSend.sol";
 import {IAvatar} from "../interfaces/IAvatar.sol";
 
 /**
@@ -14,7 +14,7 @@ import {IAvatar} from "../interfaces/IAvatar.sol";
  *
  * @author Ben Jett @BCJdevelopment
  */
-abstract contract ModuleTimelockAdmin is MultiSendCallOnly, IAvatar {
+abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
 
     // For "modules" linked list
     address internal constant MODULES_HEAD = address(0x1);
