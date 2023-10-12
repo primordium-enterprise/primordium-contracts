@@ -3,7 +3,6 @@
 
 pragma solidity ^0.8.4;
 
-import {console} from "hardhat/console.sol";
 import {IArrayLengthErrors} from "../interfaces/IArrayLengthErrors.sol";
 
 /**
@@ -23,7 +22,7 @@ library MultiSendEncoder {
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas
-    ) internal view returns (
+    ) internal pure returns (
         address to,
         uint256 value,
         bytes memory data
@@ -47,10 +46,7 @@ library MultiSendEncoder {
                     // Can be unchecked, enough memory bytes to overflow would exceed transaction gas limits first
                     dataLength += calldatas[i].length;
                 }
-                // Pad data length in bytes to be a multiple of 32 byte words
-                // dataLength = ( (dataLength + 31) / 32 ) * 32;
             }
-            console.log(dataLength);
             /* solhint-disable no-inline-assembly */
             /// @solidity memory-safe-assembly
             assembly {
@@ -86,10 +82,7 @@ library MultiSendEncoder {
                 i := 0
                 // j is the array item index
                 let j := 0
-                for {} lt(j, mload(targets)) {
-                    // Increment the array item index
-                    j := add(j, 0x01)
-                } {
+                for {} lt(i, dataLength) {} {
                     /**
                      * currentDataOffset =
                      *  data address +
@@ -110,21 +103,23 @@ library MultiSendEncoder {
                     mstore(add(mload(0), 0x15), mload(add(values, mload(0x20))))
 
                     // Store the address of the calldata array item in the scratch space
-                    mstore(0x20, add(calldatas, mul(j, 0x20)))
+                    mstore(0x20, mload(add(calldatas, add(0x20, mul(j, 0x20)))))
                     // let pCalldata := mload(add(calldatas, mul(j, 0x20)))
                     let calldataLength := mload(mload(0x20))
                     // calldata length stores at 53 byte offset
                     mstore(add(mload(0), 0x35), calldataLength)
-                    // if gt(calldataLength, 0) {
-                    //     // Iterate, storing the data (starting at 85 bytes from the currentDataOffset)
-                    //     let k := 0
-                    //     for {} lt(k, calldataLength) {} {
-                    //         mstore(add(k, add(mload(0), 0x55)), mload(add(k, add(mload(0x20), 0x20))))
-                    //         k := add(k, 0x20)
-                    //     }
-                    // }
+                    if gt(calldataLength, 0) {
+                        // Iterate, storing the data (starting at 85 bytes from the currentDataOffset)
+                        let k := 0
+                        for {} lt(k, calldataLength) {} {
+                            mstore(add(k, add(mload(0), 0x55)), mload(add(k, add(mload(0x20), 0x20))))
+                            k := add(k, 0x20)
+                        }
+                    }
                     // increment the current data index by the static 85 bytes + the length of the calldata
                     i := add(i, add(0x55, calldataLength))
+                    // Increment the array item index
+                    j := add(j, 0x01)
                 }
             }
             /* solhint-enable no-inline-assembly */

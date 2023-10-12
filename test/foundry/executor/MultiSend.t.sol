@@ -84,11 +84,6 @@ contract MultiSendTest is Test {
             bytes memory data
         ) = MultiSendEncoder.encodeMultiSend(multiSender, targets, values, calldatas);
 
-        console.log(to);
-        console.log(value);
-        console.log(data.length);
-        console.logBytes(data);
-
         MultiSender(payable(multiSender)).execute(to, value, data);
 
         assertEq(MultiSender(multiSender).x(), 20);
@@ -110,9 +105,6 @@ contract MultiSendTest is Test {
             uint256 value,
             bytes memory data
         ) = _encodeMultiSendClassic(multiSender, targets, values, calldatas);
-
-        console.log(data.length);
-        console.logBytes(data);
 
         MultiSender(payable(multiSender)).execute(to, value, data);
 
