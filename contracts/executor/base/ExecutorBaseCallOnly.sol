@@ -34,6 +34,13 @@ abstract contract ExecutorBaseCallOnly {
     }
 
     /**
+     * @dev Contract should be able to receive ETH.
+     */
+    receive() external payable {}
+
+    fallback() external payable {}
+
+    /**
      * @dev Execute an operation's call.
      */
     function _execute(
