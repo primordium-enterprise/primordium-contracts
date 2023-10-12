@@ -51,12 +51,13 @@ library MultiSendEncoder {
                 dataLength = (dataLength + 31) % 32;
             }
             /* solhint-disable no-inline-assembly */
+            /// @solidity memory-safe-assembly
             assembly {
                 // Allocate enough memory for "data", plus 4 bytes for the multiSend(bytes) selector
                 let p := mload(0x40)
                 mstore(0x40, add(0x04, add(add(p, i), dataLength)))
-                // Store the function selector, so shift left by 28 bytes (224 bits)
-                mstore(p, shl(0xE0, 0x8d80ff0a))
+                // Store the function selector
+                mstore(p, hex"8d80ff0a")
                 // Begin allocating the data
                 data := add(p, 0x04)
                 mstore(data, dataLength)
@@ -66,12 +67,12 @@ library MultiSendEncoder {
                 for {} lt(i, dataLength) {
                     j := add(j, 0x20)
                 } {
-                    let currentDataOffset := add(add(data, 0x20), i)
+                    let currentDataOffset := add(i, add(data, 0x20))
                     // Store operation (uint8(0)) and address at once by shifting the address left 11 bytes (88 bits)
                     mstore(currentDataOffset, shl(0x58, mload(add(targets, j))))
-                    // value goes at 21 bytes
+                    // value stores at 21 byte offset
                     mstore(add(currentDataOffset, 0x15), mload(add(values, j)))
-                    // calldata length at 53 bytes
+                    // calldata length stores at 53 byte offset
                     let pCalldata := mload(add(calldatas, j))
                     let calldataLength := mload(pCalldata)
                     mstore(add(currentDataOffset, 0x35), calldataLength)
@@ -84,6 +85,8 @@ library MultiSendEncoder {
                             mstore(add(k, add(currentDataOffset, 0x55)), mload(add(k, add(pCalldata, 0x20))))
                         }
                     }
+                    // increment the current data index by the static 85 bytes + the length of the calldata
+                    i := add(i, add(0x55, calldataLength))
                 }
             }
             /* solhint-enable no-inline-assembly */
