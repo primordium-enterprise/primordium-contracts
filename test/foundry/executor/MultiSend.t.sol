@@ -87,6 +87,7 @@ contract MultiSendTest is Test {
         console.log(to);
         console.log(value);
         console.log(data.length);
+        console.logBytes(data);
 
         MultiSender(payable(multiSender)).execute(to, value, data);
 
