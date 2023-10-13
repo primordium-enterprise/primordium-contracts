@@ -2,18 +2,25 @@
 pragma solidity ^0.8.4;
 
 import "forge-std/Test.sol";
+import "forge-std/Vm.sol";
 import {Enum} from "contracts/common/Enum.sol";
 import {MultiSend} from "contracts/executor/base/MultiSend.sol";
 import {MultiSendEncoder} from "contracts/libraries/MultiSendEncoder.sol";
 
-contract MultiSender is MultiSend {
-
-    uint256 public x;
-    address public a;
+interface IMultiSenderEvents {
 
     event Added(uint256 amount);
     event Subtracted(uint256 amount);
     event AddressChanged(address newAddress);
+    event BytesUpdated(bytes newBytes);
+
+}
+
+contract MultiSender is MultiSend, IMultiSenderEvents{
+
+    uint256 public x;
+    address public a;
+    bytes public z;
 
     function execute(
         address to,
@@ -51,6 +58,16 @@ contract MultiSender is MultiSend {
         emit AddressChanged(newAddress);
     }
 
+    function addToBytes(bytes memory addition1, bytes memory addition2) external onlyExecutor {
+        for (uint256 i = 0; i < addition1.length; i++) {
+            z.push(addition1[i]);
+        }
+        for (uint256 i = 0; i < addition2.length; i++) {
+            z.push(addition2[i]);
+        }
+        emit BytesUpdated(z);
+    }
+
 }
 
 contract PaymentReceiver {
@@ -62,7 +79,7 @@ contract PaymentReceiver {
     }
 }
 
-contract MultiSendTest is Test {
+contract MultiSendTest is Test, IMultiSenderEvents {
 
     address payable multiSender = payable(address(new MultiSender()));
     address paymentReceiver = address(new PaymentReceiver());
@@ -84,11 +101,38 @@ contract MultiSendTest is Test {
             bytes memory data
         ) = MultiSendEncoder.encodeMultiSend(multiSender, targets, values, calldatas);
 
+        vm.recordLogs();
         MultiSender(payable(multiSender)).execute(to, value, data);
 
         assertEq(MultiSender(multiSender).x(), 20);
         assertEq(MultiSender(multiSender).a(), address(0x01));
         assertEq(multiSender.balance, 5 ether);
+
+        // Check the logs, order should be: Added, Subtracted, AddressChanged, Added, Subtracted, BytesUpdated
+        bytes32[6] memory expectedTopics = [
+            Added.selector,
+            Subtracted.selector,
+            AddressChanged.selector,
+            Added.selector,
+            Subtracted.selector,
+            BytesUpdated.selector
+        ];
+        uint256 x;
+
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == multiSender && logs[i].topics.length > 0) {
+                // Skip the "CallExecuted" events
+                if (logs[i].topics[0] == hex"7aa5ed2c76d4b9b3e8cbc2d86e798d468acf8cc22876dbfe0b62ea3180006c26") {
+                    continue;
+                }
+                if (logs[i].topics[0] == expectedTopics[x]) {
+                    x += 1;
+                }
+            }
+        }
+
+        assertEq(x, expectedTopics.length, "Expected event emits not lining up.");
 
     }
 
@@ -151,9 +195,9 @@ contract MultiSendTest is Test {
         bytes[] memory calldatas
     ) {
 
-        targets = new address[](5);
-        values = new uint256[](5);
-        calldatas = new bytes[](5);
+        targets = new address[](6);
+        values = new uint256[](6);
+        calldatas = new bytes[](6);
 
         // First transaction, add(10)
         targets[0] = multiSender;
@@ -179,6 +223,13 @@ contract MultiSendTest is Test {
         targets[4] = multiSender;
         values[4] = 0;
         calldatas[4] = abi.encodeWithSelector(MultiSender.addThenSubtract.selector, 20, 5);
+
+        // Sixth transaction, addToBytes(bytes)
+        targets[5] = multiSender;
+        values[5] = 0;
+        bytes memory addition1 = hex"010203";
+        bytes memory addition2 = hex"01020304";
+        calldatas[5] = abi.encodeWithSelector(MultiSender.addToBytes.selector, addition1, addition2);
 
     }
 
