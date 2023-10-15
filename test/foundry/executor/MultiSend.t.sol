@@ -16,6 +16,19 @@ interface IMultiSenderEvents {
 
 }
 
+contract ExternalEncoder {
+
+    function encodeMultiSendCalldata(
+        address executor,
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
+    ) external pure returns (address to, uint256 value, bytes memory data) {
+        return MultiSendEncoder.encodeMultiSendCalldata(executor, targets, values, calldatas);
+    }
+
+}
+
 contract MultiSender is MultiSend, IMultiSenderEvents{
 
     uint256 public x;
@@ -81,6 +94,7 @@ contract PaymentReceiver {
 
 contract MultiSendTest is Test, IMultiSenderEvents {
 
+    address externalEncoder = address(new ExternalEncoder());
     address payable multiSender = payable(address(new MultiSender()));
     address paymentReceiver = address(new PaymentReceiver());
 
@@ -88,7 +102,7 @@ contract MultiSendTest is Test, IMultiSenderEvents {
         vm.deal(multiSender, 10 ether);
     }
 
-    function _executeMultisend() internal {
+    function _executeMultiSend() internal {
         (
             address[] memory targets,
             uint256[] memory values,
@@ -105,12 +119,26 @@ contract MultiSendTest is Test, IMultiSenderEvents {
         MultiSender(payable(multiSender)).execute(to, value, data);
     }
 
-    function test_MultiSend() public {
-        _executeMultisend();
-        _asserts();
+    function _executeMultiSendCalldata() internal {
+
+        (
+            address[] memory targets,
+            uint256[] memory values,
+            bytes[] memory calldatas
+        ) = _buildTransactions();
+
+        (
+            address to,
+            uint256 value,
+            bytes memory data
+        ) = ExternalEncoder(externalEncoder).encodeMultiSendCalldata(multiSender, targets, values, calldatas);
+
+        vm.recordLogs();
+        MultiSender(payable(multiSender)).execute(to, value, data);
+
     }
 
-    function _executeMultisendClassic() internal {
+    function _executeMultiSendClassic() internal {
 
         (
             address[] memory targets,
@@ -129,12 +157,22 @@ contract MultiSendTest is Test, IMultiSenderEvents {
 
     }
 
-    function test_MultiSendClassic() public {
-        _executeMultisendClassic();
+    function test_MultiSend() public {
+        _executeMultiSend();
         _asserts();
     }
 
-    function test_MultiSendEncoderIsEqual() public {
+    function test_MultiSendCalldata() public {
+        _executeMultiSendCalldata();
+        _asserts();
+    }
+
+    function test_MultiSendClassic() public {
+        _executeMultiSendClassic();
+        _asserts();
+    }
+
+    function test_MultiSendEncodersAreEqual() public {
 
         (
             address[] memory targets,
@@ -147,6 +185,12 @@ contract MultiSendTest is Test, IMultiSenderEvents {
             uint256 value,
             bytes memory data
         ) = MultiSendEncoder.encodeMultiSend(multiSender, targets, values, calldatas);
+
+        (
+            address toCalldata,
+            uint256 valueCalldata,
+            bytes memory dataCalldata
+        ) = ExternalEncoder(externalEncoder).encodeMultiSendCalldata(multiSender, targets, values, calldatas);
 
         (
             address checkTo,
@@ -154,14 +198,14 @@ contract MultiSendTest is Test, IMultiSenderEvents {
             bytes memory checkData
         ) = _encodeMultiSendClassic(multiSender, targets, values, calldatas);
 
+        assertEq(to, toCalldata);
         assertEq(to, checkTo);
+
+        assertEq(value, valueCalldata);
         assertEq(value, checkValue);
-        assertEq(data.length, checkData.length);
-        for (uint256 i = 0; i < data.length; i++) {
-            if (data[i] != checkData[i]) {
-                revert("Encoded data does not match");
-            }
-        }
+
+        assertEq(data, dataCalldata);
+        assertEq(data, checkData);
 
     }
 
