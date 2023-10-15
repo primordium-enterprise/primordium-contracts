@@ -88,7 +88,7 @@ contract MultiSendTest is Test, IMultiSenderEvents {
         vm.deal(multiSender, 10 ether);
     }
 
-    function test_MultiSend() public {
+    function _executeMultisend() internal {
         (
             address[] memory targets,
             uint256[] memory values,
@@ -103,40 +103,14 @@ contract MultiSendTest is Test, IMultiSenderEvents {
 
         vm.recordLogs();
         MultiSender(payable(multiSender)).execute(to, value, data);
-
-        assertEq(MultiSender(multiSender).x(), 20);
-        assertEq(MultiSender(multiSender).a(), address(0x01));
-        assertEq(multiSender.balance, 5 ether);
-
-        // Check the logs, order should be: Added, Subtracted, AddressChanged, Added, Subtracted, BytesUpdated
-        bytes32[6] memory expectedTopics = [
-            Added.selector,
-            Subtracted.selector,
-            AddressChanged.selector,
-            Added.selector,
-            Subtracted.selector,
-            BytesUpdated.selector
-        ];
-        uint256 x;
-
-        VmSafe.Log[] memory logs = vm.getRecordedLogs();
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].emitter == multiSender && logs[i].topics.length > 0) {
-                // Skip the "CallExecuted" events
-                if (logs[i].topics[0] == hex"7aa5ed2c76d4b9b3e8cbc2d86e798d468acf8cc22876dbfe0b62ea3180006c26") {
-                    continue;
-                }
-                if (logs[i].topics[0] == expectedTopics[x]) {
-                    x += 1;
-                }
-            }
-        }
-
-        assertEq(x, expectedTopics.length, "Expected event emits not lining up.");
-
     }
 
-    function test_MultiSendClassic() public {
+    function test_MultiSend() public {
+        _executeMultisend();
+        _asserts();
+    }
+
+    function _executeMultisendClassic() internal {
 
         (
             address[] memory targets,
@@ -150,12 +124,14 @@ contract MultiSendTest is Test, IMultiSenderEvents {
             bytes memory data
         ) = _encodeMultiSendClassic(multiSender, targets, values, calldatas);
 
+        vm.recordLogs();
         MultiSender(payable(multiSender)).execute(to, value, data);
 
-        assertEq(MultiSender(multiSender).x(), 20);
-        assertEq(MultiSender(multiSender).a(), address(0x01));
-        assertEq(multiSender.balance, 5 ether);
+    }
 
+    function test_MultiSendClassic() public {
+        _executeMultisendClassic();
+        _asserts();
     }
 
     function test_MultiSendEncoderIsEqual() public {
@@ -231,6 +207,44 @@ contract MultiSendTest is Test, IMultiSenderEvents {
         bytes memory addition2 = hex"01020304";
         calldatas[5] = abi.encodeWithSelector(MultiSender.addToBytes.selector, addition1, addition2);
 
+    }
+
+    function _asserts() internal {
+
+        assertEq(MultiSender(multiSender).x(), 20);
+        assertEq(MultiSender(multiSender).a(), address(0x01));
+        assertEq(multiSender.balance, 5 ether);
+        bytes memory z = MultiSender(multiSender).z();
+        bytes memory _z = hex"01020301020304";
+        for (uint256 i = 0; i < z.length; i++) {
+            assertEq(z[i], _z[i]);
+        }
+
+        // Check the logs, order should be: Added, Subtracted, AddressChanged, Added, Subtracted, BytesUpdated
+        bytes32[6] memory expectedTopics = [
+            Added.selector,
+            Subtracted.selector,
+            AddressChanged.selector,
+            Added.selector,
+            Subtracted.selector,
+            BytesUpdated.selector
+        ];
+        uint256 x;
+
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == multiSender && logs[i].topics.length > 0) {
+                // Skip the "CallExecuted" events
+                if (logs[i].topics[0] == hex"7aa5ed2c76d4b9b3e8cbc2d86e798d468acf8cc22876dbfe0b62ea3180006c26") {
+                    continue;
+                }
+                if (logs[i].topics[0] == expectedTopics[x]) {
+                    x += 1;
+                }
+            }
+        }
+
+        assertEq(x, expectedTopics.length, "Expected event emits not lining up.");
     }
 
     function _encodeMultiSendClassic(
