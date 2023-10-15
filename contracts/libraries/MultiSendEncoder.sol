@@ -47,7 +47,6 @@ library MultiSendEncoder {
                     dataLength += calldatas[i].length;
                 }
             }
-            /* solhint-disable no-inline-assembly */
             /// @solidity memory-safe-assembly
             assembly {
                 /**
@@ -121,7 +120,6 @@ library MultiSendEncoder {
                     j := add(j, 0x01)
                 }
             }
-            /* solhint-enable no-inline-assembly */
         } else {
             to = targets[0];
             value = values[0];
@@ -166,7 +164,6 @@ library MultiSendEncoder {
                     dataLength += calldatas[i].length;
                 }
             }
-            /* solhint-disable no-inline-assembly */
             /// @solidity memory-safe-assembly
             assembly {
                 /**
@@ -240,7 +237,6 @@ library MultiSendEncoder {
                     j := add(j, 0x01)
                 }
             }
-            /* solhint-enable no-inline-assembly */
         } else {
             to = targets[0];
             value = values[0];

@@ -7,7 +7,7 @@ pragma solidity ^0.8.4;
 
 contract Roles is Context {
 
-    mapping(bytes32 => mapping(address => uint256)) _roleMembers;
+    mapping(bytes32 => mapping(address => uint256)) internal _roleMembers;
 
     event RoleGranted(bytes32 role, address account, uint256 expiresAt);
     event RoleRevoked(bytes32 role, address account);

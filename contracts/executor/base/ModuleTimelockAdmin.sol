@@ -28,6 +28,8 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
     error InvalidModuleAddress(address module);
     error ModuleAlreadyEnabled(address module);
     error InvalidPreviousModuleAddress(address prevModule);
+    error InvalidStartModule(address start);
+    error InvalidPageSize(uint256 pageSize);
 
     /**
      * @dev Initialization of an array of modules. The provided array must have at least one module, or else this
@@ -109,6 +111,53 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
         uint256 value,
         bytes calldata data
     ) internal returns (bool, bytes memory) {
+
+    }
+
+    function isModuleEnabled(address module) public view returns(bool) {
+        return module != MODULES_HEAD && modules[module] != address(0);
+    }
+
+    /**
+     * @notice Returns an array of enabled modules.
+     * @param start The start address. Use the 0x1 address to start at the beginning.
+     * @param pageSize The amount of modules to return.
+     * @return array The array of module addresses.
+     * @return next Use as the start parameter to retrieve the next page of modules. Will be 0x1 at end of modules.
+     */
+    function getModulesPaginated(
+        address start,
+        uint256 pageSize
+    ) external view returns (
+        address[] memory array,
+        address next
+    ) {
+        // Check the start address and page size
+        if (start != MODULES_HEAD && !isModuleEnabled(start)) revert InvalidStartModule(start);
+        if (pageSize == 0) revert InvalidPageSize(pageSize);
+
+        // Init array
+        array = new address[](pageSize);
+
+        // Init count and iterate through modules
+        uint256 count = 0;
+        next = modules[start];
+        while(count < pageSize && next != MODULES_HEAD && next != address(0)) {
+            array[count] = next;
+            next = modules[next];
+            count++;
+        }
+
+        // If not at the end, set "next" to the end of the current list to serve as a pointer for next page
+        if (next != MODULES_HEAD) {
+            next = array[count - 1];
+        }
+
+        // Set the proper array length
+        /// @solidity memory-safe-assembly
+        assembly {
+            mstore(array, count)
+        }
 
     }
 

@@ -28,7 +28,6 @@ abstract contract MultiSend is ExecutorBaseCallOnly {
      * https://docs.soliditylang.org/en/v0.8.21/abi-spec.html#non-standard-packed-mode
      */
     function multiSend(bytes calldata transactions) external onlyExecutor {
-        /* solhint-disable no-inline-assembly */
         uint256 operation;
         address to;
         uint256 value;
@@ -58,5 +57,4 @@ abstract contract MultiSend is ExecutorBaseCallOnly {
             }
         }
     }
-    /* solhint-enable no-inline-assembly */
 }
