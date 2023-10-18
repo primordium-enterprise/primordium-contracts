@@ -28,6 +28,8 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
     mapping(address => address) internal _modules;
 
     // Timelock delay
+    uint256 public constant MIN_DELAY = 2 days;
+    uint256 public constant MAX_DELAY = 30 days;
     uint256 private _minDelay;
 
     // Module nonces
@@ -35,8 +37,14 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
     // Transaction info for each module nonce
     mapping(address => mapping(uint256 => ModuleTxInfo)) _moduleTxInfos;
 
+    /**
+     * @dev Emitted when the minimum delay for future operations is modified.
+     */
+    event MinDelayUpdate(uint256 oldMinDelay, uint256 newMinDelay);
+
     event ModulesInitialized(address[] modules_);
 
+    error MinDelayOutOfRange(uint256 min, uint256 max);
     error ModuleNotEnabled(address module);
     error ModulesAlreadyInitialized();
     error ModuleInitializationNeedsMoreThanZeroModules();
@@ -54,12 +62,21 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
         _;
     }
 
+
+    function __ModuleTimelockAdmin_init(
+        uint256 minDelay_,
+        address[] memory modules_
+    ) internal {
+        _updateMinDelay(minDelay_);
+        _setUpModules(modules_);
+    }
+
     /**
-     * @dev Initialization of an array of modules. The provided array must have at least one module, or else this
-     * contract will be bricked (no modules to enable other modules).
+     * @dev Initialization of an array of modules. The provided array must have at least one module, or else the
+     * contract is bricked (no modules to enable other modules).
      * @param modules_ An array of initial module addresses to enable.
      */
-    function __ModuleTimelockAdmin_init(address[] memory modules_) internal {
+    function _setUpModules(address[] memory modules_) internal {
         if (_modules[MODULES_HEAD] != address(0)) {
             revert ModulesAlreadyInitialized();
         }
@@ -69,12 +86,32 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
         _modules[MODULES_HEAD] = MODULES_HEAD;
         // Enable the provided modules
         for (uint256 i = 0; i < modules_.length;) {
-            // TODO: Enable each module
+            _enableModule(modules_[i]);
             unchecked { ++i; }
         }
         emit ModulesInitialized(modules_);
     }
 
+    /**
+     * Retrieve the current minimum timelock delay.
+     */
+    function getMinDelay() public view returns (uint256 duration) {
+        return _minDelay;
+    }
+
+    function updateMinDelay(uint256 newMinDelay) external onlyExecutor {
+        _updateMinDelay(newMinDelay);
+    }
+
+    function _updateMinDelay(uint256 newMinDelay) internal {
+        if (
+            newMinDelay < MIN_DELAY ||
+            newMinDelay > MAX_DELAY
+        ) revert MinDelayOutOfRange(MIN_DELAY, MAX_DELAY);
+
+        emit MinDelayUpdate(_minDelay, newMinDelay);
+        _minDelay = newMinDelay;
+    }
 
     /**
      * @notice Authorizes a new module to execute transactions on this Executor contract. Modules can only be enabled
