@@ -16,13 +16,28 @@ import {IAvatar} from "../interfaces/IAvatar.sol";
  */
 abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
 
+    struct ModuleTxInfo {
+        bytes32 txHash;
+        uint128 createdAt;
+        uint128 executableAt;
+        uint128 expiresAt;
+    }
+
     // For "modules" linked list
     address internal constant MODULES_HEAD = address(0x1);
+    mapping(address => address) internal _modules;
 
-    mapping(address => address) internal modules;
+    // Timelock delay
+    uint256 private _minDelay;
+
+    // Module nonces
+    mapping(address => uint256) internal _moduleTxNonces;
+    // Transaction info for each module nonce
+    mapping(address => mapping(uint256 => ModuleTxInfo)) _moduleTxInfos;
 
     event ModulesInitialized(address[] modules_);
 
+    error ModuleNotEnabled(address module);
     error ModulesAlreadyInitialized();
     error ModuleInitializationNeedsMoreThanZeroModules();
     error InvalidModuleAddress(address module);
@@ -32,18 +47,26 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
     error InvalidPageSize(uint256 pageSize);
 
     /**
+     * Modifier for only enabled modules to take the specified action
+     */
+    modifier onlyModule() {
+        if (!isModuleEnabled(msg.sender)) revert ModuleNotEnabled(msg.sender);
+        _;
+    }
+
+    /**
      * @dev Initialization of an array of modules. The provided array must have at least one module, or else this
      * contract will be bricked (no modules to enable other modules).
      * @param modules_ An array of initial module addresses to enable.
      */
     function __ModuleTimelockAdmin_init(address[] memory modules_) internal {
-        if (modules[MODULES_HEAD] != address(0)) {
+        if (_modules[MODULES_HEAD] != address(0)) {
             revert ModulesAlreadyInitialized();
         }
         if (modules_.length == 0) {
             revert ModuleInitializationNeedsMoreThanZeroModules();
         }
-        modules[MODULES_HEAD] = MODULES_HEAD;
+        _modules[MODULES_HEAD] = MODULES_HEAD;
         // Enable the provided modules
         for (uint256 i = 0; i < modules_.length;) {
             // TODO: Enable each module
@@ -65,9 +88,9 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
     function _enableModule(address module) internal {
         // Make sure the module is a valid address to enable.
         if (module == address(0) || module == MODULES_HEAD) revert InvalidModuleAddress(module);
-        if (modules[module] != address(0)) revert ModuleAlreadyEnabled(module);
-        modules[module] = MODULES_HEAD;
-        modules[MODULES_HEAD] = module;
+        if (_modules[module] != address(0)) revert ModuleAlreadyEnabled(module);
+        _modules[module] = MODULES_HEAD;
+        _modules[MODULES_HEAD] = module;
         emit EnabledModule(module);
     }
 
@@ -78,44 +101,66 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
     function _disableModule(address prevModule, address module) internal {
         // Make sure the module is currently active
         if (module == address(0) || module == MODULES_HEAD) revert InvalidModuleAddress(module);
-        if (modules[prevModule] != module) revert InvalidPreviousModuleAddress(prevModule);
-        modules[prevModule] = modules[module];
-        modules[module] = address(0);
+        if (_modules[prevModule] != module) revert InvalidPreviousModuleAddress(prevModule);
+        _modules[prevModule] = _modules[module];
+        _modules[module] = address(0);
         emit DisabledModule(module);
     }
 
+    /**
+     * Schedules a transaction for execution.
+     * @notice The msg.sender must be an enabled module.
+     * @param to The target for execution.
+     * @param value The call value.
+     * @param data The call data.
+     * @param operation For this timelock, must be Enum.Operation.Call (or uint8(0)).
+     * @return success Returns true for successful scheduling.
+     */
     function execTransactionFromModule(
         address to,
         uint256 value,
         bytes calldata data,
         Enum.Operation operation
-    ) external returns (bool success) {
+    ) external onlyModule returns (bool success) {
         // Operations are CALL only for this timelock
         if (operation != Enum.Operation.Call) revert ExecutorIsCallOnly();
-        (success,) = _execTransactionFromModule(to, value, data);
+        (success,) = _scheduleTransactionFromModule(to, value, data);
     }
 
+    /**
+     * Schedules a transaction for execution (with return data).
+     * @notice The msg.sender must be an enabled module.
+     * @param to The target for execution.
+     * @param value The call value.
+     * @param data The call data.
+     * @param operation For this timelock, must be Enum.Operation.Call (or uint8(0)).
+     * @return success Returns true for successful scheduling
+     * @return returnData
+     */
     function execTransactionFromModuleReturnData(
         address to,
         uint256 value,
         bytes calldata data,
         Enum.Operation operation
-    ) external returns (bool success, bytes memory returnData) {
+    ) external onlyModule returns (bool success, bytes memory returnData) {
         // Operations are CALL only for this timelock
         if (operation != Enum.Operation.Call) revert ExecutorIsCallOnly();
-        (success, returnData) = _execTransactionFromModule(to, value, data);
+        (success, returnData) = _scheduleTransactionFromModule(to, value, data);
     }
 
-    function _execTransactionFromModule(
+    function _scheduleTransactionFromModule(
         address to,
         uint256 value,
         bytes calldata data
     ) internal returns (bool, bytes memory) {
+        uint256 txNonce = ++_moduleTxNonces[msg.sender];
+        bytes32 txHash = hashOperation(to, value, data);
+        uint256 executableAt = block.timestamp + _minDelay;
 
     }
 
     function isModuleEnabled(address module) public view returns(bool) {
-        return module != MODULES_HEAD && modules[module] != address(0);
+        return module != MODULES_HEAD && _modules[module] != address(0);
     }
 
     /**
@@ -141,10 +186,10 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
 
         // Init count and iterate through modules
         uint256 count = 0;
-        next = modules[start];
+        next = _modules[start];
         while(count < pageSize && next != MODULES_HEAD && next != address(0)) {
             array[count] = next;
-            next = modules[next];
+            next = _modules[next];
             count++;
         }
 
@@ -159,6 +204,14 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
             mstore(array, count)
         }
 
+    }
+
+    function hashOperation(
+        address to,
+        uint256 value,
+        bytes calldata data
+    ) public pure returns (bytes32) {
+        return keccak256(abi.encode(to, value, data));
     }
 
 
