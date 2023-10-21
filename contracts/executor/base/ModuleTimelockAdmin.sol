@@ -6,6 +6,7 @@ pragma solidity ^0.8.4;
 import {Enum} from "contracts/common/Enum.sol";
 import {MultiSend} from "./MultiSend.sol";
 import {IAvatar} from "../interfaces/IAvatar.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /**
  * @title Module Timelock Admin implements a timelock control on all call executions for the Executor.
@@ -20,7 +21,6 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
         bytes32 txHash;
         uint128 createdAt;
         uint128 executableAt;
-        uint128 expiresAt;
     }
 
     // For "modules" linked list
@@ -28,11 +28,12 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
     mapping(address => address) internal _modules;
 
     // Timelock delay
+    uint256 public constant GRACE_PERIOD = 14 days;
     uint256 public constant MIN_DELAY = 2 days;
     uint256 public constant MAX_DELAY = 30 days;
     uint256 private _minDelay;
 
-    // Module nonces
+    // Module transactions
     mapping(address => uint256) internal _moduleTxNonces;
     // Transaction info for each module nonce
     mapping(address => mapping(uint256 => ModuleTxInfo)) _moduleTxInfos;
@@ -44,7 +45,17 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
 
     event ModulesInitialized(address[] modules_);
 
+    event CallScheduled(
+        address indexed module,
+        uint256 indexed moduleTxNonce,
+        address to,
+        uint256 value,
+        bytes data,
+        uint256 delay
+    );
+
     error MinDelayOutOfRange(uint256 min, uint256 max);
+    error InsufficientDelay();
     error ModuleNotEnabled(address module);
     error ModulesAlreadyInitialized();
     error ModuleInitializationNeedsMoreThanZeroModules();
@@ -161,7 +172,7 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
     ) external onlyModule returns (bool success) {
         // Operations are CALL only for this timelock
         if (operation != Enum.Operation.Call) revert ExecutorIsCallOnly();
-        (success,) = _scheduleTransactionFromModule(to, value, data);
+        (success,) = _scheduleTransactionFromModule(msg.sender, to, value, data, _minDelay);
     }
 
     /**
@@ -182,18 +193,54 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
     ) external onlyModule returns (bool success, bytes memory returnData) {
         // Operations are CALL only for this timelock
         if (operation != Enum.Operation.Call) revert ExecutorIsCallOnly();
-        (success, returnData) = _scheduleTransactionFromModule(to, value, data);
+        (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, _minDelay);
+    }
+
+    /**
+     * Schedules a transaction for execution (with return data).
+     * @notice The msg.sender must be an enabled module.
+     * @param to The target for execution.
+     * @param value The call value.
+     * @param data The call data.
+     * @param delay The delay before the transaction can be executed.
+     * @return success Returns true for successful scheduling
+     * @return returnData
+     */
+    function scheduleTransactionFromModuleReturnData(
+        address to,
+        uint256 value,
+        bytes calldata data,
+        uint256 delay
+    ) external onlyModule returns (bool success, bytes memory returnData) {
+        // Delay must be greater than the minDelay
+        if (delay < _minDelay) revert InsufficientDelay();
+        (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, delay);
     }
 
     function _scheduleTransactionFromModule(
+        address module,
         address to,
         uint256 value,
-        bytes calldata data
+        bytes calldata data,
+        uint256 delay
     ) internal returns (bool, bytes memory) {
-        uint256 txNonce = ++_moduleTxNonces[msg.sender];
-        bytes32 txHash = hashOperation(to, value, data);
-        uint256 executableAt = block.timestamp + _minDelay;
+        // Set txNonce and increment
+        uint256 txNonce = _moduleTxNonces[module]++;
 
+        // Set the hash and executable at parameters
+        bytes32 txHash = hashOperation(to, value, data);
+        uint256 executableAt = block.timestamp + delay;
+
+        // Save to storage
+        _moduleTxInfos[module][txNonce] = ModuleTxInfo({
+            txHash: txHash,
+            createdAt: SafeCast.toUint128(block.timestamp),
+            executableAt: SafeCast.toUint128(executableAt)
+        });
+
+        emit CallScheduled(module, txNonce, to, value, data, delay);
+
+        return (true, abi.encode(txNonce, txHash, executableAt));
     }
 
     function isModuleEnabled(address module) public view returns(bool) {
