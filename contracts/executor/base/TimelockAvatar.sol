@@ -146,32 +146,12 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         return _isOpReady(_operations[opNonce].executableAt);
     }
 
-    function isOperationExpired(uint256 opNonce) public view returns (bool isOpExpired) {
+    function isOperationExpired(uint256 opNonce) external view returns (bool isOpExpired) {
         return _isOpExpired(_operations[opNonce].executableAt);
     }
 
     function isOperationDone(uint256 opNonce) external view returns (bool isOpDone) {
         return _isOpDone(_operations[opNonce].executableAt);
-    }
-
-    function _isOp(uint256 executableAt) internal pure returns (bool) {
-        return executableAt > 0;
-    }
-
-    function _isOpPending(uint256 executableAt) internal pure returns (bool) {
-        return executableAt > _DONE_TIMESTAMP;
-    }
-
-    function _isOpReady(uint256 executableAt) internal view returns (bool) {
-        return !_isOpExpired(executableAt) && executableAt <= block.timestamp;
-    }
-
-    function _isOpExpired(uint256 executableAt) internal view returns (bool) {
-        return _isOpPending(executableAt) && executableAt + GRACE_PERIOD >= block.timestamp;
-    }
-
-    function _isOpDone(uint256 executableAt) internal pure returns (bool) {
-        return executableAt == _DONE_TIMESTAMP;
     }
 
     function getOperationInfo(
@@ -366,5 +346,24 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         return keccak256(abi.encode(to, value, data));
     }
 
+    function _isOp(uint256 executableAt) internal pure returns (bool) {
+        return executableAt > 0;
+    }
+
+    function _isOpPending(uint256 executableAt) internal pure returns (bool) {
+        return executableAt > _DONE_TIMESTAMP;
+    }
+
+    function _isOpReady(uint256 executableAt) internal view returns (bool) {
+        return !_isOpExpired(executableAt) && executableAt <= block.timestamp;
+    }
+
+    function _isOpExpired(uint256 executableAt) internal view returns (bool) {
+        return _isOpPending(executableAt) && executableAt + GRACE_PERIOD >= block.timestamp;
+    }
+
+    function _isOpDone(uint256 executableAt) internal pure returns (bool) {
+        return executableAt == _DONE_TIMESTAMP;
+    }
 
 }
