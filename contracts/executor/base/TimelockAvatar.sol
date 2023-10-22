@@ -9,34 +9,33 @@ import {IAvatar} from "../interfaces/IAvatar.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /**
- * @title Module Timelock Admin implements a timelock control on all call executions for the Executor.
+ * @title Timelock Avatar implements a timelock control on all call executions for the Executor.
  *
  * @dev This contract follows the IAvatar interface for the Zodiac Modular Accounts standard from EIP-5005.
  *
  * @author Ben Jett @BCJdevelopment
  */
-abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
+abstract contract TimelockAvatar is MultiSend, IAvatar {
 
-    struct ModuleTxInfo {
-        bytes32 txHash;
-        uint128 createdAt;
-        uint128 executableAt;
+    struct Operation {
+        address module;
+        uint48 createdAt;
+        uint48 executableAt;
+        bytes32 opHash;
     }
 
-    // For "modules" linked list
     address internal constant MODULES_HEAD = address(0x1);
     mapping(address => address) internal _modules;
 
-    // Timelock delay
     uint256 public constant GRACE_PERIOD = 14 days;
     uint256 public constant MIN_DELAY = 2 days;
     uint256 public constant MAX_DELAY = 30 days;
     uint256 private _minDelay;
 
-    // Module transactions
-    mapping(address => uint256) internal _moduleTxNonces;
-    // Transaction info for each module nonce
-    mapping(address => mapping(uint256 => ModuleTxInfo)) _moduleTxInfos;
+    uint256 internal _opNonce;
+    mapping(uint256 => Operation) _operations;
+
+    uint256 internal constant _DONE_TIMESTAMP = uint256(1);
 
     /**
      * @dev Emitted when the minimum delay for future operations is modified.
@@ -45,9 +44,9 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
 
     event ModulesInitialized(address[] modules_);
 
-    event CallScheduled(
+    event OperationScheduled(
+        uint256 indexed opNonce,
         address indexed module,
-        uint256 indexed moduleTxNonce,
         address to,
         uint256 value,
         bytes data,
@@ -104,16 +103,23 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
     }
 
     /**
-     * Retrieve the current minimum timelock delay.
+     * Retrieve the current minimum timelock delay before scheduled transactions can be executed.
+     * @return duration The minimum timelock delay.
      */
     function getMinDelay() public view returns (uint256 duration) {
         return _minDelay;
     }
 
+    /**
+     * Updates the minimum timelock delay.
+     * @notice Only the timelock itself can make updates to the timelock delay.
+     * @param newMinDelay The new minimum delay. Must be at least MIN_DELAY and no greater than MAX_DELAY.
+     */
     function updateMinDelay(uint256 newMinDelay) external onlyExecutor {
         _updateMinDelay(newMinDelay);
     }
 
+    /// @dev Internal function to update the _minDelay.
     function _updateMinDelay(uint256 newMinDelay) internal {
         if (
             newMinDelay < MIN_DELAY ||
@@ -122,6 +128,61 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
 
         emit MinDelayUpdate(_minDelay, newMinDelay);
         _minDelay = newMinDelay;
+    }
+
+    function getNextOperationNonce() external view returns (uint256 opNonce) {
+        return _opNonce;
+    }
+
+    function isOperation(uint256 opNonce) external view returns (bool isOp) {
+        return _isOp(_operations[opNonce].executableAt);
+    }
+
+    function isOperationPending(uint256 opNonce) external view returns (bool isOpPending) {
+        return _isOpPending(_operations[opNonce].executableAt);
+    }
+
+    function isOperationReady(uint256 opNonce) external view returns (bool isOpReady) {
+        return _isOpReady(_operations[opNonce].executableAt);
+    }
+
+    function isOperationExpired(uint256 opNonce) public view returns (bool isOpExpired) {
+        return _isOpExpired(_operations[opNonce].executableAt);
+    }
+
+    function isOperationDone(uint256 opNonce) external view returns (bool isOpDone) {
+        return _isOpDone(_operations[opNonce].executableAt);
+    }
+
+    function _isOp(uint256 executableAt) internal pure returns (bool) {
+        return executableAt > 0;
+    }
+
+    function _isOpPending(uint256 executableAt) internal pure returns (bool) {
+        return executableAt > _DONE_TIMESTAMP;
+    }
+
+    function _isOpReady(uint256 executableAt) internal view returns (bool) {
+        return !_isOpExpired(executableAt) && executableAt <= block.timestamp;
+    }
+
+    function _isOpExpired(uint256 executableAt) internal view returns (bool) {
+        return _isOpPending(executableAt) && executableAt + GRACE_PERIOD >= block.timestamp;
+    }
+
+    function _isOpDone(uint256 executableAt) internal pure returns (bool) {
+        return executableAt == _DONE_TIMESTAMP;
+    }
+
+    function getOperationInfo(
+        uint256 opNonce
+    ) external view returns (
+        address module,
+        uint256 createdAt,
+        uint256 executableAt,
+        bytes32 opHash
+    ) {
+
     }
 
     /**
@@ -133,6 +194,7 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
         _enableModule(module);
     }
 
+    /// @dev Internal function to enable a new module. Emits EnabledModule(address)
     function _enableModule(address module) internal {
         // Make sure the module is a valid address to enable.
         if (module == address(0) || module == MODULES_HEAD) revert InvalidModuleAddress(module);
@@ -142,10 +204,15 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
         emit EnabledModule(module);
     }
 
+    /**
+     * @notice Unauthorizes an enabled module.
+     * @param module The address of the module to disable.
+     */
     function disableModule(address prevModule, address module) external onlyExecutor {
         _disableModule(prevModule, module);
     }
 
+    /// @dev Internal function to disable a new module. Emits DisabledModule(address)
     function _disableModule(address prevModule, address module) internal {
         // Make sure the module is currently active
         if (module == address(0) || module == MODULES_HEAD) revert InvalidModuleAddress(module);
@@ -224,23 +291,24 @@ abstract contract ModuleTimelockAdmin is MultiSend, IAvatar {
         bytes calldata data,
         uint256 delay
     ) internal returns (bool, bytes memory) {
-        // Set txNonce and increment
-        uint256 txNonce = _moduleTxNonces[module]++;
+        // Set opNonce and increment
+        uint256 opNonce = _opNonce++;
 
         // Set the hash and executable at parameters
-        bytes32 txHash = hashOperation(to, value, data);
+        bytes32 opHash = hashOperation(to, value, data);
         uint256 executableAt = block.timestamp + delay;
 
         // Save to storage
-        _moduleTxInfos[module][txNonce] = ModuleTxInfo({
-            txHash: txHash,
-            createdAt: SafeCast.toUint128(block.timestamp),
-            executableAt: SafeCast.toUint128(executableAt)
+        _operations[opNonce] = Operation({
+            module: module,
+            createdAt: SafeCast.toUint48(block.timestamp),
+            executableAt: SafeCast.toUint48(executableAt),
+            opHash: opHash
         });
 
-        emit CallScheduled(module, txNonce, to, value, data, delay);
+        emit OperationScheduled(opNonce, module, to, value, data, delay);
 
-        return (true, abi.encode(txNonce, txHash, executableAt));
+        return (true, abi.encode(opNonce, opHash, executableAt));
     }
 
     function isModuleEnabled(address module) public view returns(bool) {
