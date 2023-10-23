@@ -6,6 +6,7 @@ pragma solidity ^0.8.4;
 import {Enum} from "contracts/common/Enum.sol";
 import {MultiSend} from "./MultiSend.sol";
 import {IAvatar} from "../interfaces/IAvatar.sol";
+import {OperationStatus} from "contracts/libraries/OperationStatus.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /**
@@ -35,8 +36,6 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
     uint256 internal _opNonce;
     mapping(uint256 => Operation) _operations;
 
-    uint256 internal constant _DONE_TIMESTAMP = uint256(1);
-
     /**
      * @dev Emitted when the minimum delay for future operations is modified.
      */
@@ -53,6 +52,14 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         uint256 delay
     );
 
+    event OperationExecuted(
+        uint256 indexed opNonce,
+        address indexed module,
+        address to,
+        uint256 value,
+        bytes data
+    );
+
     error MinDelayOutOfRange(uint256 min, uint256 max);
     error InsufficientDelay();
     error ModuleNotEnabled(address module);
@@ -63,6 +70,10 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
     error InvalidPreviousModuleAddress(address prevModule);
     error InvalidStartModule(address start);
     error InvalidPageSize(uint256 pageSize);
+    error InvalidOperation();
+    error UnauthorizedModule();
+    error OperationNotReady();
+    error InvalidCallParameters();
 
     /**
      * Modifier for only enabled modules to take the specified action
@@ -135,23 +146,23 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
     }
 
     function isOperation(uint256 opNonce) external view returns (bool isOp) {
-        return _isOp(_operations[opNonce].executableAt);
+        return OperationStatus.isOp(_operations[opNonce].executableAt);
     }
 
     function isOperationPending(uint256 opNonce) external view returns (bool isOpPending) {
-        return _isOpPending(_operations[opNonce].executableAt);
+        return OperationStatus.isOpPending(_operations[opNonce].executableAt);
     }
 
     function isOperationReady(uint256 opNonce) external view returns (bool isOpReady) {
-        return _isOpReady(_operations[opNonce].executableAt);
+        return OperationStatus.isOpReady(_operations[opNonce].executableAt, GRACE_PERIOD);
     }
 
     function isOperationExpired(uint256 opNonce) external view returns (bool isOpExpired) {
-        return _isOpExpired(_operations[opNonce].executableAt);
+        return OperationStatus.isOpExpired(_operations[opNonce].executableAt, GRACE_PERIOD);
     }
 
     function isOperationDone(uint256 opNonce) external view returns (bool isOpDone) {
-        return _isOpDone(_operations[opNonce].executableAt);
+        return OperationStatus.isOpDone(_operations[opNonce].executableAt);
     }
 
     function getOperationInfo(
@@ -274,11 +285,9 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         // Set opNonce and increment
         uint256 opNonce = _opNonce++;
 
-        // Set the hash and executable at parameters
         bytes32 opHash = hashOperation(to, value, data);
         uint256 executableAt = block.timestamp + delay;
 
-        // Save to storage
         _operations[opNonce] = Operation({
             module: module,
             createdAt: SafeCast.toUint48(block.timestamp),
@@ -289,6 +298,40 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         emit OperationScheduled(opNonce, module, to, value, data, delay);
 
         return (true, abi.encode(opNonce, opHash, executableAt));
+    }
+
+    /**
+     * Executes a scheduled operation.
+     * @notice Requires that the execution call comes from the same module that originally scheduled the operation.
+     * @param opNonce The operation nonce.
+     * @param to The target for execution.
+     * @param value The call value.
+     * @param data The call data.
+     */
+    function executeOperation(
+        uint256 opNonce,
+        address to,
+        uint256 value,
+        bytes calldata data
+    ) external {
+        if (opNonce >= _opNonce) revert InvalidOperation();
+
+        Operation storage op = _operations[opNonce];
+        (address module, uint256 executableAt) = (op.module, op.executableAt);
+
+        if (msg.sender != module) revert UnauthorizedModule();
+        if (!OperationStatus.isOpReady(executableAt, GRACE_PERIOD)) revert OperationNotReady();
+
+        bytes32 opHash = hashOperation(to, value, data);
+        if (opHash != op.opHash) revert InvalidCallParameters();
+
+        _execute(to, value, data, Enum.Operation.Call);
+
+        // Check that the operation status is still "ready" to protect against re-entrancy messing with the operation
+        if (!OperationStatus.isOpReady(op.executableAt, GRACE_PERIOD)) revert OperationNotReady();
+        op.executableAt = uint48(OperationStatus._DONE_TIMESTAMP);
+
+        emit OperationExecuted(opNonce, module, to, value, data);
     }
 
     function isModuleEnabled(address module) public view returns(bool) {
@@ -344,26 +387,6 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         bytes calldata data
     ) public pure returns (bytes32) {
         return keccak256(abi.encode(to, value, data));
-    }
-
-    function _isOp(uint256 executableAt) internal pure returns (bool) {
-        return executableAt > 0;
-    }
-
-    function _isOpPending(uint256 executableAt) internal pure returns (bool) {
-        return executableAt > _DONE_TIMESTAMP;
-    }
-
-    function _isOpReady(uint256 executableAt) internal view returns (bool) {
-        return !_isOpExpired(executableAt) && executableAt <= block.timestamp;
-    }
-
-    function _isOpExpired(uint256 executableAt) internal view returns (bool) {
-        return _isOpPending(executableAt) && executableAt + GRACE_PERIOD >= block.timestamp;
-    }
-
-    function _isOpDone(uint256 executableAt) internal pure returns (bool) {
-        return executableAt == _DONE_TIMESTAMP;
     }
 
 }
