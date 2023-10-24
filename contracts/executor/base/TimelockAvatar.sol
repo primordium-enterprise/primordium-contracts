@@ -6,7 +6,6 @@ pragma solidity ^0.8.4;
 import {Enum} from "contracts/common/Enum.sol";
 import {MultiSend} from "./MultiSend.sol";
 import {IAvatar} from "../interfaces/IAvatar.sol";
-import {OperationStatus} from "contracts/libraries/OperationStatus.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /**
@@ -18,10 +17,22 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
  */
 abstract contract TimelockAvatar is MultiSend, IAvatar {
 
+    enum OperationStatus {
+        NoOp,
+        Cancelled,
+        Done,
+        Pending,
+        Ready,
+        Expired
+    }
+
+    uint256 constant internal CANCELLED_TIMESTAMP = uint256(OperationStatus.Cancelled);
+    uint256 constant internal DONE_TIMESTAMP = uint256(OperationStatus.Done);
+
     struct Operation {
         address module;
-        uint48 createdAt;
         uint48 executableAt;
+        uint48 createdAt;
         bytes32 opHash;
     }
 
@@ -145,24 +156,19 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         return _opNonce;
     }
 
-    function isOperation(uint256 opNonce) external view returns (bool isOp) {
-        return OperationStatus.isOp(_operations[opNonce].executableAt);
+    function getOperationStatus(uint256 opNonce) external view returns (OperationStatus) {
+        return _getOperationStatus(_operations[opNonce].executableAt);
     }
 
-    function isOperationPending(uint256 opNonce) external view returns (bool isOpPending) {
-        return OperationStatus.isOpPending(_operations[opNonce].executableAt);
-    }
-
-    function isOperationReady(uint256 opNonce) external view returns (bool isOpReady) {
-        return OperationStatus.isOpReady(_operations[opNonce].executableAt, GRACE_PERIOD);
-    }
-
-    function isOperationExpired(uint256 opNonce) external view returns (bool isOpExpired) {
-        return OperationStatus.isOpExpired(_operations[opNonce].executableAt, GRACE_PERIOD);
-    }
-
-    function isOperationDone(uint256 opNonce) external view returns (bool isOpDone) {
-        return OperationStatus.isOpDone(_operations[opNonce].executableAt);
+    function _getOperationStatus(uint256 opEta) internal view returns (OperationStatus) {
+        if (opEta == 0) return OperationStatus.NoOp;
+        if (opEta == CANCELLED_TIMESTAMP) return OperationStatus.Cancelled;
+        if (opEta == DONE_TIMESTAMP) return OperationStatus.Done;
+        if (opEta <= block.timestamp) {
+            if (opEta + GRACE_PERIOD <= block.timestamp) return OperationStatus.Expired;
+            return OperationStatus.Ready;
+        }
+        return OperationStatus.Pending;
     }
 
     function getOperationInfo(
@@ -302,7 +308,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
 
     /**
      * Executes a scheduled operation.
-     * @notice Requires that the execution call comes from the same module that originally scheduled the operation.
+     * @notice Requires that an execution call comes from the same module that originally scheduled the operation.
      * @param opNonce The operation nonce.
      * @param to The target for execution.
      * @param value The call value.
@@ -320,7 +326,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         (address module, uint256 executableAt) = (op.module, op.executableAt);
 
         if (msg.sender != module) revert UnauthorizedModule();
-        if (!OperationStatus.isOpReady(executableAt, GRACE_PERIOD)) revert OperationNotReady();
+        if (_getOperationStatus(executableAt) != OperationStatus.Ready) revert OperationNotReady();
 
         bytes32 opHash = hashOperation(to, value, data);
         if (opHash != op.opHash) revert InvalidCallParameters();
@@ -328,8 +334,8 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         _execute(to, value, data, Enum.Operation.Call);
 
         // Check that the operation status is still "ready" to protect against re-entrancy messing with the operation
-        if (!OperationStatus.isOpReady(op.executableAt, GRACE_PERIOD)) revert OperationNotReady();
-        op.executableAt = uint48(OperationStatus._DONE_TIMESTAMP);
+        if (_getOperationStatus(op.executableAt) != OperationStatus.Ready) revert OperationNotReady();
+        op.executableAt = uint48(DONE_TIMESTAMP);
 
         emit OperationExecuted(opNonce, module, to, value, data);
     }
