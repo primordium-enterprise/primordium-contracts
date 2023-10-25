@@ -18,16 +18,13 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 abstract contract TimelockAvatar is MultiSend, IAvatar {
 
     enum OperationStatus {
-        NoOp,
-        Cancelled,
-        Done,
-        Pending,
-        Ready,
-        Expired
+        NoOp, // NoOp when executableAt == 0
+        Cancelled, // Cancelled when executableAt == 1
+        Done, // Done when executableAt == 2
+        Pending, // Pending when executableAt > block.timestamp
+        Ready, // Ready when executableAt <= block.timestamp (and not expired)
+        Expired // Expired when executableAt + GRACE_PERIOD <= block.timestamp
     }
-
-    uint256 constant internal CANCELLED_TIMESTAMP = uint256(OperationStatus.Cancelled);
-    uint256 constant internal DONE_TIMESTAMP = uint256(OperationStatus.Done);
 
     struct Operation {
         address module;
@@ -71,6 +68,8 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         bytes data
     );
 
+    event OperationCancelled(uint256 indexed opNonce, address indexed module);
+
     error MinDelayOutOfRange(uint256 min, uint256 max);
     error InsufficientDelay();
     error ModuleNotEnabled(address module);
@@ -81,9 +80,8 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
     error InvalidPreviousModuleAddress(address prevModule);
     error InvalidStartModule(address start);
     error InvalidPageSize(uint256 pageSize);
-    error InvalidOperation();
+    error InvalidOperationStatus(OperationStatus currentStatus, OperationStatus requiredStatus);
     error UnauthorizedModule();
-    error OperationNotReady();
     error InvalidCallParameters();
 
     /**
@@ -160,15 +158,16 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         return _getOperationStatus(_operations[opNonce].executableAt);
     }
 
-    function _getOperationStatus(uint256 opEta) internal view returns (OperationStatus) {
-        if (opEta == 0) return OperationStatus.NoOp;
-        if (opEta == CANCELLED_TIMESTAMP) return OperationStatus.Cancelled;
-        if (opEta == DONE_TIMESTAMP) return OperationStatus.Done;
-        if (opEta <= block.timestamp) {
-            if (opEta + GRACE_PERIOD <= block.timestamp) return OperationStatus.Expired;
-            return OperationStatus.Ready;
+    function _getOperationStatus(uint256 eta) internal view returns (OperationStatus) {
+        // ETA timestamp is equal to the enum value for NoOp, Cancelled, and Done
+        if (eta > uint256(OperationStatus.Done)) {
+            if (eta <= block.timestamp) {
+                if (eta + GRACE_PERIOD <= block.timestamp) return OperationStatus.Expired;
+                return OperationStatus.Ready;
+            }
+            return OperationStatus.Pending;
         }
-        return OperationStatus.Pending;
+        return OperationStatus(eta);
     }
 
     function getOperationInfo(
@@ -320,13 +319,13 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         uint256 value,
         bytes calldata data
     ) external {
-        if (opNonce >= _opNonce) revert InvalidOperation();
-
         Operation storage op = _operations[opNonce];
         (address module, uint256 executableAt) = (op.module, op.executableAt);
 
         if (msg.sender != module) revert UnauthorizedModule();
-        if (_getOperationStatus(executableAt) != OperationStatus.Ready) revert OperationNotReady();
+
+        OperationStatus opStatus = _getOperationStatus(executableAt);
+        if (opStatus != OperationStatus.Ready) revert InvalidOperationStatus(opStatus, OperationStatus.Ready);
 
         bytes32 opHash = hashOperation(to, value, data);
         if (opHash != op.opHash) revert InvalidCallParameters();
@@ -334,13 +333,38 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         _execute(to, value, data, Enum.Operation.Call);
 
         // Check that the operation status is still "ready" to protect against re-entrancy messing with the operation
-        if (_getOperationStatus(op.executableAt) != OperationStatus.Ready) revert OperationNotReady();
-        op.executableAt = uint48(DONE_TIMESTAMP);
+        opStatus = _getOperationStatus(executableAt);
+        if (opStatus != OperationStatus.Ready) revert InvalidOperationStatus(opStatus, OperationStatus.Ready);
+        op.executableAt = uint48(OperationStatus.Done);
 
         emit OperationExecuted(opNonce, module, to, value, data);
     }
 
-    function isModuleEnabled(address module) public view returns(bool) {
+    /**
+     * Cancels a scheduled operation.
+     * @notice Requires that a cancel call comes from the same module that originally scheduled the operation.
+     * @param opNonce The operation nonce.
+     */
+    function cancelOperation(uint256 opNonce) external {
+        Operation storage op = _operations[opNonce];
+        (address module, uint256 executableAt) = (op.module, op.executableAt);
+
+        if (msg.sender != module) revert UnauthorizedModule();
+
+        OperationStatus opStatus = _getOperationStatus(executableAt);
+        if (opStatus != OperationStatus.Pending) revert InvalidOperationStatus(opStatus, OperationStatus.Pending);
+
+        op.executableAt = uint48(OperationStatus.Cancelled);
+
+        emit OperationCancelled(opNonce, module);
+    }
+
+    /**
+     * Returns true if the specified module is enabled.
+     * @param module The module address
+     * @return enabled
+     */
+    function isModuleEnabled(address module) public view returns(bool enabled) {
         return module != MODULES_HEAD && _modules[module] != address(0);
     }
 
