@@ -92,7 +92,6 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         _;
     }
 
-
     function __ModuleTimelockAdmin_init(
         uint256 minDelay_,
         address[] memory modules_
@@ -150,15 +149,26 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         _minDelay = newMinDelay;
     }
 
+    /**
+     * Returns the nonce value for the next operation.
+     * @return opNonce The nonce for the next operation.
+     */
     function getNextOperationNonce() external view returns (uint256 opNonce) {
         return _opNonce;
     }
 
-    function getOperationStatus(uint256 opNonce) external view returns (OperationStatus) {
-        return _getOperationStatus(_operations[opNonce].executableAt);
+    /**
+     * Returns the OperationStatus of the provided operation nonce.
+     * @notice Non-existing operations will return OperationStatus.NoOp (which is uint8(0)).
+     * @param opNonce The operation nonce.
+     * @return opStatus The OperationStatus value.
+     */
+    function getOperationStatus(uint256 opNonce) external view returns (OperationStatus opStatus) {
+        opStatus = _getOperationStatus(_operations[opNonce].executableAt);
     }
 
-    function _getOperationStatus(uint256 eta) internal view returns (OperationStatus) {
+    /// @dev Internal utility to return the OperationStatus enum value based on the operation eta
+    function _getOperationStatus(uint256 eta) internal view returns (OperationStatus opStatus) {
         // ETA timestamp is equal to the enum value for NoOp, Cancelled, and Done
         if (eta > uint256(OperationStatus.Done)) {
             if (eta <= block.timestamp) {
@@ -170,15 +180,58 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         return OperationStatus(eta);
     }
 
-    function getOperationInfo(
+    /**
+     * Returns the address of the module that enabled the operation with the specified nonce.
+     * @notice Reverts if the operation does not exist.
+     * @param opNonce The operation nonce.
+     * @return module The address of the module.
+     */
+    function getOperationModule(uint256 opNonce) external view returns (address module) {
+        _checkOpNonce(opNonce);
+        module = _operations[opNonce].module;
+    }
+
+    /**
+     * Returns the hash of the target, value, and calldata for the operation with the specified nonce.
+     * @notice Reverts if the operation does not exist.
+     * @param opNonce The operation nonce.
+     * @return opHash The hash of the operation's target, value, and calldata.
+     */
+    function getOperationHash(uint256 opNonce) external view returns (bytes32 opHash) {
+        _checkOpNonce(opNonce);
+        opHash = _operations[opNonce].opHash;
+    }
+
+    /**
+     * Returns the details for the provided operation nonce.
+     * @notice Reverts if the operation does not exist.
+     * @param opNonce The operation nonce.
+     * @return module The module that scheduled the operation.
+     * @return executableAt Timestamp when this operation is executable.
+     * @return createdAt Timestamp when this operation was created.
+     * @return opHash The hash of the operation's target, value, and calldata.
+     */
+    function getOperationDetails(
         uint256 opNonce
     ) external view returns (
         address module,
-        uint256 createdAt,
         uint256 executableAt,
+        uint256 createdAt,
         bytes32 opHash
     ) {
-
+        _checkOpNonce(opNonce);
+        Operation storage op = _operations[opNonce];
+        (
+            module,
+            executableAt,
+            createdAt,
+            opHash
+        ) = (
+            op.module,
+            op.executableAt,
+            op.createdAt,
+            op.opHash
+        );
     }
 
     /**
@@ -246,7 +299,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
      * @param data The call data.
      * @param operation For this timelock, must be Enum.Operation.Call (or uint8(0)).
      * @return success Returns true for successful scheduling
-     * @return returnData
+     * @return returnData Returns abi.encode(opNonce, opHash, executableAt).
      */
     function execTransactionFromModuleReturnData(
         address to,
@@ -267,7 +320,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
      * @param data The call data.
      * @param delay The delay before the transaction can be executed.
      * @return success Returns true for successful scheduling
-     * @return returnData
+     * @return returnData Returns abi.encode(opNonce, opHash, executableAt).
      */
     function scheduleTransactionFromModuleReturnData(
         address to,
@@ -411,12 +464,24 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
 
     }
 
+    /**
+     * Utility method for creating the opHash for an operation. Hashes the "to", the "value", and the "data".
+     * @param to The operation target address.
+     * @param value The oepration ETH value.
+     * @param data The operation's calldata.
+     * @return opHash The keccak256 hash of the abi encoded to, value, and data.
+     */
     function hashOperation(
         address to,
         uint256 value,
         bytes calldata data
-    ) public pure returns (bytes32) {
-        return keccak256(abi.encode(to, value, data));
+    ) public pure returns (bytes32 opHash) {
+        opHash = keccak256(abi.encode(to, value, data));
+    }
+
+    /// @dev An internal utility function to revert if the provided operation nonce does not exist
+    function _checkOpNonce(uint256 opNonce) internal view {
+        if (opNonce >= _opNonce) revert();
     }
 
 }
