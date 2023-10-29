@@ -29,7 +29,7 @@ contract TestAccountsSetup is Test, GovernanceSetup {
         vm.prank(a2);
         token.depositFor{value: amnt2}(a2);
         token.depositFor{value: amnt3}(a3, amnt3);
-        vm.expectRevert();  // Should revert in Treasurer on deposit of 0
+        vm.expectRevert();  // Should revert in TreasurerOld on deposit of 0
         token.depositFor(a4);
     }
 

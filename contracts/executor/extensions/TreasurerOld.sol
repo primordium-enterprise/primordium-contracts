@@ -9,7 +9,7 @@ import "../Executor.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-abstract contract Treasurer is Executor {
+abstract contract TreasurerOld is Executor {
 
     VotesProvisioner internal immutable _token;
     IERC20 internal immutable _baseAsset;
@@ -83,7 +83,7 @@ abstract contract Treasurer is Executor {
     }
 
     /**
-     * @notice Registers a deposit on the Treasurer. Only callable by the votes contract.
+     * @notice Registers a deposit on the TreasurerOld. Only callable by the votes contract.
      * @param depositAmount The amount being deposited.
      */
     function registerDeposit(
@@ -94,7 +94,7 @@ abstract contract Treasurer is Executor {
     }
 
     /**
-     * @notice Processes a withdrawal from the Treasurer to the withdrawing member. Only callable by the votes contract.
+     * @notice Processes a withdrawal from the TreasurerOld to the withdrawing member. Only callable by the votes contract.
      * @param receiver The address to send the base asset to.
      * @param withdrawAmount The amount of base asset to send.
      */
@@ -130,7 +130,7 @@ abstract contract Treasurer is Executor {
 
     /**
      * @dev Used in the _beforeExecute hook to check for base asset transfers. Needs to be overridden based on the base
-     * asset type. This should return the amount being transferred from the Treasurer in the provided transaction so it
+     * asset type. This should return the amount being transferred from the TreasurerOld in the provided transaction so it
      * can be accounted for in the internal balance state.
      */
     function _checkExecutionBaseAssetTransfer(

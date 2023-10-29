@@ -13,7 +13,7 @@ string constant TOKEN_SYMBOL = "MUSHI";
 contract Mushi is VotesProvisionerETH {
 
     constructor(
-        Treasurer executor_,
+        TreasurerOld executor_,
         uint256 maxSupply_,
         TokenPrice memory tokenPrice_
     )

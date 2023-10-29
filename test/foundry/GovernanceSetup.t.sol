@@ -17,7 +17,7 @@ abstract contract GovernanceSetup is Test {
     function setUp() public virtual {
 
         token = new Mushi(
-            Treasurer(payable(address(0))),
+            TreasurerOld(payable(address(0))),
             10 ether / 10,
             IVotesProvisioner.TokenPrice(10, 1)
         );

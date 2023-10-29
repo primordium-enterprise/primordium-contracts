@@ -2,36 +2,36 @@
 pragma solidity ^0.8.4;
 
 import "forge-std/Test.sol";
-import "contracts/executor/extensions/Treasurer.sol";
+import "contracts/executor/extensions/TreasurerOld.sol";
 import "contracts/executor/extensions/treasurer/TreasurerBalanceShares.sol";
 import "contracts/executor/extensions/treasurer/TreasurerDistributions.sol";
 import "contracts/executor/extensions/treasurer/TreasurerETH.sol";
 import "contracts/executor/extensions/treasurer/TreasurerERC20.sol";
 
-abstract contract ExecutorBase is Test, Treasurer, TreasurerDistributions, TreasurerBalanceShares {
+abstract contract ExecutorBase is Test, TreasurerOld, TreasurerDistributions, TreasurerBalanceShares {
 
     constructor(
         uint256 minDelay_,
         address owner_,
         VotesProvisioner token_
-    ) Executor(minDelay_, owner_) Treasurer(token_) {
+    ) Executor(minDelay_, owner_) TreasurerOld(token_) {
 
     }
 
-    function _treasuryBalance() internal view virtual override(Treasurer, TreasurerBalanceShares) returns (uint256) {
+    function _treasuryBalance() internal view virtual override(TreasurerOld, TreasurerBalanceShares) returns (uint256) {
         return super._treasuryBalance();
     }
 
     function _governanceInitialized(
         uint256 baseAssetAmount
-    ) internal virtual override(Treasurer, TreasurerBalanceShares) {
+    ) internal virtual override(TreasurerOld, TreasurerBalanceShares) {
         super._governanceInitialized(baseAssetAmount);
     }
 
     function _registerDeposit(
         uint256 depositAmount,
         IVotesProvisioner.ProvisionMode currentProvisionMode
-    ) internal virtual override(Treasurer, TreasurerBalanceShares) {
+    ) internal virtual override(TreasurerOld, TreasurerBalanceShares) {
         super._registerDeposit(depositAmount, currentProvisionMode);
     }
 

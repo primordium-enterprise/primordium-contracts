@@ -12,7 +12,7 @@ contract PrimordiumExecutor is Executor, TreasurerETH, TreasurerBalanceShares {
         uint256 minDelay_,
         address owner_,
         VotesProvisioner votes_
-    ) Executor(minDelay_, owner_) Treasurer(votes_) {
+    ) Executor(minDelay_, owner_) TreasurerOld(votes_) {
 
     }
 
@@ -20,17 +20,17 @@ contract PrimordiumExecutor is Executor, TreasurerETH, TreasurerBalanceShares {
         address target,
         uint256 value,
         bytes calldata data
-    ) internal virtual override(Executor, Treasurer) {
+    ) internal virtual override(Executor, TreasurerOld) {
         super._beforeExecute(target, value, data);
     }
 
-    function _treasuryBalance() internal view virtual override(Treasurer, TreasurerBalanceShares) returns(uint256) {
+    function _treasuryBalance() internal view virtual override(TreasurerOld, TreasurerBalanceShares) returns(uint256) {
         return TreasurerBalanceShares._treasuryBalance();
     }
 
     function _governanceInitialized(
         uint256 baseAssetAmount
-    ) internal virtual override(Treasurer, TreasurerBalanceShares) {
+    ) internal virtual override(TreasurerOld, TreasurerBalanceShares) {
         super._governanceInitialized(baseAssetAmount);
     }
 

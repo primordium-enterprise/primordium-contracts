@@ -3,11 +3,11 @@
 
 pragma solidity ^0.8.4;
 
-import "../Treasurer.sol";
+import "../TreasurerOld.sol";
 import "@openzeppelin/contracts/utils/Checkpoints.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-abstract contract TreasurerDistributions is Treasurer {
+abstract contract TreasurerDistributions is TreasurerOld {
 
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace224;

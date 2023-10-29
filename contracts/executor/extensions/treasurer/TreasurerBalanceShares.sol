@@ -3,10 +3,10 @@
 
 pragma solidity ^0.8.4;
 
-import "../Treasurer.sol";
+import "../TreasurerOld.sol";
 import "contracts/utils/BalanceShares.sol";
 
-abstract contract TreasurerBalanceShares is Treasurer {
+abstract contract TreasurerBalanceShares is TreasurerOld {
 
     using BalanceShares for BalanceShares.BalanceShare;
 
@@ -356,7 +356,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * save gas)
      */
     function _treasuryBalance() internal view virtual override returns (uint256) {
-        uint256 currentBalance = Treasurer._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
+        uint256 currentBalance = TreasurerOld._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
         uint256 unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
         if (unprocessedRevenue > 0) {
             currentBalance -= _balanceShares[BalanceShareId.Revenue].calculateBalanceToAddToShares(unprocessedRevenue);
@@ -385,7 +385,7 @@ abstract contract TreasurerBalanceShares is Treasurer {
      * Calls BalanceShares.processBalance on the revenue shares to track any balance remainders as well.
      */
     function _stashRevenueShares() internal virtual returns (uint256 stashed) {
-        uint256 currentBalance = Treasurer._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
+        uint256 currentBalance = TreasurerOld._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
         uint256 unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
         if (unprocessedRevenue > 0) {
             stashed = _balanceShares[BalanceShareId.Revenue].processBalance(unprocessedRevenue);

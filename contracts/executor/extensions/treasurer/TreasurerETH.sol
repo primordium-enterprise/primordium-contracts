@@ -3,9 +3,9 @@
 
 pragma solidity ^0.8.4;
 
-import "../Treasurer.sol";
+import "../TreasurerOld.sol";
 
-abstract contract TreasurerETH is Treasurer {
+abstract contract TreasurerETH is TreasurerOld {
 
     error MustInitializeBaseAssetToETH();
     error DepositAmountAndMsgValueMismatch(uint256 depositAmount, uint256 msgValue);

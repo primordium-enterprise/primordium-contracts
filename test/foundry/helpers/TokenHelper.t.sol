@@ -14,7 +14,7 @@ abstract contract TokenBase is VotesProvisioner {
 
     constructor(
         TokenHelper.TokenConfig memory tokenConfig,
-        Treasurer executor,
+        TreasurerOld executor,
         IERC20 baseAsset
     )
         ERC20Permit(tokenConfig.name)
