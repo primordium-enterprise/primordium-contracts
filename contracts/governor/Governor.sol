@@ -77,12 +77,6 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
     /**
      * @dev Restricts a function so it can only be executed through governance proposals. For example, governance
      * parameter setters in {GovernorSettings} are protected using this modifier.
-     *
-     * The governance executing address may be different from the Governor's own address, for example it could be a
-     * timelock. This can be customized by modules by overriding {_timelockAvatar}. The _timelockAvatar is only able to
-     * invoke these functions during the execution of the governor's {execute} function, and not under any other
-     * circumstances. Thus, for example, additional timelock proposers are not able to change governance parameters
-     * without going through the governance protocol.
      */
     modifier onlyGovernance() {
         _onlyGovernance();
@@ -92,11 +86,9 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
     function _onlyGovernance() private {
         address timelock = address(_timelockAvatar);
         if (msg.sender != timelock) revert OnlyGovernance();
-        if (timelock != address(this)) {
-            bytes32 msgDataHash = keccak256(_msgData());
-            // loop until popping the expected operation - throw if deque is empty (operation not authorized)
-            while (_governanceCall.popFront() != msgDataHash) {}
-        }
+        bytes32 msgDataHash = keccak256(_msgData());
+        // loop until popping the expected operation - throw if deque is empty (operation not authorized)
+        while (_governanceCall.popFront() != msgDataHash) {}
     }
 
     function __Governor_init(
@@ -544,11 +536,10 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
         uint256[] calldata /* values */,
         bytes[] calldata calldatas
     ) internal virtual {
-        if (timelockAvatar() != address(this)) {
-            for (uint256 i = 0; i < targets.length; ++i) {
-                if (targets[i] == address(this)) {
-                    _governanceCall.pushBack(keccak256(calldatas[i]));
-                }
+        // Queue any operations on self
+        for (uint256 i = 0; i < targets.length; ++i) {
+            if (targets[i] == address(this)) {
+                _governanceCall.pushBack(keccak256(calldatas[i]));
             }
         }
     }
@@ -562,10 +553,9 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
         uint256[] memory /* values */,
         bytes[] memory /* calldatas */
     ) internal virtual {
-        if (timelockAvatar() != address(this)) {
-            if (!_governanceCall.empty()) {
-                _governanceCall.clear();
-            }
+        // Clear the self operation queue
+        if (!_governanceCall.empty()) {
+            _governanceCall.clear();
         }
     }
 
