@@ -87,6 +87,7 @@ abstract contract IGovernor is IArrayLengthErrors, IERC165, IERC6372, TimelockAv
 
     error OnlyGovernance();
     error UnknownProposalId(uint256 proposalId);
+    error GovernorClockMustMatchTokenClock();
     error UnauthorizedToSubmitProposal();
     error UnauthorizedToCancelProposal();
     error InsufficientVoteSupplyForGovernance();
@@ -224,9 +225,9 @@ abstract contract IGovernor is IArrayLengthErrors, IERC165, IERC6372, TimelockAv
      */
     function hashProposalActions(
         uint256 proposalId,
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
     ) public pure virtual returns (bytes32);
 
     /**
@@ -238,11 +239,11 @@ abstract contract IGovernor is IArrayLengthErrors, IERC165, IERC6372, TimelockAv
      * Accounts with the PROPOSER_ROLE can submit proposals regardless of delegation.
      */
     function propose(
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas,
-        string[] memory signatures,
-        string memory description
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas,
+        string[] calldata signatures,
+        string calldata description
     ) public virtual returns (uint256 proposalId);
 
     /**
@@ -252,9 +253,9 @@ abstract contract IGovernor is IArrayLengthErrors, IERC165, IERC6372, TimelockAv
      */
     function queue(
         uint256 proposalId,
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
     ) public virtual returns (uint256 proposalId_);
 
     /**

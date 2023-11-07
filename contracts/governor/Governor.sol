@@ -107,6 +107,8 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
         __EIP712_init(name(), version());
         __TimelockAvatarControlled_init(timelockAvatar_);
         _token = token_;
+        // Token clock must match
+        if (ERC20Checkpoints(token_).clock() != clock()) revert GovernorClockMustMatchTokenClock();
         governanceThreshold = governanceThreshold_;
     }
 
@@ -119,15 +121,10 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
     }
 
     /**
-     * @dev Clock (as specified in EIP-6372) is set to match the token's clock. Fallback to block numbers if the token
-     * does not implement EIP-6372.
+     * @dev Clock (as specified in EIP-6372) defaults to block number. Should be overridden to match token if different.
      */
     function clock() public view virtual override returns (uint48) {
-        try VotesProvisioner(_token).clock() returns (uint48 timepoint) {
-            return timepoint;
-        } catch {
-            return SafeCast.toUint48(block.number);
-        }
+        return SafeCast.toUint48(block.number);
     }
 
     /**
@@ -135,11 +132,7 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
      */
     // solhint-disable-next-line func-name-mixedcase
     function CLOCK_MODE() public view virtual override returns (string memory) {
-        try VotesProvisioner(_token).CLOCK_MODE() returns (string memory clockmode) {
-            return clockmode;
-        } catch {
-            return "mode=blocknumber&from=default";
-        }
+        return "mode=blocknumber&from=default";
     }
 
     /**
@@ -230,13 +223,16 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
      * @dev See {IGovernor-state}.
      */
     function state(uint256 proposalId) public view virtual override returns (ProposalState) {
+        // Single SLOAD
         ProposalCore storage proposal = _proposals[proposalId];
+        bool proposalExecuted = proposal.executed;
+        bool proposalCanceled = proposal.canceled;
 
-        if (proposal.executed) {
+        if (proposalExecuted) {
             return ProposalState.Executed;
         }
 
-        if (proposal.canceled) {
+        if (proposalCanceled) {
             return ProposalState.Canceled;
         }
 
@@ -258,23 +254,25 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
             return ProposalState.Active;
         }
 
-        if (_quorumReached(proposalId) && _voteSucceeded(proposalId)) {
-            uint256 opNonce = _opNonces[proposalId];
-            if (opNonce == 0) {
-                return ProposalState.Succeeded;
-            } else {
-                TimelockAvatar.OperationStatus opStatus = _timelockAvatar.getOperationStatus(opNonce);
-                if (opStatus == TimelockAvatar.OperationStatus.Done) {
-                    return ProposalState.Executed;
-                } else if (opStatus == TimelockAvatar.OperationStatus.Expired) {
-                    return ProposalState.Expired;
-                } else {
-                    return ProposalState.Queued;
-                }
-            }
-        } else {
+        // If no quorum was reached, or if the vote did not succeed, the proposal is defeated
+        if (!_quorumReached(proposalId) || !_voteSucceeded(proposalId)) {
             return ProposalState.Defeated;
         }
+
+        uint256 opNonce = _opNonces[proposalId];
+        if (opNonce == 0) {
+            return ProposalState.Succeeded;
+        }
+
+        TimelockAvatar.OperationStatus opStatus = _timelockAvatar.getOperationStatus(opNonce);
+        if (opStatus == TimelockAvatar.OperationStatus.Done) {
+            return ProposalState.Executed;
+        }
+        if (opStatus == TimelockAvatar.OperationStatus.Expired) {
+            return ProposalState.Expired;
+        }
+
+        return ProposalState.Queued;
     }
 
     /**
@@ -359,9 +357,9 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
      */
     function hashProposalActions(
         uint256 proposalId,
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
     ) public pure virtual override returns (bytes32) {
         return keccak256(abi.encode(proposalId, targets, values, calldatas));
     }
@@ -370,11 +368,11 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
      * @dev See {IGovernor-propose}.
      */
     function propose(
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas,
-        string[] memory signatures,
-        string memory description
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas,
+        string[] calldata signatures,
+        string calldata description
     ) public virtual override returns (uint256) {
         address proposer = _msgSender();
         uint256 currentTimepoint = clock();
@@ -445,9 +443,9 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
      */
     function queue(
         uint256 proposalId,
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
     ) public virtual override returns (uint256) {
 
         if (state(proposalId) != ProposalState.Succeeded) revert ProposalUnsuccessful();
@@ -455,7 +453,7 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
             _proposals[proposalId].actionsHash != hashProposalActions(proposalId, targets, values, calldatas)
         ) revert InvalidActionsForProposal();
 
-        (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSend(
+        (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSendCalldata(
             address(_timelockAvatar),
             targets,
             values,
