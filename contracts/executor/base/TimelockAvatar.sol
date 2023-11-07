@@ -203,6 +203,17 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
     }
 
     /**
+     * Returns the timestamp when the operation will be executable.
+     * @notice Reverts if the operation does not exist.
+     * @param opNonce The operation nonce.
+     * @return executableAt The timestamp when the operation is executable.
+     */
+    function getOperationExecutableAt(uint256 opNonce) external view returns (uint256 executableAt) {
+        _checkOpNonce(opNonce);
+        executableAt = _operations[opNonce].executableAt;
+    }
+
+    /**
      * Returns the details for the provided operation nonce.
      * @notice Reverts if the operation does not exist.
      * @param opNonce The operation nonce.
@@ -299,7 +310,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
      * @param data The call data.
      * @param operation For this timelock, must be Enum.Operation.Call (or uint8(0)).
      * @return success Returns true for successful scheduling
-     * @return returnData Returns abi.encode(opNonce, opHash, executableAt).
+     * @return returnData Returns abi.encode(uint256 opNonce,bytes32 opHash,uint256 executableAt).
      */
     function execTransactionFromModuleReturnData(
         address to,
@@ -320,7 +331,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
      * @param data The call data.
      * @param delay The delay before the transaction can be executed.
      * @return success Returns true for successful scheduling
-     * @return returnData Returns abi.encode(opNonce, opHash, executableAt).
+     * @return returnData Returns abi.encode(uint256 opNonce,bytes32 opHash,uint256 executableAt).
      */
     function scheduleTransactionFromModuleReturnData(
         address to,
@@ -365,12 +376,14 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
      * @param to The target for execution.
      * @param value The call value.
      * @param data The call data.
+     * @param operation The operation type. Must be Enum.Operation.Call (which is uint8(0)).
      */
     function executeOperation(
         uint256 opNonce,
         address to,
         uint256 value,
-        bytes calldata data
+        bytes calldata data,
+        Enum.Operation operation
     ) external {
         Operation storage op = _operations[opNonce];
         (address module, uint256 executableAt) = (op.module, op.executableAt);
@@ -383,7 +396,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         bytes32 opHash = hashOperation(to, value, data);
         if (opHash != op.opHash) revert InvalidCallParameters();
 
-        _execute(to, value, data, Enum.Operation.Call);
+        _execute(to, value, data, operation);
 
         // Check that the operation status is still "ready" to protect against re-entrancy messing with the operation
         opStatus = _getOperationStatus(executableAt);

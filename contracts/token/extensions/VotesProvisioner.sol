@@ -6,10 +6,10 @@ pragma solidity ^0.8.4;
 import "../Votes.sol";
 import "./IVotesProvisioner.sol";
 import "../../executor/extensions/TreasurerOld.sol";
-import "../../utils/ExecutorControlled.sol";
+import "../../utils/TimelockAvatarControlled.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "../../utils/Math512.sol";
 
@@ -20,9 +20,9 @@ import "../../utils/Math512.sol";
  *
  * Anyone can mint vote tokens in exchange for the DAO's base asset. Any member can withdraw pro rata.
  */
-abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControlled {
+abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarControlled {
 
-    using SafeMath for uint256;
+    using Math for uint256;
     using SafeCast for *;
 
     IERC20 internal immutable _baseAsset; // The address for the DAO's base asset (address(0) for ETH)
@@ -45,13 +45,14 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     uint256 private immutable _governanceCanBeginAt;
 
     constructor(
-        TreasurerOld executor_,
+        address timelockAvatar_,
         IERC20 baseAsset_,
         uint256 maxSupply_,
         TokenPrice memory tokenPrice_,
         uint256 tokenSaleBeginsAt_,
         uint256 governanceCanBeginAt_
-    ) ExecutorControlled(executor_) {
+    ) {
+        _updateTimelockAvatar(timelockAvatar_);
         if (address(baseAsset_) == address(this)) revert CannotInitializeBaseAssetToSelf();
         _baseAsset = baseAsset_;
         _updateMaxSupply(maxSupply_);
@@ -107,7 +108,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     /**
      * @notice Executor-only function to update the provision mode.
      */
-    function setProvisionMode(ProvisionMode mode) public virtual onlyExecutor {
+    function setProvisionMode(ProvisionMode mode) public virtual onlyTimelockAvatar {
         _setProvisionMode(mode);
     }
 
@@ -115,7 +116,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      * @notice Executor-only function to update the max supply of vote tokens.
      * @param newMaxSupply The new max supply. Must be no greater than type(uint224).max.
      */
-    function updateMaxSupply(uint256 newMaxSupply) external virtual onlyExecutor {
+    function updateMaxSupply(uint256 newMaxSupply) external virtual onlyTimelockAvatar {
         _updateMaxSupply(newMaxSupply);
     }
 
@@ -126,7 +127,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      * @param newDenominator The new denominator value (the amount of votes minted for every {numerator} amount of the
      * base asset). Set to zero to keep the denominator the same.
      */
-    function updateTokenPrice(uint256 newNumerator, uint256 newDenominator) public virtual onlyExecutor {
+    function updateTokenPrice(uint256 newNumerator, uint256 newDenominator) public virtual onlyTimelockAvatar {
         if (newNumerator == 0 || newDenominator == 0) revert TokenPriceParametersMustBeGreaterThanZero();
         _updateTokenPrice(newNumerator, newDenominator);
     }
@@ -136,7 +137,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      * @param newNumerator The new numerator value (the amount of base asset required for {denominator} amount of
      * votes).
      */
-    function updateTokenPriceNumerator(uint256 newNumerator) public virtual onlyExecutor {
+    function updateTokenPriceNumerator(uint256 newNumerator) public virtual onlyTimelockAvatar {
         if (newNumerator == 0) revert TokenPriceParametersMustBeGreaterThanZero();
         _updateTokenPrice(newNumerator, 0);
     }
@@ -146,7 +147,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      * @param newDenominator The new denominator value (the amount of votes minted for every {numerator} amount of the
      * base asset).
      */
-    function updateTokenPriceDenominator(uint256 newDenominator) public virtual onlyExecutor {
+    function updateTokenPriceDenominator(uint256 newDenominator) public virtual onlyTimelockAvatar {
         if (newDenominator == 0) revert TokenPriceParametersMustBeGreaterThanZero();
         _updateTokenPrice(0, newDenominator);
     }
@@ -307,7 +308,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
     function _depositFor(
         address account,
         uint256 depositAmount
-    ) internal virtual executorIsInitialized returns (uint256) {
+    ) internal virtual avatarIsInitialized returns (uint256) {
         ProvisionMode currentProvisionMode = _provisionMode;
         if (currentProvisionMode == ProvisionMode.Governance) revert DepositsUnavailable();
         // Zero address is checked in the _mint function
@@ -361,7 +362,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      * @dev Internal function for returning the executor address wrapped as the TreasurerOld contract.
      */
     function _getTreasurer() internal view returns (TreasurerOld) {
-        return TreasurerOld(payable(address(_executor)));
+        return TreasurerOld(payable(address(_timelockAvatar)));
     }
 
     /**
@@ -369,9 +370,9 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, ExecutorControll
      * target is the executor, only allows sending ETH via the value (as the calldata length is required to be zero in
      * this case). This is to protect against relay functions calling token-only functions on the executor.
      */
-    function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyExecutor {
+    function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyTimelockAvatar {
         if (
-            target == address(_executor) && data.length > 0
+            target == address(_timelockAvatar) && data.length > 0
         ) revert RelayDataToExecutorNotAllowed(data);
         (bool success, bytes memory returndata) = target.call{value: value}(data);
         // Revert with return data on unsuccessful calls

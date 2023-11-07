@@ -4,7 +4,7 @@
 pragma solidity ^0.8.4;
 
 import "./GovernorCountingSimple.sol";
-import "@openzeppelin/contracts/utils/Checkpoints.sol";
+import "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 abstract contract GovernorCountingPercentMajority is GovernorCountingSimple {

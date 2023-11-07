@@ -5,7 +5,7 @@
 pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
@@ -14,8 +14,9 @@ import "@openzeppelin/contracts/utils/Context.sol";
 import "../token/extensions/VotesProvisioner.sol";
 import "../executor/Executor.sol";
 import "./IGovernor.sol";
-import "../utils/ExecutorControlled.sol";
+import "../utils/TimelockAvatarControlled.sol";
 import "../utils/Roles.sol";
+import "contracts/libraries/MultiSendEncoder.sol";
 
 /**
  * @dev Core of the governance system, designed to be extended though various modules.
@@ -29,33 +30,26 @@ import "../utils/Roles.sol";
  *
  * _Available since v4.3._
  */
-abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGovernor, Roles {
+abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatarControlled, IGovernor, Roles {
 
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
     using SafeCast for uint256;
 
-    // solhint-disable var-name-mixedcase
     struct ProposalCore {
-        uint256 proposalId;
         bytes32 actionsHash;
-        // --- start retyped from Timers.BlockNumber at offset 0x00 ---
-        uint64 voteStart;
         address proposer;
-        bytes4 __gap_unused0;
-        // --- start retyped from Timers.BlockNumber at offset 0x20 ---
-        uint64 voteEnd;
-        bytes24 __gap_unused1;
-        // --- Remaining fields starting at offset 0x40 ---------------
+        uint48 voteStart;
+        uint32 voteDuration;
         bool executed;
         bool canceled;
+        uint48 etaSeconds;
     }
-    // solhint-enable var-name-mixedcase
 
     /**
      * @notice The minimum supply of vote tokens that must be in circulation before proposals to enter governance mode
      * can be submitted.
      */
-    uint256 public immutable governanceThreshold;
+    uint256 public governanceThreshold;
 
     bytes32 public constant BALLOT_TYPEHASH = keccak256("Ballot(uint256 proposalId,uint8 support)");
     bytes32 public constant EXTENDED_BALLOT_TYPEHASH =
@@ -67,10 +61,10 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     // Proposals counter
     uint256 public proposalCount;
 
-    VotesProvisioner internal immutable _token;
+    address internal _token;
 
-    // Tracking queued operations on the _executor
-    mapping(uint256 => bytes32) private _executorIds;
+    // Tracking queued operations on the _timelockAvatar
+    mapping(uint256 => uint256) private _opNonces;
 
     mapping(uint256 => ProposalCore) private _proposals;
 
@@ -85,10 +79,10 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      * parameter setters in {GovernorSettings} are protected using this modifier.
      *
      * The governance executing address may be different from the Governor's own address, for example it could be a
-     * timelock. This can be customized by modules by overriding {_executor}. The _executor is only able to invoke these
-     * functions during the execution of the governor's {execute} function, and not under any other circumstances. Thus,
-     * for example, additional timelock proposers are not able to change governance parameters without going through the
-     * governance protocol (since v4.6).
+     * timelock. This can be customized by modules by overriding {_timelockAvatar}. The _timelockAvatar is only able to
+     * invoke these functions during the execution of the governor's {execute} function, and not under any other
+     * circumstances. Thus, for example, additional timelock proposers are not able to change governance parameters
+     * without going through the governance protocol.
      */
     modifier onlyGovernance() {
         _onlyGovernance();
@@ -96,23 +90,22 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     }
 
     function _onlyGovernance() private {
-        address executorAddress = address(_executor);
-        if (msg.sender != executorAddress) revert OnlyGovernance();
-        if (executorAddress != address(this)) {
+        address timelock = address(_timelockAvatar);
+        if (msg.sender != timelock) revert OnlyGovernance();
+        if (timelock != address(this)) {
             bytes32 msgDataHash = keccak256(_msgData());
             // loop until popping the expected operation - throw if deque is empty (operation not authorized)
             while (_governanceCall.popFront() != msgDataHash) {}
         }
     }
 
-    /**
-     * @dev Sets the value for {name} and {version}
-     */
-    constructor(
-        Executor executor_,
-        VotesProvisioner token_,
+    function __Governor_init(
+        address timelockAvatar_,
+        address token_,
         uint256 governanceThreshold_
-    ) EIP712(name(), version()) ExecutorControlled(executor_) {
+    ) internal virtual onlyInitializing {
+        __EIP712_init(name(), version());
+        __TimelockAvatarControlled_init(timelockAvatar_);
         _token = token_;
         governanceThreshold = governanceThreshold_;
     }
@@ -130,7 +123,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      * does not implement EIP-6372.
      */
     function clock() public view virtual override returns (uint48) {
-        try _token.clock() returns (uint48 timepoint) {
+        try VotesProvisioner(_token).clock() returns (uint48 timepoint) {
             return timepoint;
         } catch {
             return SafeCast.toUint48(block.number);
@@ -142,7 +135,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      */
     // solhint-disable-next-line func-name-mixedcase
     function CLOCK_MODE() public view virtual override returns (string memory) {
-        try _token.CLOCK_MODE() returns (string memory clockmode) {
+        try VotesProvisioner(_token).CLOCK_MODE() returns (string memory clockmode) {
             return clockmode;
         } catch {
             return "mode=blocknumber&from=default";
@@ -153,7 +146,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      * @notice Returns the address of the token contract used for keeping a tally of votes
      */
     function token() public view returns (address) {
-        return address(_token);
+        return _token;
     }
 
     /**
@@ -176,10 +169,10 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      * 2. Deploy Governor with _executor address set to address(0)
      * 3. Call initialize on Governor from deployer address (to set the _executor and complete the ownership transfer)
      */
-    function initialize(Executor newExecutor) public virtual {
-        initializeExecutor(newExecutor);
-        _executor.acceptOwnership();
-    }
+    // function initialize(Executor newExecutor) public virtual {
+    //     initializeExecutor(newExecutor);
+    //     _executor.acceptOwnership();
+    // }
 
     /**
      * @dev Public endpoint to update the underlying timelock instance. Restricted to the timelock itself, so updates
@@ -187,18 +180,8 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      *
      * CAUTION: It is not recommended to change the timelock while there are other queued governance proposals.
      */
-    function updateExecutor(Executor newExecutor) public virtual onlyGovernance {
-        _updateExecutor(newExecutor);
-    }
-
-    /**
-     * @dev Public endpoint to transfer ownership of the Executor contract to a new Governor. Restricted to the timelock
-     * itself, so updates must be proposed, scheduled, and executed through governance proposals.
-     *
-     * NOTE: This Governor can only transfer ownership if it is the current owner. The new owner must accept ownership.
-     */
-    function transferExecutorOwnership(address newOwner) public virtual onlyGovernance {
-        _executor.transferOwnership(newOwner);
+    function updateTimelockAvatar(address newExecutor) public virtual onlyGovernance {
+        _updateTimelockAvatar(newExecutor);
     }
 
     /**
@@ -276,15 +259,18 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         }
 
         if (_quorumReached(proposalId) && _voteSucceeded(proposalId)) {
-            bytes32 queueId = _executorIds[proposalId];
-            if (queueId == bytes32(0)) {
+            uint256 opNonce = _opNonces[proposalId];
+            if (opNonce == 0) {
                 return ProposalState.Succeeded;
-            } else if (_executor.isOperationDone(queueId)) {
-                return ProposalState.Executed;
-            } else if (_executor.isOperationPending(queueId)) {
-                return ProposalState.Queued;
             } else {
-                return ProposalState.Canceled;
+                TimelockAvatar.OperationStatus opStatus = _timelockAvatar.getOperationStatus(opNonce);
+                if (opStatus == TimelockAvatar.OperationStatus.Done) {
+                    return ProposalState.Executed;
+                } else if (opStatus == TimelockAvatar.OperationStatus.Expired) {
+                    return ProposalState.Expired;
+                } else {
+                    return ProposalState.Queued;
+                }
             }
         } else {
             return ProposalState.Defeated;
@@ -302,7 +288,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      * @dev See {IGovernor-proposalDeadline}.
      */
     function proposalDeadline(uint256 proposalId) public view virtual override returns (uint256) {
-        return _proposals[proposalId].voteEnd;
+        return _proposals[proposalId].voteStart + _proposals[proposalId].voteDuration;
     }
 
     function proposalActionsHash(uint256 proposalId) public view virtual override returns (bytes32) {
@@ -381,15 +367,6 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     }
 
     /**
-     * @dev Generates a salt for the _executor's operationId, by hashing the proposalId with the Governor version.
-     *
-     * Important for avoiding operationId clashes in the Executor for (potential) future versions of Governor.
-     */
-    function generateExecutorSalt(uint256 proposalId) public view override returns (bytes32 salt) {
-        return keccak256(abi.encode(proposalId, bytes(version())));
-    }
-
-    /**
      * @dev See {IGovernor-propose}.
      */
     function propose(
@@ -414,12 +391,12 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
             targets.length != signatures.length
         ) revert MismatchingArrayLengths();
 
-        if (_token.provisionMode() == IVotesProvisioner.ProvisionMode.Founding) {
-            if (_token.totalSupply() < governanceThreshold) revert InsufficientVoteSupplyForGovernance();
+        if (VotesProvisioner(_token).provisionMode() == IVotesProvisioner.ProvisionMode.Founding) {
+            if (VotesProvisioner(_token).totalSupply() < governanceThreshold) revert InsufficientVoteSupplyForGovernance();
             if (
                 targets.length != 1 || // Only allow a single action until we exit founding mode
-                targets[0] != address(_token) || // And the action must be to upgrade the token from founding mode
-                bytes4(calldatas[0]) != _token.setProvisionMode.selector // So the selector must match
+                targets[0] != _token || // And the action must be to upgrade the token from founding mode
+                bytes4(calldatas[0]) != VotesProvisioner.setProvisionMode.selector // So the selector must match
             ) revert InvalidFoundingModeActions();
         }
 
@@ -440,19 +417,13 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
 
         // Generate voting periods
         uint256 snapshot = currentTimepoint + votingDelay();
-        uint256 deadline = snapshot + votingPeriod();
+        uint256 duration = votingPeriod();
 
-        _proposals[newProposalId] = ProposalCore({
-            proposalId: newProposalId,
-            actionsHash: hashProposalActions(newProposalId, targets, values, calldatas),
-            proposer: proposer,
-            voteStart: snapshot.toUint64(),
-            voteEnd: deadline.toUint64(),
-            executed: false,
-            canceled: false,
-            __gap_unused0: 0,
-            __gap_unused1: 0
-        });
+        ProposalCore storage proposal = _proposals[newProposalId];
+        proposal.actionsHash = hashProposalActions(newProposalId, targets, values, calldatas);
+        proposal.proposer = proposer;
+        proposal.voteStart = snapshot.toUint48();
+        proposal.voteDuration = duration.toUint32();
 
         emit ProposalCreated(
             newProposalId,
@@ -462,7 +433,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
             signatures,
             calldatas,
             snapshot,
-            deadline,
+            snapshot + duration,
             description
         );
 
@@ -484,18 +455,25 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
             _proposals[proposalId].actionsHash != hashProposalActions(proposalId, targets, values, calldatas)
         ) revert InvalidActionsForProposal();
 
-        uint256 delay = _executor.getMinDelay();
-        bytes32 operationId = _executor.scheduleBatch(
+        (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSend(
+            address(_timelockAvatar),
             targets,
             values,
-            calldatas,
-            0,
-            generateExecutorSalt(proposalId),
-            delay
+            calldatas
         );
-        _executorIds[proposalId] = operationId;
 
-        emit ProposalQueued(proposalId, block.timestamp + delay);
+        (,bytes memory returnData) = _timelockAvatar.execTransactionFromModuleReturnData(
+            to,
+            value,
+            data,
+            Enum.Operation.Call
+        );
+
+        (uint256 opNonce,,uint256 eta) = abi.decode(returnData, (uint256, bytes32, uint256));
+        _opNonces[proposalId] = opNonce;
+        _proposals[proposalId].etaSeconds = eta.toUint48();
+
+        emit ProposalQueued(proposalId, eta);
 
         return proposalId;
     }
@@ -506,15 +484,16 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      */
     function execute(
         uint256 proposalId,
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
     ) public virtual override returns (uint256) {
 
         ProposalState status = state(proposalId);
         if (
             status != ProposalState.Succeeded && status != ProposalState.Queued
         ) revert ProposalUnsuccessful();
+        // NOTE: We don't check the actionsHash here because the TimelockAvatar's opHash will be checked
         _proposals[proposalId].executed = true;
 
         emit ProposalExecuted(proposalId);
@@ -545,11 +524,17 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      */
     function _execute(
         uint256 proposalId,
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
     ) internal virtual {
-        _executor.executeBatch{value: msg.value}(targets, values, calldatas, 0, generateExecutorSalt(proposalId));
+        (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSendCalldata(
+            address(_timelockAvatar),
+            targets,
+            values,
+            calldatas
+        );
+        _timelockAvatar.executeOperation(_opNonces[proposalId], to, value, data, Enum.Operation.Call);
     }
 
     /**
@@ -557,11 +542,11 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      */
     function _beforeExecute(
         uint256 /* proposalId */,
-        address[] memory targets,
-        uint256[] memory /* values */,
-        bytes[] memory calldatas
+        address[] calldata targets,
+        uint256[] calldata /* values */,
+        bytes[] calldata calldatas
     ) internal virtual {
-        if (executor() != address(this)) {
+        if (timelockAvatar() != address(this)) {
             for (uint256 i = 0; i < targets.length; ++i) {
                 if (targets[i] == address(this)) {
                     _governanceCall.pushBack(keccak256(calldatas[i]));
@@ -579,7 +564,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         uint256[] memory /* values */,
         bytes[] memory /* calldatas */
     ) internal virtual {
-        if (executor() != address(this)) {
+        if (timelockAvatar() != address(this)) {
             if (!_governanceCall.empty()) {
                 _governanceCall.clear();
             }
@@ -606,10 +591,10 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
         ) revert ProposalAlreadyFinished();
         _proposals[proposalId].canceled = true;
 
-        // Added from "TimelockController"
-        if (_executorIds[proposalId] != 0) {
-            _executor.cancel(_executorIds[proposalId]);
-            delete _executorIds[proposalId];
+        // Cancel the op if it exists (will revert if it cannot be cancelled)
+        uint256 opNonce = _opNonces[proposalId];
+        if (opNonce != 0) {
+            _timelockAvatar.cancelOperation(opNonce);
         }
 
         emit ProposalCanceled(proposalId);
@@ -621,8 +606,7 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
      * @dev Public accessor to check the eta of a queued proposal
      */
     function proposalEta(uint256 proposalId) public view virtual override returns (uint256) {
-        uint256 eta = _executor.getTimestamp(_executorIds[proposalId]);
-        return eta == 1 ? 0 : eta; // _DONE_TIMESTAMP (1) should be replaced with a 0 value
+        return _proposals[proposalId].etaSeconds;
     }
 
     /**
@@ -771,14 +755,14 @@ abstract contract Governor is Context, ERC165, EIP712, ExecutorControlled, IGove
     }
 
     /**
-     * @dev Relays a transaction or function call to an arbitrary target. In cases where the governance _executor
+     * @dev Relays a transaction or function call to an arbitrary target. In cases where the governance _timelockAvatar
      * is some contract other than the governor itself, like when using a timelock, this function can be invoked
      * in a governance proposal to recover tokens or Ether that was sent to the governor contract by mistake.
-     * Note that if the _executor is simply the governor itself, use of `relay` is redundant.
+     * Note that if the _timelockAvatar is simply the governor itself, use of `relay` is redundant.
      */
     function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyGovernance {
         (bool success, bytes memory returndata) = target.call{value: value}(data);
-        Address.verifyCallResult(success, returndata, "Governor: relay reverted without message");
+        Address.verifyCallResult(success, returndata);
     }
 
 }

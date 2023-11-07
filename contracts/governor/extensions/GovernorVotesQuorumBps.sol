@@ -5,7 +5,7 @@
 pragma solidity ^0.8.4;
 
 import "./GovernorVotes.sol";
-import "@openzeppelin/contracts/utils/Checkpoints.sol";
+import "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -69,7 +69,7 @@ abstract contract GovernorVotesQuorumBps is GovernorVotes {
         uint256 bps = quorumBps(timepoint);
         if (bps == 0) return 0;
         // NOTE: We don't need Math.mulDiv for overflow AS LONG AS the max supply of the token is <= type(uint224).max
-        return (_token.getPastTotalSupply(timepoint) * quorumBps(timepoint)) / MAX_BPS;
+        return (ERC20Checkpoints(_token).getPastTotalSupply(timepoint) * quorumBps(timepoint)) / MAX_BPS;
     }
 
     /**

@@ -5,11 +5,11 @@ pragma solidity ^0.8.4;
 
 import "../../token/extensions/VotesProvisioner.sol";
 import "../../token/extensions/IVotesProvisioner.sol";
-import "../Executor.sol";
+import "../ExecutorOld.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-abstract contract TreasurerOld is Executor {
+abstract contract TreasurerOld is ExecutorOld {
 
     VotesProvisioner internal immutable _token;
     IERC20 internal immutable _baseAsset;

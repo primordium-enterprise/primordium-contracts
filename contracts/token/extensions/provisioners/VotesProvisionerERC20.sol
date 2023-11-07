@@ -6,9 +6,9 @@ pragma solidity ^0.8.4;
 import "../VotesProvisioner.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 
-using SafeMath for uint256;
+using Math for uint256;
 
 abstract contract VotesProvisionerERC20 is VotesProvisioner {
 
@@ -78,7 +78,7 @@ abstract contract VotesProvisionerERC20 is VotesProvisioner {
         uint256 depositAmount,
         ProvisionMode currentProvisionMode
     ) internal virtual override {
-        SafeERC20.safeTransferFrom(_baseAsset, _msgSender(), executor(), depositAmount);
+        SafeERC20.safeTransferFrom(_baseAsset, _msgSender(), timelockAvatar(), depositAmount);
         _getTreasurer().registerDeposit(depositAmount, currentProvisionMode);
     }
 

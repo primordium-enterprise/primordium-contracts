@@ -7,14 +7,14 @@ pragma solidity ^0.8.4;
 import {IArrayLengthErrors} from "contracts/interfaces/IArrayLengthErrors.sol";
 import "@openzeppelin/contracts/interfaces/IERC165.sol";
 import "@openzeppelin/contracts/interfaces/IERC6372.sol";
-import "../utils/ExecutorControlled.sol";
+import "../utils/TimelockAvatarControlled.sol";
 
 /**
  * @dev Interface of the {Governor} core.
  *
  * _Available since v4.3._
  */
-abstract contract IGovernor is IArrayLengthErrors, IERC165, IERC6372, ExecutorControlled {
+abstract contract IGovernor is IArrayLengthErrors, IERC165, IERC6372, TimelockAvatarControlled {
 
     enum ProposalState {
         Pending,
@@ -230,11 +230,6 @@ abstract contract IGovernor is IArrayLengthErrors, IERC165, IERC6372, ExecutorCo
     ) public pure virtual returns (bytes32);
 
     /**
-     * @dev Create a hashed salt using the proposalId and the Governor version() for executor operations.
-     */
-    function generateExecutorSalt(uint256 proposalId) public view virtual returns (bytes32);
-
-    /**
      * @dev Create a new proposal. Vote start after a delay specified by {IGovernor-votingDelay} and lasts for a
      * duration specified by {IGovernor-votingPeriod}.
      *
@@ -272,9 +267,9 @@ abstract contract IGovernor is IArrayLengthErrors, IERC165, IERC6372, ExecutorCo
      */
     function execute(
         uint256 proposalId,
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
     ) public virtual returns (uint256 proposalId_);
 
     /**

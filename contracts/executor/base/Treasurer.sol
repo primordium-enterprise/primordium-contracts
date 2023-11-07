@@ -6,10 +6,12 @@ pragma solidity ^0.8.4;
 import "./TimelockAvatar.sol";
 import "../../token/extensions/VotesProvisioner.sol";
 import "../../token/extensions/IVotesProvisioner.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-abstract contract Treasurer is TimelockAvatar {
+abstract contract Treasurer is TimelockAvatar, IERC721Receiver, IERC1155Receiver {
 
     VotesProvisioner internal immutable _token;
     IERC20 internal immutable _baseAsset;
@@ -212,6 +214,39 @@ abstract contract Treasurer is TimelockAvatar {
     function _transferStashedBaseAsset(address to, uint256 amount) internal virtual {
         _unstashBaseAsset(amount);
         _safeTransferBaseAsset(to, amount);
+    }
+
+    /**
+     * @dev See {IERC721Receiver-onERC721Received}.
+     */
+    function onERC721Received(address, address, uint256, bytes memory) public virtual override returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
+    }
+
+    /**
+     * @dev See {IERC1155Receiver-onERC1155Received}.
+     */
+    function onERC1155Received(
+        address,
+        address,
+        uint256,
+        uint256,
+        bytes memory
+    ) public virtual override returns (bytes4) {
+        return IERC1155Receiver.onERC1155Received.selector;
+    }
+
+    /**
+     * @dev See {IERC1155Receiver-onERC1155BatchReceived}.
+     */
+    function onERC1155BatchReceived(
+        address,
+        address,
+        uint256[] memory,
+        uint256[] memory,
+        bytes memory
+    ) public virtual override returns (bytes4) {
+        return IERC1155Receiver.onERC1155BatchReceived.selector;
     }
 
 }
