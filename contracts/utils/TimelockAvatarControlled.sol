@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 import "../executor/base/TimelockAvatar.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";

@@ -2,7 +2,7 @@
 // Primordium Contracts
 // Based on OpenZeppelin Contracts
 
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.20;
 
 /**
  * @dev Provides tracking nonces for addresses. Nonces will only increment.

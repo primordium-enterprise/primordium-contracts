@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.20;
 
 /**
  * @dev Additional interface methods for {ERC20Checkpoints}.

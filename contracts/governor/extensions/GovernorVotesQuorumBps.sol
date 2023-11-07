@@ -2,7 +2,7 @@
 // Primordium Contracts
 // Based on OpenZeppelin Contracts (last updated v4.8.0) (extensions/GovernorVotesQuorumBps.sol)
 
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.20;
 
 import "./GovernorVotes.sol";
 import "@openzeppelin/contracts/utils/structs/Checkpoints.sol";

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.20;
 
 import "../TreasurerOld.sol";
 import "@openzeppelin/contracts/utils/structs/Checkpoints.sol";

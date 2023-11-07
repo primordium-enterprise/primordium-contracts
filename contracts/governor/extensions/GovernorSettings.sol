@@ -2,7 +2,7 @@
 // Primordium Contracts
 // Based on OpenZeppelin Contracts v4.4.1 (extensions/GovernorSettings.sol)
 
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.20;
 
 import "../Governor.sol";
 
