@@ -45,12 +45,6 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
         uint48 etaSeconds;
     }
 
-    /**
-     * @notice The minimum supply of vote tokens that must be in circulation before proposals to enter governance mode
-     * can be submitted.
-     */
-    uint256 public governanceThreshold;
-
     bytes32 public constant BALLOT_TYPEHASH = keccak256("Ballot(uint256 proposalId,uint8 support)");
     bytes32 public constant EXTENDED_BALLOT_TYPEHASH =
         keccak256("ExtendedBallot(uint256 proposalId,uint8 support,string reason,bytes params)");
@@ -60,8 +54,6 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
 
     // Proposals counter
     uint256 public proposalCount;
-
-    address internal _token;
 
     // Tracking queued operations on the _timelockAvatar
     mapping(uint256 => uint256) private _opNonces;
@@ -73,6 +65,9 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
     // consumed by the {onlyGovernance} modifier and eventually reset in {_afterExecute}. This ensures that the
     // execution of {onlyGovernance} protected calls can only be achieved through successful proposals.
     DoubleEndedQueue.Bytes32Deque private _governanceCall;
+
+    address internal _token;
+    bool internal _isFounding;
 
     /**
      * @dev Restricts a function so it can only be executed through governance proposals. For example, governance
@@ -93,15 +88,15 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
 
     function __Governor_init(
         address timelockAvatar_,
-        address token_,
-        uint256 governanceThreshold_
+        address token_
     ) internal virtual onlyInitializing {
         __EIP712_init(name(), version());
         __TimelockAvatarControlled_init(timelockAvatar_);
         _token = token_;
         // Token clock must match
         if (ERC20Checkpoints(token_).clock() != clock()) revert GovernorClockMustMatchTokenClock();
-        governanceThreshold = governanceThreshold_;
+        // Set founding bool (for checking proposals)
+        _isFounding = VotesProvisioner(token_).provisionMode() == IVotesProvisioner.ProvisionMode.Founding;
     }
 
     function name() public view virtual override returns (string memory) {
@@ -381,13 +376,22 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
             targets.length != signatures.length
         ) revert MismatchingArrayLengths();
 
-        if (VotesProvisioner(_token).provisionMode() == IVotesProvisioner.ProvisionMode.Founding) {
-            if (VotesProvisioner(_token).totalSupply() < governanceThreshold) revert InsufficientVoteSupplyForGovernance();
-            if (
-                targets.length != 1 || // Only allow a single action until we exit founding mode
-                targets[0] != _token || // And the action must be to upgrade the token from founding mode
-                bytes4(calldatas[0]) != VotesProvisioner.setProvisionMode.selector // So the selector must match
-            ) revert InvalidFoundingModeActions();
+        // If the DAO is in founding mode, then check if governance is even allowed
+        if (_isFounding) {
+            address token_ = _token;
+            (bool isGovernanceAllowed, IVotesProvisioner.ProvisionMode provisionMode) =
+                VotesProvisioner(token_).isGovernanceAllowed();
+            // If no longer in founding mode, we can reset the _isFounding flag and move on
+            if (provisionMode > IVotesProvisioner.ProvisionMode.Founding) {
+                delete _isFounding;
+            } else {
+                if (!isGovernanceAllowed) revert NotReadyForGovernance();
+                if (
+                    targets.length != 1 || // Only allow a single action until we exit founding mode
+                    targets[0] != token_ || // And the action must be to upgrade the token from founding mode
+                    bytes4(calldatas[0]) != VotesProvisioner.setProvisionMode.selector // So the selector must match
+                ) revert InvalidFoundingModeActions();
+            }
         }
 
         // Verify the human-readable function signatures
@@ -402,8 +406,7 @@ abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatar
         }
 
         // Increment proposal counter
-        proposalCount++;
-        uint256 newProposalId = proposalCount;
+        uint256 newProposalId = ++proposalCount;
 
         // Generate voting periods
         uint256 snapshot = currentTimepoint + votingDelay();

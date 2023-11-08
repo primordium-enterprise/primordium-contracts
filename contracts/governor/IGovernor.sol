@@ -90,7 +90,7 @@ abstract contract IGovernor is IArrayLengthErrors, IERC165, IERC6372, TimelockAv
     error GovernorClockMustMatchTokenClock();
     error UnauthorizedToSubmitProposal();
     error UnauthorizedToCancelProposal();
-    error InsufficientVoteSupplyForGovernance();
+    error NotReadyForGovernance();
     error InvalidFoundingModeActions();
     error InvalidActionSignature(uint256 index);
     error ProposalUnsuccessful();

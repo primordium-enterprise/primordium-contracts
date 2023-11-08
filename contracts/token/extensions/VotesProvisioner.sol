@@ -41,8 +41,9 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
     TokenPrice private _tokenPrice = TokenPrice(1, 1); // Defaults to 1 to 1
 
     // Timestamps for when token sales begin and when governance can begin
-    uint256 private immutable _tokenSaleBeginsAt;
-    uint256 private immutable _governanceCanBeginAt;
+    uint256 public immutable tokenSaleBeginsAt;
+    uint256 public immutable governanceCanBeginAt;
+    uint256 public immutable governanceThreshold;
 
     constructor(
         address timelockAvatar_,
@@ -50,7 +51,8 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
         uint256 maxSupply_,
         TokenPrice memory tokenPrice_,
         uint256 tokenSaleBeginsAt_,
-        uint256 governanceCanBeginAt_
+        uint256 governanceCanBeginAt_,
+        uint256 governanceThreshold_
     ) {
         _updateTimelockAvatar(timelockAvatar_);
         if (address(baseAsset_) == address(this)) revert CannotInitializeBaseAssetToSelf();
@@ -58,8 +60,9 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
         _updateMaxSupply(maxSupply_);
         if (tokenPrice_.numerator == 0 || tokenPrice_.denominator == 0) revert CannotInitializeTokenPriceToZero();
         _updateTokenPrice(tokenPrice_.numerator, tokenPrice_.denominator);
-        _tokenSaleBeginsAt = tokenSaleBeginsAt_;
-        _governanceCanBeginAt = governanceCanBeginAt_;
+        tokenSaleBeginsAt = tokenSaleBeginsAt_;
+        governanceCanBeginAt = governanceCanBeginAt_;
+        governanceThreshold = governanceThreshold_;
     }
 
     /**
@@ -67,6 +70,17 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
      */
     function provisionMode() public view virtual returns(ProvisionMode) {
         return _provisionMode;
+    }
+
+    /**
+     * @notice Returns true if the governanceThreshold of tokens is met and the governanceCanBeginAt timestamp has been
+     * reached. Also returns the current provision mode.
+     */
+    function isGovernanceAllowed() public view virtual returns(bool, ProvisionMode) {
+        return  (
+            totalSupply() >= governanceThreshold && block.timestamp >= governanceCanBeginAt,
+            _provisionMode
+        );
     }
 
     /**
@@ -95,14 +109,6 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
 
     function valuePerToken() public view returns (uint256) {
         return _valuePerToken(1);
-    }
-
-    function tokenSaleBeginsAt() public view returns (uint256) {
-        return _tokenSaleBeginsAt;
-    }
-
-    function governanceCanBeginAt() public view returns (uint256) {
-        return _governanceCanBeginAt;
     }
 
     /**
@@ -225,7 +231,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
      * @dev Internal function to set the provision mode.
      */
     function _setProvisionMode(ProvisionMode mode) internal virtual {
-        if (block.timestamp < _governanceCanBeginAt) revert CannotSetProvisionModeYet(_governanceCanBeginAt);
+        if (block.timestamp < governanceCanBeginAt) revert CannotSetProvisionModeYet(governanceCanBeginAt);
         if (mode <= ProvisionMode.Founding) revert ProvisionModeTooLow();
 
         ProvisionMode currentProvisionMode = _provisionMode;
@@ -320,9 +326,9 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
         // The "depositAmount" must be a multiple of the token price numerator
         if (depositAmount % tokenPriceNumerator != 0) revert InvalidDepositAmountMultiple();
 
-        // In founding mode, block.timestamp must be past the _tokenSaleBeginsAt timestamp
+        // In founding mode, block.timestamp must be past the tokenSaleBeginsAt timestamp
         if (currentProvisionMode == ProvisionMode.Founding) {
-            if (block.timestamp < _tokenSaleBeginsAt) revert TokenSalesNotAvailableYet(_tokenSaleBeginsAt);
+            if (block.timestamp < tokenSaleBeginsAt) revert TokenSalesNotAvailableYet(tokenSaleBeginsAt);
         // The current price per token must not exceed the current value per token, or the treasury will be at risk
         // NOTE: We should bypass this check in founding mode to prevent an attack locking deposits
         } else {
