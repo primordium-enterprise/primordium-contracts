@@ -3,7 +3,20 @@
 
 pragma solidity ^0.8.20;
 
-contract AuthorizeInitializer {
+/**
+ * @title AuthorizeInitializer - A contract that takes an "initializer" address in the constructor, and includes an
+ * "authorizeInitializer" modifier that can be used on a function to authorize that the msg.sender is the "initializer"
+ * address. Using address(0) for the initializer allows anyone to initialize.
+ *
+ * This contract stores the initializer in a ERC-7201 namespaced storage to avoid collisions.
+ *
+ * @notice This should NOT be used to ensure that an initializer runs only once. The "authorizeInitializer" modifier
+ * will zero out the "initializer" address after successful initialization (which is equivalent to allowing anyone to
+ * call the function going forward).
+ *
+ * @author Ben Jett - @BCJdevelopment
+ */
+abstract contract AuthorizeInitializer {
 
     /**
      * @dev ERC-7201 storage of the initializer's address. Uses namespaced storage to avoid collisions.
@@ -29,7 +42,11 @@ contract AuthorizeInitializer {
         emit InitializerAuthorized(initializer);
     }
 
-    modifier checkInitializer() {
+    /**
+     * @dev A modifier which authorizes that the msg.sender is the "initializer" address, and reverts otherwise (unless
+     * "initializer" has been set to address(0)).
+     */
+    modifier authorizeInitializer() {
         Initializer storage $;
         assembly {
             $.slot := INITIALIZER_STORAGE
