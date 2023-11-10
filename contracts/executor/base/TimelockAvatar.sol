@@ -5,7 +5,9 @@ pragma solidity ^0.8.20;
 
 import {Enum} from "contracts/common/Enum.sol";
 import {MultiSend} from "./MultiSend.sol";
+import {Guardable} from "./Guardable.sol";
 import {IAvatar} from "../interfaces/IAvatar.sol";
+import {IGuard} from "../interfaces/IGuard.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /**
@@ -15,7 +17,7 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
  *
  * @author Ben Jett @BCJdevelopment
  */
-abstract contract TimelockAvatar is MultiSend, IAvatar {
+abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable {
 
     enum OperationStatus {
         NoOp, // NoOp when executableAt == 0
@@ -288,7 +290,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
      * @param to The target for execution.
      * @param value The call value.
      * @param data The call data.
-     * @param operation For this timelock, must be Enum.Operation.Call (or uint8(0)).
+     * @param operation For this timelock, must be Enum.Operation.Call (which is uint8(0)).
      * @return success Returns true for successful scheduling.
      */
     function execTransactionFromModule(
@@ -296,10 +298,10 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         uint256 value,
         bytes calldata data,
         Enum.Operation operation
-    ) external onlyModule returns (bool success) {
+    ) external virtual onlyModule returns (bool success) {
         // Operations are CALL only for this timelock
         if (operation != Enum.Operation.Call) revert ExecutorIsCallOnly();
-        (success,) = _scheduleTransactionFromModule(msg.sender, to, value, data, _minDelay);
+        (success,) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, _minDelay);
     }
 
     /**
@@ -308,7 +310,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
      * @param to The target for execution.
      * @param value The call value.
      * @param data The call data.
-     * @param operation For this timelock, must be Enum.Operation.Call (or uint8(0)).
+     * @param operation For this timelock, must be Enum.Operation.Call (which is uint8(0)).
      * @return success Returns true for successful scheduling
      * @return returnData Returns abi.encode(uint256 opNonce,bytes32 opHash,uint256 executableAt).
      */
@@ -317,10 +319,10 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         uint256 value,
         bytes calldata data,
         Enum.Operation operation
-    ) external onlyModule returns (bool success, bytes memory returnData) {
+    ) external virtual onlyModule returns (bool success, bytes memory returnData) {
         // Operations are CALL only for this timelock
         if (operation != Enum.Operation.Call) revert ExecutorIsCallOnly();
-        (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, _minDelay);
+        (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, _minDelay);
     }
 
     /**
@@ -329,6 +331,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
      * @param to The target for execution.
      * @param value The call value.
      * @param data The call data.
+     * @param operation For this timelock, must be Enum.Operation.Call (which is uint8(0))
      * @param delay The delay before the transaction can be executed.
      * @return success Returns true for successful scheduling
      * @return returnData Returns abi.encode(uint256 opNonce,bytes32 opHash,uint256 executableAt).
@@ -337,11 +340,14 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         address to,
         uint256 value,
         bytes calldata data,
+        Enum.Operation operation,
         uint256 delay
     ) external onlyModule returns (bool success, bytes memory returnData) {
+        // Operations are CALL only for this timelock
+        if (operation != Enum.Operation.Call) revert ExecutorIsCallOnly();
         // Delay must be greater than the minDelay
         if (delay < _minDelay) revert InsufficientDelay();
-        (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, delay);
+        (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, delay);
     }
 
     function _scheduleTransactionFromModule(
@@ -349,12 +355,13 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         address to,
         uint256 value,
         bytes calldata data,
+        Enum.Operation operation,
         uint256 delay
-    ) internal returns (bool, bytes memory) {
+    ) internal virtual returns (bool, bytes memory) {
         // Set opNonce and increment
         uint256 opNonce = _opNonce++;
 
-        bytes32 opHash = hashOperation(to, value, data);
+        bytes32 opHash = hashOperation(to, value, data, operation);
         uint256 executableAt = block.timestamp + delay;
 
         _operations[opNonce] = Operation({
@@ -384,7 +391,8 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         uint256 value,
         bytes calldata data,
         Enum.Operation operation
-    ) external {
+    ) external virtual {
+
         Operation storage op = _operations[opNonce];
         (address module, uint256 executableAt) = (op.module, op.executableAt);
 
@@ -393,10 +401,22 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
         OperationStatus opStatus = _getOperationStatus(executableAt);
         if (opStatus != OperationStatus.Ready) revert InvalidOperationStatus(opStatus, OperationStatus.Ready);
 
-        bytes32 opHash = hashOperation(to, value, data);
+        bytes32 opHash = hashOperation(to, value, data, operation);
         if (opHash != op.opHash) revert InvalidCallParameters();
 
+        // Check the guard before execution
+        address guard = getGuard();
+        bytes32 guardHash;
+        if (guard != address(0)) {
+            guardHash = IGuard(guard).checkTransactionFromModule(to, value, data, Enum.Operation.Call, module);
+        }
+
         _execute(to, value, data, operation);
+
+        // Check the guard after execution
+        if (guard != address(0)) {
+            IGuard(guard).checkAfterExecution(guardHash, true);
+        }
 
         // Check that the operation status is still "ready" to protect against re-entrancy messing with the operation
         opStatus = _getOperationStatus(executableAt);
@@ -411,7 +431,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
      * @notice Requires that a cancel call comes from the same module that originally scheduled the operation.
      * @param opNonce The operation nonce.
      */
-    function cancelOperation(uint256 opNonce) external {
+    function cancelOperation(uint256 opNonce) external virtual {
         Operation storage op = _operations[opNonce];
         (address module, uint256 executableAt) = (op.module, op.executableAt);
 
@@ -478,22 +498,25 @@ abstract contract TimelockAvatar is MultiSend, IAvatar {
     }
 
     /**
-     * Utility method for creating the opHash for an operation. Hashes the "to", the "value", and the "data".
+     * Utility method for creating the opHash for an operation. Hashes the "to", the "value", the "data", and the
+     * "operation"
      * @param to The operation target address.
      * @param value The oepration ETH value.
      * @param data The operation's calldata.
-     * @return opHash The keccak256 hash of the abi encoded to, value, and data.
+     * @param operation The operation type.
+     * @return opHash The keccak256 hash of the abi encoded to, value, data, and operation.
      */
     function hashOperation(
         address to,
         uint256 value,
-        bytes calldata data
-    ) public pure returns (bytes32 opHash) {
-        opHash = keccak256(abi.encode(to, value, data));
+        bytes calldata data,
+        Enum.Operation operation
+    ) public pure virtual returns (bytes32 opHash) {
+        opHash = keccak256(abi.encode(to, value, data, operation));
     }
 
     /// @dev An internal utility function to revert if the provided operation nonce does not exist
-    function _checkOpNonce(uint256 opNonce) internal view {
+    function _checkOpNonce(uint256 opNonce) internal view virtual {
         if (opNonce >= _opNonce) revert();
     }
 
