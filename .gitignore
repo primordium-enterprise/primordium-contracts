@@ -117,6 +117,7 @@ artifacts
 forge-cache
 out
 test/foundry/.*
+.test
 
 # VS Code
 .vscode

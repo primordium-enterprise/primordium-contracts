@@ -8,6 +8,7 @@ remappings = [
     "hardhat/=node_modules/hardhat/",
 ]
 test = 'test/foundry'
+sparse_mode = true
 cache_path = 'forge-cache'
 solc = '0.8.20'
 optimizer = true
