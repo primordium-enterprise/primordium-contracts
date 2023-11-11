@@ -12,7 +12,7 @@ pragma solidity ^0.8.20;
 //         uint256 minDelay_,
 //         address owner_,
 //         VotesProvisioner votes_
-//     ) Executor(minDelay_, owner_) TreasurerOld(votes_) {
+//     ) Executor(minDelay_, owner_) Treasurer(votes_) {
 
 //     }
 
@@ -20,17 +20,17 @@ pragma solidity ^0.8.20;
 //         address target,
 //         uint256 value,
 //         bytes calldata data
-//     ) internal virtual override(Executor, TreasurerOld) {
+//     ) internal virtual override(Executor, Treasurer) {
 //         super._beforeExecute(target, value, data);
 //     }
 
-//     function _treasuryBalance() internal view virtual override(TreasurerOld, TreasurerBalanceShares) returns(uint256) {
+//     function _treasuryBalance() internal view virtual override(Treasurer, TreasurerBalanceShares) returns(uint256) {
 //         return TreasurerBalanceShares._treasuryBalance();
 //     }
 
 //     function _governanceInitialized(
 //         uint256 baseAssetAmount
-//     ) internal virtual override(TreasurerOld, TreasurerBalanceShares) {
+//     ) internal virtual override(Treasurer, TreasurerBalanceShares) {
 //         super._governanceInitialized(baseAssetAmount);
 //     }
 

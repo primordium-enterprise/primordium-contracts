@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 
-import "@openzeppelin/contracts/utils/Context.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 
 pragma solidity ^0.8.20;
 
-contract Roles is Context {
+contract Roles is ContextUpgradeable {
 
     mapping(bytes32 => mapping(address => uint256)) internal _roleMembers;
 

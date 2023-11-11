@@ -4,11 +4,13 @@
 pragma solidity ^0.8.20;
 
 import {Enum} from "contracts/common/Enum.sol";
+import {ExecutorBaseCallOnly} from "./ExecutorBaseCallOnly.sol";
 import {MultiSend} from "./MultiSend.sol";
 import {Guardable} from "./Guardable.sol";
 import {IAvatar} from "../interfaces/IAvatar.sol";
 import {IGuard} from "../interfaces/IGuard.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 
 /**
  * @title Timelock Avatar implements a timelock control on all call executions for the Executor.
@@ -17,7 +19,7 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
  *
  * @author Ben Jett @BCJdevelopment
  */
-abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable {
+abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable, ContextUpgradeable {
 
     enum OperationStatus {
         NoOp, // NoOp when executableAt == 0

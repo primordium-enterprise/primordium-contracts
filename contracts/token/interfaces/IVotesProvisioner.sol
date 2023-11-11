@@ -16,6 +16,8 @@ interface IVotesProvisioner {
         uint128 denominator; // Number of votes that can be minted per {numerator} count of base asset.
     }
 
+    event TreasuryChange(address oldTreasury, address newTreasury);
+
     /**
      * @notice Emitted when provisionMode is updated.
      * @param oldMode The previous provision mode.
@@ -64,6 +66,9 @@ interface IVotesProvisioner {
      */
     event Withdrawal(address indexed account, address receiver, uint256 amountWithdrawn, uint256 votesBurned);
 
+    error TreasuryIsNotReady();
+    error InvalidTreasuryAddress(address treasury);
+    error TreasuryInterfaceNotSupported(address treasury);
     error CannotInitializeBaseAssetToSelf();
     error CannotInitializeTokenPriceToZero();
     error CannotSetProvisionModeYet(uint256 governanceCanBeginAt);

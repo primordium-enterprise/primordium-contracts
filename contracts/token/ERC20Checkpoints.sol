@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "./IERC20Checkpoints.sol";
-import "@openzeppelin/contracts/utils/Context.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
@@ -38,7 +38,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
  * functions have been added to mitigate the well-known issues around setting
  * allowances. See {IERC20-approve}.
  */
-abstract contract ERC20Checkpoints is Context, IERC20, IERC20Metadata, IERC20Checkpoints, IERC6372 {
+abstract contract ERC20Checkpoints is ContextUpgradeable, IERC20, IERC20Metadata, IERC20Checkpoints, IERC6372 {
 
     using Checkpoints for Checkpoints.Trace224;
 

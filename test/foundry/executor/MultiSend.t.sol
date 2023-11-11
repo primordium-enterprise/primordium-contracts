@@ -265,13 +265,14 @@ contract MultiSendTest is Test, IMultiSenderEvents {
         }
 
         // Check the logs, order should be: Added, Subtracted, AddressChanged, Added, Subtracted, BytesUpdated
-        bytes32[6] memory expectedTopics = [
+        bytes32[7] memory expectedTopics = [
             Added.selector,
             Subtracted.selector,
             AddressChanged.selector,
             Added.selector,
             Subtracted.selector,
-            BytesUpdated.selector
+            BytesUpdated.selector,
+            bytes32(0x00)
         ];
         uint256 x;
 
@@ -282,13 +283,15 @@ contract MultiSendTest is Test, IMultiSenderEvents {
                 if (logs[i].topics[0] == hex"7aa5ed2c76d4b9b3e8cbc2d86e798d468acf8cc22876dbfe0b62ea3180006c26") {
                     continue;
                 }
-                if (logs[i].topics[0] == expectedTopics[x]) {
-                    x += 1;
+                if (x < expectedTopics.length) {
+                    if (logs[i].topics[0] == expectedTopics[x]) {
+                        ++x;
+                    }
                 }
             }
         }
 
-        assertEq(x, expectedTopics.length, "Expected event emits not lining up.");
+        assertEq(x, expectedTopics.length - 1, "Expected event emits not lining up.");
     }
 
     function _encodeMultiSendClassic(

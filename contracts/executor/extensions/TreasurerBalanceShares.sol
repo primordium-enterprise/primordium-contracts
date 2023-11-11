@@ -3,10 +3,10 @@
 
 pragma solidity ^0.8.20;
 
-import "../TreasurerOld.sol";
+import "../base/Treasurer.sol";
 import "contracts/utils/BalanceShares.sol";
 
-abstract contract TreasurerBalanceShares is TreasurerOld {
+abstract contract TreasurerBalanceShares is Treasurer {
 
     using BalanceShares for BalanceShares.BalanceShare;
 
@@ -112,7 +112,7 @@ abstract contract TreasurerBalanceShares is TreasurerOld {
     function addBalanceShares(
         BalanceShareId id,
         BalanceShares.NewAccountShare[] calldata newAccountShares
-    ) public virtual onlyTimelock stashRevenueSharesFirst(id) {
+    ) public virtual onlySelf stashRevenueSharesFirst(id) {
         _balanceShares[id].addAccountShares(newAccountShares);
         for (uint256 i = 0; i < newAccountShares.length;) {
             emit BalanceShareAdded(
@@ -134,7 +134,7 @@ abstract contract TreasurerBalanceShares is TreasurerOld {
     function removeBalanceShares(
         BalanceShareId id,
         address[] calldata accounts
-    ) public virtual onlyTimelock stashRevenueSharesFirst(id) {
+    ) public virtual onlySelf stashRevenueSharesFirst(id) {
         _balanceShares[id].removeAccountShares(accounts);
         for (uint256 i = 0; i < accounts.length;) {
             emit BalanceShareRemoved(
@@ -271,7 +271,7 @@ abstract contract TreasurerBalanceShares is TreasurerOld {
         BalanceShareId id,
         address account,
         uint256 increaseByBps
-    ) public virtual onlyTimelock stashRevenueSharesFirst(id) returns (uint256) {
+    ) public virtual onlySelf stashRevenueSharesFirst(id) returns (uint256) {
         uint256 newAccountBps = _balanceShares[id].increaseAccountBps(account, increaseByBps);
         emit BalanceShareAccountBpsUpdated(id, account, newAccountBps);
         return newAccountBps;
@@ -290,7 +290,7 @@ abstract contract TreasurerBalanceShares is TreasurerOld {
         BalanceShareId id,
         address account,
         uint256 decreaseByBps
-    ) public virtual onlyTimelock returns (uint256) {
+    ) public virtual onlySelf returns (uint256) {
         return _decreaseBalanceShareAccountBps(id, account, decreaseByBps);
     }
 
@@ -319,7 +319,7 @@ abstract contract TreasurerBalanceShares is TreasurerOld {
         BalanceShareId id,
         address account,
         uint256 newRemovableAt
-    ) public virtual onlyTimelock {
+    ) public virtual onlySelf {
         _updateBalanceShareAccountRemovableAt(id, account, newRemovableAt);
     }
 
@@ -356,7 +356,7 @@ abstract contract TreasurerBalanceShares is TreasurerOld {
      * save gas)
      */
     function _treasuryBalance() internal view virtual override returns (uint256) {
-        uint256 currentBalance = TreasurerOld._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
+        uint256 currentBalance = Treasurer._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
         uint256 unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
         if (unprocessedRevenue > 0) {
             currentBalance -= _balanceShares[BalanceShareId.Revenue].calculateBalanceToAddToShares(unprocessedRevenue);
@@ -385,7 +385,7 @@ abstract contract TreasurerBalanceShares is TreasurerOld {
      * Calls BalanceShares.processBalance on the revenue shares to track any balance remainders as well.
      */
     function _stashRevenueShares() internal virtual returns (uint256 stashed) {
-        uint256 currentBalance = TreasurerOld._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
+        uint256 currentBalance = Treasurer._treasuryBalance(); // _baseAssetBalance() - _stashedBalance
         uint256 unprocessedRevenue = _getUnprocessedRevenue(currentBalance);
         if (unprocessedRevenue > 0) {
             stashed = _balanceShares[BalanceShareId.Revenue].processBalance(unprocessedRevenue);
@@ -418,8 +418,8 @@ abstract contract TreasurerBalanceShares is TreasurerOld {
         }
     }
 
-    function _governanceInitialized(uint256 baseAssetDeposits) internal virtual override {
-        super._governanceInitialized(baseAssetDeposits);
+    function _governanceInitialized(address asset, uint256 baseAssetDeposits) internal virtual override {
+        super._governanceInitialized(asset, baseAssetDeposits);
         _processDepositShares(baseAssetDeposits);
     }
 

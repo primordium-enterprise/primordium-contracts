@@ -10,7 +10,6 @@ import "./extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 /**
  * @dev Extension of ERC20 to support Compound-like voting and delegation. This version is more generic than Compound's,
@@ -25,7 +24,7 @@ import "@openzeppelin/contracts/access/Ownable2Step.sol";
  *
  * _Available since v4.2._
  */
-abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes, Ownable2Step {
+abstract contract Votes is ERC20Checkpoints, ERC20Permit, IVotes {
 
     using Checkpoints for Checkpoints.Trace224; // We use Trace224 to be agnostic towards the clock mode
 

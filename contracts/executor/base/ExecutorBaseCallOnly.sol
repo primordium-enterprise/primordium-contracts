@@ -4,34 +4,19 @@
 pragma solidity ^0.8.20;
 
 import {Enum} from "contracts/common/Enum.sol";
+import {SelfAuthorized} from "./SelfAuthorized.sol";
 
 /**
  * @title Executor Base Call Only - Only allows CALL operations (no DELEGATECALL)
  *
  * @author Ben Jett @BCJdevelopment
  */
-abstract contract ExecutorBaseCallOnly {
+abstract contract ExecutorBaseCallOnly is SelfAuthorized {
 
     event CallExecuted(address indexed target, uint256 value, bytes data, Enum.Operation operation);
 
-    error OnlySelf();
     error ExecutorIsCallOnly();
     error CallReverted(address target, uint256 value, bytes data, Enum.Operation operation);
-
-    /**
-     * @dev Modifier to make a function callable only by the Executor itself, meaning this Executor contract must make
-     * the call through it's own _execute() function.
-     */
-    modifier onlySelf {
-        _onlySelf();
-        _;
-    }
-
-    function _onlySelf() private view {
-        if (msg.sender != address(this)) {
-            revert OnlySelf();
-        }
-    }
 
     /**
      * @dev Contract should be able to receive ETH.

@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/utils/Context.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import "../token/extensions/VotesProvisioner.sol";
 import "../executor/Executor.sol";
 import "./IGovernor.sol";
@@ -30,7 +30,7 @@ import "contracts/libraries/MultiSendEncoder.sol";
  *
  * _Available since v4.3._
  */
-abstract contract Governor is Context, ERC165, EIP712Upgradeable, TimelockAvatarControlled, IGovernor, Roles {
+abstract contract Governor is ContextUpgradeable, ERC165, EIP712Upgradeable, TimelockAvatarControlled, IGovernor, Roles {
 
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
     using SafeCast for uint256;

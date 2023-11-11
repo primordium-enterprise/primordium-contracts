@@ -3,11 +3,11 @@
 
 pragma solidity ^0.8.20;
 
-import "../TreasurerOld.sol";
+import "../base/Treasurer.sol";
 import "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-abstract contract TreasurerDistributions is TreasurerOld {
+abstract contract TreasurerDistributions is Treasurer {
 
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace224;
@@ -146,7 +146,7 @@ abstract contract TreasurerDistributions is TreasurerOld {
     /**
      * @notice Changes the distribution claim period.
      */
-    function updateDistributionClaimPeriod(uint256 newClaimPeriod) external virtual onlyTimelock {
+    function updateDistributionClaimPeriod(uint256 newClaimPeriod) external virtual onlySelf {
         _updateDistributionClaimPeriod(newClaimPeriod);
     }
 
@@ -161,7 +161,7 @@ abstract contract TreasurerDistributions is TreasurerOld {
     function createDistribution(
         uint256 clockStartTime,
         uint256 distributionBalance
-    ) external virtual onlyTimelock returns (uint256) {
+    ) external virtual onlySelf returns (uint256) {
         return _createDistribution(clockStartTime, distributionBalance);
     }
 
@@ -195,7 +195,7 @@ abstract contract TreasurerDistributions is TreasurerOld {
      */
     function approveAddressesForClosingDistributions(
         address[] calldata approvedAddresses
-    ) external virtual onlyTimelock {
+    ) external virtual onlySelf {
         for (uint256 i = 0; i < approvedAddresses.length;) {
             _approvedAddressesForClosingDistributions[approvedAddresses[i]] = true;
             unchecked { ++i; }
@@ -208,7 +208,7 @@ abstract contract TreasurerDistributions is TreasurerOld {
      */
     function unapproveAddressesForClosingDistributions(
         address[] calldata unapprovedAddresses
-    ) external virtual onlyTimelock {
+    ) external virtual onlySelf {
         for (uint256 i = 0; i < unapprovedAddresses.length;) {
             _approvedAddressesForClosingDistributions[unapprovedAddresses[i]] = false;
             unchecked { ++i; }

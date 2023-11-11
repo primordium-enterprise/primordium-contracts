@@ -5,13 +5,13 @@ pragma solidity ^0.8.20;
 
 import "./TimelockAvatar.sol";
 import "../../token/extensions/VotesProvisioner.sol";
-import "../../token/extensions/IVotesProvisioner.sol";
+import "../../token/interfaces/IVotesProvisioner.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-abstract contract Treasurer is TimelockAvatar, IERC721Receiver, IERC1155Receiver {
+abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1155Receiver {
 
     VotesProvisioner internal immutable _token;
     IERC20 internal immutable _baseAsset;
@@ -80,9 +80,11 @@ abstract contract Treasurer is TimelockAvatar, IERC721Receiver, IERC1155Receiver
         return _treasuryBalance();
     }
 
-    function governanceInitialized(uint256 baseAssetDeposits) external onlyToken {
-        _governanceInitialized(baseAssetDeposits);
+    function governanceInitialized(address asset, uint256 totalDeposits) external onlyToken {
+        _governanceInitialized(asset, totalDeposits);
     }
+
+    function _governanceInitialized(address asset, uint256 totalDeposits) internal virtual { }
 
     /**
      * @notice Registers a deposit on the Treasurer. Only callable by the votes contract.
@@ -103,8 +105,6 @@ abstract contract Treasurer is TimelockAvatar, IERC721Receiver, IERC1155Receiver
     function processWithdrawal(address receiver, uint256 withdrawAmount) external virtual onlyToken {
         _processWithdrawal(receiver, withdrawAmount);
     }
-
-    function _governanceInitialized(uint256 baseAssetDeposits) internal virtual { }
 
     /**
      * @dev An internal function to return the DAO treasury balance, minus any stashed funds.

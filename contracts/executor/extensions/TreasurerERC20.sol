@@ -3,9 +3,9 @@
 
 pragma solidity ^0.8.20;
 
-import "../TreasurerOld.sol";
+import "../base/Treasurer.sol";
 
-abstract contract TreasurerERC20 is TreasurerOld {
+abstract contract TreasurerERC20 is Treasurer {
 
     error CannotInitializeBaseAssetToETH();
 

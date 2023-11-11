@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.20;
 
-import {ExecutorBaseCallOnly} from "./ExecutorBaseCallOnly.sol";
+import {SelfAuthorized} from "./SelfAuthorized.sol";
 import {IGuard} from "../interfaces/IGuard.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 
@@ -24,7 +24,7 @@ abstract contract BaseGuard is IGuard, IERC165 {
  *
  * @author Ben Jett
  */
-contract Guardable is ExecutorBaseCallOnly {
+contract Guardable is SelfAuthorized {
 
     /**
      * @dev ERC-7201 storage of guard address.

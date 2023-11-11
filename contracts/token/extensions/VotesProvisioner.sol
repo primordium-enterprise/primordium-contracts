@@ -4,12 +4,10 @@
 pragma solidity ^0.8.20;
 
 import "../Votes.sol";
-import "./IVotesProvisioner.sol";
-import "../../executor/extensions/TreasurerOld.sol";
-import "../../utils/TimelockAvatarControlled.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/math/Math.sol";
+import "../interfaces/IVotesProvisioner.sol";
+import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
+import {ITreasury} from "contracts/executor/interfaces/ITreasury.sol";
+import {Ownable1Or2StepUpgradeable} from "contracts/utils/Ownable1Or2StepUpgradeable.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "../../utils/Math512.sol";
 
@@ -20,7 +18,7 @@ import "../../utils/Math512.sol";
  *
  * Anyone can mint vote tokens in exchange for the DAO's base asset. Any member can withdraw pro rata.
  */
-abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarControlled {
+abstract contract VotesProvisioner is IVotesProvisioner, Votes, Ownable1Or2StepUpgradeable {
 
     using Math for uint256;
     using SafeCast for *;
@@ -29,12 +27,13 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
     uint256 internal _maxSupply;
 
     uint256 private constant COMPARE_FRACTIONS_MULTIPLIER = 1_000;
-    uint256 private constant MAX_MAX_SUPPLY = type(uint224).max;
+    uint256 private constant MAX_SUPPLY_LIMIT = type(uint224).max;
 
     bytes32 private constant _WITHDRAW_TYPEHASH = keccak256(
         "Withdraw(address owner,address receiver,uint256 amount,uint256 nonce,uint256 expiry)"
     );
 
+    ITreasury internal _treasury;
     ProvisionMode private _provisionMode;
 
     /// @dev _tokenPrice updates should always go through {_updateTokenPrice} to avoid setting price to zero
@@ -45,8 +44,14 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
     uint256 public immutable governanceCanBeginAt;
     uint256 public immutable governanceThreshold;
 
+    modifier treasuryIsReady() {
+        if (treasury() == address(0)) revert TreasuryIsNotReady();
+        _;
+    }
+
     constructor(
-        address timelockAvatar_,
+        address owner_,
+        address treasury_,
         IERC20 baseAsset_,
         uint256 maxSupply_,
         TokenPrice memory tokenPrice_,
@@ -54,7 +59,8 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
         uint256 governanceCanBeginAt_,
         uint256 governanceThreshold_
     ) {
-        _updateTimelockAvatar(timelockAvatar_);
+        __Ownable_init(owner_);
+        _setTreasury(treasury_);
         if (address(baseAsset_) == address(this)) revert CannotInitializeBaseAssetToSelf();
         _baseAsset = baseAsset_;
         _updateMaxSupply(maxSupply_);
@@ -92,6 +98,27 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
     }
 
     /**
+     * Returns the address of the treasury contract.
+     * @notice This address is likely to be the same address as the owner contract.
+     */
+    function treasury() public view returns (address) {
+        return address(_treasury);
+    }
+
+    function setTreasury(address newTreasury) public onlyOwner {
+        _setTreasury(newTreasury);
+    }
+
+    function _setTreasury(address newTreasury) internal virtual {
+        if (newTreasury == address(0)) revert InvalidTreasuryAddress(newTreasury);
+        if (!IERC165(newTreasury).supportsInterface(type(ITreasury).interfaceId)) {
+            revert TreasuryInterfaceNotSupported(newTreasury);
+        }
+        emit TreasuryChange(treasury(), newTreasury);
+        _treasury = ITreasury(newTreasury);
+    }
+
+    /**
      * @notice Returns the address of the base asset (or address(0) if the base asset is ETH)
      */
     function baseAsset() public view returns (address) {
@@ -114,7 +141,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
     /**
      * @notice Executor-only function to update the provision mode.
      */
-    function setProvisionMode(ProvisionMode mode) public virtual onlyTimelockAvatar {
+    function setProvisionMode(ProvisionMode mode) public virtual onlyOwner {
         _setProvisionMode(mode);
     }
 
@@ -122,7 +149,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
      * @notice Executor-only function to update the max supply of vote tokens.
      * @param newMaxSupply The new max supply. Must be no greater than type(uint224).max.
      */
-    function updateMaxSupply(uint256 newMaxSupply) external virtual onlyTimelockAvatar {
+    function updateMaxSupply(uint256 newMaxSupply) external virtual onlyOwner {
         _updateMaxSupply(newMaxSupply);
     }
 
@@ -133,7 +160,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
      * @param newDenominator The new denominator value (the amount of votes minted for every {numerator} amount of the
      * base asset). Set to zero to keep the denominator the same.
      */
-    function updateTokenPrice(uint256 newNumerator, uint256 newDenominator) public virtual onlyTimelockAvatar {
+    function updateTokenPrice(uint256 newNumerator, uint256 newDenominator) public virtual onlyOwner {
         if (newNumerator == 0 || newDenominator == 0) revert TokenPriceParametersMustBeGreaterThanZero();
         _updateTokenPrice(newNumerator, newDenominator);
     }
@@ -143,7 +170,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
      * @param newNumerator The new numerator value (the amount of base asset required for {denominator} amount of
      * votes).
      */
-    function updateTokenPriceNumerator(uint256 newNumerator) public virtual onlyTimelockAvatar {
+    function updateTokenPriceNumerator(uint256 newNumerator) public virtual onlyOwner {
         if (newNumerator == 0) revert TokenPriceParametersMustBeGreaterThanZero();
         _updateTokenPrice(newNumerator, 0);
     }
@@ -153,7 +180,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
      * @param newDenominator The new denominator value (the amount of votes minted for every {numerator} amount of the
      * base asset).
      */
-    function updateTokenPriceDenominator(uint256 newDenominator) public virtual onlyTimelockAvatar {
+    function updateTokenPriceDenominator(uint256 newDenominator) public virtual onlyOwner {
         if (newDenominator == 0) revert TokenPriceParametersMustBeGreaterThanZero();
         _updateTokenPrice(0, newDenominator);
     }
@@ -248,7 +275,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
         uint256 tokenPriceDenominator = _tokenPrice.denominator;
         uint256 currentTotalSupply = totalSupply();
         uint256 baseAssetDeposits = Math.mulDiv(currentTotalSupply, tokenPriceNumerator, tokenPriceDenominator);
-        _getTreasurer().governanceInitialized(baseAssetDeposits);
+        _getTreasurer().governanceInitialized(baseAsset(), baseAssetDeposits);
     }
 
     /**
@@ -258,7 +285,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
      * May never be used, but preserves DAO optionality.
      */
     function _updateMaxSupply(uint256 newMaxSupply) internal virtual {
-        if (newMaxSupply > MAX_MAX_SUPPLY) revert MaxSupplyTooLarge(MAX_MAX_SUPPLY);
+        if (newMaxSupply > MAX_SUPPLY_LIMIT) revert MaxSupplyTooLarge(MAX_SUPPLY_LIMIT);
 
         emit MaxSupplyChange(_maxSupply, newMaxSupply);
         _maxSupply = newMaxSupply;
@@ -314,7 +341,7 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
     function _depositFor(
         address account,
         uint256 depositAmount
-    ) internal virtual avatarIsInitialized returns (uint256) {
+    ) internal virtual treasuryIsReady returns (uint256) {
         ProvisionMode currentProvisionMode = _provisionMode;
         if (currentProvisionMode == ProvisionMode.Governance) revert DepositsUnavailable();
         // Zero address is checked in the _mint function
@@ -365,10 +392,10 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
     }
 
     /**
-     * @dev Internal function for returning the executor address wrapped as the TreasurerOld contract.
+     * @dev Internal function for returning the executor address wrapped as the Treasurer contract.
      */
-    function _getTreasurer() internal view returns (TreasurerOld) {
-        return TreasurerOld(payable(address(_timelockAvatar)));
+    function _getTreasurer() internal view returns (ITreasury) {
+        return ITreasury(payable(treasury()));
     }
 
     /**
@@ -376,9 +403,9 @@ abstract contract VotesProvisioner is Votes, IVotesProvisioner, TimelockAvatarCo
      * target is the executor, only allows sending ETH via the value (as the calldata length is required to be zero in
      * this case). This is to protect against relay functions calling token-only functions on the executor.
      */
-    function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyTimelockAvatar {
+    function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyOwner {
         if (
-            target == address(_timelockAvatar) && data.length > 0
+            target == owner() && data.length > 0
         ) revert RelayDataToExecutorNotAllowed(data);
         (bool success, bytes memory returndata) = target.call{value: value}(data);
         // Revert with return data on unsuccessful calls

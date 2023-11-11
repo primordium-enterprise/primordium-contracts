@@ -14,7 +14,7 @@ pragma solidity ^0.8.20;
 // contract Mushi is VotesProvisionerETH {
 
 //     constructor(
-//         TreasurerOld timelockAvatar_,
+//         Treasurer timelockAvatar_,
 //         uint256 maxSupply_,
 //         TokenPrice memory tokenPrice_
 //     )
