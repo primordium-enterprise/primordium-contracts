@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.20;
 
-import "../VotesProvisioner.sol";
+import "../base/VotesProvisioner.sol";
 
 abstract contract VotesProvisionerETH is VotesProvisioner {
 

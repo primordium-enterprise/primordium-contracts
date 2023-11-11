@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
-import "../token/extensions/VotesProvisioner.sol";
+import "contracts/shares/base/VotesProvisioner.sol";
 import "../executor/Executor.sol";
 import "./IGovernor.sol";
 import "../utils/TimelockAvatarControlled.sol";
@@ -94,7 +94,7 @@ abstract contract Governor is ContextUpgradeable, ERC165, EIP712Upgradeable, Tim
         __TimelockAvatarControlled_init(timelockAvatar_);
         _token = token_;
         // Token clock must match
-        if (ERC20Checkpoints(token_).clock() != clock()) revert GovernorClockMustMatchTokenClock();
+        if (ERC20CheckpointsUpgradeable(token_).clock() != clock()) revert GovernorClockMustMatchTokenClock();
         // Set founding bool (for checking proposals)
         _isFounding = VotesProvisioner(token_).provisionMode() == IVotesProvisioner.ProvisionMode.Founding;
     }

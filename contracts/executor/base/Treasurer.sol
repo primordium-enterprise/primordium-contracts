@@ -4,8 +4,8 @@
 pragma solidity ^0.8.20;
 
 import "./TimelockAvatar.sol";
-import "../../token/extensions/VotesProvisioner.sol";
-import "../../token/interfaces/IVotesProvisioner.sol";
+import "contracts/shares/base/VotesProvisioner.sol";
+import "contracts/shares/interfaces/IVotesProvisioner.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";

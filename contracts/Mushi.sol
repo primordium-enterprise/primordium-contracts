@@ -3,8 +3,8 @@
 
 pragma solidity ^0.8.20;
 
-// import "./token/Votes.sol";
-// import "./token/extensions/provisioners/VotesProvisionerETH.sol";
+// import "./shares/Votes.sol";
+// import "./shares/extensions/provisioners/VotesProvisionerETH.sol";
 // import "./executor/Executor.sol";
 
 
@@ -18,8 +18,8 @@ pragma solidity ^0.8.20;
 //         uint256 maxSupply_,
 //         TokenPrice memory tokenPrice_
 //     )
-//         ERC20Permit(TOKEN_NAME)
-//         ERC20Checkpoints(TOKEN_NAME, TOKEN_SYMBOL)
+//         ERC20PermitUpgradeable(TOKEN_NAME)
+//         ERC20CheckpointsUpgradeable(TOKEN_NAME, TOKEN_SYMBOL)
 //         VotesProvisioner(
 //             timelockAvatar_,
 //             IERC20(address(0)),

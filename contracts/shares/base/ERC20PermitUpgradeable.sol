@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
-// Based on OpenZeppelin Contracts (last updated v4.9.0) (token/ERC20/extensions/ERC20Permit.sol)
+// Based on OpenZeppelin Contracts (last updated v5.0.0) (token/ERC20/extensions/ERC20PermitUpgradeable.sol)
 
 pragma solidity ^0.8.20;
 
-import "../ERC20Checkpoints.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
+import {ERC20CheckpointsUpgradeable} from "./ERC20CheckpointsUpgradeable.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "contracts/utils/Nonces.sol";
@@ -20,12 +20,12 @@ import "contracts/utils/Nonces.sol";
  *
  * _Available since v3.4._
  */
-abstract contract ERC20Permit is ERC20Checkpoints, IERC20Permit, EIP712, Nonces {
+abstract contract ERC20PermitUpgradeable is ERC20CheckpointsUpgradeable, IERC20Permit, EIP712, Nonces {
 
     mapping(address => uint256) private _nonces;
 
     // solhint-disable-next-line var-name-mixedcase
-    bytes32 private constant _PERMIT_TYPEHASH =
+    bytes32 private immutable _PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
     /**
      * @dev In previous versions `_PERMIT_TYPEHASH` was declared as `immutable`.

@@ -69,7 +69,7 @@ abstract contract GovernorVotesQuorumBps is GovernorVotes {
         uint256 bps = quorumBps(timepoint);
         if (bps == 0) return 0;
         // NOTE: We don't need Math.mulDiv for overflow AS LONG AS the max supply of the token is <= type(uint224).max
-        return (ERC20Checkpoints(_token).getPastTotalSupply(timepoint) * quorumBps(timepoint)) / MAX_BPS;
+        return (ERC20CheckpointsUpgradeable(_token).getPastTotalSupply(timepoint) * quorumBps(timepoint)) / MAX_BPS;
     }
 
     /**

@@ -73,7 +73,7 @@ abstract contract GovernorSettings is Governor {
      */
     function proposalThreshold() public view virtual override returns (uint256) {
         // Overflow not a problem as long as the token's max supply <= type(uint224).max
-        return (ERC20Checkpoints(_token).totalSupply() * _proposalThresholdBps) / MAX_BPS;
+        return (ERC20CheckpointsUpgradeable(_token).totalSupply() * _proposalThresholdBps) / MAX_BPS;
     }
 
     /**

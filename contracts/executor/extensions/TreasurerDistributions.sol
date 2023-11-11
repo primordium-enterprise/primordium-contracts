@@ -13,7 +13,7 @@ abstract contract TreasurerDistributions is Treasurer {
     using Checkpoints for Checkpoints.Trace224;
 
     struct Distribution {
-        // The ERC20Checkpoints clock date that this distribution should begin
+        // The ERC20CheckpointsUpgradeable clock date that this distribution should begin
         uint32 clockStartTime;
         uint224 cachedTotalSupply;
         uint256 balance;

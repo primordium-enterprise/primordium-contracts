@@ -3,8 +3,9 @@
 
 pragma solidity ^0.8.20;
 
-import "./base/Treasurer.sol";
-import "contracts/utils/AuthorizeInitializer.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {Treasurer} from "./base/Treasurer.sol";
+import {AuthorizeInitializer} from "contracts/utils/AuthorizeInitializer.sol";
 
 /**
  * @title Executor - The deployable executor contract.

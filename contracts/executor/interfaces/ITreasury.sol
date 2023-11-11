@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.20;
 
-import {IVotesProvisioner} from "contracts/token/interfaces/IVotesProvisioner.sol";
+import {IVotesProvisioner} from "contracts/shares/interfaces/IVotesProvisioner.sol";
 
 /**
  * @title ITreasury - The interface required for the token contract to facilitate deposits and withdrawals.

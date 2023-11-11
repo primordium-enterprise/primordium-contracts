@@ -4,7 +4,7 @@
 pragma solidity ^0.8.20;
 
 /**
- * @dev Additional interface methods for {ERC20Checkpoints}.
+ * @dev Additional interface methods for {ERC20CheckpointsUpgradeable}.
  */
 interface IERC20Checkpoints {
 

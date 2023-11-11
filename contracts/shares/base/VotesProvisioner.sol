@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.20;
 
-import "../Votes.sol";
+import "./Votes.sol";
 import "../interfaces/IVotesProvisioner.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {ITreasury} from "contracts/executor/interfaces/ITreasury.sol";
@@ -93,7 +93,7 @@ abstract contract VotesProvisioner is IVotesProvisioner, Votes, Ownable1Or2StepU
      * @notice Function to get the current max supply of vote tokens available for minting.
      * @dev Overrides to use the updateable _maxSupply
      */
-    function maxSupply() public view virtual override(ERC20Checkpoints, IVotesProvisioner) returns (uint256) {
+    function maxSupply() public view virtual override(ERC20CheckpointsUpgradeable, IVotesProvisioner) returns (uint256) {
         return _maxSupply;
     }
 

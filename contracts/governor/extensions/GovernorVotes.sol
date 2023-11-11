@@ -5,7 +5,7 @@
 pragma solidity ^0.8.20;
 
 import "../Governor.sol";
-import "../../token/Votes.sol";
+import "contracts/shares/base/Votes.sol";
 
 /**
  * @dev Extension of {Governor} for voting weight extraction from an {ERC20Votes} token, or since v4.5 an {ERC721Votes}

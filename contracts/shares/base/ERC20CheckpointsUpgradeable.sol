@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
-// Based on OpenZeppelin Contracts (last updated v4.9.0) (token/ERC20/ERC20.sol)
+// Based on OpenZeppelin Contracts (last updated v5.0.0) (token/ERC20/ERC20.sol)
 
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/interfaces/IERC6372.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import "./IERC20Checkpoints.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
-import "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
-import "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
+import {IERC20Checkpoints} from "../interfaces/IERC20Checkpoints.sol";
+import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /**
  * @dev Implementation of the {IERC20} interface.
@@ -38,7 +38,13 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
  * functions have been added to mitigate the well-known issues around setting
  * allowances. See {IERC20-approve}.
  */
-abstract contract ERC20Checkpoints is ContextUpgradeable, IERC20, IERC20Metadata, IERC20Checkpoints, IERC6372 {
+abstract contract ERC20CheckpointsUpgradeable is
+    ContextUpgradeable,
+    IERC20,
+    IERC20Metadata,
+    IERC6372,
+    IERC20Checkpoints
+{
 
     using Checkpoints for Checkpoints.Trace224;
 
