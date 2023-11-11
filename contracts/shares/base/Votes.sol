@@ -5,11 +5,12 @@
 pragma solidity ^0.8.20;
 
 import "../interfaces/IVotes.sol";
-import "./ERC20CheckpointsUpgradeable.sol";
-import "./ERC20PermitUpgradeable.sol";
+import {ERC20CheckpointsUpgradeable} from "./ERC20CheckpointsUpgradeable.sol";
+import {ERC20PermitUpgradeable} from "./ERC20PermitUpgradeable.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 
 /**
  * @dev Extension of ERC20 to support Compound-like voting and delegation. This version is more generic than Compound's,
@@ -87,7 +88,7 @@ abstract contract Votes is ERC20PermitUpgradeable, IVotes {
         bytes32 r,
         bytes32 s
     ) public virtual override {
-        if (block.timestamp > expiry) revert ERC2612SignatureExpired();
+        if (block.timestamp > expiry) revert ERC2612ExpiredSignature(expiry);
         address signer = ECDSA.recover(
             _hashTypedDataV4(keccak256(abi.encode(_DELEGATION_TYPEHASH, delegatee, nonce, expiry))),
             v,

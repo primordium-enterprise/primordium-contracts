@@ -8,6 +8,7 @@ import "../interfaces/IVotesProvisioner.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {ITreasury} from "contracts/executor/interfaces/ITreasury.sol";
 import {Ownable1Or2StepUpgradeable} from "contracts/utils/Ownable1Or2StepUpgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "../../utils/Math512.sol";
 
@@ -239,7 +240,7 @@ abstract contract VotesProvisioner is IVotesProvisioner, Votes, Ownable1Or2StepU
         bytes32 r,
         bytes32 s
     ) public virtual returns (uint256) {
-        if (block.timestamp > expiry) revert ERC2612SignatureExpired();
+        if (block.timestamp > expiry) revert ERC2612ExpiredSignature(expiry);
         address signer = ECDSA.recover(
             _hashTypedDataV4(
                 keccak256(
@@ -250,7 +251,7 @@ abstract contract VotesProvisioner is IVotesProvisioner, Votes, Ownable1Or2StepU
             r,
             s
         );
-        if (signer != owner) revert ERC2612SignatureInvalid();
+        if (signer != owner) revert ERC2612InvalidSigner(signer, owner);
         return _withdraw(signer, receiver, amount);
     }
 
