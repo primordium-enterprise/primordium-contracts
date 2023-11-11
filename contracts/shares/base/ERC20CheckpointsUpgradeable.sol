@@ -8,9 +8,11 @@ import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Cont
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {IERC20Checkpoints} from "../interfaces/IERC20Checkpoints.sol";
+import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
@@ -44,7 +46,8 @@ abstract contract ERC20CheckpointsUpgradeable is
     ContextUpgradeable,
     ERC20Upgradeable,
     ERC20PermitUpgradeable,
-    IERC20Checkpoints
+    IERC20Checkpoints,
+    IERC165
 {
 
     using Checkpoints for Checkpoints.Trace224;
@@ -68,6 +71,15 @@ abstract contract ERC20CheckpointsUpgradeable is
         uint256 currentClock = clock();
         if (timepoint >= currentClock) revert ERC20CheckpointsFutureLookup(currentClock);
         _;
+    }
+
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return
+            interfaceId == type(IERC20).interfaceId ||
+            interfaceId == type(IERC20Metadata).interfaceId ||
+            interfaceId == type(IERC20Permit).interfaceId ||
+            interfaceId == type(IERC20Checkpoints).interfaceId ||
+            interfaceId == type(IERC165).interfaceId;
     }
 
     /**
