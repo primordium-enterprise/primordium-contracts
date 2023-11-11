@@ -408,7 +408,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable {
         address guard = getGuard();
         bytes32 guardHash;
         if (guard != address(0)) {
-            guardHash = IGuard(guard).checkTransactionFromModule(to, value, data, Enum.Operation.Call, module);
+            guardHash = IGuard(guard).checkTransactionFromModule(to, value, data, Enum.Operation.Call, module, opNonce);
         }
 
         _execute(to, value, data, operation);
