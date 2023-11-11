@@ -11,9 +11,40 @@ import {ExecutorBaseCallOnly} from "./ExecutorBaseCallOnly.sol";
  * @notice This contract follows the same packed multiSend encoding as Safe contracts (for compatibility),
  * https://github.com/safe-global/safe-contracts/blob/main/contracts/libraries/MultiSend.sol
  *
+ *
  * @author Ben Jett - @BCJdevelopment
  */
 abstract contract MultiSend is ExecutorBaseCallOnly {
+
+    /**
+     * @dev We override _execute to use the internal _multiSend directly. This saves gas on multiSend operations and
+     * avoids emitting redundant CallExecuted events for a multisend.
+     */
+    function _execute(
+        address to,
+        uint256 value,
+        bytes calldata data,
+        Enum.Operation operation
+    ) internal virtual override {
+        if (to == address(this) && value == 0) {
+            bytes4 selector;
+            assembly {
+                selector := calldataload(data.offset)
+            }
+            if (selector == this.multiSend.selector) {
+                bytes calldata transactions;
+                assembly {
+                    // Actual offset is 68 bytes past data.offset (4 selector bytes + 32 offset bytes + 32 length bytes)
+                    transactions.offset := add(data.offset, 0x44)
+                    // Load the bytes length word at 36 bytes past data.offset (4 selector bytes + 32 offset bytes)
+                    transactions.length := calldataload(add(data.offset, 0x24))
+                }
+                _multiSend(transactions);
+                return;
+            }
+        }
+        super._execute(to, value, data, operation);
+    }
 
     /**
      * @dev Executes multiple transactions, reverting if any one fails. Only callable by the Executor itself.
@@ -28,6 +59,10 @@ abstract contract MultiSend is ExecutorBaseCallOnly {
      * https://docs.soliditylang.org/en/v0.8.21/abi-spec.html#non-standard-packed-mode
      */
     function multiSend(bytes calldata transactions) external onlySelf {
+        _multiSend(transactions);
+    }
+
+    function _multiSend(bytes calldata transactions) internal virtual {
         uint256 operation;
         address to;
         uint256 value;
@@ -48,7 +83,7 @@ abstract contract MultiSend is ExecutorBaseCallOnly {
                 // To set the start of the data, offset by 85 byte (53 byte offset + 32 data length bytes)
                 data.offset := add(transactions.offset, add(i, 0x55))
             }
-            // Call the execution function (which will revert if operation is not call only)
+            // Call the execution function
             _execute(to, value, data, Enum.Operation(operation));
             // Increment the position in the transactions
             unchecked {
