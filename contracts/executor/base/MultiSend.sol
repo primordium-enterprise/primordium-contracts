@@ -27,7 +27,7 @@ abstract contract MultiSend is ExecutorBaseCallOnly {
      * see abi.encodePacked for more information on packed encoding:
      * https://docs.soliditylang.org/en/v0.8.21/abi-spec.html#non-standard-packed-mode
      */
-    function multiSend(bytes calldata transactions) external onlyExecutor {
+    function multiSend(bytes calldata transactions) external onlySelf {
         uint256 operation;
         address to;
         uint256 value;

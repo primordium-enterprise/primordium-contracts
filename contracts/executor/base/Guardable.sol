@@ -47,7 +47,7 @@ contract Guardable is ExecutorBaseCallOnly {
      * Set a guard that checks transactions before execution.
      * @param guard The address of the guard to be used or the 0 address to disable the guard.
      */
-    function setGuard(address guard) external onlyExecutor {
+    function setGuard(address guard) external onlySelf {
         if (guard != address(0)) {
             if (!BaseGuard(guard).supportsInterface(type(IGuard).interfaceId))
                 revert NotIERC165Compliant(guard);

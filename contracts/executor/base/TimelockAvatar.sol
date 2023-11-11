@@ -136,7 +136,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable {
      * @notice Only the timelock itself can make updates to the timelock delay.
      * @param newMinDelay The new minimum delay. Must be at least MIN_DELAY and no greater than MAX_DELAY.
      */
-    function updateMinDelay(uint256 newMinDelay) external onlyExecutor {
+    function updateMinDelay(uint256 newMinDelay) external onlySelf {
         _updateMinDelay(newMinDelay);
     }
 
@@ -252,7 +252,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable {
      * by this contract itself.
      * @param module The address of the module to enable.
      */
-    function enableModule(address module) external onlyExecutor {
+    function enableModule(address module) external onlySelf {
         _enableModule(module);
     }
 
@@ -270,7 +270,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable {
      * @notice Unauthorizes an enabled module.
      * @param module The address of the module to disable.
      */
-    function disableModule(address prevModule, address module) external onlyExecutor {
+    function disableModule(address prevModule, address module) external onlySelf {
         _disableModule(prevModule, module);
     }
 

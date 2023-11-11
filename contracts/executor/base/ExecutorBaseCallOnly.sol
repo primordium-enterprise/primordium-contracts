@@ -12,24 +12,24 @@ import {Enum} from "contracts/common/Enum.sol";
  */
 abstract contract ExecutorBaseCallOnly {
 
-    event CallExecuted(address indexed target, uint256 value, bytes data);
+    event CallExecuted(address indexed target, uint256 value, bytes data, Enum.Operation operation);
 
-    error OnlyExecutor();
+    error OnlySelf();
     error ExecutorIsCallOnly();
-    error CallReverted(address target, uint256 value, bytes data);
+    error CallReverted(address target, uint256 value, bytes data, Enum.Operation operation);
 
     /**
      * @dev Modifier to make a function callable only by the Executor itself, meaning this Executor contract must make
      * the call through it's own _execute() function.
      */
-    modifier onlyExecutor {
-        _onlyExecutor();
+    modifier onlySelf {
+        _onlySelf();
         _;
     }
 
-    function _onlyExecutor() private view {
+    function _onlySelf() private view {
         if (msg.sender != address(this)) {
-            revert OnlyExecutor();
+            revert OnlySelf();
         }
     }
 
@@ -53,8 +53,8 @@ abstract contract ExecutorBaseCallOnly {
             revert ExecutorIsCallOnly();
         }
         (bool success,) = target.call{value: value}(data);
-        if (!success) revert CallReverted(target, value, data);
-        emit CallExecuted(target, value, data);
+        if (!success) revert CallReverted(target, value, data, operation);
+        emit CallExecuted(target, value, data, operation);
     }
 
 }

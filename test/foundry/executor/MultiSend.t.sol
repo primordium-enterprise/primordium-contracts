@@ -43,7 +43,7 @@ contract MultiSender is MultiSend, IMultiSenderEvents{
         _execute(to, value, data, Enum.Operation.Call);
     }
 
-    function add(uint256 addBy) external onlyExecutor {
+    function add(uint256 addBy) external onlySelf {
         _add(addBy);
     }
 
@@ -52,7 +52,7 @@ contract MultiSender is MultiSend, IMultiSenderEvents{
         emit Added(addBy);
     }
 
-    function subtract(uint256 subBy) external onlyExecutor {
+    function subtract(uint256 subBy) external onlySelf {
         _subtract(subBy);
     }
 
@@ -61,17 +61,17 @@ contract MultiSender is MultiSend, IMultiSenderEvents{
         emit Subtracted(subBy);
     }
 
-    function addThenSubtract(uint256 addBy, uint256 subBy) external onlyExecutor {
+    function addThenSubtract(uint256 addBy, uint256 subBy) external onlySelf {
         _add(addBy);
         _subtract(subBy);
     }
 
-    function updateAddress(address newAddress) external onlyExecutor {
+    function updateAddress(address newAddress) external onlySelf {
         a = newAddress;
         emit AddressChanged(newAddress);
     }
 
-    function addToBytes(bytes memory addition1, bytes memory addition2) external onlyExecutor {
+    function addToBytes(bytes memory addition1, bytes memory addition2) external onlySelf {
         for (uint256 i = 0; i < addition1.length; i++) {
             z.push(addition1[i]);
         }
