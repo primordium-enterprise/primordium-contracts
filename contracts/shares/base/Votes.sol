@@ -4,9 +4,8 @@
 
 pragma solidity ^0.8.20;
 
-import "../interfaces/IVotes.sol";
 import {ERC20CheckpointsUpgradeable} from "./ERC20CheckpointsUpgradeable.sol";
-import {ERC20PermitUpgradeable} from "./ERC20PermitUpgradeable.sol";
+import {IVotes} from "../interfaces/IVotes.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -25,7 +24,7 @@ import "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
  *
  * _Available since v4.2._
  */
-abstract contract Votes is ERC20PermitUpgradeable, IVotes {
+abstract contract Votes is ERC20CheckpointsUpgradeable, IVotes {
 
     using Checkpoints for Checkpoints.Trace224; // We use Trace224 to be agnostic towards the clock mode
 
