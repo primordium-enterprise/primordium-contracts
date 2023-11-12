@@ -16,7 +16,7 @@ interface IERC20Checkpoints is IERC20, IERC6372 {
     error ERC20CheckpointsMaxSupplyOverflow(uint256 maxSupply, uint256 resultingSupply);
 
     /**
-     * @dev Maximum token supply. Should default to (and never be greater than) `type(uint224).max` (2^224^ - 1).
+     * @dev Maximum token supply. Should default to (and never be greater than) `type(uint208).max` (2^208^ - 1).
      */
     function maxSupply() external view returns (uint256);
 

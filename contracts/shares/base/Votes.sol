@@ -26,13 +26,13 @@ import "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
  */
 abstract contract Votes is ERC20CheckpointsUpgradeable, IVotes {
 
-    using Checkpoints for Checkpoints.Trace224; // We use Trace224 to be agnostic towards the clock mode
+    using Checkpoints for Checkpoints.Trace208; // We use Trace208 to be agnostic towards the clock mode
 
     bytes32 private constant _DELEGATION_TYPEHASH =
         keccak256("Delegation(address delegatee,uint256 nonce,uint256 expiry)");
 
     mapping(address => address) private _delegates;
-    mapping(address => Checkpoints.Trace224) private _checkpoints;
+    mapping(address => Checkpoints.Trace208) private _checkpoints;
 
     /**
      * @dev Get number of checkpoints for `account`.

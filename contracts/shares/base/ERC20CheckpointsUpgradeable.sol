@@ -17,30 +17,13 @@ import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /**
- * @dev Implementation of the {IERC20} interface.
+ * @title ERC20CheckpointsUpgradeable
  *
- * This implementation is agnostic to the way tokens are created. This means
- * that a supply mechanism has to be added in a derived contract using {_mint}.
+ * @dev Implementation of the OpenZeppelin ERC20 interface with ERC20Permit and ERC-6372 clock mode, but uses
+ * the OpenZeppelin "Checkpoints" library for tracking historical account balance checkpoints and historical total
+ * supply checkpoints.
  *
- * The default value of {decimals} is 18. To change this, you should override
- * this function so it returns a different value.
- *
- * Balances are tracked using historical checkpoints, allowing balances to be
- * retrieved at different points in time. Implements {IERC6372} for clock mode.
- *
- * We have followed general OpenZeppelin Contracts guidelines: functions revert
- * instead returning `false` on failure. This behavior is nonetheless
- * conventional and does not conflict with the expectations of ERC20
- * applications.
- *
- * Additionally, an {Approval} event is emitted on calls to {transferFrom}.
- * This allows applications to reconstruct the allowance for all accounts just
- * by listening to said events. Other implementations of the EIP may not emit
- * these events, as it isn't required by the specification.
- *
- * Finally, the non-standard {decreaseAllowance} and {increaseAllowance}
- * functions have been added to mitigate the well-known issues around setting
- * allowances. See {IERC20-approve}.
+ * @author Ben Jett - @BCJdevelopment
  */
 abstract contract ERC20CheckpointsUpgradeable is
     ContextUpgradeable,
@@ -50,12 +33,12 @@ abstract contract ERC20CheckpointsUpgradeable is
     IERC165
 {
 
-    using Checkpoints for Checkpoints.Trace224;
+    using Checkpoints for Checkpoints.Trace208;
 
     /// @custom:storage-location erc7201:ERC20Checkpoints.Storage
     struct ERC20CheckpointsStorage {
-        mapping(address => Checkpoints.Trace224) _balanceCheckpoints;
-        Checkpoints.Trace224 _totalSupplyCheckpoints;
+        mapping(address => Checkpoints.Trace208) _balanceCheckpoints;
+        Checkpoints.Trace208 _totalSupplyCheckpoints;
     }
 
     // keccak256(abi.encode(uint256(keccak256("ERC20Checkpoints.Storage")) - 1)) & ~bytes32(uint256(0xff))
@@ -67,13 +50,18 @@ abstract contract ERC20CheckpointsUpgradeable is
         }
     }
 
+    /**
+     * @dev The clock was incorrectly modified.
+     */
+    error ERC6372InconsistentClock();
+
     modifier noFutureLookup(uint256 timepoint) {
         uint256 currentClock = clock();
         if (timepoint >= currentClock) revert ERC20CheckpointsFutureLookup(currentClock);
         _;
     }
 
-    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public pure virtual returns (bool) {
         return
             interfaceId == type(IERC20).interfaceId ||
             interfaceId == type(IERC20Metadata).interfaceId ||
@@ -96,7 +84,7 @@ abstract contract ERC20CheckpointsUpgradeable is
     function CLOCK_MODE() public view virtual override returns (string memory) {
         // Check that the clock was not modified
         // solhint-disable-next-line reason-string, custom-errors
-        if (clock() != block.number) revert();
+        if (clock() != block.number) revert ERC6372InconsistentClock();
         return "mode=blocknumber&from=default";
     }
 
@@ -120,7 +108,7 @@ abstract contract ERC20CheckpointsUpgradeable is
      * @inheritdoc IERC20Checkpoints
      */
     function maxSupply() public view virtual override returns (uint256) {
-        return type(uint224).max;
+        return type(uint208).max;
     }
 
     /**
@@ -181,14 +169,11 @@ abstract contract ERC20CheckpointsUpgradeable is
     }
 
     function _writeCheckpoint(
-        Checkpoints.Trace224 storage store,
+        Checkpoints.Trace208 storage store,
         function(uint256, uint256) view returns (uint256) op,
         uint256 delta
     ) internal returns (uint256 oldWeight, uint256 newWeight) {
-        return store.push(
-            SafeCast.toUint32(clock()),
-            SafeCast.toUint224(op(store.latest(), delta))
-        );
+        return store.push(clock(), SafeCast.toUint208(op(store.latest(), delta)));
     }
 
     function _add(uint256 a, uint256 b) internal pure returns (uint256) {
