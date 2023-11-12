@@ -5,7 +5,7 @@
 pragma solidity ^0.8.20;
 
 import "../Governor.sol";
-import "contracts/shares/base/Votes.sol";
+import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 
 /**
  * @dev Extension of {Governor} for voting weight extraction from an {ERC20Votes} token, or since v4.5 an {ERC721Votes}
@@ -23,7 +23,7 @@ abstract contract GovernorVotes is Governor {
         uint256 timepoint,
         bytes memory /*params*/
     ) internal view virtual override returns (uint256) {
-        return Votes(_token).getPastVotes(account, timepoint);
+        return IVotes(_token).getPastVotes(account, timepoint);
     }
 
 }

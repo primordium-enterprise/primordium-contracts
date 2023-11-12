@@ -3,13 +3,16 @@
 
 pragma solidity ^0.8.20;
 
-import "./Votes.sol";
+import {ERC20CheckpointsUpgradeable} from "./ERC20CheckpointsUpgradeable.sol";
+import {ERC20VotesUpgradeable} from "./ERC20VotesUpgradeable.sol";
 import "../interfaces/IVotesProvisioner.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {ITreasury} from "contracts/executor/interfaces/ITreasury.sol";
 import {Ownable1Or2StepUpgradeable} from "contracts/utils/Ownable1Or2StepUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../utils/Math512.sol";
 
 /**
@@ -19,7 +22,7 @@ import "../../utils/Math512.sol";
  *
  * Anyone can mint vote tokens in exchange for the DAO's base asset. Any member can withdraw pro rata.
  */
-abstract contract VotesProvisioner is IVotesProvisioner, Votes, Ownable1Or2StepUpgradeable {
+abstract contract VotesProvisioner is ERC20VotesUpgradeable, IVotesProvisioner, Ownable1Or2StepUpgradeable {
 
     using Math for uint256;
     using SafeCast for *;

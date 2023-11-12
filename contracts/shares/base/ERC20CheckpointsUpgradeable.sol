@@ -132,6 +132,8 @@ abstract contract ERC20CheckpointsUpgradeable is
 
     /**
      * @inheritdoc ERC20Upgradeable
+     * @dev This function is modified to follow the exact same logic as the _update function in the original
+     * ERC20Upgradeable contract, but using checkpoints for balances and total supply.
      */
     function _update(address from, address to, uint256 value) internal virtual override {
         ERC20CheckpointsStorage storage $ = _getERC20CheckpointsStorage();
