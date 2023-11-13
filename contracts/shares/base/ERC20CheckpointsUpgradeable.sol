@@ -19,9 +19,11 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 /**
  * @title ERC20CheckpointsUpgradeable
  *
- * @dev Implementation of the OpenZeppelin ERC20 interface with ERC20Permit and ERC-6372 clock mode, but uses
- * the OpenZeppelin "Checkpoints" library for tracking historical account balance checkpoints and historical total
- * supply checkpoints.
+ * @dev Implementation of the OpenZeppelin {ERC20} module with {ERC20Permit} and the ERC-6372 clock mode, but uses the
+ * OpenZeppelin {Checkpoints} library for tracking historical account balance checkpoints and historical total supply
+ * checkpoints.
+ *
+ * Maintains EIP7201 storage namespacing for upgradeability
  *
  * @author Ben Jett - @BCJdevelopment
  */
@@ -32,7 +34,6 @@ abstract contract ERC20CheckpointsUpgradeable is
     IERC20Checkpoints,
     IERC165
 {
-
     using Checkpoints for Checkpoints.Trace208;
 
     /// @custom:storage-location erc7201:ERC20Checkpoints.Storage
@@ -41,12 +42,13 @@ abstract contract ERC20CheckpointsUpgradeable is
         Checkpoints.Trace208 _totalSupplyCheckpoints;
     }
 
-    // keccak256(abi.encode(uint256(keccak256("ERC20Checkpoints.Storage")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant ERC20_CHECKPOINTS_STORAGE = 0x37e2fc2784a6c5c6527f4c99f641faf0991baadc13e8e00865f61f0881e35600;
+    bytes32 private immutable ERC20_CHECKPOINTS_STORAGE =
+        keccak256(abi.encode(uint256(keccak256("ERC20Checkpoints.Storage")) - 1)) & ~bytes32(uint256(0xff));
 
-    function _getERC20CheckpointsStorage() private pure returns (ERC20CheckpointsStorage storage $) {
+    function _getERC20CheckpointsStorage() private view returns (ERC20CheckpointsStorage storage $) {
+        bytes32 erc20CheckpointsStorageSlot = ERC20_CHECKPOINTS_STORAGE;
         assembly {
-            $.slot := ERC20_CHECKPOINTS_STORAGE
+            $.slot := erc20CheckpointsStorageSlot
         }
     }
 

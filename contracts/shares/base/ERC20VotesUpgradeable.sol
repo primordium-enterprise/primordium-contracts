@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.0.0) (governance/utils/Votes.sol)
+// Primordium Contracts
+// Based on OpenZeppelin Contracts (last updated v5.0.0) (governance/utils/Votes.sol)
+// Based on OpenZeppelin Contracts (last updated v5.0.0) (token/ERC20/extensions/ERC20Votes.sol)
+
 pragma solidity ^0.8.20;
 
 import {ERC20CheckpointsUpgradeable} from "./ERC20CheckpointsUpgradeable.sol";
@@ -11,13 +14,14 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 
 /**
- * @title ERC20VotesUpgradeable
+ * @title ERC20VotesUpgradeable - ERC20 Votes implementation, using the ERC20CheckpointsUpgradeable as the base.
  *
- * @dev This module is based on the OpenZeppelin Votes implementation (with full vote delegation), but inherits directly
- * from the ERC20CheckpointsUpgradeable in this repository, which already implements a historical tracking of the ERC20
- * total supply.
+ * This module is essentially a merge of OpenZeppelin's {Votes} and {ERC20Votes} contracts, but this inherits directly
+ * from the customized {ERC20CheckpointsUpgradeable} in this repository (which already implements historical
+ * checkpoints for the ERC20 total supply).
  *
- * Accounts must delegate (to themselves or another account) in order for their votes to be counted.
+ * As in the OpenZeppelin modules (based on Compound), accounts MUST delegate (to themselves or another address) in
+ * order for their votes to be counted.
  *
  * @author Ben Jett - @BCJdevelopment
  *
@@ -35,12 +39,13 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable
         mapping(address delegatee => Checkpoints.Trace208) _delegateCheckpoints;
     }
 
-    // keccak256(abi.encode(uint256(keccak256("ERC20Votes.Storage")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant ERC20_VOTES_STORAGE = 0x109684a1287cc407d745bb820bf93a681ef38b14304190d1e8fea2ca0f881500;
+    bytes32 private immutable ERC20_VOTES_STORAGE =
+        keccak256(abi.encode(uint256(keccak256("ERC20Votes.Storage")) - 1)) & ~bytes32(uint256(0xff));
 
-    function _getVotesStorage() private pure returns (ERC20VotesStorage storage $) {
+    function _getVotesStorage() private view returns (ERC20VotesStorage storage $) {
+        bytes32 erc20VotesStorageSlot = ERC20_VOTES_STORAGE;
         assembly {
-            $.slot := ERC20_VOTES_STORAGE
+            $.slot := erc20VotesStorageSlot
         }
     }
 

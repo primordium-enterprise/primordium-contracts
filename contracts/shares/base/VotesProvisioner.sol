@@ -23,25 +23,37 @@ import "../../utils/Math512.sol";
  * Anyone can mint vote tokens in exchange for the DAO's base asset. Any member can withdraw pro rata.
  */
 abstract contract VotesProvisioner is ERC20VotesUpgradeable, IVotesProvisioner, Ownable1Or2StepUpgradeable {
-
     using Math for uint256;
     using SafeCast for *;
 
-    IERC20 internal immutable _baseAsset; // The address for the DAO's base asset (address(0) for ETH)
-    uint256 internal _maxSupply;
-
-    uint256 private constant COMPARE_FRACTIONS_MULTIPLIER = 1_000;
-    uint256 private constant MAX_SUPPLY_LIMIT = type(uint224).max;
-
-    bytes32 private constant _WITHDRAW_TYPEHASH = keccak256(
+    bytes32 private constant WITHDRAW_TYPEHASH = keccak256(
         "Withdraw(address owner,address receiver,uint256 amount,uint256 nonce,uint256 expiry)"
     );
 
-    ITreasury internal _treasury;
-    ProvisionMode private _provisionMode;
+    uint256 private constant COMPARE_FRACTIONS_MULTIPLIER = 1_000;
 
-    /// @dev _tokenPrice updates should always go through {_updateTokenPrice} to avoid setting price to zero
-    TokenPrice private _tokenPrice = TokenPrice(1, 1); // Defaults to 1 to 1
+    IERC20 internal immutable _baseAsset; // The address for the DAO's base asset (address(0) for ETH)
+
+    /// @custom:storage-location erc7201:SharesManager.Storage
+    struct SharesManagerStorage {
+        uint256 _maxSupply;
+
+        /// @dev _tokenPrice updates should always go through {_updateTokenPrice} to avoid setting price to zero
+        TokenPrice _tokenPrice;
+
+        ITreasury _treasury;
+        ProvisionMode _provisionMode;
+    }
+
+    bytes32 private immutable SHARES_MANAGER_STORAGE =
+        keccak256(abi.encode(uint256(keccak256("SharesManager.Storage")) - 1)) & ~bytes32(uint256(0xff));
+
+    function _getSharesManagerStorage() private view returns (SharesManagerStorage storage $) {
+        bytes32 sharesManagerStorageSlot = SHARES_MANAGER_STORAGE;
+        assembly {
+            $.slot := sharesManagerStorageSlot
+        }
+    }
 
     // Timestamps for when token sales begin and when governance can begin
     uint256 public immutable tokenSaleBeginsAt;
@@ -79,7 +91,7 @@ abstract contract VotesProvisioner is ERC20VotesUpgradeable, IVotesProvisioner, 
      * @notice Function to get the current provision mode of the token.
      */
     function provisionMode() public view virtual returns(ProvisionMode) {
-        return _provisionMode;
+        return _getSharesManagerStorage()._provisionMode;
     }
 
     /**
@@ -87,9 +99,10 @@ abstract contract VotesProvisioner is ERC20VotesUpgradeable, IVotesProvisioner, 
      * reached. Also returns the current provision mode.
      */
     function isGovernanceAllowed() public view virtual returns(bool, ProvisionMode) {
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
         return  (
             totalSupply() >= governanceThreshold && block.timestamp >= governanceCanBeginAt,
-            _provisionMode
+            $._provisionMode
         );
     }
 
@@ -97,19 +110,24 @@ abstract contract VotesProvisioner is ERC20VotesUpgradeable, IVotesProvisioner, 
      * @notice Function to get the current max supply of vote tokens available for minting.
      * @dev Overrides to use the updateable _maxSupply
      */
-    function maxSupply() public view virtual override(ERC20CheckpointsUpgradeable, IVotesProvisioner) returns (uint256) {
-        return _maxSupply;
+    function maxSupply() public view virtual override(
+        ERC20CheckpointsUpgradeable,
+        IVotesProvisioner
+    ) returns (uint256) {
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        return $._maxSupply;
     }
 
     /**
      * Returns the address of the treasury contract.
      * @notice This address is likely to be the same address as the owner contract.
      */
-    function treasury() public view returns (address) {
-        return address(_treasury);
+    function treasury() public view virtual returns (address) {
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        return address($._treasury);
     }
 
-    function setTreasury(address newTreasury) public onlyOwner {
+    function setTreasury(address newTreasury) public virtual onlyOwner {
         _setTreasury(newTreasury);
     }
 
@@ -118,8 +136,10 @@ abstract contract VotesProvisioner is ERC20VotesUpgradeable, IVotesProvisioner, 
         if (!IERC165(newTreasury).supportsInterface(type(ITreasury).interfaceId)) {
             revert TreasuryInterfaceNotSupported(newTreasury);
         }
-        emit TreasuryChange(treasury(), newTreasury);
-        _treasury = ITreasury(newTreasury);
+
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        emit TreasuryChange(address($._treasury), newTreasury);
+        $._treasury = ITreasury(newTreasury);
     }
 
     /**
@@ -135,7 +155,8 @@ abstract contract VotesProvisioner is ERC20VotesUpgradeable, IVotesProvisioner, 
      * The {numerator} is the minimum amount of the base asset tokens required to mint {denominator} amount of votes.
      */
     function tokenPrice() public view returns (uint128, uint128) {
-        return (_tokenPrice.numerator, _tokenPrice.denominator);
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        return ($._tokenPrice.numerator, $._tokenPrice.denominator);
     }
 
     function valuePerToken() public view returns (uint256) {
@@ -187,6 +208,23 @@ abstract contract VotesProvisioner is ERC20VotesUpgradeable, IVotesProvisioner, 
     function updateTokenPriceDenominator(uint256 newDenominator) public virtual onlyOwner {
         if (newDenominator == 0) revert TokenPriceParametersMustBeGreaterThanZero();
         _updateTokenPrice(0, newDenominator);
+    }
+
+    /**
+     * @dev Private function to update the tokenPrice numerator and denominator. Skips update of zero values (neither
+     * can be set to zero).
+     */
+    function _updateTokenPrice(uint256 newNumerator, uint256 newDenominator) private {
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        uint256 prevNumerator = $._tokenPrice.numerator;
+        uint256 prevDenominator = $._tokenPrice.denominator;
+        if (newNumerator > 0) {
+            $._tokenPrice.numerator = SafeCast.toUint128(newNumerator);
+        }
+        if (newDenominator > 0) {
+            $._tokenPrice.denominator = SafeCast.toUint128(newDenominator);
+        }
+        emit TokenPriceChange(prevNumerator, newNumerator, prevDenominator, newDenominator);
     }
 
     /**
@@ -247,7 +285,7 @@ abstract contract VotesProvisioner is ERC20VotesUpgradeable, IVotesProvisioner, 
         address signer = ECDSA.recover(
             _hashTypedDataV4(
                 keccak256(
-                    abi.encode(_WITHDRAW_TYPEHASH, owner, receiver, amount, _useNonce(owner), expiry)
+                    abi.encode(WITHDRAW_TYPEHASH, owner, receiver, amount, _useNonce(owner), expiry)
                 )
             ),
             v,
@@ -265,18 +303,19 @@ abstract contract VotesProvisioner is ERC20VotesUpgradeable, IVotesProvisioner, 
         if (block.timestamp < governanceCanBeginAt) revert CannotSetProvisionModeYet(governanceCanBeginAt);
         if (mode <= ProvisionMode.Founding) revert ProvisionModeTooLow();
 
-        ProvisionMode currentProvisionMode = _provisionMode;
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        ProvisionMode currentProvisionMode = $._provisionMode;
         if (currentProvisionMode == ProvisionMode.Founding) {
-            _governanceInitialized();
+            _governanceInitialized($);
         }
 
-        emit ProvisionModeChange(_provisionMode, mode);
-        _provisionMode = mode;
+        emit ProvisionModeChange(currentProvisionMode, mode);
+        $._provisionMode = mode;
     }
 
-    function _governanceInitialized() internal virtual {
-        uint256 tokenPriceNumerator = _tokenPrice.numerator;
-        uint256 tokenPriceDenominator = _tokenPrice.denominator;
+    function _governanceInitialized(SharesManagerStorage storage $) internal virtual {
+        uint256 tokenPriceNumerator = $._tokenPrice.numerator;
+        uint256 tokenPriceDenominator = $._tokenPrice.denominator;
         uint256 currentTotalSupply = totalSupply();
         uint256 baseAssetDeposits = Math.mulDiv(currentTotalSupply, tokenPriceNumerator, tokenPriceDenominator);
         _getTreasurer().governanceInitialized(baseAsset(), baseAssetDeposits);
@@ -289,26 +328,13 @@ abstract contract VotesProvisioner is ERC20VotesUpgradeable, IVotesProvisioner, 
      * May never be used, but preserves DAO optionality.
      */
     function _updateMaxSupply(uint256 newMaxSupply) internal virtual {
-        if (newMaxSupply > MAX_SUPPLY_LIMIT) revert MaxSupplyTooLarge(MAX_SUPPLY_LIMIT);
+        // Max supply is limited by ERC20Checkpoints
+        uint256 maxSupplyLimit = super.maxSupply();
+        if (newMaxSupply > maxSupplyLimit) revert MaxSupplyTooLarge(maxSupplyLimit);
 
-        emit MaxSupplyChange(_maxSupply, newMaxSupply);
-        _maxSupply = newMaxSupply;
-    }
-
-    /**
-     * @dev Private function to update the tokenPrice numerator and denominator. Skips update of zero values (neither
-     * can be set to zero).
-     */
-    function _updateTokenPrice(uint256 newNumerator, uint256 newDenominator) private {
-        uint256 prevNumerator = _tokenPrice.numerator;
-        uint256 prevDenominator = _tokenPrice.denominator;
-        if (newNumerator > 0) {
-            _tokenPrice.numerator = SafeCast.toUint128(newNumerator);
-        }
-        if (newDenominator > 0) {
-            _tokenPrice.denominator = SafeCast.toUint128(newDenominator);
-        }
-        emit TokenPriceChange(prevNumerator, newNumerator, prevDenominator, newDenominator);
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        emit MaxSupplyChange($._maxSupply, newMaxSupply);
+        $._maxSupply = newMaxSupply;
     }
 
     function _valuePerToken(uint256 multiplier) internal view returns (uint256) {
@@ -346,13 +372,15 @@ abstract contract VotesProvisioner is ERC20VotesUpgradeable, IVotesProvisioner, 
         address account,
         uint256 depositAmount
     ) internal virtual treasuryIsReady returns (uint256) {
-        ProvisionMode currentProvisionMode = _provisionMode;
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
+
+        ProvisionMode currentProvisionMode = $._provisionMode;
         if (currentProvisionMode == ProvisionMode.Governance) revert DepositsUnavailable();
         // Zero address is checked in the _mint function
         if (depositAmount == 0) revert InvalidDepositAmount();
 
-        uint256 tokenPriceNumerator = _tokenPrice.numerator;
-        uint256 tokenPriceDenominator = _tokenPrice.denominator;
+        uint256 tokenPriceNumerator = $._tokenPrice.numerator;
+        uint256 tokenPriceDenominator = $._tokenPrice.denominator;
 
         // The "depositAmount" must be a multiple of the token price numerator
         if (depositAmount % tokenPriceNumerator != 0) revert InvalidDepositAmountMultiple();
