@@ -74,7 +74,7 @@ interface ISharesManager {
     error CannotSetProvisionModeYet(uint256 governanceCanBeginAt);
     error ProvisionModeTooLow();
     error MaxSupplyTooLarge(uint256 max);
-    error TokenPriceParametersMustBeGreaterThanZero();
+    error TokenPriceCannotBeZero();
     error DepositsUnavailable();
     error InvalidDepositAmount();
     error TokenSalesNotAvailableYet(uint256 tokenSaleBeginsAt);
@@ -95,7 +95,7 @@ interface ISharesManager {
     function maxSupply() external view returns (uint256);
 
     // Function to update the max supply, executor only
-    function updateMaxSupply(uint256 newMaxSupply) external;
+    function setMaxSupply(uint256 newMaxSupply) external;
 
     // Function to query the ERC20 base asset (address(0) for ETH)
     function baseAsset() external view returns (address);
@@ -104,13 +104,7 @@ interface ISharesManager {
     function tokenPrice() external view returns (uint128, uint128);
 
     // Function to update the token price, executor only
-    function updateTokenPrice(uint256 numerator, uint256 denominator) external;
-
-    // Function to update the token price numerator, executor only
-    function updateTokenPriceNumerator(uint256 numerator) external;
-
-    // Function to update the token price denominator, executor only
-    function updateTokenPriceDenominator(uint256 denominator) external;
+    function setTokenPrice(uint256 numerator, uint256 denominator) external;
 
     // Returns the current value per token in the existing supply of votes, quoted in the base asset
     function valuePerToken() external view returns (uint256);
