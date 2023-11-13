@@ -96,7 +96,7 @@ abstract contract Governor is ContextUpgradeable, ERC165, EIP712Upgradeable, Tim
         // Token clock must match
         if (ERC20CheckpointsUpgradeable(token_).clock() != clock()) revert GovernorClockMustMatchTokenClock();
         // Set founding bool (for checking proposals)
-        _isFounding = SharesManager(token_).provisionMode() == IVotesProvisioner.ProvisionMode.Founding;
+        _isFounding = SharesManager(token_).provisionMode() == ISharesManager.ProvisionMode.Founding;
     }
 
     function name() public view virtual override returns (string memory) {
@@ -379,10 +379,10 @@ abstract contract Governor is ContextUpgradeable, ERC165, EIP712Upgradeable, Tim
         // If the DAO is in founding mode, then check if governance is even allowed
         if (_isFounding) {
             address token_ = _token;
-            (bool isGovernanceAllowed, IVotesProvisioner.ProvisionMode provisionMode) =
+            (bool isGovernanceAllowed, ISharesManager.ProvisionMode provisionMode) =
                 SharesManager(token_).isGovernanceAllowed();
             // If no longer in founding mode, we can reset the _isFounding flag and move on
-            if (provisionMode > IVotesProvisioner.ProvisionMode.Founding) {
+            if (provisionMode > ISharesManager.ProvisionMode.Founding) {
                 delete _isFounding;
             } else {
                 if (!isGovernanceAllowed) revert NotReadyForGovernance();

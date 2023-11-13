@@ -36,7 +36,7 @@ pragma solidity ^0.8.20;
 
 //     function _registerDeposit(
 //         uint256 depositAmount,
-//         IVotesProvisioner.ProvisionMode currentProvisionMode
+//         ISharesManager.ProvisionMode currentProvisionMode
 //     ) internal virtual override(TreasurerETH, TreasurerBalanceShares) {
 //         super._registerDeposit(depositAmount, currentProvisionMode);
 //     }

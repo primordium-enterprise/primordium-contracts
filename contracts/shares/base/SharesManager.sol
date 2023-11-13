@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 
 import {ERC20CheckpointsUpgradeable} from "./ERC20CheckpointsUpgradeable.sol";
 import {ERC20VotesUpgradeable} from "./ERC20VotesUpgradeable.sol";
-import "../interfaces/IVotesProvisioner.sol";
+import "../interfaces/ISharesManager.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {ITreasury} from "contracts/executor/interfaces/ITreasury.sol";
 import {Ownable1Or2StepUpgradeable} from "contracts/utils/Ownable1Or2StepUpgradeable.sol";
@@ -22,7 +22,7 @@ import "../../utils/Math512.sol";
  *
  * Anyone can mint vote tokens in exchange for the DAO's base asset. Any member can withdraw pro rata.
  */
-abstract contract SharesManager is ERC20VotesUpgradeable, IVotesProvisioner, Ownable1Or2StepUpgradeable {
+abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownable1Or2StepUpgradeable {
     using Math for uint256;
     using SafeCast for *;
 
@@ -112,7 +112,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, IVotesProvisioner, Own
      */
     function maxSupply() public view virtual override(
         ERC20CheckpointsUpgradeable,
-        IVotesProvisioner
+        ISharesManager
     ) returns (uint256) {
         SharesManagerStorage storage $ = _getSharesManagerStorage();
         return $._maxSupply;

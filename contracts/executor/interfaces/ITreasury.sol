@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.20;
 
-import {IVotesProvisioner} from "contracts/shares/interfaces/IVotesProvisioner.sol";
+import {ISharesManager} from "contracts/shares/interfaces/ISharesManager.sol";
 
 /**
  * @title ITreasury - The interface required for the token contract to facilitate deposits and withdrawals.
@@ -18,7 +18,7 @@ interface ITreasury {
     function registerDeposit(
         address asset,
         uint256 depositAmount,
-        IVotesProvisioner.ProvisionMode provisionMode
+        ISharesManager.ProvisionMode provisionMode
     ) external payable;
 
     function processWithdrawal(address asset, address receiver, uint256 withdrawAmount) external payable;

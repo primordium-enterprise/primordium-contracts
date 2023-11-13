@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.20;
 
-interface IVotesProvisioner {
+interface ISharesManager {
 
     enum ProvisionMode {
         Founding, // Initial mode for tokens, allows deposits/withdrawals at all times

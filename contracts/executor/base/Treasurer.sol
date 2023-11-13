@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 
 import "./TimelockAvatar.sol";
 import "contracts/shares/base/SharesManager.sol";
-import "contracts/shares/interfaces/IVotesProvisioner.sol";
+import "contracts/shares/interfaces/ISharesManager.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -92,7 +92,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
      */
     function registerDeposit(
         uint256 depositAmount,
-        IVotesProvisioner.ProvisionMode provisionMode
+        ISharesManager.ProvisionMode provisionMode
     ) external payable virtual onlyToken {
         _registerDeposit(depositAmount, provisionMode);
     }
@@ -149,7 +149,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
     /**
      * @dev Can override and call super._registerDeposit for additional checks/functionality depending on baseAsset used
     */
-    function _registerDeposit(uint256 depositAmount, IVotesProvisioner.ProvisionMode /*provisionMode*/) internal virtual {
+    function _registerDeposit(uint256 depositAmount, ISharesManager.ProvisionMode /*provisionMode*/) internal virtual {
         if (depositAmount == 0) revert InvalidDepositAmount();
     }
 

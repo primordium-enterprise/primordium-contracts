@@ -410,10 +410,10 @@ abstract contract TreasurerBalanceShares is Treasurer {
     /// @dev Override to implement balance updates on the treasury for deposit shares
     function _registerDeposit(
         uint256 depositAmount,
-        IVotesProvisioner.ProvisionMode provisionMode
+        ISharesManager.ProvisionMode provisionMode
     ) internal virtual override {
         super._registerDeposit(depositAmount, provisionMode);
-        if (provisionMode > IVotesProvisioner.ProvisionMode.Founding) {
+        if (provisionMode > ISharesManager.ProvisionMode.Founding) {
             _processDepositShares(depositAmount);
         }
     }
