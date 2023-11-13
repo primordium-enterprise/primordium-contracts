@@ -11,6 +11,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import "contracts/shares/base/SharesManager.sol";
 import "../executor/Executor.sol";
 import "./IGovernor.sol";
@@ -108,10 +109,15 @@ abstract contract Governor is ContextUpgradeable, ERC165, EIP712Upgradeable, Tim
     }
 
     /**
-     * @dev Clock (as specified in EIP-6372) defaults to block number. Should be overridden to match token if different.
+     * @dev Clock (as specified in EIP-6372) is set to match the token's clock. Fallback to block numbers if the token
+     * does not implement EIP-6372.
      */
     function clock() public view virtual override returns (uint48) {
-        return SafeCast.toUint48(block.number);
+        try IERC6372(_token).clock() returns (uint48 timepoint) {
+            return timepoint;
+        } catch {
+            return SafeCast.toUint48(block.number);
+        }
     }
 
     /**
@@ -119,7 +125,11 @@ abstract contract Governor is ContextUpgradeable, ERC165, EIP712Upgradeable, Tim
      */
     // solhint-disable-next-line func-name-mixedcase
     function CLOCK_MODE() public view virtual override returns (string memory) {
-        return "mode=blocknumber&from=default";
+        try IERC6372(_token).CLOCK_MODE() returns (string memory clockmode) {
+            return clockmode;
+        } catch {
+            return "mode=blocknumber&from=default";
+        }
     }
 
     /**

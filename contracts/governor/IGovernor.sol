@@ -5,8 +5,8 @@
 pragma solidity ^0.8.20;
 
 import {IArrayLengthErrors} from "contracts/interfaces/IArrayLengthErrors.sol";
-import "@openzeppelin/contracts/interfaces/IERC165.sol";
-import "@openzeppelin/contracts/interfaces/IERC6372.sol";
+import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
+import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import "../utils/TimelockAvatarControlled.sol";
 
 /**
