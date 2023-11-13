@@ -3,14 +3,14 @@
 
 pragma solidity ^0.8.20;
 
-import "../base/VotesProvisioner.sol";
+import "../base/SharesManager.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 
 using Math for uint256;
 
-abstract contract VotesProvisionerERC20 is VotesProvisioner {
+abstract contract VotesProvisionerERC20 is SharesManager {
 
     error CannotInitializeBaseAssetToETH();
     error CannotAcceptETHDeposits();
@@ -28,7 +28,7 @@ abstract contract VotesProvisionerERC20 is VotesProvisioner {
      * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for
      * every `tokenPrice.numerator` count of base asset tokens.
      * @dev Override to deposit ERC20 base asset in exchange for votes.
-     * While this function is marked as "payable" (since it overrides VotesProvisioner), it requires msg.value to be
+     * While this function is marked as "payable" (since it overrides SharesManager), it requires msg.value to be
      * zero.
      * @return Amount of vote tokens minted.
      */

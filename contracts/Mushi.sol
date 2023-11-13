@@ -20,7 +20,7 @@ pragma solidity ^0.8.20;
 //     )
 //         ERC20PermitUpgradeable(TOKEN_NAME)
 //         ERC20CheckpointsUpgradeable(TOKEN_NAME, TOKEN_SYMBOL)
-//         VotesProvisioner(
+//         SharesManager(
 //             timelockAvatar_,
 //             IERC20(address(0)),
 //             maxSupply_,

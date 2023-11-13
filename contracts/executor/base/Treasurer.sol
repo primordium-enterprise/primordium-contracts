@@ -4,7 +4,7 @@
 pragma solidity ^0.8.20;
 
 import "./TimelockAvatar.sol";
-import "contracts/shares/base/VotesProvisioner.sol";
+import "contracts/shares/base/SharesManager.sol";
 import "contracts/shares/interfaces/IVotesProvisioner.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
@@ -13,7 +13,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1155Receiver {
 
-    VotesProvisioner internal immutable _token;
+    SharesManager internal immutable _token;
     IERC20 internal immutable _baseAsset;
 
     // The total balance of the base asset that is allocated to Distributions, BalanceShares, etc.
@@ -35,7 +35,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
     }
 
     constructor(
-        VotesProvisioner token_
+        SharesManager token_
     ) {
         _token = token_;
         _baseAsset = IERC20(token_.baseAsset());

@@ -3,9 +3,9 @@
 
 pragma solidity ^0.8.20;
 
-import "../base/VotesProvisioner.sol";
+import "../base/SharesManager.sol";
 
-abstract contract VotesProvisionerETH is VotesProvisioner {
+abstract contract VotesProvisionerETH is SharesManager {
 
     error MustInitializeBaseAssetToETH();
     error DepositAmountDoesNotEqualMsgValue(uint256 depositAmount, uint256 msgValue);

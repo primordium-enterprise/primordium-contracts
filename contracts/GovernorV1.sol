@@ -21,7 +21,7 @@ pragma solidity ^0.8.20;
 
 //     constructor(
 //         Executor timelockAvatar_,
-//         VotesProvisioner token_,
+//         SharesManager token_,
 //         uint256 governanceThreshold_,
 //         uint256 quorumBps_,
 //         uint256 proposalThresholdBps_,

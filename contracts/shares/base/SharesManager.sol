@@ -22,7 +22,7 @@ import "../../utils/Math512.sol";
  *
  * Anyone can mint vote tokens in exchange for the DAO's base asset. Any member can withdraw pro rata.
  */
-abstract contract VotesProvisioner is ERC20VotesUpgradeable, IVotesProvisioner, Ownable1Or2StepUpgradeable {
+abstract contract SharesManager is ERC20VotesUpgradeable, IVotesProvisioner, Ownable1Or2StepUpgradeable {
     using Math for uint256;
     using SafeCast for *;
 

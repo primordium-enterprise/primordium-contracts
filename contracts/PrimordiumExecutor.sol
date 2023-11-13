@@ -11,7 +11,7 @@ pragma solidity ^0.8.20;
 //     constructor(
 //         uint256 minDelay_,
 //         address owner_,
-//         VotesProvisioner votes_
+//         SharesManager votes_
 //     ) Executor(minDelay_, owner_) Treasurer(votes_) {
 
 //     }

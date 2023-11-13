@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
-import "contracts/shares/base/VotesProvisioner.sol";
+import "contracts/shares/base/SharesManager.sol";
 import "../executor/Executor.sol";
 import "./IGovernor.sol";
 import "../utils/TimelockAvatarControlled.sol";
@@ -96,7 +96,7 @@ abstract contract Governor is ContextUpgradeable, ERC165, EIP712Upgradeable, Tim
         // Token clock must match
         if (ERC20CheckpointsUpgradeable(token_).clock() != clock()) revert GovernorClockMustMatchTokenClock();
         // Set founding bool (for checking proposals)
-        _isFounding = VotesProvisioner(token_).provisionMode() == IVotesProvisioner.ProvisionMode.Founding;
+        _isFounding = SharesManager(token_).provisionMode() == IVotesProvisioner.ProvisionMode.Founding;
     }
 
     function name() public view virtual override returns (string memory) {
@@ -380,7 +380,7 @@ abstract contract Governor is ContextUpgradeable, ERC165, EIP712Upgradeable, Tim
         if (_isFounding) {
             address token_ = _token;
             (bool isGovernanceAllowed, IVotesProvisioner.ProvisionMode provisionMode) =
-                VotesProvisioner(token_).isGovernanceAllowed();
+                SharesManager(token_).isGovernanceAllowed();
             // If no longer in founding mode, we can reset the _isFounding flag and move on
             if (provisionMode > IVotesProvisioner.ProvisionMode.Founding) {
                 delete _isFounding;
@@ -389,7 +389,7 @@ abstract contract Governor is ContextUpgradeable, ERC165, EIP712Upgradeable, Tim
                 if (
                     targets.length != 1 || // Only allow a single action until we exit founding mode
                     targets[0] != token_ || // And the action must be to upgrade the token from founding mode
-                    bytes4(calldatas[0]) != VotesProvisioner.setProvisionMode.selector // So the selector must match
+                    bytes4(calldatas[0]) != SharesManager.setProvisionMode.selector // So the selector must match
                 ) revert InvalidFoundingModeActions();
             }
         }
