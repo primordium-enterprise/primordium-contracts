@@ -4,17 +4,17 @@
 
 pragma solidity ^0.8.20;
 
-import "../Governor.sol";
+import "./GovernorBase.sol";
 
 /**
- * @dev Extension of {Governor} for settings updatable through governance.
+ * @dev Extension of {GovernorBase} for settings updatable through governance.
  *
  * By default, sets the proposal threshold in basis points, allowing the votes to fluctuate dynamically according to the
  * total allocated token supply. The maximum BPS to set the proposal threshold to is 1_000 (10%).
  *
  * _Available since v4.4._
  */
-abstract contract GovernorSettings is Governor {
+abstract contract GovernorSettings is GovernorBase {
 
     uint256 constant private MAX_BPS = 10_000;
     uint256 constant public MAX_PROPOSAL_THRESHOLD_BPS = 1_000;

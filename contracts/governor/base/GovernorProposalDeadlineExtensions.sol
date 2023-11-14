@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.20;
 
-import "../Governor.sol";
+import "./GovernorBase.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -39,7 +39,7 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
  *
  * deadlineExtension = ( E - distanceFromDeadline ) * min(1.25, [ voteWeight / ( abs(ForVotes - AgainstVotes) + 1 ) ])
  */
-abstract contract GovernorProposalDeadlineExtensions is Governor {
+abstract contract GovernorProposalDeadlineExtensions is GovernorBase {
 
     struct DeadlineData {
         uint64 originalDeadline;
@@ -137,7 +137,7 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
     }
 
     function proposalOriginalDeadline(uint256 proposalId) public view virtual returns (uint256) {
-        return Governor.proposalDeadline(proposalId);
+        return GovernorBase.proposalDeadline(proposalId);
     }
 
     /**
@@ -267,7 +267,7 @@ abstract contract GovernorProposalDeadlineExtensions is Governor {
         // Initialize the rest of the struct if it hasn't been initialized yet
         if (dd.originalDeadline == 0) {
              // Assumes safe conversion, uint64 should be large enough for either block numbers or timestamps in seconds
-            dd.originalDeadline = uint64(Governor.proposalDeadline(proposalId));
+            dd.originalDeadline = uint64(GovernorBase.proposalDeadline(proposalId));
             dd.currentDeadline = dd.originalDeadline;
         }
 

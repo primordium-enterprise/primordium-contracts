@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 
 import {ERC20CheckpointsUpgradeable} from "./ERC20CheckpointsUpgradeable.sol";
 import {ERC20VotesUpgradeable} from "./ERC20VotesUpgradeable.sol";
-import "../interfaces/ISharesManager.sol";
+import {ISharesManager} from "../interfaces/ISharesManager.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {ITreasury} from "contracts/executor/interfaces/ITreasury.sol";
 import {Ownable1Or2StepUpgradeable} from "contracts/utils/Ownable1Or2StepUpgradeable.sol";

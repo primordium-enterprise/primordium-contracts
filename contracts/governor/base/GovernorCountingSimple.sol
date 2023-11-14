@@ -4,16 +4,16 @@
 
 pragma solidity ^0.8.20;
 
-import "../Governor.sol";
+import "./GovernorBase.sol";
 
 /**
- * @dev Extension of {Governor} for simple, 3 options, vote counting.
+ * @dev Extension of {GovernorBase} for simple, 3 options, vote counting.
  *
  * _Available since v4.3._
  */
-abstract contract GovernorCountingSimple is Governor {
+abstract contract GovernorCountingSimple is GovernorBase {
     /**
-     * @dev Supported vote types. Matches Governor Bravo ordering.
+     * @dev Supported vote types. Matches GovernorBase Bravo ordering.
      */
     enum VoteType {
         Against,
@@ -66,7 +66,7 @@ abstract contract GovernorCountingSimple is Governor {
     }
 
     /**
-     * @dev See {Governor-_quorumReached}.
+     * @dev See {GovernorBase-_quorumReached}.
      */
     function _quorumReached(uint256 proposalId) internal view virtual override returns (bool) {
         ProposalVote storage proposalVote = _proposalVotes[proposalId];
@@ -75,7 +75,7 @@ abstract contract GovernorCountingSimple is Governor {
     }
 
     /**
-     * @dev See {Governor-_voteSucceeded}. In this module, the forVotes must be strictly over the againstVotes.
+     * @dev See {GovernorBase-_voteSucceeded}. In this module, the forVotes must be strictly over the againstVotes.
      */
     function _voteSucceeded(uint256 proposalId) internal view virtual override returns (bool) {
         ProposalVote storage proposalVote = _proposalVotes[proposalId];
@@ -84,7 +84,7 @@ abstract contract GovernorCountingSimple is Governor {
     }
 
     /**
-     * @dev See {Governor-_voteMargin}. In this module, the margin is just the difference between the forVotes and
+     * @dev See {GovernorBase-_voteMargin}. In this module, the margin is just the difference between the forVotes and
      * againstVotes.
      */
     function _voteMargin(uint256 proposalId) internal view virtual override returns (uint256) {
@@ -95,7 +95,7 @@ abstract contract GovernorCountingSimple is Governor {
     }
 
     /**
-     * @dev See {Governor-_countVote}. In this module, the support follows the `VoteType` enum (from Governor Bravo).
+     * @dev See {GovernorBase-_countVote}. In this module, the support follows the `VoteType` enum (from GovernorBase Bravo).
      */
     function _countVote(
         uint256 proposalId,

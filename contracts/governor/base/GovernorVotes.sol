@@ -4,19 +4,19 @@
 
 pragma solidity ^0.8.20;
 
-import "../Governor.sol";
+import "./GovernorBase.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 
 /**
- * @dev Extension of {Governor} for voting weight extraction from an {ERC20Votes} token, or since v4.5 an {ERC721Votes}
+ * @dev Extension of {GovernorBase} for voting weight extraction from an {ERC20Votes} token, or since v4.5 an {ERC721Votes}
  * token.
  *
  * _Available since v4.3._
  */
-abstract contract GovernorVotes is Governor {
+abstract contract GovernorVotes is GovernorBase {
 
     /**
-     * Read the voting weight from the token's built in snapshot mechanism (see {Governor-_getVotes}).
+     * Read the voting weight from the token's built in snapshot mechanism (see {GovernorBase-_getVotes}).
      */
     function _getVotes(
         address account,

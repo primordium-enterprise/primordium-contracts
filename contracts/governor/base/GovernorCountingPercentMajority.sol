@@ -35,7 +35,7 @@ abstract contract GovernorCountingPercentMajority is GovernorCountingSimple {
 
     /**
      * @notice Returns the percent majority at the specified timepoint.
-     * @param timepoint The timepoint according to the clock mode of the Governor.
+     * @param timepoint The timepoint according to the clock mode of the GovernorBase.
      */
     function percentMajority(uint256 timepoint) public view virtual returns (uint256) {
         return _percentMajority(timepoint);

@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
- * @dev Extension of {Governor} for voting weight extraction from an {ERC20Votes} token and a quorum expressed as a
+ * @dev Extension of {GovernorBase} for voting weight extraction from an {ERC20Votes} token and a quorum expressed as a
  * fraction of the total supply, in basis points.
  *
  * The DAO can set the {quorumBps} to zero to allow any vote to pass without a quorum.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
-// Based on OpenZeppelin Contracts (last updated v4.8.0) (Governor.sol)
+// Based on OpenZeppelin Contracts (last updated v4.8.0) (GovernorBase.sol)
 
 pragma solidity ^0.8.20;
 
@@ -93,11 +93,11 @@ abstract contract GovernorBase is
         while (_governanceCall.popFront() != msgDataHash) {}
     }
 
-    function __Governor_init(
+    function __GovernorBase_init(
         address timelockAvatar_,
         address token_
     ) internal virtual onlyInitializing {
-        __EIP712_init(name(), version());
+        __EIP712_init(name(), version()); // TODO: This should move to the master init function
         __TimelockAvatarControlled_init(timelockAvatar_);
         _token = token_;
         // Token clock must match
@@ -106,6 +106,7 @@ abstract contract GovernorBase is
         _isFounding = SharesManager(token_).provisionMode() == ISharesManager.ProvisionMode.Founding;
     }
 
+    // TODO: This must be turned into a state variable to ensure upgradeability
     function name() public view virtual override returns (string memory) {
         return "__Governor";
     }
@@ -159,11 +160,11 @@ abstract contract GovernorBase is
     }
 
     /**
-     * @dev A helpful extension for initializing the Governor when deploying the first version
+     * @dev A helpful extension for initializing the GovernorBase when deploying the first version
      *
      * 1. Deploy Executor (deployer address as the owner)
-     * 2. Deploy Governor with _executor address set to address(0)
-     * 3. Call initialize on Governor from deployer address (to set the _executor and complete the ownership transfer)
+     * 2. Deploy GovernorBase with _executor address set to address(0)
+     * 3. Call initialize on GovernorBase from deployer address (to set the _executor and complete the ownership transfer)
      */
     // function initialize(Executor newExecutor) public virtual {
     //     initializeExecutor(newExecutor);
@@ -421,11 +422,23 @@ abstract contract GovernorBase is
             unchecked { ++i; }
         }
 
+        return _propose(targets, values, calldatas, signatures, description, proposer);
+
+    }
+
+    function _propose(
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas,
+        string[] calldata signatures,
+        string calldata description,
+        address proposer
+    ) internal virtual returns (uint256 proposalId) {
         // Increment proposal counter
         uint256 newProposalId = ++proposalCount;
 
         // Generate voting periods
-        uint256 snapshot = currentTimepoint + votingDelay();
+        uint256 snapshot = clock() + votingDelay();
         uint256 duration = votingPeriod();
 
         ProposalCore storage proposal = _proposals[newProposalId];

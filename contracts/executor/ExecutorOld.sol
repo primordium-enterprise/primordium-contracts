@@ -2,7 +2,7 @@
 // // Primordium Contracts
 // // Based on OpenZeppelin Contracts (last updated v4.8.2) (TimelockController.sol)
 
-// pragma solidity ^0.8.20;
+pragma solidity ^0.8.20;
 
 // import "@openzeppelin/contracts/access/AccessControl.sol";
 // import "@openzeppelin/contracts/access/Ownable2Step.sol";

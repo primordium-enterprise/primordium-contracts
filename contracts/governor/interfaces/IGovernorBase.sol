@@ -9,7 +9,7 @@ import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 
 /**
- * @dev Interface of the {Governor} core.
+ * @dev Interface of the {GovernorBase} core.
  *
  * _Available since v4.3._
  */
