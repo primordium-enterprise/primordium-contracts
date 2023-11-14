@@ -15,6 +15,7 @@ import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import "contracts/shares/base/SharesManager.sol";
 import {IGovernorBase} from "../interfaces/IGovernorBase.sol";
 import "contracts/utils/TimelockAvatarControlled.sol";
+import {SelectorChecker} from "contracts/libraries/SelectorChecker.sol";
 import {Roles} from "contracts/utils/Roles.sol";
 import "contracts/libraries/MultiSendEncoder.sol";
 
@@ -368,6 +369,7 @@ abstract contract GovernorBase is
         return keccak256(abi.encode(proposalId, targets, values, calldatas));
     }
 
+    // TODO: Document this with signatures, etc.
     /**
      * @dev See {IGovernor-propose}.
      */
@@ -385,13 +387,6 @@ abstract contract GovernorBase is
             getVotes(proposer, currentTimepoint - 1) < proposalThreshold() &&
             !_hasRole(PROPOSER_ROLE, proposer)
         ) revert UnauthorizedToSubmitProposal();
-
-        if (targets.length == 0) revert MissingArrayItems();
-        if (
-            targets.length != values.length ||
-            targets.length != calldatas.length ||
-            targets.length != signatures.length
-        ) revert MismatchingArrayLengths();
 
         // If the DAO is in founding mode, then check if governance is even allowed
         if (_isFounding) {
@@ -411,17 +406,6 @@ abstract contract GovernorBase is
             }
         }
 
-        // Verify the human-readable function signatures
-        // Fail if calldata is included BUT the function signature doesn't match the calldata function identifier
-        for (uint256 i = 0; i < signatures.length;) {
-            if (calldatas[i].length > 0) {
-                if (
-                    bytes4(calldatas[i]) != bytes4(keccak256(bytes(signatures[i])))
-                ) revert InvalidActionSignature(i);
-            }
-            unchecked { ++i; }
-        }
-
         return _propose(targets, values, calldatas, signatures, description, proposer);
 
     }
@@ -434,6 +418,17 @@ abstract contract GovernorBase is
         string calldata description,
         address proposer
     ) internal virtual returns (uint256 proposalId) {
+
+        if (targets.length == 0) revert MissingArrayItems();
+        if (
+            targets.length != values.length ||
+            targets.length != calldatas.length ||
+            targets.length != signatures.length
+        ) revert MismatchingArrayLengths();
+
+        // Verify the human-readable function signatures
+        SelectorChecker.verifySelectors(calldatas, signatures);
+
         // Increment proposal counter
         uint256 newProposalId = ++proposalCount;
 
