@@ -7,12 +7,12 @@ pragma solidity ^0.8.20;
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {IERC20Checkpoints} from "../interfaces/IERC20Checkpoints.sol";
-import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
@@ -31,8 +31,8 @@ abstract contract ERC20CheckpointsUpgradeable is
     ContextUpgradeable,
     ERC20Upgradeable,
     ERC20PermitUpgradeable,
-    IERC20Checkpoints,
-    IERC165
+    ERC165Upgradeable,
+    IERC20Checkpoints
 {
     using Checkpoints for Checkpoints.Trace208;
 
@@ -63,13 +63,13 @@ abstract contract ERC20CheckpointsUpgradeable is
         _;
     }
 
-    function supportsInterface(bytes4 interfaceId) public pure virtual returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         return
             interfaceId == type(IERC20).interfaceId ||
             interfaceId == type(IERC20Metadata).interfaceId ||
             interfaceId == type(IERC20Permit).interfaceId ||
             interfaceId == type(IERC20Checkpoints).interfaceId ||
-            interfaceId == type(IERC165).interfaceId;
+            super.supportsInterface(interfaceId);
     }
 
     /**

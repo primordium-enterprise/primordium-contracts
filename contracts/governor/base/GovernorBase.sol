@@ -13,10 +13,9 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import "contracts/shares/base/SharesManager.sol";
-import "../executor/Executor.sol";
-import "./IGovernor.sol";
-import "../utils/TimelockAvatarControlled.sol";
-import "../utils/Roles.sol";
+import {IGovernorBase} from "../interfaces/IGovernorBase.sol";
+import "contracts/utils/TimelockAvatarControlled.sol";
+import {Roles} from "contracts/utils/Roles.sol";
 import "contracts/libraries/MultiSendEncoder.sol";
 
 /**
@@ -31,7 +30,14 @@ import "contracts/libraries/MultiSendEncoder.sol";
  *
  * _Available since v4.3._
  */
-abstract contract Governor is ContextUpgradeable, ERC165, EIP712Upgradeable, TimelockAvatarControlled, IGovernor, Roles {
+abstract contract GovernorBase is
+    ContextUpgradeable,
+    ERC165,
+    EIP712Upgradeable,
+    TimelockAvatarControlled,
+    IGovernorBase,
+    Roles
+{
 
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
     using SafeCast for uint256;
@@ -146,9 +152,9 @@ abstract contract Governor is ContextUpgradeable, ERC165, EIP712Upgradeable, Tim
         // In addition to the current interfaceId, also support previous version of the interfaceId that did not
         // include the castVoteWithReasonAndParams() function as standard
         return
-            interfaceId == type(IGovernor).interfaceId ||
+            interfaceId == type(IGovernorBase).interfaceId ||
             // Previous interface for backwards compatibility
-            interfaceId == (type(IGovernor).interfaceId ^ type(IERC6372).interfaceId ^ this.cancel.selector) ||
+            interfaceId == (type(IGovernorBase).interfaceId ^ type(IERC6372).interfaceId ^ this.cancel.selector) ||
             super.supportsInterface(interfaceId);
     }
 
