@@ -292,62 +292,9 @@ abstract contract GovernorBase is
         return _getGovernorBaseStorage()._proposals[proposalId].proposer;
     }
 
-    /**
-     * @dev Amount of votes already cast passes the threshold limit.
-     */
-    function _quorumReached(uint256 proposalId) internal view virtual returns (bool);
-
-    /**
-     * @dev Is the proposal successful or not.
-     */
-    function _voteSucceeded(uint256 proposalId) internal view virtual returns (bool);
-
-    /**
-     * @dev The vote spread (the difference between For and Against counts)
-     */
-    function _voteMargin(uint256 proposalId) internal view virtual returns (uint256);
-
-    /**
-     * @dev Get the voting weight of `account` at a specific `timepoint`, for a vote as described by `params`.
-     */
-    function _getVotes(
-        address account,
-        uint256 timepoint,
-        bytes memory params
-    ) internal view virtual returns (uint256 voteWeight) {
-        voteWeight = _getVotes(token(), account, timepoint, params);
-    }
-
-    function _getVotes(
-        IGovernorToken _token,
-        address account,
-        uint256 timepoint,
-        bytes memory /*params*/
-    ) internal view virtual returns (uint256 voteWeight) {
-        voteWeight = _token.getPastVotes(account, timepoint);
-    }
-
-    /**
-     * @dev Register a vote for `proposalId` by `account` with a given `support`, voting `weight` and voting `params`.
-     *
-     * Note: Support is generic and can represent various things depending on the voting system used.
-     */
-    function _countVote(
-        uint256 proposalId,
-        address account,
-        uint8 support,
-        uint256 weight,
-        bytes memory params
-    ) internal virtual;
-
-    /**
-     * @dev Default additional encoded parameters used by castVote methods that don't include them
-     *
-     * Note: Should be overridden by specific implementations to use an appropriate value, the
-     * meaning of the additional params, in the context of that implementation
-     */
-    function _defaultParams() internal view virtual returns (bytes memory) {
-        return "";
+    /// @inheritdoc IGovernorBase
+    function proposalEta(uint256 proposalId) public view virtual override returns (uint256) {
+        return _getGovernorBaseStorage()._proposals[proposalId].etaSeconds;
     }
 
     /**
@@ -445,12 +392,12 @@ abstract contract GovernorBase is
                 governanceThresholdBps := and(shr(0xd0, packedVotesManagement), 0xffff)
             }
             uint256 currentVoteSupply = _token.getPastTotalSupply(currentClock - 1);
-            uint256 currentRequiredVoteSupply = governanceThresholdBps.bpsUnchecked(_token.maxSupply());
-            if (currentRequiredVoteSupply > currentVoteSupply) {
-                revert GovernanceThresholdIsNotMet(governanceThresholdBps, currentVoteSupply, currentRequiredVoteSupply);
+            uint256 requiredVoteSupply = governanceThresholdBps.bpsUnchecked(_token.maxSupply());
+            if (requiredVoteSupply > currentVoteSupply) {
+                revert GovernanceThresholdIsNotMet(governanceThresholdBps, currentVoteSupply, requiredVoteSupply);
             }
 
-            // Ensure that the proposal action is to initializeGovernance()
+            // Ensure that the proposal action is to initializeGovernance() on this Governor
             if (
                 targets.length != 1 ||
                 targets[0] != address(this) ||
@@ -460,6 +407,7 @@ abstract contract GovernorBase is
             }
         }
 
+        // Check the proposer's votes against the proposalThreshold(), also check the proposer's role
         if (
             _getVotes(_token, proposer, currentClock - 1, _defaultParams()) < proposalThreshold() &&
             !_hasRole(PROPOSER_ROLE, proposer)
@@ -591,6 +539,25 @@ abstract contract GovernorBase is
         return proposalId;
     }
 
+    /**
+     * @dev Overridden execute function that run the already queued proposal through the timelock.
+     */
+    function _executeOperations(
+        uint256 proposalId,
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
+    ) internal virtual {
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSendCalldata(
+            address(_timelockAvatar),
+            targets,
+            values,
+            calldatas
+        );
+        _timelockAvatar.executeOperation($._opNonces[proposalId], to, value, data, Enum.Operation.Call);
+    }
+
     function cancel(
         uint256 proposalId
     ) public virtual override returns (uint256) {
@@ -637,30 +604,6 @@ abstract contract GovernorBase is
         return proposalId;
     }
 
-    /**
-     * @dev Overridden execute function that run the already queued proposal through the timelock.
-     */
-    function _executeOperations(
-        uint256 proposalId,
-        address[] calldata targets,
-        uint256[] calldata values,
-        bytes[] calldata calldatas
-    ) internal virtual {
-        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
-        (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSendCalldata(
-            address(_timelockAvatar),
-            targets,
-            values,
-            calldatas
-        );
-        _timelockAvatar.executeOperation($._opNonces[proposalId], to, value, data, Enum.Operation.Call);
-    }
-
-    /// @inheritdoc IGovernorBase
-    function proposalEta(uint256 proposalId) public view virtual override returns (uint256) {
-        return _getGovernorBaseStorage()._proposals[proposalId].etaSeconds;
-    }
-
     /// @inheritdoc IGovernorBase
     function getVotes(address account, uint256 timepoint) public view virtual override returns (uint256) {
         return _getVotes(account, timepoint, _defaultParams());
@@ -673,6 +616,26 @@ abstract contract GovernorBase is
         bytes memory params
     ) public view virtual override returns (uint256) {
         return _getVotes(account, timepoint, params);
+    }
+
+    /**
+     * @dev Get the voting weight of `account` at a specific `timepoint`, for a vote as described by `params`.
+     */
+    function _getVotes(
+        address account,
+        uint256 timepoint,
+        bytes memory params
+    ) internal view virtual returns (uint256 voteWeight) {
+        voteWeight = _getVotes(token(), account, timepoint, params);
+    }
+
+    function _getVotes(
+        IGovernorToken _token,
+        address account,
+        uint256 timepoint,
+        bytes memory /*params*/
+    ) internal view virtual returns (uint256 voteWeight) {
+        voteWeight = _token.getPastVotes(account, timepoint);
     }
 
     /// @inheritdoc IGovernorBase
@@ -795,14 +758,13 @@ abstract contract GovernorBase is
     }
 
     /**
-     * @dev Relays a transaction or function call to an arbitrary target. In cases where the governance _timelockAvatar
-     * is some contract other than the governor itself, like when using a timelock, this function can be invoked
-     * in a governance proposal to recover tokens or Ether that was sent to the governor contract by mistake.
-     * Note that if the _timelockAvatar is simply the governor itself, use of `relay` is redundant.
+     * @dev Default additional encoded parameters used by castVote methods that don't include them
+     *
+     * Note: Should be overridden by specific implementations to use an appropriate value, the
+     * meaning of the additional params, in the context of that implementation
      */
-    function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyGovernance {
-        (bool success, bytes memory returndata) = target.call{value: value}(data);
-        Address.verifyCallResult(success, returndata);
+    function _defaultParams() internal view virtual returns (bytes memory) {
+        return "";
     }
 
     function votingDelay() public view virtual returns (uint256);
@@ -851,6 +813,45 @@ abstract contract GovernorBase is
         address[] calldata accounts
     ) public virtual onlyGovernance {
         _revokeRolesBatch(roles, accounts);
+    }
+
+    /**
+     * @dev Amount of votes already cast passes the threshold limit.
+     */
+    function _quorumReached(uint256 proposalId) internal view virtual returns (bool);
+
+    /**
+     * @dev Is the proposal successful or not.
+     */
+    function _voteSucceeded(uint256 proposalId) internal view virtual returns (bool);
+
+    /**
+     * @dev The vote spread (the difference between For and Against counts)
+     */
+    function _voteMargin(uint256 proposalId) internal view virtual returns (uint256);
+
+    /**
+     * @dev Register a vote for `proposalId` by `account` with a given `support`, voting `weight` and voting `params`.
+     *
+     * Note: Support is generic and can represent various things depending on the voting system used.
+     */
+    function _countVote(
+        uint256 proposalId,
+        address account,
+        uint8 support,
+        uint256 weight,
+        bytes memory params
+    ) internal virtual;
+
+    /**
+     * @dev Relays a transaction or function call to an arbitrary target. In cases where the governance _timelockAvatar
+     * is some contract other than the governor itself, like when using a timelock, this function can be invoked
+     * in a governance proposal to recover tokens or Ether that was sent to the governor contract by mistake.
+     * Note that if the _timelockAvatar is simply the governor itself, use of `relay` is redundant.
+     */
+    function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyGovernance {
+        (bool success, bytes memory returndata) = target.call{value: value}(data);
+        Address.verifyCallResult(success, returndata);
     }
 
 }
