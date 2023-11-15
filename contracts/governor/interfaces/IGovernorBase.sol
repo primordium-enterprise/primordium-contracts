@@ -6,14 +6,13 @@ pragma solidity ^0.8.20;
 
 import {IArrayLengthErrors} from "contracts/interfaces/IArrayLengthErrors.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
+import {IERC5805} from "@openzeppelin/contracts/interfaces/IERC5805.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 
 /**
  * @dev Interface of the {GovernorBase} core.
- *
- * _Available since v4.3._
  */
-abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
+interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
 
     enum ProposalState {
         Pending,
@@ -101,23 +100,12 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     /**
      * @dev Name of the governor instance (used in building the ERC712 domain separator).
      */
-    function name() public view virtual returns (string memory);
+    function name() external view returns (string memory);
 
     /**
      * @dev Version of the governor instance (used in building the ERC712 domain separator). Default: "1"
      */
-    function version() public view virtual returns (string memory);
-
-    /**
-     * @dev See {IERC6372}
-     */
-    function clock() public view virtual override returns (uint48);
-
-    /**
-     * @dev See EIP-6372.
-     */
-    // solhint-disable-next-line func-name-mixedcase
-    function CLOCK_MODE() public view virtual override returns (string memory);
+    function version() external view returns (string memory);
 
     /**
      * @dev A description of the possible `support` values for {castVote} and the way these votes are counted, meant to
@@ -141,35 +129,47 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
      * JavaScript class.
      */
     // solhint-disable-next-line func-name-mixedcase
-    function COUNTING_MODE() public view virtual returns (string memory);
+    function COUNTING_MODE() external view returns (string memory);
+
+    function token() external view returns (IERC5805);
 
     /**
-     * @dev Current state of a proposal, following Compound's convention
+     * Current state of a proposal, following Compound's convention.
      */
-    function state(uint256 proposalId) public view virtual returns (ProposalState);
+    function state(uint256 proposalId) external view returns (ProposalState);
+
+    /**
+     * Returns the total number of submitted proposals.
+     */
+    function proposalCount() external view returns (uint256 _proposalCount);
 
     /**
      * @dev Timepoint used to retrieve user's votes and quorum. If using block number (as per Compound's Comp), the
      * snapshot is performed at the end of this block. Hence, voting for this proposal starts at the beginning of the
      * following block.
      */
-    function proposalSnapshot(uint256 proposalId) public view virtual returns (uint256);
+    function proposalSnapshot(uint256 proposalId) external view returns (uint256);
 
     /**
      * @dev Timepoint at which votes close. If using block number, votes close at the end of this block, so it is
      * possible to cast a vote during this block.
      */
-    function proposalDeadline(uint256 proposalId) public view virtual returns (uint256);
+    function proposalDeadline(uint256 proposalId) external view returns (uint256);
 
     /**
      * @dev Returns the hash of the proposal actions
      */
-    function proposalActionsHash(uint256 proposalId) public view virtual returns (bytes32);
+    function proposalActionsHash(uint256 proposalId) external view returns (bytes32);
+
+    /**
+     * @dev Address of the proposer
+     */
+    function proposalProposer(uint256 proposalId) external view returns (address);
 
     /**
      * @dev The current number of votes that need to be delegated to the msg.sender in order to create a new proposal.
      */
-    function proposalThreshold() public view virtual returns (uint256);
+    function proposalThreshold() external view returns (uint256);
 
     /**
      * @dev Delay, between the proposal is created and the vote starts. The unit this duration is expressed in depends
@@ -178,7 +178,7 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
      * This can be increased to leave time for users to buy voting power, or delegate it, before the voting of a
      * proposal starts.
      */
-    function votingDelay() public view virtual returns (uint256);
+    function votingDelay() external view returns (uint256);
 
     /**
      * @dev Delay, between the vote start and vote ends. The unit this duration is expressed in depends on the clock
@@ -187,7 +187,7 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
      * NOTE: The {votingDelay} can delay the start of the vote. This must be considered when setting the voting
      * duration compared to the voting delay.
      */
-    function votingPeriod() public view virtual returns (uint256);
+    function votingPeriod() external view returns (uint256);
 
     /**
      * @dev Minimum number of cast voted required for a proposal to be successful.
@@ -195,15 +195,12 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
      * NOTE: The `timepoint` parameter corresponds to the snapshot used for counting vote. This allows to scale the
      * quorum depending on values such as the totalSupply of a token at this timepoint (see {ERC20Votes}).
      */
-    function quorum(uint256 timepoint) public view virtual returns (uint256);
+    function quorum(uint256 timepoint) external view returns (uint256);
 
     /**
      * @dev Voting power of an `account` at a specific `timepoint`.
-     *
-     * Note: this can be implemented in a number of ways, for example by reading the delegated balance from one (or
-     * multiple), {ERC20Votes} tokens.
      */
-    function getVotes(address account, uint256 timepoint) public view virtual returns (uint256);
+    function getVotes(address account, uint256 timepoint) external view returns (uint256);
 
     /**
      * @dev Voting power of an `account` at a specific `timepoint` given additional encoded parameters.
@@ -212,12 +209,12 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         address account,
         uint256 timepoint,
         bytes memory params
-    ) public view virtual returns (uint256);
+    ) external view returns (uint256);
 
     /**
      * @dev Returns whether `account` has cast a vote on `proposalId`.
      */
-    function hasVoted(uint256 proposalId, address account) public view virtual returns (bool);
+    function hasVoted(uint256 proposalId, address account) external view returns (bool);
 
     /**
      * @dev Hashing function used to verify the proposal actions that were originally submitted.
@@ -227,7 +224,7 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
-    ) public pure virtual returns (bytes32);
+    ) external pure returns (bytes32);
 
     /**
      * @dev Create a new proposal. Vote start after a delay specified by {IGovernor-votingDelay} and lasts for a
@@ -243,7 +240,7 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         bytes[] calldata calldatas,
         string[] calldata signatures,
         string calldata description
-    ) public virtual returns (uint256 proposalId);
+    ) external returns (uint256 proposalId);
 
     /**
      * @dev Queue a proposal in the Executor for execution.
@@ -255,7 +252,7 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
-    ) public virtual returns (uint256 proposalId_);
+    ) external returns (uint256 proposalId_);
 
     /**
      * @dev Execute a successful proposal. This requires the quorum to be reached, the vote to be successful, and the
@@ -270,7 +267,7 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
-    ) public virtual returns (uint256 proposalId_);
+    ) external returns (uint256 proposalId_);
 
     /**
      * @dev Cancel a proposal. A proposal is cancellable by the proposer, but only while it is Pending state, i.e.
@@ -282,19 +279,19 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
      */
     function cancel(
         uint256 proposalId
-    ) public virtual returns (uint256 proposalId_);
+    ) external returns (uint256 proposalId_);
 
     /**
      * @dev Public accessor to check the eta of a queued proposal.
      */
-    function proposalEta(uint256 proposalId) public view virtual returns (uint256);
+    function proposalEta(uint256 proposalId) external view returns (uint256);
 
     /**
      * @dev Cast a vote
      *
      * Emits a {VoteCast} event.
      */
-    function castVote(uint256 proposalId, uint8 support) public virtual returns (uint256 balance);
+    function castVote(uint256 proposalId, uint8 support) external returns (uint256 balance);
 
     /**
      * @dev Cast a vote with a reason
@@ -305,7 +302,7 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         uint256 proposalId,
         uint8 support,
         string calldata reason
-    ) public virtual returns (uint256 balance);
+    ) external returns (uint256 balance);
 
     /**
      * @dev Cast a vote with a reason and additional encoded parameters
@@ -317,7 +314,7 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         uint8 support,
         string calldata reason,
         bytes memory params
-    ) public virtual returns (uint256 balance);
+    ) external returns (uint256 balance);
 
     /**
      * @dev Cast a vote using the user's cryptographic signature.
@@ -330,7 +327,7 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) public virtual returns (uint256 balance);
+    ) external returns (uint256 balance);
 
     /**
      * @dev Cast a vote with a reason and additional encoded parameters using the user's cryptographic signature.
@@ -345,6 +342,6 @@ abstract contract IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) public virtual returns (uint256 balance);
+    ) external returns (uint256 balance);
 
 }

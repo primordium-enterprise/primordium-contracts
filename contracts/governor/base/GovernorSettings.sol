@@ -4,7 +4,8 @@
 
 pragma solidity ^0.8.20;
 
-import "./GovernorBase.sol";
+import {GovernorBase} from "./GovernorBase.sol";
+import {IERC5805} from "@openzeppelin/contracts/interfaces/IERC5805.sol";
 
 /**
  * @dev Extension of {GovernorBase} for settings updatable through governance.
@@ -70,10 +71,14 @@ abstract contract GovernorSettings is GovernorBase {
     /**
      * @dev Returns the current proposal threshold of votes required to submit a proposal, as a basis points function of
      * the current total supply.
+     * @return threshold The total votes required.
      */
-    function proposalThreshold() public view virtual override returns (uint256) {
+    function proposalThreshold() public view virtual override returns (uint256 threshold) {
         // Overflow not a problem as long as the token's max supply <= type(uint224).max
-        return (ERC20CheckpointsUpgradeable(_token).totalSupply() * _proposalThresholdBps) / MAX_BPS;
+        IERC5805 _token = token();
+        unchecked {
+            threshold = (_token.getPastTotalSupply(_clock(_token) - 1) * _proposalThresholdBps) / MAX_BPS;
+        }
     }
 
     /**

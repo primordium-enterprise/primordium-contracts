@@ -1,23 +1,27 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
-// Based on OpenZeppelin Contracts (last updated v4.8.0) (GovernorBase.sol)
+// Based on OpenZeppelin Contracts (last updated v5.0.0) (Governor.sol)
 
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
-import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
+import {IERC5805} from "@openzeppelin/contracts/interfaces/IERC5805.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
-import "contracts/shares/base/SharesManager.sol";
 import {IGovernorBase} from "../interfaces/IGovernorBase.sol";
-import "contracts/utils/TimelockAvatarControlled.sol";
-import {SelectorChecker} from "contracts/libraries/SelectorChecker.sol";
 import {Roles} from "contracts/utils/Roles.sol";
-import "contracts/libraries/MultiSendEncoder.sol";
+import {TimelockAvatarControlled} from "contracts/utils/TimelockAvatarControlled.sol";
+import {TimelockAvatar} from "contracts/executor/base/TimelockAvatar.sol";
+import {Enum} from "contracts/common/Enum.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
+import {SelectorChecker} from "contracts/libraries/SelectorChecker.sol";
+import {MultiSendEncoder} from "contracts/libraries/MultiSendEncoder.sol";
 
 /**
  * @dev Core of the governance system, designed to be extended though various modules.
@@ -39,7 +43,6 @@ abstract contract GovernorBase is
     IGovernorBase,
     Roles
 {
-
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
     using SafeCast for uint256;
 
@@ -53,6 +56,13 @@ abstract contract GovernorBase is
         uint48 etaSeconds;
     }
 
+    struct VotesManagement {
+        IERC5805 _token; // 20 bytes
+        bool _isFounded; // 1 byte
+        uint16 _governanceThresholdBps; // 2 bytes
+        uint40 _governanceCanBeginAt; // 5 bytes
+    }
+
     bytes32 public constant BALLOT_TYPEHASH = keccak256("Ballot(uint256 proposalId,uint8 support)");
     bytes32 public constant EXTENDED_BALLOT_TYPEHASH =
         keccak256("ExtendedBallot(uint256 proposalId,uint8 support,string reason,bytes params)");
@@ -60,22 +70,33 @@ abstract contract GovernorBase is
     bytes32 public constant PROPOSER_ROLE = keccak256("PROPOSER");
     bytes32 public constant CANCELER_ROLE = keccak256("CANCELER");
 
-    // Proposals counter
-    uint256 public proposalCount;
+    /// @custom:storage-location erc7201:GovernorBase.Storage
+    struct GovernorBaseStorage {
+        uint256 _proposalCount;
 
-    // Tracking queued operations on the _timelockAvatar
-    mapping(uint256 => uint256) private _opNonces;
+        mapping(uint256 => ProposalCore) _proposals;
 
-    mapping(uint256 => ProposalCore) private _proposals;
+        // Tracking queued operations on the _timelockAvatar
+        mapping(uint256 => uint256) _opNonces;
 
-    // This queue keeps track of the governor operating on itself. Calls to functions protected by the
-    // {onlyGovernance} modifier needs to be whitelisted in this queue. Whitelisting is set in {_beforeExecute},
-    // consumed by the {onlyGovernance} modifier and eventually reset in {_afterExecute}. This ensures that the
-    // execution of {onlyGovernance} protected calls can only be achieved through successful proposals.
-    DoubleEndedQueue.Bytes32Deque private _governanceCall;
+        VotesManagement _votesManagement;
 
-    address internal _token;
-    bool internal _isFounding;
+        // This queue keeps track of the governor operating on itself. Calls to functions protected by the
+        // {onlyGovernance} modifier needs to be whitelisted in this queue. Whitelisting is set in {execute}, consumed
+        // by the {onlyGovernance} modifier and eventually reset after {_executeOperations} is complete. This ensures
+        // that the execution of {onlyGovernance} protected calls can only be achieved through successful proposals.
+        DoubleEndedQueue.Bytes32Deque _governanceCall;
+    }
+
+    bytes32 private immutable GOVERNOR_BASE_STORAGE =
+        keccak256(abi.encode(uint256(keccak256("GovernorBase.Storage")) - 1)) & ~bytes32(uint256(0xff));
+
+    function _getGovernorBaseStorage() private view returns (GovernorBaseStorage storage $) {
+        bytes32 governorBaseStorageSlot = GOVERNOR_BASE_STORAGE;
+        assembly {
+            $.slot := governorBaseStorageSlot
+        }
+    }
 
     /**
      * @dev Restricts a function so it can only be executed through governance proposals. For example, governance
@@ -87,64 +108,19 @@ abstract contract GovernorBase is
     }
 
     function _onlyGovernance() private {
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
         address timelock = address(_timelockAvatar);
         if (msg.sender != timelock) revert OnlyGovernance();
         bytes32 msgDataHash = keccak256(_msgData());
         // loop until popping the expected operation - throw if deque is empty (operation not authorized)
-        while (_governanceCall.popFront() != msgDataHash) {}
+        while ($._governanceCall.popFront() != msgDataHash) {}
     }
 
     function __GovernorBase_init(
-        address timelockAvatar_,
-        address token_
+        address timelockAvatar_
     ) internal virtual onlyInitializing {
         __EIP712_init(name(), version()); // TODO: This should move to the master init function
         __TimelockAvatarControlled_init(timelockAvatar_);
-        _token = token_;
-        // Token clock must match
-        if (ERC20CheckpointsUpgradeable(token_).clock() != clock()) revert GovernorClockMustMatchTokenClock();
-        // Set founding bool (for checking proposals)
-        _isFounding = SharesManager(token_).provisionMode() == ISharesManager.ProvisionMode.Founding;
-    }
-
-    // TODO: This must be turned into a state variable to ensure upgradeability
-    function name() public view virtual override returns (string memory) {
-        return "__Governor";
-    }
-
-    function version() public view virtual override returns (string memory) {
-        return "1";
-    }
-
-    /**
-     * @dev Clock (as specified in EIP-6372) is set to match the token's clock. Fallback to block numbers if the token
-     * does not implement EIP-6372.
-     */
-    function clock() public view virtual override returns (uint48) {
-        try IERC6372(_token).clock() returns (uint48 timepoint) {
-            return timepoint;
-        } catch {
-            return SafeCast.toUint48(block.number);
-        }
-    }
-
-    /**
-     * @dev Machine-readable description of the clock as specified in EIP-6372.
-     */
-    // solhint-disable-next-line func-name-mixedcase
-    function CLOCK_MODE() public view virtual override returns (string memory) {
-        try IERC6372(_token).CLOCK_MODE() returns (string memory clockmode) {
-            return clockmode;
-        } catch {
-            return "mode=blocknumber&from=default";
-        }
-    }
-
-    /**
-     * @notice Returns the address of the token contract used for keeping a tally of votes
-     */
-    function token() public view returns (address) {
-        return _token;
     }
 
     /**
@@ -160,17 +136,57 @@ abstract contract GovernorBase is
             super.supportsInterface(interfaceId);
     }
 
+    // TODO: This must be turned into a state variable to ensure upgradeability
+    /// @inheritdoc IGovernorBase
+    function name() public view virtual override returns (string memory) {
+        return "__Governor";
+    }
+
+    /// @inheritdoc IGovernorBase
+    function version() public view virtual override returns (string memory) {
+        return "1";
+    }
+
+    /// @inheritdoc IGovernorBase
+    function token() public view returns (IERC5805 _token) {
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        _token = $._votesManagement._token;
+    }
+
+    /// @inheritdoc IERC6372
+    function clock() public view virtual override returns (uint48) {
+        return _clock(token());
+    }
+
+    function _clock(IERC5805 _token) internal view virtual returns (uint48) {
+        try _token.clock() returns (uint48 timepoint) {
+            return timepoint;
+        } catch {
+            return Time.blockNumber();
+        }
+    }
+
+    /// @inheritdoc IERC6372
+    // solhint-disable-next-line func-name-mixedcase
+    function CLOCK_MODE() public view virtual override returns (string memory) {
+        try token().CLOCK_MODE() returns (string memory clockmode) {
+            return clockmode;
+        } catch {
+            return "mode=blocknumber&from=default";
+        }
+    }
+
+    /// @inheritdoc IGovernorBase
+    function proposalCount() public view virtual returns (uint256 _proposalCount) {
+        _proposalCount = _getGovernorBaseStorage()._proposalCount;
+    }
+
     /**
-     * @dev A helpful extension for initializing the GovernorBase when deploying the first version
-     *
-     * 1. Deploy Executor (deployer address as the owner)
-     * 2. Deploy GovernorBase with _executor address set to address(0)
-     * 3. Call initialize on GovernorBase from deployer address (to set the _executor and complete the ownership transfer)
+     * @dev Defaults to 10e18, which is equivalent to 1 ERC20 vote token with a decimals() value of 18.
      */
-    // function initialize(Executor newExecutor) public virtual {
-    //     initializeExecutor(newExecutor);
-    //     _executor.acceptOwnership();
-    // }
+    function proposalThreshold() public view virtual returns (uint256) {
+        return 10e18;
+    }
 
     /**
      * @dev Public endpoint to update the underlying timelock instance. Restricted to the timelock itself, so updates
@@ -183,53 +199,13 @@ abstract contract GovernorBase is
     }
 
     /**
-     * @dev Governance-only function to add a role to the specified account.
-     */
-    function grantRole(bytes32 role, address account) public virtual onlyGovernance {
-        _grantRole(role, account);
-    }
-
-    /**
-     * @dev Governance-only function to add a role to the specified account that expires at the specified timestamp.
-     */
-    function grantRole(bytes32 role, address account, uint256 expiresAt) public virtual onlyGovernance {
-        _grantRole(role, account, expiresAt);
-    }
-
-    /**
-     * @dev Batch method for granting roles.
-     */
-    function grantRolesBatch(
-        bytes32[] calldata roles,
-        address[] calldata accounts,
-        uint256[] calldata expiresAts
-    ) public virtual onlyGovernance {
-        _grantRolesBatch(roles, accounts, expiresAts);
-    }
-
-    /**
-     * @dev Governance-only function to revoke a role from the specified account.
-     */
-    function revokeRole(bytes32 role, address account) public virtual onlyGovernance {
-        _revokeRole(role, account);
-    }
-
-    /**
-     * @dev Batch method for revoking roles.
-     */
-    function revokeRolesBatch(
-        bytes32[] calldata roles,
-        address[] calldata accounts
-    ) public virtual onlyGovernance {
-        _revokeRolesBatch(roles, accounts);
-    }
-
-    /**
      * @dev See {IGovernor-state}.
      */
     function state(uint256 proposalId) public view virtual override returns (ProposalState) {
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+
         // Single SLOAD
-        ProposalCore storage proposal = _proposals[proposalId];
+        ProposalCore storage proposal = $._proposals[proposalId];
         bool proposalExecuted = proposal.executed;
         bool proposalCanceled = proposal.canceled;
 
@@ -264,7 +240,7 @@ abstract contract GovernorBase is
             return ProposalState.Defeated;
         }
 
-        uint256 opNonce = _opNonces[proposalId];
+        uint256 opNonce = $._opNonces[proposalId];
         if (opNonce == 0) {
             return ProposalState.Succeeded;
         }
@@ -280,29 +256,25 @@ abstract contract GovernorBase is
         return ProposalState.Queued;
     }
 
-    /**
-     * @dev See {IGovernor-proposalSnapshot}.
-     */
+    /// @inheritdoc IGovernorBase
     function proposalSnapshot(uint256 proposalId) public view virtual override returns (uint256) {
-        return _proposals[proposalId].voteStart;
+        return _getGovernorBaseStorage()._proposals[proposalId].voteStart;
     }
 
-    /**
-     * @dev See {IGovernor-proposalDeadline}.
-     */
+    /// @inheritdoc IGovernorBase
     function proposalDeadline(uint256 proposalId) public view virtual override returns (uint256) {
-        return _proposals[proposalId].voteStart + _proposals[proposalId].voteDuration;
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        return $._proposals[proposalId].voteStart + $._proposals[proposalId].voteDuration;
     }
 
+    /// @inheritdoc IGovernorBase
     function proposalActionsHash(uint256 proposalId) public view virtual override returns (bytes32) {
-        return _proposals[proposalId].actionsHash;
+        return _getGovernorBaseStorage()._proposals[proposalId].actionsHash;
     }
 
-    /**
-     * @dev Address of the proposer
-     */
-    function _proposalProposer(uint256 proposalId) internal view virtual returns (address) {
-        return _proposals[proposalId].proposer;
+    /// @inheritdoc IGovernorBase
+    function proposalProposer(uint256 proposalId) public view virtual override returns (address) {
+        return _getGovernorBaseStorage()._proposals[proposalId].proposer;
     }
 
     /**
@@ -323,7 +295,22 @@ abstract contract GovernorBase is
     /**
      * @dev Get the voting weight of `account` at a specific `timepoint`, for a vote as described by `params`.
      */
-    function _getVotes(address account, uint256 timepoint, bytes memory params) internal view virtual returns (uint256);
+    function _getVotes(
+        address account,
+        uint256 timepoint,
+        bytes memory params
+    ) internal view virtual returns (uint256 voteWeight) {
+        voteWeight = _getVotes(token(), account, timepoint, params);
+    }
+
+    function _getVotes(
+        IERC5805 _token,
+        address account,
+        uint256 timepoint,
+        bytes memory /*params*/
+    ) internal view virtual returns (uint256 voteWeight) {
+        voteWeight = _token.getPastVotes(account, timepoint);
+    }
 
     /**
      * @dev Register a vote for `proposalId` by `account` with a given `support`, voting `weight` and voting `params`.
@@ -389,35 +376,46 @@ abstract contract GovernorBase is
         ) revert UnauthorizedToSubmitProposal();
 
         // If the DAO is in founding mode, then check if governance is even allowed
-        if (_isFounding) {
-            address token_ = _token;
-            (bool isGovernanceAllowed, ISharesManager.ProvisionMode provisionMode) =
-                SharesManager(token_).isGovernanceAllowed();
-            // If no longer in founding mode, we can reset the _isFounding flag and move on
-            if (provisionMode > ISharesManager.ProvisionMode.Founding) {
-                delete _isFounding;
-            } else {
-                if (!isGovernanceAllowed) revert NotReadyForGovernance();
-                if (
-                    targets.length != 1 || // Only allow a single action until we exit founding mode
-                    targets[0] != token_ || // And the action must be to upgrade the token from founding mode
-                    bytes4(calldatas[0]) != SharesManager.setProvisionMode.selector // So the selector must match
-                ) revert InvalidFoundingModeActions();
-            }
-        }
+        // if (_isFounding) {
+        //     address token_ = _token;
+        //     (bool isGovernanceAllowed, ISharesManager.ProvisionMode provisionMode) =
+        //         SharesManager(token_).isGovernanceAllowed();
+        //     // If no longer in founding mode, we can reset the _isFounding flag and move on
+        //     if (provisionMode > ISharesManager.ProvisionMode.Founding) {
+        //         delete _isFounding;
+        //     } else {
+        //         if (!isGovernanceAllowed) revert NotReadyForGovernance();
+        //         if (
+        //             targets.length != 1 || // Only allow a single action until we exit founding mode
+        //             targets[0] != token_ || // And the action must be to upgrade the token from founding mode
+        //             bytes4(calldatas[0]) != SharesManager.setProvisionMode.selector // So the selector must match
+        //         ) revert InvalidFoundingModeActions();
+        //     }
+        // }
 
-        return _propose(targets, values, calldatas, signatures, description, proposer);
+        return _propose(
+            proposer,
+            currentTimepoint + votingDelay(),
+            targets,
+            values,
+            calldatas,
+            signatures,
+            description
+        );
 
     }
 
     function _propose(
+        address proposer,
+        uint256 snapshot,
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas,
         string[] calldata signatures,
-        string calldata description,
-        address proposer
+        string calldata description
     ) internal virtual returns (uint256 proposalId) {
+
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
 
         if (targets.length == 0) revert MissingArrayItems();
         if (
@@ -430,13 +428,11 @@ abstract contract GovernorBase is
         SelectorChecker.verifySelectors(calldatas, signatures);
 
         // Increment proposal counter
-        uint256 newProposalId = ++proposalCount;
+        uint256 newProposalId = ++$._proposalCount;
 
-        // Generate voting periods
-        uint256 snapshot = clock() + votingDelay();
         uint256 duration = votingPeriod();
 
-        ProposalCore storage proposal = _proposals[newProposalId];
+        ProposalCore storage proposal = $._proposals[newProposalId];
         proposal.actionsHash = hashProposalActions(newProposalId, targets, values, calldatas);
         proposal.proposer = proposer;
         proposal.voteStart = snapshot.toUint48();
@@ -466,10 +462,11 @@ abstract contract GovernorBase is
         uint256[] calldata values,
         bytes[] calldata calldatas
     ) public virtual override returns (uint256) {
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
 
         if (state(proposalId) != ProposalState.Succeeded) revert ProposalUnsuccessful();
         if(
-            _proposals[proposalId].actionsHash != hashProposalActions(proposalId, targets, values, calldatas)
+            $._proposals[proposalId].actionsHash != hashProposalActions(proposalId, targets, values, calldatas)
         ) revert InvalidActionsForProposal();
 
         (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSendCalldata(
@@ -487,8 +484,8 @@ abstract contract GovernorBase is
         );
 
         (uint256 opNonce,,uint256 eta) = abi.decode(returnData, (uint256, bytes32, uint256));
-        _opNonces[proposalId] = opNonce;
-        _proposals[proposalId].etaSeconds = eta.toUint48();
+        $._opNonces[proposalId] = opNonce;
+        $._proposals[proposalId].etaSeconds = eta.toUint48();
 
         emit ProposalQueued(proposalId, eta);
 
@@ -505,19 +502,30 @@ abstract contract GovernorBase is
         uint256[] calldata values,
         bytes[] calldata calldatas
     ) public virtual override returns (uint256) {
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
 
         ProposalState status = state(proposalId);
         if (
-            status != ProposalState.Succeeded && status != ProposalState.Queued
+            status != ProposalState.Queued
         ) revert ProposalUnsuccessful();
         // NOTE: We don't check the actionsHash here because the TimelockAvatar's opHash will be checked
-        _proposals[proposalId].executed = true;
+        $._proposals[proposalId].executed = true;
+
+        // before execute: queue any operations on self
+        for (uint256 i = 0; i < targets.length; ++i) {
+            if (targets[i] == address(this)) {
+                $._governanceCall.pushBack(keccak256(calldatas[i]));
+            }
+        }
+
+        _executeOperations(proposalId, targets, values, calldatas);
+
+        // after execute: cleanup governance call queue
+        if (!$._governanceCall.empty()) {
+            $._governanceCall.clear();
+        }
 
         emit ProposalExecuted(proposalId);
-
-        _beforeExecute(proposalId, targets, values, calldatas);
-        _execute(proposalId, targets, values, calldatas);
-        _afterExecute(proposalId, targets, values, calldatas);
 
         return proposalId;
     }
@@ -528,62 +536,12 @@ abstract contract GovernorBase is
         // Only allow cancellation if the sender is canceler role, or if the proposer cancels before voting starts
         if (!(
             _hasRole(CANCELER_ROLE, msg.sender) || (
-                msg.sender == _proposals[proposalId].proposer &&
+                msg.sender == proposalProposer(proposalId) &&
                 state(proposalId) == ProposalState.Pending
             )
         )) revert UnauthorizedToCancelProposal();
 
         return _cancel(proposalId);
-    }
-
-    /**
-     * @dev Overridden execute function that run the already queued proposal through the timelock.
-     */
-    function _execute(
-        uint256 proposalId,
-        address[] calldata targets,
-        uint256[] calldata values,
-        bytes[] calldata calldatas
-    ) internal virtual {
-        (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSendCalldata(
-            address(_timelockAvatar),
-            targets,
-            values,
-            calldatas
-        );
-        _timelockAvatar.executeOperation(_opNonces[proposalId], to, value, data, Enum.Operation.Call);
-    }
-
-    /**
-     * @dev Hook before execution is triggered.
-     */
-    function _beforeExecute(
-        uint256 /* proposalId */,
-        address[] calldata targets,
-        uint256[] calldata /* values */,
-        bytes[] calldata calldatas
-    ) internal virtual {
-        // Queue any operations on self
-        for (uint256 i = 0; i < targets.length; ++i) {
-            if (targets[i] == address(this)) {
-                _governanceCall.pushBack(keccak256(calldatas[i]));
-            }
-        }
-    }
-
-    /**
-     * @dev Hook after execution is triggered.
-     */
-    function _afterExecute(
-        uint256 /* proposalId */,
-        address[] memory /* targets */,
-        uint256[] memory /* values */,
-        bytes[] memory /* calldatas */
-    ) internal virtual {
-        // Clear the self operation queue
-        if (!_governanceCall.empty()) {
-            _governanceCall.clear();
-        }
     }
 
     /**
@@ -598,16 +556,17 @@ abstract contract GovernorBase is
     function _cancel(
         uint256 proposalId
     ) internal virtual returns (uint256) {
-
         ProposalState status = state(proposalId);
 
         if (
             status == ProposalState.Canceled || status == ProposalState.Expired || status == ProposalState.Executed
         ) revert ProposalAlreadyFinished();
-        _proposals[proposalId].canceled = true;
+
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        $._proposals[proposalId].canceled = true;
 
         // Cancel the op if it exists (will revert if it cannot be cancelled)
-        uint256 opNonce = _opNonces[proposalId];
+        uint256 opNonce = $._opNonces[proposalId];
         if (opNonce != 0) {
             _timelockAvatar.cancelOperation(opNonce);
         }
@@ -618,22 +577,35 @@ abstract contract GovernorBase is
     }
 
     /**
-     * @dev Public accessor to check the eta of a queued proposal
+     * @dev Overridden execute function that run the already queued proposal through the timelock.
      */
-    function proposalEta(uint256 proposalId) public view virtual override returns (uint256) {
-        return _proposals[proposalId].etaSeconds;
+    function _executeOperations(
+        uint256 proposalId,
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
+    ) internal virtual {
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSendCalldata(
+            address(_timelockAvatar),
+            targets,
+            values,
+            calldatas
+        );
+        _timelockAvatar.executeOperation($._opNonces[proposalId], to, value, data, Enum.Operation.Call);
     }
 
-    /**
-     * @dev See {IGovernor-getVotes}.
-     */
+    /// @inheritdoc IGovernorBase
+    function proposalEta(uint256 proposalId) public view virtual override returns (uint256) {
+        return _getGovernorBaseStorage()._proposals[proposalId].etaSeconds;
+    }
+
+    /// @inheritdoc IGovernorBase
     function getVotes(address account, uint256 timepoint) public view virtual override returns (uint256) {
         return _getVotes(account, timepoint, _defaultParams());
     }
 
-    /**
-     * @dev See {IGovernor-getVotesWithParams}.
-     */
+    /// @inheritdoc IGovernorBase
     function getVotesWithParams(
         address account,
         uint256 timepoint,
@@ -642,17 +614,13 @@ abstract contract GovernorBase is
         return _getVotes(account, timepoint, params);
     }
 
-    /**
-     * @dev See {IGovernor-castVote}.
-     */
+    /// @inheritdoc IGovernorBase
     function castVote(uint256 proposalId, uint8 support) public virtual override returns (uint256) {
         address voter = _msgSender();
         return _castVote(proposalId, voter, support, "");
     }
 
-    /**
-     * @dev See {IGovernor-castVoteWithReason}.
-     */
+    /// @inheritdoc IGovernorBase
     function castVoteWithReason(
         uint256 proposalId,
         uint8 support,
@@ -662,9 +630,7 @@ abstract contract GovernorBase is
         return _castVote(proposalId, voter, support, reason);
     }
 
-    /**
-     * @dev See {IGovernor-castVoteWithReasonAndParams}.
-     */
+    /// @inheritdoc IGovernorBase
     function castVoteWithReasonAndParams(
         uint256 proposalId,
         uint8 support,
@@ -675,9 +641,7 @@ abstract contract GovernorBase is
         return _castVote(proposalId, voter, support, reason, params);
     }
 
-    /**
-     * @dev See {IGovernor-castVoteBySig}.
-     */
+    /// @inheritdoc IGovernorBase
     function castVoteBySig(
         uint256 proposalId,
         uint8 support,
@@ -694,9 +658,7 @@ abstract contract GovernorBase is
         return _castVote(proposalId, voter, support, "");
     }
 
-    /**
-     * @dev See {IGovernor-castVoteWithReasonAndParamsBySig}.
-     */
+    /// @inheritdoc IGovernorBase
     function castVoteWithReasonAndParamsBySig(
         uint256 proposalId,
         uint8 support,
@@ -754,8 +716,10 @@ abstract contract GovernorBase is
         string memory reason,
         bytes memory params
     ) internal virtual returns (uint256) {
-        ProposalCore storage proposal = _proposals[proposalId];
         if (state(proposalId) != ProposalState.Active) revert ProposalVotingInactive();
+
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        ProposalCore storage proposal = $._proposals[proposalId];
 
         uint256 weight = _getVotes(account, proposal.voteStart, params);
         _countVote(proposalId, account, support, weight, params);
@@ -778,6 +742,54 @@ abstract contract GovernorBase is
     function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyGovernance {
         (bool success, bytes memory returndata) = target.call{value: value}(data);
         Address.verifyCallResult(success, returndata);
+    }
+
+    function votingDelay() public view virtual returns (uint256);
+
+    function votingPeriod() public view virtual returns (uint256);
+
+    function quorum(uint256 timepoint) public view virtual returns (uint256);
+
+    /**
+     * @dev Governance-only function to add a role to the specified account.
+     */
+    function grantRole(bytes32 role, address account) public virtual onlyGovernance {
+        _grantRole(role, account);
+    }
+
+    /**
+     * @dev Governance-only function to add a role to the specified account that expires at the specified timestamp.
+     */
+    function grantRole(bytes32 role, address account, uint256 expiresAt) public virtual onlyGovernance {
+        _grantRole(role, account, expiresAt);
+    }
+
+    /**
+     * @dev Batch method for granting roles.
+     */
+    function grantRolesBatch(
+        bytes32[] calldata roles,
+        address[] calldata accounts,
+        uint256[] calldata expiresAts
+    ) public virtual onlyGovernance {
+        _grantRolesBatch(roles, accounts, expiresAts);
+    }
+
+    /**
+     * @dev Governance-only function to revoke a role from the specified account.
+     */
+    function revokeRole(bytes32 role, address account) public virtual onlyGovernance {
+        _revokeRole(role, account);
+    }
+
+    /**
+     * @dev Batch method for revoking roles.
+     */
+    function revokeRolesBatch(
+        bytes32[] calldata roles,
+        address[] calldata accounts
+    ) public virtual onlyGovernance {
+        _revokeRolesBatch(roles, accounts);
     }
 
 }
