@@ -4,7 +4,6 @@
 
 pragma solidity ^0.8.20;
 
-import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
@@ -12,7 +11,7 @@ import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {IGovernorBase} from "../interfaces/IGovernorBase.sol";
 import {IGovernorToken} from "../interfaces/IGovernorToken.sol";
 import {Roles} from "contracts/utils/Roles.sol";
-import {TimelockAvatarControlled} from "contracts/utils/TimelockAvatarControlled.sol";
+import {TimelockAvatarControlled} from "./TimelockAvatarControlled.sol";
 import {TimelockAvatar} from "contracts/executor/base/TimelockAvatar.sol";
 import {Enum} from "contracts/common/Enum.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -25,22 +24,20 @@ import {MultiSendEncoder} from "contracts/libraries/MultiSendEncoder.sol";
 import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
 
 /**
+ * @title GovernorBase
+ *
+ * @notice Based on the OpenZeppelin Governor.sol contract.
+ *
  * @dev Core of the governance system, designed to be extended though various modules.
  *
- * This contract is abstract and requires several function to be implemented in various modules:
+ * Uses the zodiac TimelockAvatar contract as the executor, and uses an IERC5805 vote token for tracking voting weights.
  *
- * - A counting module must implement {quorum}, {_quorumReached}, {_voteSucceeded} and {_countVote}
- * - A voting module must implement {_getVotes}
- * - Additionally, {proposalThreshold}, {votingDelay} and {votingPeriod} must also be implemented (see the
- * GovernorSettings extension)
- *
- * _Available since v4.3._
+ * @author Ben Jett - @BCJdevelopment
  */
 abstract contract GovernorBase is
-    ContextUpgradeable,
+    TimelockAvatarControlled,
     ERC165,
     EIP712Upgradeable,
-    TimelockAvatarControlled,
     IGovernorBase,
     Roles
 {
@@ -78,16 +75,10 @@ abstract contract GovernorBase is
 
         mapping(uint256 => ProposalCore) _proposals;
 
-        // Tracking queued operations on the _timelockAvatar
+        // Tracking queued operations on the TimelockAvatar
         mapping(uint256 => uint256) _opNonces;
 
         VotesManagement _votesManagement;
-
-        // This queue keeps track of the governor operating on itself. Calls to functions protected by the
-        // {onlyGovernance} modifier needs to be whitelisted in this queue. Whitelisting is set in {execute}, consumed
-        // by the {onlyGovernance} modifier and eventually reset after {_executeOperations} is complete. This ensures
-        // that the execution of {onlyGovernance} protected calls can only be achieved through successful proposals.
-        DoubleEndedQueue.Bytes32Deque _governanceCall;
     }
 
     bytes32 private immutable GOVERNOR_BASE_STORAGE =
@@ -100,27 +91,9 @@ abstract contract GovernorBase is
         }
     }
 
-    /**
-     * @dev Restricts a function so it can only be executed through governance proposals. For example, governance
-     * parameter setters in {GovernorSettings} are protected using this modifier.
-     */
-    modifier onlyGovernance() {
-        _onlyGovernance();
-        _;
-    }
-
-    function _onlyGovernance() private {
-        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
-        address timelock = address(_timelockAvatar);
-        if (msg.sender != timelock) revert OnlyGovernance();
-        bytes32 msgDataHash = keccak256(_msgData());
-        // loop until popping the expected operation - throw if deque is empty (operation not authorized)
-        while ($._governanceCall.popFront() != msgDataHash) {}
-    }
-
     function __GovernorBase_init(
         string calldata name_,
-        address timelockAvatar_,
+        address executor_,
         address token_,
         uint256 governanceCanBeginAt_,
         uint256 governanceThresholdBps_
@@ -131,7 +104,7 @@ abstract contract GovernorBase is
 
         string memory version_ = version();
         __EIP712_init(name_, version_);
-        __TimelockAvatarControlled_init(timelockAvatar_);
+        __TimelockAvatarControlled_init(executor_);
 
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
         $._votesManagement._token = IGovernorToken(token_);
@@ -142,7 +115,7 @@ abstract contract GovernorBase is
         emit GovernorBaseInitialized(
             name_,
             version_,
-            timelockAvatar_,
+            executor_,
             token_,
             governanceCanBeginAt_,
             governanceThresholdBps_,
@@ -239,16 +212,6 @@ abstract contract GovernorBase is
     }
 
     /**
-     * @dev Public endpoint to update the underlying timelock instance. Restricted to the timelock itself, so updates
-     * must be proposed, scheduled, and executed through governance proposals.
-     *
-     * CAUTION: It is not recommended to change the timelock while there are other queued governance proposals.
-     */
-    function updateTimelockAvatar(address newExecutor) public virtual onlyGovernance {
-        _updateTimelockAvatar(newExecutor);
-    }
-
-    /**
      * @dev See {IGovernor-state}.
      */
     function state(uint256 proposalId) public view virtual override returns (ProposalState) {
@@ -295,7 +258,7 @@ abstract contract GovernorBase is
             return ProposalState.Succeeded;
         }
 
-        TimelockAvatar.OperationStatus opStatus = _timelockAvatar.getOperationStatus(opNonce);
+        TimelockAvatar.OperationStatus opStatus = executor().getOperationStatus(opNonce);
         if (opStatus == TimelockAvatar.OperationStatus.Done) {
             return ProposalState.Executed;
         }
@@ -513,14 +476,15 @@ abstract contract GovernorBase is
             $._proposals[proposalId].actionsHash != hashProposalActions(proposalId, targets, values, calldatas)
         ) revert InvalidActionsForProposal();
 
+        TimelockAvatar _executor = executor();
         (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSendCalldata(
-            address(_timelockAvatar),
+            address(_executor),
             targets,
             values,
             calldatas
         );
 
-        (,bytes memory returnData) = _timelockAvatar.execTransactionFromModuleReturnData(
+        (,bytes memory returnData) = _executor.execTransactionFromModuleReturnData(
             to,
             value,
             data,
@@ -556,17 +520,18 @@ abstract contract GovernorBase is
         $._proposals[proposalId].executed = true;
 
         // before execute: queue any operations on self
+        DoubleEndedQueue.Bytes32Deque storage governanceCall = _getGovernanceCallQueue();
         for (uint256 i = 0; i < targets.length; ++i) {
             if (targets[i] == address(this)) {
-                $._governanceCall.pushBack(keccak256(calldatas[i]));
+                governanceCall.pushBack(keccak256(calldatas[i]));
             }
         }
 
         _executeOperations(proposalId, targets, values, calldatas);
 
         // after execute: cleanup governance call queue
-        if (!$._governanceCall.empty()) {
-            $._governanceCall.clear();
+        if (!governanceCall.empty()) {
+            governanceCall.clear();
         }
 
         emit ProposalExecuted(proposalId);
@@ -583,14 +548,16 @@ abstract contract GovernorBase is
         uint256[] calldata values,
         bytes[] calldata calldatas
     ) internal virtual {
-        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        TimelockAvatar _executor = executor();
         (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSendCalldata(
-            address(_timelockAvatar),
+            address(_executor),
             targets,
             values,
             calldatas
         );
-        _timelockAvatar.executeOperation($._opNonces[proposalId], to, value, data, Enum.Operation.Call);
+
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        _executor.executeOperation($._opNonces[proposalId], to, value, data, Enum.Operation.Call);
     }
 
     function cancel(
@@ -631,7 +598,7 @@ abstract contract GovernorBase is
         // Cancel the op if it exists (will revert if it cannot be cancelled)
         uint256 opNonce = $._opNonces[proposalId];
         if (opNonce != 0) {
-            _timelockAvatar.cancelOperation(opNonce);
+            executor().cancelOperation(opNonce);
         }
 
         emit ProposalCanceled(proposalId);
@@ -879,10 +846,10 @@ abstract contract GovernorBase is
     ) internal virtual;
 
     /**
-     * @dev Relays a transaction or function call to an arbitrary target. In cases where the governance _timelockAvatar
+     * @dev Relays a transaction or function call to an arbitrary target. In cases where the governance _executor
      * is some contract other than the governor itself, like when using a timelock, this function can be invoked
      * in a governance proposal to recover tokens or Ether that was sent to the governor contract by mistake.
-     * Note that if the _timelockAvatar is simply the governor itself, use of `relay` is redundant.
+     * Note that if the _executor is simply the governor itself, use of `relay` is redundant.
      */
     function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyGovernance {
         (bool success, bytes memory returndata) = target.call{value: value}(data);

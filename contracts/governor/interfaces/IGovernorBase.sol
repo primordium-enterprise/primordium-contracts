@@ -98,7 +98,6 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         bytes params
     );
 
-    error OnlyGovernance();
     error GovernanceCannotInitializeYet(uint256 governanceCanBeginAt);
     error GovernanceThresholdIsNotMet(
         uint256 governanceThresholdBps,
