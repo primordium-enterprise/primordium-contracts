@@ -8,9 +8,9 @@ import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Cont
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
-import {IERC5805} from "@openzeppelin/contracts/interfaces/IERC5805.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {IGovernorBase} from "../interfaces/IGovernorBase.sol";
+import {IGovernorToken} from "../interfaces/IGovernorToken.sol";
 import {Roles} from "contracts/utils/Roles.sol";
 import {TimelockAvatarControlled} from "contracts/utils/TimelockAvatarControlled.sol";
 import {TimelockAvatar} from "contracts/executor/base/TimelockAvatar.sol";
@@ -22,6 +22,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {SelectorChecker} from "contracts/libraries/SelectorChecker.sol";
 import {MultiSendEncoder} from "contracts/libraries/MultiSendEncoder.sol";
+import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
 
 /**
  * @dev Core of the governance system, designed to be extended though various modules.
@@ -45,6 +46,7 @@ abstract contract GovernorBase is
 {
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
     using SafeCast for uint256;
+    using BasisPoints for uint256;
 
     struct ProposalCore {
         bytes32 actionsHash;
@@ -57,10 +59,10 @@ abstract contract GovernorBase is
     }
 
     struct VotesManagement {
-        IERC5805 _token; // 20 bytes
+        IGovernorToken _token; // 20 bytes
         bool _isFounded; // 1 byte
-        uint16 _governanceThresholdBps; // 2 bytes
         uint40 _governanceCanBeginAt; // 5 bytes
+        uint16 _governanceThresholdBps; // 2 bytes
     }
 
     bytes32 public constant BALLOT_TYPEHASH = keccak256("Ballot(uint256 proposalId,uint8 support)");
@@ -148,7 +150,7 @@ abstract contract GovernorBase is
     }
 
     /// @inheritdoc IGovernorBase
-    function token() public view returns (IERC5805 _token) {
+    function token() public view returns (IGovernorToken _token) {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
         _token = $._votesManagement._token;
     }
@@ -158,7 +160,7 @@ abstract contract GovernorBase is
         return _clock(token());
     }
 
-    function _clock(IERC5805 _token) internal view virtual returns (uint48) {
+    function _clock(IGovernorToken _token) internal view virtual returns (uint48) {
         try _token.clock() returns (uint48 timepoint) {
             return timepoint;
         } catch {
@@ -174,6 +176,19 @@ abstract contract GovernorBase is
         } catch {
             return "mode=blocknumber&from=default";
         }
+    }
+
+    /// @inheritdoc IGovernorBase
+    function initializeGovernance() external virtual onlyGovernance {
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        $._votesManagement._isFounded = true;
+        emit GovernanceInitialized();
+    }
+
+    /// @inheritdoc IGovernorBase
+    function isGovernanceActive() public view virtual returns (bool _isGovernanceActive) {
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        _isGovernanceActive = $._votesManagement._isFounded;
     }
 
     /// @inheritdoc IGovernorBase
@@ -304,7 +319,7 @@ abstract contract GovernorBase is
     }
 
     function _getVotes(
-        IERC5805 _token,
+        IGovernorToken _token,
         address account,
         uint256 timepoint,
         bytes memory /*params*/
@@ -367,41 +382,88 @@ abstract contract GovernorBase is
         string[] calldata signatures,
         string calldata description
     ) public virtual override returns (uint256) {
+
         address proposer = _msgSender();
-        uint256 currentTimepoint = clock();
 
-        if (
-            getVotes(proposer, currentTimepoint - 1) < proposalThreshold() &&
-            !_hasRole(PROPOSER_ROLE, proposer)
-        ) revert UnauthorizedToSubmitProposal();
-
-        // If the DAO is in founding mode, then check if governance is even allowed
-        // if (_isFounding) {
-        //     address token_ = _token;
-        //     (bool isGovernanceAllowed, ISharesManager.ProvisionMode provisionMode) =
-        //         SharesManager(token_).isGovernanceAllowed();
-        //     // If no longer in founding mode, we can reset the _isFounding flag and move on
-        //     if (provisionMode > ISharesManager.ProvisionMode.Founding) {
-        //         delete _isFounding;
-        //     } else {
-        //         if (!isGovernanceAllowed) revert NotReadyForGovernance();
-        //         if (
-        //             targets.length != 1 || // Only allow a single action until we exit founding mode
-        //             targets[0] != token_ || // And the action must be to upgrade the token from founding mode
-        //             bytes4(calldatas[0]) != SharesManager.setProvisionMode.selector // So the selector must match
-        //         ) revert InvalidFoundingModeActions();
-        //     }
-        // }
+        (, uint256 currentClock) = _authorizeProposal(proposer, targets, values, calldatas);
 
         return _propose(
             proposer,
-            currentTimepoint + votingDelay(),
+            currentClock + votingDelay(),
             targets,
             values,
             calldatas,
             signatures,
             description
         );
+
+    }
+
+    /**
+     * @dev Authorizes whether a proposal can be submitted by the provided proposer.
+     *
+     * @notice This function also checks whether the Governor has been founded, and restricts proposals to only
+     * initializing governance if the Governor is not yet founded.
+     *
+     * @return _token The IGovernorToken token read from storage for internal gas optimization
+     * @return currentClock The current clock() value for the token for internal gas optimization (avoid re-calling)
+     */
+    function _authorizeProposal(
+        address proposer,
+        address[] calldata targets,
+        uint256[] calldata /*values*/,
+        bytes[] calldata calldatas
+    ) internal view virtual returns (IGovernorToken _token, uint256 currentClock) {
+        VotesManagement storage _votesManagement = _getGovernorBaseStorage()._votesManagement;
+
+        bytes32 packedVotesManagement;
+        bool isFounded;
+        assembly {
+            packedVotesManagement := sload(_votesManagement.slot)
+            _token := packedVotesManagement
+            // The _isFounded bool is at byte index 20 (after the 20 address bytes)
+            isFounded := byte(0x14, packedVotesManagement)
+        }
+
+        currentClock = _clock(_token);
+
+        // Check if the Governor has been founded yet
+        if (!isFounded) {
+
+            uint256 governanceCanBeginAt;
+            assembly {
+                // Shift right by 20 address bytes + 1 bool byte = 21 bytes * 8 = 168 bits
+                governanceCanBeginAt := and(shr(0xa8, packedVotesManagement), 0xffffffffff)
+            }
+            if (block.timestamp < governanceCanBeginAt) {
+                revert GovernanceCannotInitializeYet(governanceCanBeginAt);
+            }
+
+            uint256 governanceThresholdBps;
+            assembly {
+                // Shift right by 20 address bytes + 1 bool byte + 5 uint40 bytes = 26 bytes * 8 = 208 bits
+                governanceThresholdBps := and(shr(0xd0, packedVotesManagement), 0xffff)
+            }
+            uint256 currentVoteSupply = _token.getPastTotalSupply(currentClock - 1);
+            uint256 currentRequiredVoteSupply = governanceThresholdBps.bpsUnchecked(_token.maxSupply());
+            if (currentRequiredVoteSupply > currentVoteSupply) {
+                revert GovernanceThresholdIsNotMet(governanceThresholdBps, currentVoteSupply, currentRequiredVoteSupply);
+            }
+
+            // Ensure that the proposal action is to initializeGovernance()
+            if (
+                targets.length != 1 ||
+                targets[0] != address(this) ||
+                bytes4(calldatas[0]) != this.initializeGovernance.selector
+            ) {
+                revert GovernanceInitializationActionRequired();
+            }
+        }
+
+        if (
+            _getVotes(_token, proposer, currentClock - 1, _defaultParams()) < proposalThreshold() &&
+            !_hasRole(PROPOSER_ROLE, proposer)
+        ) revert UnauthorizedToSubmitProposal(proposer);
 
     }
 
@@ -414,7 +476,6 @@ abstract contract GovernorBase is
         string[] calldata signatures,
         string calldata description
     ) internal virtual returns (uint256 proposalId) {
-
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
 
         if (targets.length == 0) revert MissingArrayItems();

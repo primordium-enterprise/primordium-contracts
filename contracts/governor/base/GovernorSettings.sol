@@ -5,7 +5,8 @@
 pragma solidity ^0.8.20;
 
 import {GovernorBase} from "./GovernorBase.sol";
-import {IERC5805} from "@openzeppelin/contracts/interfaces/IERC5805.sol";
+import {IGovernorToken} from "../interfaces/IGovernorToken.sol";
+import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
 
 /**
  * @dev Extension of {GovernorBase} for settings updatable through governance.
@@ -16,8 +17,8 @@ import {IERC5805} from "@openzeppelin/contracts/interfaces/IERC5805.sol";
  * _Available since v4.4._
  */
 abstract contract GovernorSettings is GovernorBase {
+    using BasisPoints for uint256;
 
-    uint256 constant private MAX_BPS = 10_000;
     uint256 constant public MAX_PROPOSAL_THRESHOLD_BPS = 1_000;
 
     /// @notice The minimum setable voting delay, set to 1.
@@ -75,10 +76,8 @@ abstract contract GovernorSettings is GovernorBase {
      */
     function proposalThreshold() public view virtual override returns (uint256 threshold) {
         // Overflow not a problem as long as the token's max supply <= type(uint224).max
-        IERC5805 _token = token();
-        unchecked {
-            threshold = (_token.getPastTotalSupply(_clock(_token) - 1) * _proposalThresholdBps) / MAX_BPS;
-        }
+        IGovernorToken _token = token();
+        threshold = _proposalThresholdBps.bpsUnchecked(_token.getPastTotalSupply(_clock(_token)) - 1);
     }
 
     /**

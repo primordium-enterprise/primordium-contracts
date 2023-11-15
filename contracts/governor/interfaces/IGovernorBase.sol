@@ -6,7 +6,7 @@ pragma solidity ^0.8.20;
 
 import {IArrayLengthErrors} from "contracts/interfaces/IArrayLengthErrors.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
-import {IERC5805} from "@openzeppelin/contracts/interfaces/IERC5805.sol";
+import {IGovernorToken} from "contracts/governor/interfaces/IGovernorToken.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 
 /**
@@ -24,6 +24,11 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         Expired,
         Executed
     }
+
+    /**
+     * @dev Emitted when governance is initialized.
+     */
+    event GovernanceInitialized();
 
     /**
      * @dev Emitted when a proposal is created.
@@ -84,12 +89,18 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     );
 
     error OnlyGovernance();
+    error GovernanceCannotInitializeYet(uint256 governanceCanBeginAt);
+    error GovernanceThresholdIsNotMet(
+        uint256 governanceThresholdBps,
+        uint256 currentVoteSupply,
+        uint256 currentRequiredVoteSupply
+    );
+    error GovernanceInitializationActionRequired();
     error UnknownProposalId(uint256 proposalId);
     error GovernorClockMustMatchTokenClock();
-    error UnauthorizedToSubmitProposal();
+    error UnauthorizedToSubmitProposal(address proposer);
     error UnauthorizedToCancelProposal();
     error NotReadyForGovernance();
-    error InvalidFoundingModeActions();
     error InvalidActionSignature(uint256 index);
     error ProposalUnsuccessful();
     error ProposalVotingInactive();
@@ -131,7 +142,7 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     // solhint-disable-next-line func-name-mixedcase
     function COUNTING_MODE() external view returns (string memory);
 
-    function token() external view returns (IERC5805);
+    function token() external view returns (IGovernorToken);
 
     /**
      * Current state of a proposal, following Compound's convention.
@@ -215,6 +226,18 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
      * @dev Returns whether `account` has cast a vote on `proposalId`.
      */
     function hasVoted(uint256 proposalId, address account) external view returns (bool);
+
+    /**
+     * @dev Initializes governance. This function is the only allowable proposal action for the Governor until it has
+     * been successfully executed through the proposal process.
+     */
+    function initializeGovernance() external;
+
+    /**
+     * @dev Returns true if the Governor has been initialized, meaning any proposal actions are available for
+     * submission and execution.
+     */
+    function isGovernanceActive() external view returns (bool);
 
     /**
      * @dev Hashing function used to verify the proposal actions that were originally submitted.
