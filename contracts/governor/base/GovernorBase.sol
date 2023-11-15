@@ -119,10 +119,35 @@ abstract contract GovernorBase is
     }
 
     function __GovernorBase_init(
-        address timelockAvatar_
+        string calldata name_,
+        address timelockAvatar_,
+        address token_,
+        uint256 governanceCanBeginAt_,
+        uint256 governanceThresholdBps_
     ) internal virtual onlyInitializing {
-        __EIP712_init(name(), version()); // TODO: This should move to the master init function
+        if (governanceThresholdBps_ > BasisPoints.MAX_BPS) {
+            revert BasisPoints.BPSValueTooLarge(governanceThresholdBps_);
+        }
+
+        string memory version_ = version();
+        __EIP712_init(name_, version_);
         __TimelockAvatarControlled_init(timelockAvatar_);
+
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        $._votesManagement._token = IGovernorToken(token_);
+        $._votesManagement._governanceCanBeginAt = governanceCanBeginAt_.toUint40();
+        // If it is less than the MAX_BPS (10_000), it fits into uint16 without SafeCast
+        $._votesManagement._governanceThresholdBps = uint16(governanceThresholdBps_);
+
+        emit GovernorBaseInitialized(
+            name_,
+            version_,
+            timelockAvatar_,
+            token_,
+            governanceCanBeginAt_,
+            governanceThresholdBps_,
+            $._votesManagement._isFounded
+        );
     }
 
     /**
@@ -141,7 +166,7 @@ abstract contract GovernorBase is
     // TODO: This must be turned into a state variable to ensure upgradeability
     /// @inheritdoc IGovernorBase
     function name() public view virtual override returns (string memory) {
-        return "__Governor";
+        return _EIP712Name();
     }
 
     /// @inheritdoc IGovernorBase
@@ -176,6 +201,16 @@ abstract contract GovernorBase is
         } catch {
             return "mode=blocknumber&from=default";
         }
+    }
+
+    /// @inheritdoc IGovernorBase
+    function governanceCanBeginAt() public view returns (uint256 _governanceCanBeginAt) {
+        _governanceCanBeginAt = _getGovernorBaseStorage()._votesManagement._governanceCanBeginAt;
+    }
+
+    /// @inheritdoc IGovernorBase
+    function governanceThresholdBps() public view returns (uint256 _governanceThresholdBps) {
+        _governanceThresholdBps = _getGovernorBaseStorage()._votesManagement._governanceThresholdBps;
     }
 
     /// @inheritdoc IGovernorBase
@@ -377,24 +412,24 @@ abstract contract GovernorBase is
         // Check if the Governor has been founded yet
         if (!isFounded) {
 
-            uint256 governanceCanBeginAt;
+            uint256 _governanceCanBeginAt;
             assembly {
                 // Shift right by 20 address bytes + 1 bool byte = 21 bytes * 8 = 168 bits
-                governanceCanBeginAt := and(shr(0xa8, packedVotesManagement), 0xffffffffff)
+                _governanceCanBeginAt := and(shr(0xa8, packedVotesManagement), 0xffffffffff)
             }
-            if (block.timestamp < governanceCanBeginAt) {
-                revert GovernanceCannotInitializeYet(governanceCanBeginAt);
+            if (block.timestamp < _governanceCanBeginAt) {
+                revert GovernanceCannotInitializeYet(_governanceCanBeginAt);
             }
 
-            uint256 governanceThresholdBps;
+            uint256 _governanceThresholdBps;
             assembly {
                 // Shift right by 20 address bytes + 1 bool byte + 5 uint40 bytes = 26 bytes * 8 = 208 bits
-                governanceThresholdBps := and(shr(0xd0, packedVotesManagement), 0xffff)
+                _governanceThresholdBps := and(shr(0xd0, packedVotesManagement), 0xffff)
             }
             uint256 currentVoteSupply = _token.getPastTotalSupply(currentClock - 1);
-            uint256 requiredVoteSupply = governanceThresholdBps.bpsUnchecked(_token.maxSupply());
+            uint256 requiredVoteSupply = _governanceThresholdBps.bpsUnchecked(_token.maxSupply());
             if (requiredVoteSupply > currentVoteSupply) {
-                revert GovernanceThresholdIsNotMet(governanceThresholdBps, currentVoteSupply, requiredVoteSupply);
+                revert GovernanceThresholdIsNotMet(_governanceThresholdBps, currentVoteSupply, requiredVoteSupply);
             }
 
             // Ensure that the proposal action is to initializeGovernance() on this Governor

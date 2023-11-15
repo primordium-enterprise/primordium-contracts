@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 
 library BasisPoints {
 
-    uint256 private constant MAX_BPS = 10_000;
+    uint256 internal constant MAX_BPS = 10_000;
 
     error BPSValueTooLarge(uint256 bpsValue);
 

@@ -25,6 +25,16 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         Executed
     }
 
+    event GovernorBaseInitialized(
+        string name,
+        string version,
+        address timelockAvatar,
+        address token,
+        uint256 governanceCanBeginAt,
+        uint256 governanceThresholdBps,
+        bool isFounded
+    );
+
     /**
      * @dev Emitted when governance is initialized.
      */
@@ -226,6 +236,17 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
      * @dev Returns whether `account` has cast a vote on `proposalId`.
      */
     function hasVoted(uint256 proposalId, address account) external view returns (bool);
+
+    /**
+     * Returns the timestamp that governance can be initiated after.
+     */
+    function governanceCanBeginAt() external view returns (uint256 _governanceCanBeginAt);
+
+    /**
+     * Returns the basis points amount of the governance token's max supply that needs to be in circulation before
+     * governance can be initiated.
+     */
+    function governanceThresholdBps() external view returns (uint256 _governanceThresholdBps);
 
     /**
      * @dev Initializes governance. This function is the only allowable proposal action for the Governor until it has
