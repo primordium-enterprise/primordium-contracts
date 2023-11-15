@@ -74,12 +74,9 @@ abstract contract VotesProvisionerERC20 is SharesManager {
     /**
      * @dev Override to transfer the ERC20 deposit to the Executor, and register on the Executor.
      */
-    function _transferDepositToExecutor(
-        uint256 depositAmount,
-        ProvisionMode currentProvisionMode
-    ) internal virtual override {
+    function _transferDepositToExecutor(uint256 depositAmount) internal virtual override {
         SafeERC20.safeTransferFrom(_baseAsset, _msgSender(), treasury(), depositAmount);
-        _getTreasurer().registerDeposit(baseAsset(), depositAmount, currentProvisionMode);
+        _getTreasurer().registerDeposit(baseAsset(), depositAmount);
     }
 
     /**

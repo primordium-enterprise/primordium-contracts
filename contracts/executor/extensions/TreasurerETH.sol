@@ -27,12 +27,9 @@ abstract contract TreasurerETH is Treasurer {
     }
 
     /// @dev Override to ensure that the depositAmount is equal to the msg.value
-    function _registerDeposit(
-        uint256 depositAmount,
-        ISharesManager.ProvisionMode provisionMode
-    ) internal virtual override {
+    function _registerDeposit(uint256 depositAmount) internal virtual override {
         if (msg.value != depositAmount) revert DepositAmountAndMsgValueMismatch(depositAmount, msg.value);
-        super._registerDeposit(depositAmount, provisionMode);
+        super._registerDeposit(depositAmount);
     }
 
     function _checkExecutionBaseAssetTransfer(

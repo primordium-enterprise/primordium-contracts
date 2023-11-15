@@ -15,11 +15,7 @@ interface ITreasury {
 
     function governanceInitialized(address asset, uint256 totalDeposits) external;
 
-    function registerDeposit(
-        address asset,
-        uint256 depositAmount,
-        ISharesManager.ProvisionMode provisionMode
-    ) external payable;
+    function registerDeposit(address asset, uint256 depositAmount) external payable;
 
     function processWithdrawal(address asset, address receiver, uint256 withdrawAmount) external payable;
 

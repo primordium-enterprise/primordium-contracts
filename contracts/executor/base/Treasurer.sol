@@ -90,11 +90,8 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
      * @notice Registers a deposit on the Treasurer. Only callable by the votes contract.
      * @param depositAmount The amount being deposited.
      */
-    function registerDeposit(
-        uint256 depositAmount,
-        ISharesManager.ProvisionMode provisionMode
-    ) external payable virtual onlyToken {
-        _registerDeposit(depositAmount, provisionMode);
+    function registerDeposit(uint256 depositAmount) external payable virtual onlyToken {
+        _registerDeposit(depositAmount);
     }
 
     /**
@@ -149,7 +146,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
     /**
      * @dev Can override and call super._registerDeposit for additional checks/functionality depending on baseAsset used
     */
-    function _registerDeposit(uint256 depositAmount, ISharesManager.ProvisionMode /*provisionMode*/) internal virtual {
+    function _registerDeposit(uint256 depositAmount) internal virtual {
         if (depositAmount == 0) revert InvalidDepositAmount();
     }
 

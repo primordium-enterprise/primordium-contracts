@@ -38,11 +38,15 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     struct SharesManagerStorage {
         uint256 _maxSupply;
 
+        // Funding parameters
+        IERC20 _quoteAsset;
+        uint48 _fundingBeginsAt;
+        uint48 _fundingExpiresAt;
+
         /// @dev _tokenPrice updates should always go through {_setTokenPrice} to avoid setting price to zero
         TokenPrice _tokenPrice;
 
         ITreasury _treasury;
-        ProvisionMode _provisionMode;
     }
 
     bytes32 private immutable SHARES_MANAGER_STORAGE =
@@ -85,57 +89,6 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         tokenSaleBeginsAt = tokenSaleBeginsAt_;
         governanceCanBeginAt = governanceCanBeginAt_;
         governanceThreshold = governanceThreshold_;
-    }
-
-    /**
-     * @notice Function to get the current provision mode of the token.
-     */
-    function provisionMode() public view virtual returns(ProvisionMode) {
-        return _getSharesManagerStorage()._provisionMode;
-    }
-
-    /**
-     * @notice Executor-only function to update the provision mode.
-     */
-    function setProvisionMode(ProvisionMode mode) public virtual onlyOwner {
-        _setProvisionMode(mode);
-    }
-
-    /**
-     * @dev Internal function to set the provision mode.
-     */
-    function _setProvisionMode(ProvisionMode mode) internal virtual {
-        if (block.timestamp < governanceCanBeginAt) revert CannotSetProvisionModeYet(governanceCanBeginAt);
-        if (mode <= ProvisionMode.Founding) revert ProvisionModeTooLow();
-
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-        ProvisionMode currentProvisionMode = $._provisionMode;
-        if (currentProvisionMode == ProvisionMode.Founding) {
-            _governanceInitialized($);
-        }
-
-        emit ProvisionModeChange(currentProvisionMode, mode);
-        $._provisionMode = mode;
-    }
-
-    function _governanceInitialized(SharesManagerStorage storage $) internal virtual {
-        uint256 tokenPriceNumerator = $._tokenPrice.numerator;
-        uint256 tokenPriceDenominator = $._tokenPrice.denominator;
-        uint256 currentTotalSupply = totalSupply();
-        uint256 baseAssetDeposits = Math.mulDiv(currentTotalSupply, tokenPriceNumerator, tokenPriceDenominator);
-        _getTreasurer().governanceInitialized(baseAsset(), baseAssetDeposits);
-    }
-
-    /**
-     * @notice Returns true if the governanceThreshold of tokens is met and the governanceCanBeginAt timestamp has been
-     * reached. Also returns the current provision mode.
-     */
-    function isGovernanceAllowed() public view virtual returns(bool, ProvisionMode) {
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-        return  (
-            totalSupply() >= governanceThreshold && block.timestamp >= governanceCanBeginAt,
-            $._provisionMode
-        );
     }
 
     /**
@@ -289,8 +242,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     ) internal virtual treasuryIsReady returns (uint256) {
         SharesManagerStorage storage $ = _getSharesManagerStorage();
 
-        ProvisionMode currentProvisionMode = $._provisionMode;
-        if (currentProvisionMode == ProvisionMode.Governance) revert DepositsUnavailable();
+
         // Zero address is checked in the _mint function
         if (depositAmount == 0) revert InvalidDepositAmount();
 
@@ -410,10 +362,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
      * @dev Internal function that should be overridden with functionality to transfer the depositAmount of base asset
      * to the Executor from the msg.sender.
      */
-    function _transferDepositToExecutor(
-        uint256 depositAmount,
-        ProvisionMode currentProvisionMode
-    ) internal virtual;
+    function _transferDepositToExecutor(uint256 depositAmount) internal virtual;
 
     /**
      * @dev Internal function that should be overridden with functionality to transfer the withdrawal to the recipient.

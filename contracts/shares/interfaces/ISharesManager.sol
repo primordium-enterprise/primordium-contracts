@@ -3,13 +3,9 @@
 
 pragma solidity ^0.8.20;
 
-interface ISharesManager {
+import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
-    enum ProvisionMode {
-        Founding, // Initial mode for tokens, allows deposits/withdrawals at all times
-        Governance, // No deposits allowed during Governance mode
-        Funding // deposits/withdrawals are fully allowed during Funding mode
-    }
+interface ISharesManager {
 
     struct TokenPrice {
         uint128 numerator; // Minimum amount of base asset tokens required to mint {denominator} amount of votes.
@@ -17,16 +13,6 @@ interface ISharesManager {
     }
 
     event TreasuryChange(address oldTreasury, address newTreasury);
-
-    /**
-     * @notice Emitted when provisionMode is updated.
-     * @param oldMode The previous provision mode.
-     * @param newMode The new provision mode.
-     */
-    event ProvisionModeChange(
-        ProvisionMode oldMode,
-        ProvisionMode newMode
-    );
 
     /**
      * @notice Emitted when the tokenPrice is updated.
@@ -71,8 +57,6 @@ interface ISharesManager {
     error TreasuryInterfaceNotSupported(address treasury);
     error CannotInitializeBaseAssetToSelf();
     error CannotInitializeTokenPriceToZero();
-    error CannotSetProvisionModeYet(uint256 governanceCanBeginAt);
-    error ProvisionModeTooLow();
     error MaxSupplyTooLarge(uint256 max);
     error TokenPriceCannotBeZero();
     error DepositsUnavailable();
@@ -85,42 +69,51 @@ interface ISharesManager {
     error WithdrawAmountInvalid();
     error RelayDataToExecutorNotAllowed(bytes data);
 
-    // Function to query the current provision mode
-    function provisionMode() external view returns(ProvisionMode);
-
-    // Updates the provision mode, executor only
-    function setProvisionMode(ProvisionMode mode) external;
-
-    // Function to query the max supply
+    /// Function to query the max supply
     function maxSupply() external view returns (uint256);
 
-    // Function to update the max supply, executor only
+    /// Function to update the max supply, executor only
     function setMaxSupply(uint256 newMaxSupply) external;
 
-    // Function to query the ERC20 base asset (address(0) for ETH)
+    function quoteAsset() external view returns (IERC20);
+    function setQuoteAsset() external;
+
+    function isFundingActive() external view returns (bool fundingActive);
+    function fundingPeriods() external view returns (uint256 fundingBeginsAt, uint256 fundingExpiresAt);
+
+    function setFundingBeginsAt(uint256 fundingBeginsAt) external;
+    function setFundingExpiresAt(uint256 fundingExpiresAt) external;
+    function setFundingPeriods(uint256 fundingBeginsAt, uint256 fundingExpiresAt) external;
+
+
+    /// Function to query the ERC20 base asset (address(0) for ETH)
     function baseAsset() external view returns (address);
 
-    // Function to query the current token price
+    /// Function to query the current token price
     function tokenPrice() external view returns (uint128, uint128);
 
-    // Function to update the token price, executor only
+    /// Function to update the token price, executor only
     function setTokenPrice(uint256 numerator, uint256 denominator) external;
 
-    // Returns the current value per token in the existing supply of votes, quoted in the base asset
+    /// Returns the current value per token in the existing supply of votes, quoted in the base asset
     function valuePerToken() external view returns (uint256);
 
-    // Function to make a deposit, and have votes minted to the supplied account
+    /// Function to make a deposit, and have votes minted to the supplied account
     function depositFor(address account, uint256 depositAmount) external payable returns (uint256);
 
-    // Function to make a dposit and have votes minted to the msg.sender
+    /// Function to make a dposit and have votes minted to the msg.sender
     function deposit(uint256 depositAmount) external payable returns(uint256);
 
-    // Withdraw the supplied amount of tokens, with the pro-rata amount of the base asset sent from the treasury to the
-    // receiver
+    /**
+     * Withdraw the supplied amount of tokens, with the pro-rata amount of the base asset sent from the treasury to the
+     * receiver
+     */
     function withdrawTo(address receiver, uint256 amount) external returns (uint256);
 
-    // Withdraw the supplied amount of tokens, with the pro-rata amount of the base asset sent from the treasury to the
-    // msg.sender
+    /**
+     * Withdraw the supplied amount of tokens, with the pro-rata amount of the base asset sent from the treasury to the
+     * msg.sender
+     */
     function withdraw(uint256 amount) external returns (uint256);
 
 }

@@ -47,11 +47,8 @@ abstract contract VotesProvisionerETH is SharesManager {
      * @dev Override to transfer the ETH deposit to the Executor, and register it on the Executor.
      */
 
-    function _transferDepositToExecutor(
-        uint256 depositAmount,
-        ProvisionMode currentProvisionMode
-    ) internal virtual override {
-        _getTreasurer().registerDeposit{value: msg.value}(baseAsset(), depositAmount, currentProvisionMode);
+    function _transferDepositToExecutor(uint256 depositAmount) internal virtual override {
+        _getTreasurer().registerDeposit{value: msg.value}(baseAsset(), depositAmount);
     }
 
     /**
