@@ -7,10 +7,7 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
 interface ISharesManager {
 
-    struct TokenPrice {
-        uint128 numerator; // Minimum amount of base asset tokens required to mint {denominator} amount of votes.
-        uint128 denominator; // Number of votes that can be minted per {numerator} count of base asset.
-    }
+    event QuoteAssetChange(address oldQuoteAsset, address newQuoteAsset);
 
     event TreasuryChange(address oldTreasury, address newTreasury);
 
@@ -55,10 +52,10 @@ interface ISharesManager {
     error TreasuryIsNotReady();
     error InvalidTreasuryAddress(address treasury);
     error TreasuryInterfaceNotSupported(address treasury);
-    error CannotInitializeBaseAssetToSelf();
-    error CannotInitializeTokenPriceToZero();
+    error CannotSetQuoteAssetToSelf();
+    error UnsupportedQuoteAssetInterface();
     error MaxSupplyTooLarge(uint256 max);
-    error TokenPriceCannotBeZero();
+    error SharePriceCannotBeZero();
     error DepositsUnavailable();
     error InvalidDepositAmount();
     error TokenSalesNotAvailableYet(uint256 tokenSaleBeginsAt);
@@ -76,7 +73,8 @@ interface ISharesManager {
     function setMaxSupply(uint256 newMaxSupply) external;
 
     function quoteAsset() external view returns (IERC20);
-    function setQuoteAsset() external;
+    function setQuoteAsset(address newQuoteAsset) external;
+    function setQuoteAssetAndCheckInterfaceSupport(address newQuoteAsset) external;
 
     function isFundingActive() external view returns (bool fundingActive);
     function fundingPeriods() external view returns (uint256 fundingBeginsAt, uint256 fundingExpiresAt);
@@ -85,18 +83,11 @@ interface ISharesManager {
     function setFundingExpiresAt(uint256 fundingExpiresAt) external;
     function setFundingPeriods(uint256 fundingBeginsAt, uint256 fundingExpiresAt) external;
 
+    /// Function to query the current price per share
+    function sharePrice() external view returns (uint128 quoteAmount, uint128 mintAmount);
 
-    /// Function to query the ERC20 base asset (address(0) for ETH)
-    function baseAsset() external view returns (address);
-
-    /// Function to query the current token price
-    function tokenPrice() external view returns (uint128, uint128);
-
-    /// Function to update the token price, executor only
-    function setTokenPrice(uint256 numerator, uint256 denominator) external;
-
-    /// Returns the current value per token in the existing supply of votes, quoted in the base asset
-    function valuePerToken() external view returns (uint256);
+    /// Function to update the share price, executor only
+    function setSharePrice(uint256 quoteAmount, uint256 mintAmount) external;
 
     /// Function to make a deposit, and have votes minted to the supplied account
     function depositFor(address account, uint256 depositAmount) external payable returns (uint256);

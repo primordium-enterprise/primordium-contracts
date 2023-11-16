@@ -30,21 +30,22 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         "Withdraw(address owner,address receiver,uint256 amount,uint256 nonce,uint256 expiry)"
     );
 
-    uint256 private constant COMPARE_FRACTIONS_MULTIPLIER = 1_000;
-
-    IERC20 internal immutable _baseAsset; // The address for the DAO's base asset (address(0) for ETH)
+    struct SharePrice {
+        uint128 quoteAmount; // Minimum amount of base asset tokens required to mint {mintAmount} amount of votes.
+        uint128 mintAmount; // Number of votes that can be minted per {quoteAmount} count of base asset.
+    }
 
     /// @custom:storage-location erc7201:SharesManager.Storage
     struct SharesManagerStorage {
         uint256 _maxSupply;
 
         // Funding parameters
-        IERC20 _quoteAsset;
+        IERC20 _quoteAsset; // (address(0) for ETH)
         uint48 _fundingBeginsAt;
         uint48 _fundingExpiresAt;
 
-        /// @dev _tokenPrice updates should always go through {_setTokenPrice} to avoid setting price to zero
-        TokenPrice _tokenPrice;
+        /// @dev _sharePrice updates should always go through {_setSharesPrice} to avoid setting price to zero
+        SharePrice _sharePrice;
 
         ITreasury _treasury;
     }
@@ -72,20 +73,19 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     constructor(
         address owner_,
         address treasury_,
-        IERC20 baseAsset_,
         uint256 maxSupply_,
-        TokenPrice memory tokenPrice_,
+        address quoteAsset_,
+        bool checkQuoteAssetInterface_,
+        SharePrice calldata sharePrice_,
         uint256 tokenSaleBeginsAt_,
         uint256 governanceCanBeginAt_,
         uint256 governanceThreshold_
     ) {
         __Ownable_init(owner_);
         _setTreasury(treasury_);
-        if (address(baseAsset_) == address(this)) revert CannotInitializeBaseAssetToSelf();
-        _baseAsset = baseAsset_;
         _setMaxSupply(maxSupply_);
-        if (tokenPrice_.numerator == 0 || tokenPrice_.denominator == 0) revert CannotInitializeTokenPriceToZero();
-        _setTokenPrice(tokenPrice_.numerator, tokenPrice_.denominator);
+        _setQuoteAsset(quoteAsset_, checkQuoteAssetInterface_);
+        _setSharesPrice(sharePrice_.quoteAmount, sharePrice_.mintAmount);
         tokenSaleBeginsAt = tokenSaleBeginsAt_;
         governanceCanBeginAt = governanceCanBeginAt_;
         governanceThreshold = governanceThreshold_;
@@ -127,6 +127,31 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         $._maxSupply = newMaxSupply;
     }
 
+    function quoteAsset() public view virtual override returns (IERC20 quoteAsset_) {
+        quoteAsset_ = _getSharesManagerStorage()._quoteAsset;
+    }
+
+    function setQuoteAsset(address newQuoteAsset) external view virtual override onlyOwner {
+        _setQuoteAsset(newQuoteAsset, false);
+    }
+
+    function setQuoteAssetAndCheckInterfaceSupport(address newQuoteAsset) external view virtual override onlyOwner {
+        _setQuoteAsset(newQuoteAsset, true);
+    }
+
+    function _setQuoteAsset(address newQuoteAsset, bool checkInterfaceSupport) internal virtual {
+        if (newQuoteAsset == address(this)) revert CannotSetQuoteAssetToSelf();
+        if (checkInterfaceSupport) {
+            if (!IERC165(newQuoteAsset).supportsInterface(type(IERC20).interfaceId)) {
+                revert UnsupportedQuoteAssetInterface();
+            }
+        }
+
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        emit QuoteAssetChange(address($._quoteAsset), newQuoteAsset);
+        $._quoteAsset = IERC20(newQuoteAsset);
+    }
+
     /**
      * Returns the address of the treasury contract.
      * @notice This address is likely to be the same address as the owner contract.
@@ -136,7 +161,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         return address($._treasury);
     }
 
-    function setTreasury(address newTreasury) public virtual onlyOwner {
+    function setTreasury(address newTreasury) external virtual onlyOwner {
         _setTreasury(newTreasury);
     }
 
@@ -152,70 +177,60 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     }
 
     /**
-     * @notice Returns the address of the base asset (or address(0) if the base asset is ETH)
-     */
-    function baseAsset() public view returns (address) {
-        return address(_baseAsset);
-    }
-
-    /**
-     * @notice Returns the numerator and the denominator of the token price.
+     * @notice Returns the quoteAmount and the mintAmount of the token price.
      *
-     * The {numerator} is the minimum amount of the base asset tokens required to mint {denominator} amount of votes.
+     * The {quoteAmount} is the minimum amount of the quote asset tokens required to mint {mintAmount} amount of votes.
      */
-    function tokenPrice() public view returns (uint128, uint128) {
+    function sharePrice() public view override returns (uint128 quoteAmount, uint128 mintAmount) {
         SharesManagerStorage storage $ = _getSharesManagerStorage();
-        return ($._tokenPrice.numerator, $._tokenPrice.denominator);
+        quoteAmount = $._sharePrice.quoteAmount;
+        mintAmount = $._sharePrice.mintAmount;
     }
 
     /**
      * @notice Public function to update the token price. Only the executor can make an update to the token price.
-     * @param newNumerator The new numerator value (the amount of base asset required for {denominator} amount of
-     * shares). Set to zero to keep the numerator unchanged.
-     * @param newDenominator The new denominator value (the amount of shares minted for every {numerator} amount of the
-     * base asset). Set to zero to keep the denominator unchanged.
+     * @param newQuoteAmount The new quoteAmount value (the amount of base asset required for {mintAmount} amount of
+     * shares). Set to zero to keep the quoteAmount unchanged.
+     * @param newMintAmount The new mintAmount value (the amount of shares minted for every {quoteAmount} amount of the
+     * base asset). Set to zero to keep the mintAmount unchanged.
      */
-    function setTokenPrice(uint256 newNumerator, uint256 newDenominator) public virtual onlyOwner {
-        _setTokenPrice(newNumerator, newDenominator);
+    function setSharesPrice(uint256 newQuoteAmount, uint256 newMintAmount) external virtual onlyOwner {
+        _setSharesPrice(newQuoteAmount, newMintAmount);
     }
 
     /**
-     * @dev Private function to update the tokenPrice numerator and denominator. Skips update of zero values (unless the
+     * @dev Private function to update the tokenPrice quoteAmount and mintAmount. Skips update of zero values (unless the
      * current value is zero, in which case it throws an error).
      */
-    function _setTokenPrice(uint256 newNumerator, uint256 newDenominator) private {
+    function _setSharesPrice(uint256 newQuoteAmount, uint256 newMintAmount) private {
         SharesManagerStorage storage $ = _getSharesManagerStorage();
-        uint256 currentNumerator = $._tokenPrice.numerator;
-        uint256 currentDenominator = $._tokenPrice.denominator;
+        uint256 currentQuoteAmount = $._sharePrice.quoteAmount;
+        uint256 currentMintAmount = $._sharePrice.mintAmount;
         // Only update if the new value is not zero
-        if (newNumerator > 0) {
-            $._tokenPrice.numerator = SafeCast.toUint128(newNumerator);
+        if (newQuoteAmount > 0) {
+            $._sharePrice.quoteAmount = SafeCast.toUint128(newQuoteAmount);
         } else {
             // Don't allow keeping a zero value
-            if (currentNumerator == 0) {
-                revert TokenPriceCannotBeZero();
+            if (currentQuoteAmount == 0) {
+                revert SharePriceCannotBeZero();
             }
         }
-        if (newDenominator > 0) {
-            $._tokenPrice.denominator = SafeCast.toUint128(newDenominator);
+        if (newMintAmount > 0) {
+            $._sharePrice.mintAmount = SafeCast.toUint128(newMintAmount);
         } else {
             // Don't allow keeping a zero value
-            if (currentDenominator == 0) {
-                revert TokenPriceCannotBeZero();
+            if (currentMintAmount == 0) {
+                revert SharePriceCannotBeZero();
             }
         }
-        emit TokenPriceChange(currentNumerator, newNumerator, currentDenominator, newDenominator);
-    }
-
-    function valuePerToken() public view returns (uint256) {
-        return _valuePerToken(1);
+        emit TokenPriceChange(currentQuoteAmount, newQuoteAmount, currentMintAmount, newMintAmount);
     }
 
     /**
      * @notice Allows exchanging the depositAmount of base asset for votes (if votes are available for purchase).
      * @param account The account address to deposit to.
-     * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for
-     * every tokenPrice.numerator count of base asset tokens.
+     * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.mintAmount votes for
+     * every tokenPrice.quoteAmount count of base asset tokens.
      * @dev This calls _depositFor, but should be overridden for any additional checks.
      * @return Amount of vote tokens minted.
      */
@@ -225,8 +240,8 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
 
     /**
      * @notice Calls {depositFor} with msg.sender as the account.
-     * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.denominator votes for
-     * every tokenPrice.numerator count of base asset tokens.
+     * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.mintAmount votes for
+     * every tokenPrice.quoteAmount count of base asset tokens.
      */
     function deposit(uint256 depositAmount) public payable virtual returns (uint256) {
         return depositFor(_msgSender(), depositAmount);
@@ -246,10 +261,10 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         // Zero address is checked in the _mint function
         if (depositAmount == 0) revert InvalidDepositAmount();
 
-        uint256 tokenPriceNumerator = $._tokenPrice.numerator;
-        uint256 tokenPriceDenominator = $._tokenPrice.denominator;
+        uint256 tokenPriceNumerator = $._sharePrice.quoteAmount;
+        uint256 tokenPriceDenominator = $._sharePrice.mintAmount;
 
-        // The "depositAmount" must be a multiple of the token price numerator
+        // The "depositAmount" must be a multiple of the token price quoteAmount
         if (depositAmount % tokenPriceNumerator != 0) revert InvalidDepositAmountMultiple();
 
         // In founding mode, block.timestamp must be past the tokenSaleBeginsAt timestamp
