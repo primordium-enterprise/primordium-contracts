@@ -52,10 +52,15 @@ interface ISharesManager {
      * @notice Emitted when a withdrawal is made and tokens are burned.
      * @param account The account address that votes were burned for.
      * @param receiver The receiver address that the withdrawal was sent to.
-     * @param amountWithdrawn The amount of base asset tokens trånsferred from the Executor as a withdrawal.
-     * @param votesBurned The amount of vote tokens burned from the account.
+     * @param totalSharesBurned The amount of vote tokens burned from the account.
+     * @param tokens The tokens withdrawn.
      */
-    event Withdrawal(address indexed account, address receiver, uint256 amountWithdrawn, uint256 votesBurned);
+    event Withdrawal(
+        address indexed account,
+        address receiver,
+        uint256 totalSharesBurned,
+        IERC20[] tokens
+    );
 
     error InvalidTreasuryAddress(address treasury);
     error TreasuryInterfaceNotSupported(address treasury);
@@ -65,6 +70,8 @@ interface ISharesManager {
     error SharePriceCannotBeZero();
     error FundingIsNotActive();
     error InvalidDepositAmount();
+    error InvalidPermitSpender(address providedSpender, address correctSpender);
+    error QuoteAssetIsNotNativeCurrency(address quoteAsset);
     error TokenSalesNotAvailableYet(uint256 tokenSaleBeginsAt);
     error InvalidDepositAmountMultiple();
     error TokenPriceTooLow();
@@ -100,21 +107,46 @@ interface ISharesManager {
     function setSharePrice(uint256 quoteAmount, uint256 mintAmount) external;
 
     /// Function to make a deposit, and have votes minted to the supplied account
-    function depositFor(address account, uint256 depositAmount) external payable returns (uint256);
+    function depositFor(address account, uint256 depositAmount) external payable returns (uint256 totalMintAmount);
 
-    /// Function to make a dposit and have votes minted to the msg.sender
-    function deposit(uint256 depositAmount) external payable returns(uint256);
+    /// Function to make a deposit and have votes minted to the msg.sender
+    function deposit(uint256 depositAmount) external payable returns (uint256 totalMintAmount);
+
+    function depositWithPermit(
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external returns (uint256 totalMintAmount);
 
     /**
      * Withdraw the supplied amount of tokens, with the pro-rata amount of the base asset sent from the treasury to the
      * receiver
      */
-    function withdrawTo(address receiver, uint256 amount) external returns (uint256);
+    function withdrawTo(
+        address receiver,
+        uint256 amount,
+        IERC20[] calldata tokens
+    ) external returns (uint256 totalSharesBurned);
 
     /**
      * Withdraw the supplied amount of tokens, with the pro-rata amount of the base asset sent from the treasury to the
      * msg.sender
      */
-    function withdraw(uint256 amount) external returns (uint256);
+    function withdraw(uint256 amount, IERC20[] calldata tokens) external returns (uint256 totalSharesBurned);
+
+    function withdrawBySig(
+        address owner,
+        address receiver,
+        uint256 amount,
+        IERC20[] calldata tokens,
+        uint256 expiry,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external returns (uint256 totalSharesBurned);
 
 }

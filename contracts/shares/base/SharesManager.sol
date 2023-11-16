@@ -13,6 +13,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
 /**
  * @title SharesManager - Contract responsible for managing permissionless deposits and withdrawals (rage quit).
@@ -32,14 +34,15 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownable1Or2StepUpgradeable {
     using Math for uint256;
     using SafeCast for *;
+    using SafeERC20 for IERC20;
 
     bytes32 private constant WITHDRAW_TYPEHASH = keccak256(
-        "Withdraw(address owner,address receiver,uint256 amount,uint256 nonce,uint256 expiry)"
+        "Withdraw(address owner,address receiver,uint256 amount,address[] tokens,uint256 nonce,uint256 expiry)"
     );
 
     struct SharePrice {
-        uint128 quoteAmount; // Minimum amount of base asset tokens required to mint {mintAmount} amount of votes.
-        uint128 mintAmount; // Number of votes that can be minted per {quoteAmount} count of base asset.
+        uint128 quoteAmount; // Minimum amount of quote asset tokens required to mint {mintAmount} amount of votes.
+        uint128 mintAmount; // Number of votes that can be minted per {quoteAmount} count of quote asset.
     }
 
     /// @custom:storage-location erc7201:SharesManager.Storage
@@ -221,10 +224,10 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
 
     /**
      * @notice Public function to update the token price. Only the executor can make an update to the token price.
-     * @param newQuoteAmount The new quoteAmount value (the amount of base asset required for {mintAmount} amount of
+     * @param newQuoteAmount The new quoteAmount value (the amount of quote asset required for {mintAmount} amount of
      * shares). Set to zero to keep the quoteAmount unchanged.
      * @param newMintAmount The new mintAmount value (the amount of shares minted for every {quoteAmount} amount of the
-     * base asset). Set to zero to keep the mintAmount unchanged.
+     * quote asset). Set to zero to keep the mintAmount unchanged.
      */
     function setSharePrice(uint256 newQuoteAmount, uint256 newMintAmount) external virtual override onlyOwner {
         _setSharePrice(newQuoteAmount, newMintAmount);
@@ -259,83 +262,131 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     }
 
     /**
-     * @notice Allows exchanging the depositAmount of base asset for votes (if votes are available for purchase).
-     * @param account The account address to deposit to.
-     * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.mintAmount votes for
-     * every tokenPrice.quoteAmount count of base asset tokens.
-     * @dev This calls _depositFor, but should be overridden for any additional checks.
-     * @return Amount of vote tokens minted.
+     * @notice Allows exchanging the depositAmount of quote asset for vote shares (if shares are currently available).
+     * @param account The recipient account address to receive the newly minted share tokens.
+     * @param depositAmount The amount of the quote asset being deposited by the msg.sender. Will mint
+     * {sharePrice.mintAmount} votes for every {sharePrice.quoteAmount} amount of quote asset tokens. The depositAmount
+     * must be an exact multiple of the {sharePrice.quoteAmount}. The  depositAmount also must match the msg.value if
+     * the current quoteAsset is the native chain currency (address(0)).
+     * @return totalSharesMinted The amount of vote share tokens minted to the account.
      */
-    function depositFor(address account, uint256 depositAmount) public payable virtual returns (uint256) {
-        return _depositFor(account, depositAmount);
+    function depositFor(
+        address account,
+        uint256 depositAmount
+    ) public payable virtual returns (uint256 totalSharesMinted) {
+        totalSharesMinted = _depositFor(account, depositAmount, _msgSender());
     }
 
     /**
-     * @notice Calls {depositFor} with msg.sender as the account.
-     * @param depositAmount The amount of the base asset being deposited. Will mint tokenPrice.mintAmount votes for
-     * every tokenPrice.quoteAmount count of base asset tokens.
+     * @notice Same as the {depositFor} function, but uses the msg.sender as the recipient account of the newly minted
+     * shares.
      */
-    function deposit(uint256 depositAmount) public payable virtual returns (uint256) {
-        return depositFor(_msgSender(), depositAmount);
+    function deposit(uint256 depositAmount) public payable virtual returns (uint256 totalSharesMinted) {
+        address account = _msgSender();
+        totalSharesMinted = _depositFor(account, depositAmount, account);
     }
 
     /**
-     * @dev Internal function for processing the deposit. Calls _transferDepositToExecutor, which must be implemented in
-     * an inheriting contract.
+     * @notice Additional function helper to use permit on the quote asset contract to approve and deposit in a single
+     * transaction (if supported by the ERC20 quote asset).
+     */
+    function depositWithPermit(
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) public virtual returns (uint256 totalSharesMinted) {
+        if (spender != address(this)) revert InvalidPermitSpender(spender, address(this));
+        IERC20Permit(address(quoteAsset())).permit(
+            owner,
+            spender,
+            value,
+            deadline,
+            v,
+            r,
+            s
+        );
+        // The "owner" should be the receiver and the depositor
+        totalSharesMinted = _depositFor(owner, value, owner);
+    }
+
+    /**
+     * @dev Internal function for processing the deposit. Runs several checks before transferring the deposit to the
+     * treasury and minting shares to the provided account address. Main checks:
+     * - Funding is active (treasury is not zero address, and block.timestamp is in funding window)
+     * - depositAmount cannot be zero, and must be a multiple of the quoteAmount
+     * - msg.value is proper based on the current quoteAsset
      */
     function _depositFor(
         address account,
-        uint256 depositAmount
-    ) internal virtual returns (uint256) {
+        uint256 depositAmount,
+        address depositor
+    ) internal virtual returns (uint256 totalSharesMinted) {
         (bool fundingActive, ITreasury treasury_) = _isFundingActive();
         if (!fundingActive) {
             revert FundingIsNotActive();
         }
 
-        // Zero address is checked in the _mint function
+        // NOTE: The {_mint} function already checks to ensure the account address != address(0)
         if (depositAmount == 0) revert InvalidDepositAmount();
 
         (uint256 quoteAmount, uint256 mintAmount) = sharePrice();
 
-        // The "depositAmount" must be a multiple of the token price quoteAmount
+        // The "depositAmount" must be a multiple of the share price quoteAmount
         if (depositAmount % quoteAmount != 0) revert InvalidDepositAmountMultiple();
 
-        // In founding mode, block.timestamp must be past the tokenSaleBeginsAt timestamp
-        // if (currentProvisionMode == ProvisionMode.Founding) {
-        //     if (block.timestamp < tokenSaleBeginsAt) revert TokenSalesNotAvailableYet(tokenSaleBeginsAt);
-        // // The current price per token must not exceed the current value per token, or the treasury will be at risk
-        // // NOTE: We should bypass this check in founding mode to prevent an attack locking deposits
-        // } else {
-        //     if (
-        //         Math512.mul512Lt(quoteAmount, totalSupply(), mintAmount, _treasuryBalance())
-        //     ) revert TokenPriceTooLow();
-        // }
-        uint256 totalMintAmount = depositAmount / quoteAmount * mintAmount;
-        _transferDepositToExecutor(depositAmount);
-        _mint(account, totalMintAmount);
-        emit Deposit(account, depositAmount, totalMintAmount);
-        return totalMintAmount;
+        // Transfer the deposit to the treasury, and register the deposit on the treasury
+        IERC20 quoteAsset_ = quoteAsset();
+        uint256 msgValue;
+        if (address(quoteAsset_) == address(0)) {
+            if (depositAmount != msg.value) {
+                revert InvalidDepositAmount();
+            }
+            msgValue = msg.value;
+        } else {
+            if (msg.value > 0) {
+                revert QuoteAssetIsNotNativeCurrency(address(quoteAsset_));
+            }
+            quoteAsset_.safeTransferFrom(depositor, address(treasury_), depositAmount);
+        }
+        treasury_.registerDeposit{value: msgValue}(quoteAsset_, depositAmount);
+
+        // Mint the vote shares to the receiver
+        totalSharesMinted = depositAmount / quoteAmount * mintAmount;
+        _mint(account, totalSharesMinted);
+
+        emit Deposit(account, depositAmount, totalSharesMinted);
     }
 
     /**
-     * @notice Allows burning the provided amount of vote tokens owned by the transaction sender and withdrawing the
-     * proportional share of the base asset in the treasury.
-     * @param receiver The address for the base asset to be sent to.
-     * @param amount The amount of vote tokens to be burned.
-     * @return The amount of base asset withdrawn.
+     * @notice Allows burning the provided amount of vote tokens owned by the msg.sender and withdrawing the
+     * proportional share of the provided tokens in the treasury.
+     * @param receiver The address for the share of provided tokens to be sent to.
+     * @param amount The amount of vote shares to be burned.
+     * @param tokens A list of token addresses to withdraw from the treasury. Use address(0) for the native currency,
+     * such as ETH.
+     * @return totalSharesBurned The amount of shares burned.
      */
-    function withdrawTo(address receiver, uint256 amount) public virtual returns (uint256) {
-        return _withdraw(_msgSender(), receiver, amount);
+    function withdrawTo(
+        address receiver,
+        uint256 amount,
+        IERC20[] calldata tokens
+    ) public virtual override returns (uint256 totalSharesBurned) {
+        totalSharesBurned = _withdraw(_msgSender(), receiver, amount, tokens);
     }
 
     /**
-     * @notice Allows burning the provided amount of vote tokens and withdrawing the proportional share of the base
-     * asset from the treasury. The tokens are burned for msg.sender, and the base asset is sent to msg.sender as well.
-     * @param amount The amount of vote tokens to be burned.
-     * @return The amount of base asset withdrawn.
+     * @notice Same as the {withdrawTo} function, but uses the msg.sender as the receiver of all token withdrawals.
      */
-    function withdraw(uint256 amount) public virtual returns (uint256) {
-        return _withdraw(_msgSender(), _msgSender(), amount);
+    function withdraw(
+        uint256 amount,
+        IERC20[] calldata tokens
+    ) public virtual override returns (uint256 totalSharesBurned) {
+        address account = _msgSender();
+        totalSharesBurned = _withdraw(account, account, amount, tokens);
     }
 
     /**
@@ -345,16 +396,17 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         address owner,
         address receiver,
         uint256 amount,
+        IERC20[] calldata tokens,
         uint256 expiry,
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) public virtual returns (uint256) {
+    ) public virtual returns (uint256 totalSharesBurned) {
         if (block.timestamp > expiry) revert ERC2612ExpiredSignature(expiry);
         address signer = ECDSA.recover(
             _hashTypedDataV4(
                 keccak256(
-                    abi.encode(WITHDRAW_TYPEHASH, owner, receiver, amount, _useNonce(owner), expiry)
+                    abi.encode(WITHDRAW_TYPEHASH, owner, receiver, amount, tokens, _useNonce(owner), expiry)
                 )
             ),
             v,
@@ -362,53 +414,37 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
             s
         );
         if (signer != owner) revert ERC2612InvalidSigner(signer, owner);
-        return _withdraw(signer, receiver, amount);
+        totalSharesBurned = _withdraw(signer, receiver, amount, tokens);
     }
 
     /**
      * @dev Internal function for processing the withdrawal. Calls _transferWithdrawalToReciever, which must be
      * implemented in an inheriting contract.
      */
-    function _withdraw(address account, address receiver, uint256 amount) internal virtual returns(uint256) {
+    function _withdraw(
+        address account,
+        address receiver,
+        uint256 amount,
+        IERC20[] calldata tokens
+    ) internal virtual returns (uint256 totalSharesBurned) {
         if (account == address(0)) revert WithdrawFromZeroAddress();
         if (receiver == address(0)) revert WithdrawToZeroAddress();
         if (amount == 0) revert WithdrawAmountInvalid();
 
-        uint256 withdrawAmount = _valuePerToken(amount); // [ (amount/supply) * treasuryBalance ]
+        totalSharesBurned = amount;
+
+        // Cache the total supply before burning
+        uint256 totalSupply = totalSupply();
 
         // _burn checks for InsufficientBalance
         _burn(account, amount);
+
         // Transfer withdrawal funds AFTER burning tokens to ensure no re-entrancy
-        _transferWithdrawalToReceiver(receiver, withdrawAmount);
 
-        emit Withdrawal(account, receiver, withdrawAmount, amount);
+        treasury().processWithdrawal(receiver, amount, totalSupply, tokens);
 
-        return withdrawAmount;
+        emit Withdrawal(account, receiver, totalSharesBurned, tokens);
     }
-
-    function _valuePerToken(uint256 multiplier) internal view returns (uint256) {
-        uint256 supply = totalSupply();
-        uint256 balance = _treasuryBalance();
-        return supply > 0 ? Math.mulDiv(balance, multiplier, supply) : 0;
-    }
-
-    /**
-     * @dev Internal function that returns the balance of the base asset in the Executor.
-     */
-    function _treasuryBalance() internal view virtual returns (uint256) {
-        return treasury().treasuryBalance();
-    }
-
-    /**
-     * @dev Internal function that should be overridden with functionality to transfer the depositAmount of base asset
-     * to the Executor from the msg.sender.
-     */
-    function _transferDepositToExecutor(uint256 depositAmount) internal virtual;
-
-    /**
-     * @dev Internal function that should be overridden with functionality to transfer the withdrawal to the recipient.
-     */
-    function _transferWithdrawalToReceiver(address receiver, uint256 withdrawAmount) internal virtual;
 
     /**
      * @dev Relays a transaction or function call to an arbitrary target, only callable by the executor. If the relay
