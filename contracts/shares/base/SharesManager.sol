@@ -13,14 +13,21 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "../../utils/Math512.sol";
 
 /**
- * @dev Extension of {Votes} to support decentralized DAO formation.
+ * @title SharesManager - Contract responsible for managing permissionless deposits and withdrawals (rage quit).
  *
- * Complete with deposit/withraw functionality.
+ * @dev Extends the ERC20Votes to access the internal _mint and _burn functionalities. Deposits and withdrawals are
+ * processed through the specified "treasury" address (usually a DAO executor contract).
  *
- * Anyone can mint vote tokens in exchange for the DAO's base asset. Any member can withdraw pro rata.
+ * The owner (also likely the DAO executor contract) can update the funding period, set the treasury address for where
+ * to send the deposits and process the withdrawals from. The owner can also update the share price and the quote asset
+ * (an ERC20 address or address(0) for native ETH) for the permissionless funding.
+ *
+ * Anyone can mint vote tokens in exchange for the DAO's quote asset as long as funding is active. Any member can
+ * withdraw (rage quit) pro rata at any time.
+ *
+ * @author Ben Jett - @BCJdevelopment
  */
 abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownable1Or2StepUpgradeable {
     using Math for uint256;
@@ -66,13 +73,16 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         uint256 maxSupply_,
         address quoteAsset_,
         bool checkQuoteAssetInterface_,
-        SharePrice calldata sharePrice_
+        SharePrice calldata sharePrice_,
+        uint256 fundingBeginsAt_,
+        uint256 fundingEndsAt_
     ) internal virtual onlyInitializing {
         __Ownable_init(owner_);
         _setTreasury(treasury_);
         _setMaxSupply(maxSupply_);
         _setQuoteAsset(quoteAsset_, checkQuoteAssetInterface_);
         _setSharePrice(sharePrice_.quoteAmount, sharePrice_.mintAmount);
+        _setFundingPeriods(fundingBeginsAt_, fundingEndsAt_);
     }
 
     function treasury() public view virtual returns (ITreasury _treasury) {
