@@ -48,14 +48,14 @@ abstract contract VotesProvisionerETH is SharesManager {
      */
 
     function _transferDepositToExecutor(uint256 depositAmount) internal virtual override {
-        _getTreasurer().registerDeposit{value: msg.value}(baseAsset(), depositAmount);
+        treasury().registerDeposit{value: msg.value}(baseAsset(), depositAmount);
     }
 
     /**
      * @dev Override to transfer the ETH withdrawal from the Executor.
      */
     function _transferWithdrawalToReceiver(address receiver, uint256 withdrawAmount) internal virtual override {
-        _getTreasurer().processWithdrawal(baseAsset(), receiver, withdrawAmount);
+        treasury().processWithdrawal(baseAsset(), receiver, withdrawAmount);
     }
 
 }

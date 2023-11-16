@@ -3,6 +3,7 @@
 
 pragma solidity ^0.8.20;
 
+import {ITreasury} from "contracts/executor/interfaces/ITreasury.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
 interface ISharesManager {
@@ -11,18 +12,25 @@ interface ISharesManager {
 
     event TreasuryChange(address oldTreasury, address newTreasury);
 
+    event FundingPeriodChange(
+        uint256 oldFundingBeginsAt,
+        uint256 newFundingBeginsAt,
+        uint256 oldFundingEndsAt,
+        uint256 newFundingEndsAt
+    );
+
     /**
      * @notice Emitted when the tokenPrice is updated.
-     * @param oldNumerator Previous numerator before the update.
-     * @param newNumerator The new minimum amount of base asset tokens required to mint {denominator} amount of votes.
-     * @param oldDenominator The previous denominator before the update.
-     * @param newDenominator The new number of votes that can be minted per {numerator} count of base asset.
+     * @param oldQuoteAmount Previous numerator before the update.
+     * @param newQuoteAmount The new minimum amount of base asset tokens required to mint {denominator} amount of votes.
+     * @param oldMintAmount The previous denominator before the update.
+     * @param newMintAmount The new number of votes that can be minted per {numerator} count of base asset.
      */
-    event TokenPriceChange(
-        uint256 oldNumerator,
-        uint256 newNumerator,
-        uint256 oldDenominator,
-        uint256 newDenominator
+    event SharePriceChange(
+        uint256 oldQuoteAmount,
+        uint256 newQuoteAmount,
+        uint256 oldMintAmount,
+        uint256 newMintAmount
     );
 
     /**
@@ -49,14 +57,13 @@ interface ISharesManager {
      */
     event Withdrawal(address indexed account, address receiver, uint256 amountWithdrawn, uint256 votesBurned);
 
-    error TreasuryIsNotReady();
     error InvalidTreasuryAddress(address treasury);
     error TreasuryInterfaceNotSupported(address treasury);
     error CannotSetQuoteAssetToSelf();
     error UnsupportedQuoteAssetInterface();
     error MaxSupplyTooLarge(uint256 max);
     error SharePriceCannotBeZero();
-    error DepositsUnavailable();
+    error FundingIsNotActive();
     error InvalidDepositAmount();
     error TokenSalesNotAvailableYet(uint256 tokenSaleBeginsAt);
     error InvalidDepositAmountMultiple();
@@ -66,8 +73,11 @@ interface ISharesManager {
     error WithdrawAmountInvalid();
     error RelayDataToExecutorNotAllowed(bytes data);
 
+    function treasury() external view returns (ITreasury _treasury);
+    function setTreasury() external;
+
     /// Function to query the max supply
-    function maxSupply() external view returns (uint256);
+    function maxSupply() external view returns (uint256 _maxSupply);
 
     /// Function to update the max supply, executor only
     function setMaxSupply(uint256 newMaxSupply) external;
@@ -77,11 +87,11 @@ interface ISharesManager {
     function setQuoteAssetAndCheckInterfaceSupport(address newQuoteAsset) external;
 
     function isFundingActive() external view returns (bool fundingActive);
-    function fundingPeriods() external view returns (uint256 fundingBeginsAt, uint256 fundingExpiresAt);
+    function fundingPeriods() external view returns (uint256 fundingBeginsAt, uint256 fundingEndsAt);
 
     function setFundingBeginsAt(uint256 fundingBeginsAt) external;
-    function setFundingExpiresAt(uint256 fundingExpiresAt) external;
-    function setFundingPeriods(uint256 fundingBeginsAt, uint256 fundingExpiresAt) external;
+    function setFundingEndsAt(uint256 fundingEndsAt) external;
+    function setFundingPeriods(uint256 newFundingBeginsAt, uint256 newFundingEndsAt) external;
 
     /// Function to query the current price per share
     function sharePrice() external view returns (uint128 quoteAmount, uint128 mintAmount);

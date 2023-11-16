@@ -40,14 +40,14 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         uint256 _maxSupply;
 
         // Funding parameters
-        IERC20 _quoteAsset; // (address(0) for ETH)
+        ITreasury _treasury;
         uint48 _fundingBeginsAt;
-        uint48 _fundingExpiresAt;
+        uint48 _fundingEndsAt;
 
         /// @dev _sharePrice updates should always go through {_setSharesPrice} to avoid setting price to zero
         SharePrice _sharePrice;
 
-        ITreasury _treasury;
+        IERC20 _quoteAsset; // (address(0) for ETH)
     }
 
     bytes32 private immutable SHARES_MANAGER_STORAGE =
@@ -60,35 +60,42 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         }
     }
 
-    // Timestamps for when token sales begin and when governance can begin
-    uint256 public immutable tokenSaleBeginsAt;
-    uint256 public immutable governanceCanBeginAt;
-    uint256 public immutable governanceThreshold;
-
-    modifier treasuryIsReady() {
-        if (treasury() == address(0)) revert TreasuryIsNotReady();
-        _;
-    }
-
-    constructor(
+    function __SharesManager_init(
         address owner_,
         address treasury_,
         uint256 maxSupply_,
         address quoteAsset_,
         bool checkQuoteAssetInterface_,
-        SharePrice calldata sharePrice_,
-        uint256 tokenSaleBeginsAt_,
-        uint256 governanceCanBeginAt_,
-        uint256 governanceThreshold_
-    ) {
+        SharePrice calldata sharePrice_
+    ) internal virtual onlyInitializing {
         __Ownable_init(owner_);
         _setTreasury(treasury_);
         _setMaxSupply(maxSupply_);
         _setQuoteAsset(quoteAsset_, checkQuoteAssetInterface_);
-        _setSharesPrice(sharePrice_.quoteAmount, sharePrice_.mintAmount);
-        tokenSaleBeginsAt = tokenSaleBeginsAt_;
-        governanceCanBeginAt = governanceCanBeginAt_;
-        governanceThreshold = governanceThreshold_;
+        _setSharePrice(sharePrice_.quoteAmount, sharePrice_.mintAmount);
+    }
+
+    function treasury() public view virtual returns (ITreasury _treasury) {
+        _treasury = _getSharesManagerStorage()._treasury;
+    }
+
+    function setTreasury(address newTreasury) external virtual onlyOwner {
+        _setTreasury(newTreasury);
+    }
+
+    function _setTreasury(address newTreasury) internal virtual {
+        if (
+            newTreasury == address(0) ||
+            newTreasury == address(this)
+        ) revert InvalidTreasuryAddress(newTreasury);
+
+        if (!IERC165(newTreasury).supportsInterface(type(ITreasury).interfaceId)) {
+            revert TreasuryInterfaceNotSupported(newTreasury);
+        }
+
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        emit TreasuryChange(address($._treasury), newTreasury);
+        $._treasury = ITreasury(newTreasury);
     }
 
     /**
@@ -98,9 +105,8 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     function maxSupply() public view virtual override(
         ERC20CheckpointsUpgradeable,
         ISharesManager
-    ) returns (uint256) {
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-        return $._maxSupply;
+    ) returns (uint256 _maxSupply) {
+        _maxSupply = _getSharesManagerStorage()._maxSupply;
     }
 
     /**
@@ -131,11 +137,11 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         quoteAsset_ = _getSharesManagerStorage()._quoteAsset;
     }
 
-    function setQuoteAsset(address newQuoteAsset) external view virtual override onlyOwner {
+    function setQuoteAsset(address newQuoteAsset) external virtual override onlyOwner {
         _setQuoteAsset(newQuoteAsset, false);
     }
 
-    function setQuoteAssetAndCheckInterfaceSupport(address newQuoteAsset) external view virtual override onlyOwner {
+    function setQuoteAssetAndCheckInterfaceSupport(address newQuoteAsset) external virtual override onlyOwner {
         _setQuoteAsset(newQuoteAsset, true);
     }
 
@@ -152,28 +158,45 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         $._quoteAsset = IERC20(newQuoteAsset);
     }
 
-    /**
-     * Returns the address of the treasury contract.
-     * @notice This address is likely to be the same address as the owner contract.
-     */
-    function treasury() public view virtual returns (address) {
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-        return address($._treasury);
+    function isFundingActive() public view override returns (bool fundingActive) {
+        (fundingActive,) = _isFundingActive();
     }
 
-    function setTreasury(address newTreasury) external virtual onlyOwner {
-        _setTreasury(newTreasury);
+    function _isFundingActive() internal view returns (bool fundingActive, ITreasury treasury_) {
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        treasury_ = $._treasury;
+        uint256 fundingBeginsAt_ = $._fundingBeginsAt;
+        uint256 fundingEndsAt_ = $._fundingEndsAt;
+
+        fundingActive = address(treasury_) != address(0) &&
+            block.timestamp >= fundingBeginsAt_ &&
+            block.timestamp < fundingEndsAt_;
     }
 
-    function _setTreasury(address newTreasury) internal virtual {
-        if (newTreasury == address(0)) revert InvalidTreasuryAddress(newTreasury);
-        if (!IERC165(newTreasury).supportsInterface(type(ITreasury).interfaceId)) {
-            revert TreasuryInterfaceNotSupported(newTreasury);
-        }
-
+    function fundingPeriods() public view override returns (uint256 fundingBeginsAt, uint256 fundingEndsAt) {
         SharesManagerStorage storage $ = _getSharesManagerStorage();
-        emit TreasuryChange(address($._treasury), newTreasury);
-        $._treasury = ITreasury(newTreasury);
+        (fundingBeginsAt, fundingEndsAt) = ($._fundingBeginsAt, $._fundingEndsAt);
+    }
+
+    function setFundingPeriods(
+        uint256 newFundingBeginsAt,
+        uint256 newFundingEndsAt
+    ) external virtual override onlyOwner {
+        _setFundingPeriods(newFundingBeginsAt, newFundingEndsAt);
+    }
+
+    function _setFundingPeriods(uint256 newFundingBeginsAt, uint256 newFundingEndsAt) internal virtual {
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        uint256 currentFundingBeginsAt = $._fundingBeginsAt;
+        uint256 currentFundingEndsAt = $._fundingEndsAt;
+
+        // Cast to uint48, which will revert on overflow
+        uint48 castedFundingBeginsAt = newFundingBeginsAt.toUint48();
+        uint48 castedFundingEndsAt = newFundingEndsAt.toUint48();
+
+        emit FundingPeriodChange(currentFundingBeginsAt, newFundingBeginsAt, currentFundingEndsAt, newFundingEndsAt);
+        $._fundingBeginsAt = castedFundingBeginsAt;
+        $._fundingEndsAt = castedFundingEndsAt;
     }
 
     /**
@@ -182,9 +205,8 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
      * The {quoteAmount} is the minimum amount of the quote asset tokens required to mint {mintAmount} amount of votes.
      */
     function sharePrice() public view override returns (uint128 quoteAmount, uint128 mintAmount) {
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-        quoteAmount = $._sharePrice.quoteAmount;
-        mintAmount = $._sharePrice.mintAmount;
+        SharePrice storage _sharePrice = _getSharesManagerStorage()._sharePrice;
+        (quoteAmount, mintAmount) = (_sharePrice.quoteAmount, _sharePrice.mintAmount);
     }
 
     /**
@@ -194,15 +216,15 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
      * @param newMintAmount The new mintAmount value (the amount of shares minted for every {quoteAmount} amount of the
      * base asset). Set to zero to keep the mintAmount unchanged.
      */
-    function setSharesPrice(uint256 newQuoteAmount, uint256 newMintAmount) external virtual onlyOwner {
-        _setSharesPrice(newQuoteAmount, newMintAmount);
+    function setSharePrice(uint256 newQuoteAmount, uint256 newMintAmount) external virtual override onlyOwner {
+        _setSharePrice(newQuoteAmount, newMintAmount);
     }
 
     /**
      * @dev Private function to update the tokenPrice quoteAmount and mintAmount. Skips update of zero values (unless the
      * current value is zero, in which case it throws an error).
      */
-    function _setSharesPrice(uint256 newQuoteAmount, uint256 newMintAmount) private {
+    function _setSharePrice(uint256 newQuoteAmount, uint256 newMintAmount) private {
         SharesManagerStorage storage $ = _getSharesManagerStorage();
         uint256 currentQuoteAmount = $._sharePrice.quoteAmount;
         uint256 currentMintAmount = $._sharePrice.mintAmount;
@@ -223,7 +245,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
                 revert SharePriceCannotBeZero();
             }
         }
-        emit TokenPriceChange(currentQuoteAmount, newQuoteAmount, currentMintAmount, newMintAmount);
+        emit SharePriceChange(currentQuoteAmount, newQuoteAmount, currentMintAmount, newMintAmount);
     }
 
     /**
@@ -254,34 +276,35 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     function _depositFor(
         address account,
         uint256 depositAmount
-    ) internal virtual treasuryIsReady returns (uint256) {
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-
+    ) internal virtual returns (uint256) {
+        (bool fundingActive, ITreasury treasury_) = _isFundingActive();
+        if (!fundingActive) {
+            revert FundingIsNotActive();
+        }
 
         // Zero address is checked in the _mint function
         if (depositAmount == 0) revert InvalidDepositAmount();
 
-        uint256 tokenPriceNumerator = $._sharePrice.quoteAmount;
-        uint256 tokenPriceDenominator = $._sharePrice.mintAmount;
+        (uint256 quoteAmount, uint256 mintAmount) = sharePrice();
 
         // The "depositAmount" must be a multiple of the token price quoteAmount
-        if (depositAmount % tokenPriceNumerator != 0) revert InvalidDepositAmountMultiple();
+        if (depositAmount % quoteAmount != 0) revert InvalidDepositAmountMultiple();
 
         // In founding mode, block.timestamp must be past the tokenSaleBeginsAt timestamp
-        if (currentProvisionMode == ProvisionMode.Founding) {
-            if (block.timestamp < tokenSaleBeginsAt) revert TokenSalesNotAvailableYet(tokenSaleBeginsAt);
-        // The current price per token must not exceed the current value per token, or the treasury will be at risk
-        // NOTE: We should bypass this check in founding mode to prevent an attack locking deposits
-        } else {
-            if (
-                Math512.mul512Lt(tokenPriceNumerator, totalSupply(), tokenPriceDenominator, _treasuryBalance())
-            ) revert TokenPriceTooLow();
-        }
-        uint256 mintAmount = depositAmount / tokenPriceNumerator * tokenPriceDenominator;
-        _transferDepositToExecutor(depositAmount, currentProvisionMode);
-        _mint(account, mintAmount);
-        emit Deposit(account, depositAmount, mintAmount);
-        return mintAmount;
+        // if (currentProvisionMode == ProvisionMode.Founding) {
+        //     if (block.timestamp < tokenSaleBeginsAt) revert TokenSalesNotAvailableYet(tokenSaleBeginsAt);
+        // // The current price per token must not exceed the current value per token, or the treasury will be at risk
+        // // NOTE: We should bypass this check in founding mode to prevent an attack locking deposits
+        // } else {
+        //     if (
+        //         Math512.mul512Lt(quoteAmount, totalSupply(), mintAmount, _treasuryBalance())
+        //     ) revert TokenPriceTooLow();
+        // }
+        uint256 totalMintAmount = depositAmount / quoteAmount * mintAmount;
+        _transferDepositToExecutor(depositAmount);
+        _mint(account, totalMintAmount);
+        emit Deposit(account, depositAmount, totalMintAmount);
+        return totalMintAmount;
     }
 
     /**
@@ -353,13 +376,6 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         return withdrawAmount;
     }
 
-    /**
-     * @dev Internal function for returning the executor address wrapped as the Treasurer contract.
-     */
-    function _getTreasurer() internal view returns (ITreasury) {
-        return ITreasury(payable(treasury()));
-    }
-
     function _valuePerToken(uint256 multiplier) internal view returns (uint256) {
         uint256 supply = totalSupply();
         uint256 balance = _treasuryBalance();
@@ -370,7 +386,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
      * @dev Internal function that returns the balance of the base asset in the Executor.
      */
     function _treasuryBalance() internal view virtual returns (uint256) {
-        return _getTreasurer().treasuryBalance();
+        return treasury().treasuryBalance();
     }
 
     /**
