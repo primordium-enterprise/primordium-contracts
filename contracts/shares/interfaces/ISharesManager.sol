@@ -89,7 +89,7 @@ interface ISharesManager {
     /// Function to update the max supply, executor only
     function setMaxSupply(uint256 newMaxSupply) external;
 
-    function quoteAsset() external view returns (IERC20);
+    function quoteAsset() external view returns (IERC20 _quoteAsset);
     function setQuoteAsset(address newQuoteAsset) external;
     function setQuoteAssetAndCheckInterfaceSupport(address newQuoteAsset) external;
 

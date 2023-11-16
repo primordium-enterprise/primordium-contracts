@@ -146,8 +146,8 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         $._maxSupply = newMaxSupply;
     }
 
-    function quoteAsset() public view virtual override returns (IERC20 quoteAsset_) {
-        quoteAsset_ = _getSharesManagerStorage()._quoteAsset;
+    function quoteAsset() public view virtual override returns (IERC20 _quoteAsset) {
+        _quoteAsset = _getSharesManagerStorage()._quoteAsset;
     }
 
     function setQuoteAsset(address newQuoteAsset) external virtual override onlyOwner {
@@ -339,20 +339,20 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         if (depositAmount % quoteAmount != 0) revert InvalidDepositAmountMultiple();
 
         // Transfer the deposit to the treasury, and register the deposit on the treasury
-        IERC20 quoteAsset_ = quoteAsset();
+        IERC20 _quoteAsset = quoteAsset();
         uint256 msgValue;
-        if (address(quoteAsset_) == address(0)) {
+        if (address(_quoteAsset) == address(0)) {
             if (depositAmount != msg.value) {
                 revert InvalidDepositAmount();
             }
             msgValue = msg.value;
         } else {
             if (msg.value > 0) {
-                revert QuoteAssetIsNotNativeCurrency(address(quoteAsset_));
+                revert QuoteAssetIsNotNativeCurrency(address(_quoteAsset));
             }
-            quoteAsset_.safeTransferFrom(depositor, address(treasury_), depositAmount);
+            _quoteAsset.safeTransferFrom(depositor, address(treasury_), depositAmount);
         }
-        treasury_.registerDeposit{value: msgValue}(quoteAsset_, depositAmount);
+        treasury_.registerDeposit{value: msgValue}(_quoteAsset, depositAmount);
 
         // Mint the vote shares to the receiver
         totalSharesMinted = depositAmount / quoteAmount * mintAmount;
