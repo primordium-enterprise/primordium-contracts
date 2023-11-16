@@ -408,8 +408,8 @@ abstract contract TreasurerBalanceShares is Treasurer {
     }
 
     /// @dev Override to implement balance updates on the treasury for deposit shares
-    function _registerDeposit(uint256 depositAmount) internal virtual override {
-        super._registerDeposit(depositAmount);
+    function _registerDeposit(IERC20 quoteAsset, uint256 depositAmount) internal virtual override {
+        super._registerDeposit(quoteAsset, depositAmount);
 
         // TODO: Make storage variable to track deposit status
         if (true) {

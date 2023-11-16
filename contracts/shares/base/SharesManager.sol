@@ -440,7 +440,6 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         _burn(account, amount);
 
         // Transfer withdrawal funds AFTER burning tokens to ensure no re-entrancy
-
         treasury().processWithdrawal(receiver, amount, totalSupply, tokens);
 
         emit Withdrawal(account, receiver, totalSharesBurned, tokens);

@@ -10,17 +10,17 @@ abstract contract TreasurerERC20 is Treasurer {
     error CannotInitializeBaseAssetToETH();
 
     constructor() {
-        if (address(_baseAsset) == address(0)) revert CannotInitializeBaseAssetToETH();
+        // if (address(_baseAsset) == address(0)) revert CannotInitializeBaseAssetToETH();
     }
 
     /// @dev Override to return the raw base asset balance of this address with an ERC20 as the base asset
     function _baseAssetBalance() internal view virtual override returns (uint256) {
-        return _baseAsset.balanceOf(address(this));
+        // return _baseAsset.balanceOf(address(this));
     }
 
     /// @dev Transfers ERC20 base asset
     function _safeTransferBaseAsset(address to, uint256 amount) internal virtual override {
-        SafeERC20.safeTransfer(_baseAsset, to, amount);
+        // SafeERC20.safeTransfer(_baseAsset, to, amount);
     }
 
     /**
@@ -43,6 +43,7 @@ abstract contract TreasurerERC20 is Treasurer {
         uint256 value,
         bytes calldata data
     ) internal virtual override returns (uint256 balanceBeingTransferred) {
+        /**
         if (target == address(_baseAsset)) {
             bytes4 selector = bytes4(data);
             if (selector == IERC20.transfer.selector) {
@@ -56,6 +57,7 @@ abstract contract TreasurerERC20 is Treasurer {
                 revert InvalidBaseAssetOperation(target, value, data);
             }
         }
+        */
     }
 
 }

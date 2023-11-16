@@ -14,7 +14,6 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1155Receiver {
 
     SharesManager internal immutable _token;
-    IERC20 internal immutable _baseAsset;
 
     // The total balance of the base asset that is allocated to Distributions, BalanceShares, etc.
     uint256 internal _stashedBalance;
@@ -38,7 +37,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
         SharesManager token_
     ) {
         _token = token_;
-        _baseAsset = IERC20(token_.baseAsset());
     }
 
     /**
@@ -69,10 +67,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
         return address(_token);
     }
 
-    function baseAsset() public view returns (address) {
-        return address(_baseAsset);
-    }
-
     /**
      * @notice Returns the current DAO balance of the base asset in the treasury.
      */
@@ -87,20 +81,45 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
     function _governanceInitialized(address asset, uint256 totalDeposits) internal virtual { }
 
     /**
-     * @notice Registers a deposit on the Treasurer. Only callable by the votes contract.
-     * @param depositAmount The amount being deposited.
+     * @inheritdoc ITreasury
+     * @notice Only callable by the shares token contract.
      */
-    function registerDeposit(uint256 depositAmount) external payable virtual onlyToken {
-        _registerDeposit(depositAmount);
+    function registerDeposit(IERC20 quoteAsset, uint256 depositAmount) external payable virtual override onlyToken {
+        _registerDeposit(quoteAsset, depositAmount);
     }
 
     /**
-     * @notice Processes a withdrawal from the Treasurer to the withdrawing member. Only callable by the votes contract.
-     * @param receiver The address to send the base asset to.
-     * @param withdrawAmount The amount of base asset to send.
+     * @dev Can override and call super._registerDeposit for additional checks/functionality depending on baseAsset used
+    */
+    function _registerDeposit(IERC20 quoteAsset, uint256 depositAmount) internal virtual {
+        if (depositAmount == 0) revert InvalidDepositAmount();
+        if (address(quoteAsset) == address(0) && msg.value != depositAmount) revert InvalidDepositAmount();
+    }
+
+    /**
+     * @inheritdoc ITreasury
+     * @notice Only callable by the shares token contract.
      */
-    function processWithdrawal(address receiver, uint256 withdrawAmount) external virtual onlyToken {
-        _processWithdrawal(receiver, withdrawAmount);
+    function processWithdrawal(
+        address receiver,
+        uint256 sharesBurned,
+        uint256 sharesTotalSupply,
+        IERC20[] calldata tokens
+    ) external virtual override onlyToken {
+        _processWithdrawal(receiver, sharesBurned, sharesTotalSupply, tokens);
+    }
+
+    /**
+     * @dev Can override and call super._processWithdrawal for additional checks/functionality.
+     * Calls "_processBaseAssetTransfer" as part of the transfer functionality (for internal accounting)
+     */
+    function _processWithdrawal(
+        address receiver,
+        uint256 sharesBurned,
+        uint256 sharesTotalSupply,
+        IERC20[] calldata tokens
+    ) internal virtual {
+        // _transferBaseAsset(receiver, withdrawAmount);
     }
 
     /**
@@ -142,21 +161,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
         uint256 value,
         bytes calldata data
     ) internal virtual returns (uint256 balanceBeingTransferred);
-
-    /**
-     * @dev Can override and call super._registerDeposit for additional checks/functionality depending on baseAsset used
-    */
-    function _registerDeposit(uint256 depositAmount) internal virtual {
-        if (depositAmount == 0) revert InvalidDepositAmount();
-    }
-
-    /**
-     * @dev Can override and call super._processWithdrawal for additional checks/functionality.
-     * Calls "_processBaseAssetTransfer" as part of the transfer functionality (for internal accounting)
-     */
-    function _processWithdrawal(address receiver, uint256 withdrawAmount) internal virtual {
-        _transferBaseAsset(receiver, withdrawAmount);
-    }
 
     /**
      * @dev An internal function that must be overridden to properly return the raw base asset balance.

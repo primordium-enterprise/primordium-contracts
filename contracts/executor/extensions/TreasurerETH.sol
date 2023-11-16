@@ -12,7 +12,7 @@ abstract contract TreasurerETH is Treasurer {
 
 
     constructor() {
-        if (address(_baseAsset) != address(0)) revert MustInitializeBaseAssetToETH();
+        // if (address(_baseAsset) != address(0)) revert MustInitializeBaseAssetToETH();
     }
 
     /// @dev Override to return the raw base asset balance of this address with ETH as the base asset
@@ -27,10 +27,10 @@ abstract contract TreasurerETH is Treasurer {
     }
 
     /// @dev Override to ensure that the depositAmount is equal to the msg.value
-    function _registerDeposit(uint256 depositAmount) internal virtual override {
-        if (msg.value != depositAmount) revert DepositAmountAndMsgValueMismatch(depositAmount, msg.value);
-        super._registerDeposit(depositAmount);
-    }
+    // function _registerDeposit(uint256 depositAmount) internal virtual override {
+    //     if (msg.value != depositAmount) revert DepositAmountAndMsgValueMismatch(depositAmount, msg.value);
+    //     super._registerDeposit(depositAmount);
+    // }
 
     function _checkExecutionBaseAssetTransfer(
         address /*target*/,
