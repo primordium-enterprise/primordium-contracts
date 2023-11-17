@@ -12,7 +12,7 @@ import {IGovernorBase} from "../interfaces/IGovernorBase.sol";
 import {IGovernorToken} from "../interfaces/IGovernorToken.sol";
 import {Roles} from "contracts/utils/Roles.sol";
 import {TimelockAvatarControlled} from "./TimelockAvatarControlled.sol";
-import {TimelockAvatar} from "contracts/executor/base/TimelockAvatar.sol";
+import {ITimelockAvatar} from "contracts/executor/interfaces/ITimelockAvatar.sol";
 import {Enum} from "contracts/common/Enum.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
@@ -258,11 +258,11 @@ abstract contract GovernorBase is
             return ProposalState.Succeeded;
         }
 
-        TimelockAvatar.OperationStatus opStatus = executor().getOperationStatus(opNonce);
-        if (opStatus == TimelockAvatar.OperationStatus.Done) {
+        ITimelockAvatar.OperationStatus opStatus = executor().getOperationStatus(opNonce);
+        if (opStatus == ITimelockAvatar.OperationStatus.Done) {
             return ProposalState.Executed;
         }
-        if (opStatus == TimelockAvatar.OperationStatus.Expired) {
+        if (opStatus == ITimelockAvatar.OperationStatus.Expired) {
             return ProposalState.Expired;
         }
 
@@ -476,7 +476,7 @@ abstract contract GovernorBase is
             $._proposals[proposalId].actionsHash != hashProposalActions(proposalId, targets, values, calldatas)
         ) revert InvalidActionsForProposal();
 
-        TimelockAvatar _executor = executor();
+        ITimelockAvatar _executor = executor();
         (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSendCalldata(
             address(_executor),
             targets,
@@ -548,7 +548,7 @@ abstract contract GovernorBase is
         uint256[] calldata values,
         bytes[] calldata calldatas
     ) internal virtual {
-        TimelockAvatar _executor = executor();
+        ITimelockAvatar _executor = executor();
         (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSendCalldata(
             address(_executor),
             targets,

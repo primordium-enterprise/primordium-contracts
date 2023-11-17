@@ -15,18 +15,21 @@ interface IAvatar {
     event ExecutionFromModuleSuccess(address indexed module);
     event ExecutionFromModuleFailure(address indexed module);
 
-    /// @dev Enables a module on the avatar.
-    /// @notice Can only be called by the avatar.
-    /// @notice Modules should be stored as a linked list.
-    /// @notice Must emit EnabledModule(address module) if successful.
-    /// @param module Module to be enabled.
+    /**
+     * Authorizes a new module to execute transactions on this avatar contract. Modules can only be enabled
+     * by this contract itself.
+     * @notice Enabled modules are stored as a linked list.
+     * @notice Can only be called by this contract itself.
+     * @param module The address of the module to enable.
+     */
     function enableModule(address module) external;
 
-    /// @dev Disables a module on the avatar.
-    /// @notice Can only be called by the avatar.
-    /// @notice Must emit DisabledModule(address module) if successful.
-    /// @param prevModule Address that pointed to the module to be removed in the linked list
-    /// @param module Module to be removed.
+    /**
+     * Unauthorizes an enabled module.
+     * @notice Can only be called by this contract itself.
+     * @param prevModule Addres that pointed to the module to be removed in the linked list.
+     * @param module The address of the module to disable.
+     */
     function disableModule(address prevModule, address module) external;
 
     /// @dev Allows a Module to execute a transaction.
@@ -59,15 +62,20 @@ interface IAvatar {
         Enum.Operation operation
     ) external returns (bool success, bytes memory returnData);
 
-    /// @dev Returns if an module is enabled
-    /// @return True if the module is enabled
+    /**
+     * Returns true if the specified module is enabled.
+     * @param module The module address.
+     * @return enabled True of the module is enabled.
+     */
     function isModuleEnabled(address module) external view returns (bool);
 
-    /// @dev Returns array of modules.
-    /// @param start Start of the page.
-    /// @param pageSize Maximum number of modules that should be returned.
-    /// @return array Array of modules.
-    /// @return next Start of the next page.
+    /**
+     * @notice Returns an array of enabled modules.
+     * @param start The start address. Use the 0x1 address to start at the beginning.
+     * @param pageSize The amount of modules to return.
+     * @return array The array of module addresses.
+     * @return next Use as the start parameter to retrieve the next page of modules. Will be 0x1 at end of modules.
+     */
     function getModulesPaginated(address start, uint256 pageSize)
         external
         view

@@ -9,6 +9,7 @@ import {MultiSend} from "./MultiSend.sol";
 import {Guardable} from "./Guardable.sol";
 import {IAvatar} from "../interfaces/IAvatar.sol";
 import {IGuard} from "../interfaces/IGuard.sol";
+import {ITimelockAvatar} from "../interfaces/ITimelockAvatar.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 
@@ -19,16 +20,7 @@ import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Cont
  *
  * @author Ben Jett @BCJdevelopment
  */
-abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable, ContextUpgradeable {
-
-    enum OperationStatus {
-        NoOp, // NoOp when executableAt == 0
-        Cancelled, // Cancelled when executableAt == 1
-        Done, // Done when executableAt == 2
-        Pending, // Pending when executableAt > block.timestamp
-        Ready, // Ready when executableAt <= block.timestamp (and not expired)
-        Expired // Expired when executableAt + GRACE_PERIOD <= block.timestamp
-    }
+abstract contract TimelockAvatar is MultiSend, IAvatar, ITimelockAvatar, Guardable, ContextUpgradeable {
 
     struct Operation {
         address module;
@@ -104,6 +96,13 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable, ContextUpgrad
         _setUpModules(modules_);
     }
 
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+        return
+            interfaceId == type(IAvatar).interfaceId ||
+            interfaceId == type(ITimelockAvatar).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
+
     /**
      * @dev Initialization of an array of modules. The provided array must have at least one module, or else the
      * contract is bricked (no modules to enable other modules).
@@ -125,19 +124,12 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable, ContextUpgrad
         emit ModulesInitialized(modules_);
     }
 
-    /**
-     * Retrieve the current minimum timelock delay before scheduled transactions can be executed.
-     * @return duration The minimum timelock delay.
-     */
+    /// @inheritdoc ITimelockAvatar
     function getMinDelay() public view returns (uint256 duration) {
         return _minDelay;
     }
 
-    /**
-     * Updates the minimum timelock delay.
-     * @notice Only the timelock itself can make updates to the timelock delay.
-     * @param newMinDelay The new minimum delay. Must be at least MIN_DELAY and no greater than MAX_DELAY.
-     */
+    /// @inheritdoc ITimelockAvatar
     function updateMinDelay(uint256 newMinDelay) external onlySelf {
         _updateMinDelay(newMinDelay);
     }
@@ -153,20 +145,12 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable, ContextUpgrad
         _minDelay = newMinDelay;
     }
 
-    /**
-     * Returns the nonce value for the next operation.
-     * @return opNonce The nonce for the next operation.
-     */
+    /// @inheritdoc ITimelockAvatar
     function getNextOperationNonce() external view returns (uint256 opNonce) {
         return _opNonce;
     }
 
-    /**
-     * Returns the OperationStatus of the provided operation nonce.
-     * @notice Non-existing operations will return OperationStatus.NoOp (which is uint8(0)).
-     * @param opNonce The operation nonce.
-     * @return opStatus The OperationStatus value.
-     */
+    /// @inheritdoc ITimelockAvatar
     function getOperationStatus(uint256 opNonce) external view returns (OperationStatus opStatus) {
         opStatus = _getOperationStatus(_operations[opNonce].executableAt);
     }
@@ -184,48 +168,25 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable, ContextUpgrad
         return OperationStatus(eta);
     }
 
-    /**
-     * Returns the address of the module that enabled the operation with the specified nonce.
-     * @notice Reverts if the operation does not exist.
-     * @param opNonce The operation nonce.
-     * @return module The address of the module.
-     */
+    /// @inheritdoc ITimelockAvatar
     function getOperationModule(uint256 opNonce) external view returns (address module) {
         _checkOpNonce(opNonce);
         module = _operations[opNonce].module;
     }
 
-    /**
-     * Returns the hash of the target, value, and calldata for the operation with the specified nonce.
-     * @notice Reverts if the operation does not exist.
-     * @param opNonce The operation nonce.
-     * @return opHash The hash of the operation's target, value, and calldata.
-     */
+    /// @inheritdoc ITimelockAvatar
     function getOperationHash(uint256 opNonce) external view returns (bytes32 opHash) {
         _checkOpNonce(opNonce);
         opHash = _operations[opNonce].opHash;
     }
 
-    /**
-     * Returns the timestamp when the operation will be executable.
-     * @notice Reverts if the operation does not exist.
-     * @param opNonce The operation nonce.
-     * @return executableAt The timestamp when the operation is executable.
-     */
+    /// @inheritdoc ITimelockAvatar
     function getOperationExecutableAt(uint256 opNonce) external view returns (uint256 executableAt) {
         _checkOpNonce(opNonce);
         executableAt = _operations[opNonce].executableAt;
     }
 
-    /**
-     * Returns the details for the provided operation nonce.
-     * @notice Reverts if the operation does not exist.
-     * @param opNonce The operation nonce.
-     * @return module The module that scheduled the operation.
-     * @return executableAt Timestamp when this operation is executable.
-     * @return createdAt Timestamp when this operation was created.
-     * @return opHash The hash of the operation's target, value, and calldata.
-     */
+    /// @inheritdoc ITimelockAvatar
     function getOperationDetails(
         uint256 opNonce
     ) external view returns (
@@ -249,11 +210,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable, ContextUpgrad
         );
     }
 
-    /**
-     * @notice Authorizes a new module to execute transactions on this Executor contract. Modules can only be enabled
-     * by this contract itself.
-     * @param module The address of the module to enable.
-     */
+    /// @inheritdoc IAvatar
     function enableModule(address module) external onlySelf {
         _enableModule(module);
     }
@@ -268,10 +225,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable, ContextUpgrad
         emit EnabledModule(module);
     }
 
-    /**
-     * @notice Unauthorizes an enabled module.
-     * @param module The address of the module to disable.
-     */
+    /// @inheritdoc IAvatar
     function disableModule(address prevModule, address module) external onlySelf {
         _disableModule(prevModule, module);
     }
@@ -327,17 +281,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable, ContextUpgrad
         (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, _minDelay);
     }
 
-    /**
-     * Schedules a transaction for execution (with return data).
-     * @notice The msg.sender must be an enabled module.
-     * @param to The target for execution.
-     * @param value The call value.
-     * @param data The call data.
-     * @param operation For this timelock, must be Enum.Operation.Call (which is uint8(0))
-     * @param delay The delay before the transaction can be executed.
-     * @return success Returns true for successful scheduling
-     * @return returnData Returns abi.encode(uint256 opNonce,bytes32 opHash,uint256 executableAt).
-     */
+    /// @inheritdoc ITimelockAvatar
     function scheduleTransactionFromModuleReturnData(
         address to,
         uint256 value,
@@ -352,6 +296,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable, ContextUpgrad
         (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, delay);
     }
 
+    /// @dev Internal method to schedule a new transaction from a module.
     function _scheduleTransactionFromModule(
         address module,
         address to,
@@ -378,15 +323,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable, ContextUpgrad
         return (true, abi.encode(opNonce, opHash, executableAt));
     }
 
-    /**
-     * Executes a scheduled operation.
-     * @notice Requires that an execution call comes from the same module that originally scheduled the operation.
-     * @param opNonce The operation nonce.
-     * @param to The target for execution.
-     * @param value The call value.
-     * @param data The call data.
-     * @param operation The operation type. Must be Enum.Operation.Call (which is uint8(0)).
-     */
+    /// @inheritdoc ITimelockAvatar
     function executeOperation(
         uint256 opNonce,
         address to,
@@ -428,11 +365,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable, ContextUpgrad
         emit OperationExecuted(opNonce, module, to, value, data);
     }
 
-    /**
-     * Cancels a scheduled operation.
-     * @notice Requires that a cancel call comes from the same module that originally scheduled the operation.
-     * @param opNonce The operation nonce.
-     */
+    /// @inheritdoc ITimelockAvatar
     function cancelOperation(uint256 opNonce) external virtual {
         Operation storage op = _operations[opNonce];
         (address module, uint256 executableAt) = (op.module, op.executableAt);
@@ -447,22 +380,12 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable, ContextUpgrad
         emit OperationCancelled(opNonce, module);
     }
 
-    /**
-     * Returns true if the specified module is enabled.
-     * @param module The module address
-     * @return enabled
-     */
-    function isModuleEnabled(address module) public view returns(bool enabled) {
+    /// @inheritdoc IAvatar
+    function isModuleEnabled(address module) public view returns (bool enabled) {
         return module != MODULES_HEAD && _modules[module] != address(0);
     }
 
-    /**
-     * @notice Returns an array of enabled modules.
-     * @param start The start address. Use the 0x1 address to start at the beginning.
-     * @param pageSize The amount of modules to return.
-     * @return array The array of module addresses.
-     * @return next Use as the start parameter to retrieve the next page of modules. Will be 0x1 at end of modules.
-     */
+    /// @inheritdoc IAvatar
     function getModulesPaginated(
         address start,
         uint256 pageSize
@@ -499,15 +422,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, Guardable, ContextUpgrad
 
     }
 
-    /**
-     * Utility method for creating the opHash for an operation. Hashes the "to", the "value", the "data", and the
-     * "operation"
-     * @param to The operation target address.
-     * @param value The oepration ETH value.
-     * @param data The operation's calldata.
-     * @param operation The operation type.
-     * @return opHash The keccak256 hash of the abi encoded to, value, data, and operation.
-     */
+    /// @inheritdoc ITimelockAvatar
     function hashOperation(
         address to,
         uint256 value,

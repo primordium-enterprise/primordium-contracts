@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.20;
 
-import {TimelockAvatar} from "contracts/executor/base/TimelockAvatar.sol";
+import {ITimelockAvatar} from "contracts/executor/interfaces/ITimelockAvatar.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
@@ -28,7 +28,7 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
         DoubleEndedQueue.Bytes32Deque _governanceCall;
 
         // The executor serves as the timelock and treasury
-        TimelockAvatar _executor;
+        ITimelockAvatar _executor;
     }
 
     bytes32 private immutable TIMELOCK_STORAGE =
@@ -86,7 +86,7 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
     /**
      * Returns the address of the executor.
      */
-    function executor() public view virtual returns (TimelockAvatar) {
+    function executor() public view virtual returns (ITimelockAvatar) {
         TimelockStorage storage $ = _getTimelockStorage();
         return $._executor;
     }
@@ -110,7 +110,7 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
         TimelockStorage storage $ = _getTimelockStorage();
 
         emit TimelockAvatarChange(address($._executor), executor_);
-        $._executor = TimelockAvatar(payable(executor_));
+        $._executor = ITimelockAvatar(payable(executor_));
     }
 
 }

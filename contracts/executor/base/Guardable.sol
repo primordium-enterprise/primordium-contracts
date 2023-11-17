@@ -5,6 +5,8 @@ pragma solidity ^0.8.20;
 
 import {SelfAuthorized} from "./SelfAuthorized.sol";
 import {IGuard} from "../interfaces/IGuard.sol";
+import {IGuardable} from "../interfaces/IGuardable.sol";
+import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 
 abstract contract BaseGuard is IGuard, IERC165 {
@@ -24,7 +26,7 @@ abstract contract BaseGuard is IGuard, IERC165 {
  *
  * @author Ben Jett
  */
-contract Guardable is SelfAuthorized {
+contract Guardable is SelfAuthorized, IGuardable, ERC165Upgradeable {
 
     /**
      * @dev ERC-7201 storage of guard address.
@@ -42,6 +44,12 @@ contract Guardable is SelfAuthorized {
 
     /// `guard` does not implement IERC165.
     error NotIERC165Compliant(address guard);
+
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+        return
+            interfaceId == type(IGuardable).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
 
     /**
      * Set a guard that checks transactions before execution.
