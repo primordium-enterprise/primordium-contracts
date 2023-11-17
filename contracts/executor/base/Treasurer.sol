@@ -10,15 +10,23 @@ import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1155Receiver {
+    using SafeERC20 for IERC20;
 
     SharesManager internal immutable _token;
 
     // The total balance of the base asset that is allocated to Distributions, BalanceShares, etc.
     uint256 internal _stashedBalance;
 
+    event DepositRegistered(IERC20 quoteAsset, uint256 depositAmount);
+    event WithdrawalProcessed(address receiver, uint256 sharesBurned, uint256 totalSharesSupply, IERC20[] tokens);
+
     error OnlyToken();
+    error ETHTransferFailed();
     error FailedToTransferBaseAsset(address to, uint256 amount);
     error InsufficientBaseAssetFunds(uint256 balanceTransferAmount, uint256 currentBalance);
     error InvalidBaseAssetOperation(address target, uint256 value, bytes data);
@@ -94,6 +102,8 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
     function _registerDeposit(IERC20 quoteAsset, uint256 depositAmount) internal virtual {
         if (depositAmount == 0) revert InvalidDepositAmount();
         if (address(quoteAsset) == address(0) && msg.value != depositAmount) revert InvalidDepositAmount();
+
+        // TODO: Emit the DepositRegistered event
     }
 
     /**
@@ -110,8 +120,8 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
     }
 
     /**
-     * @dev Can override and call super._processWithdrawal for additional checks/functionality.
-     * Calls "_processBaseAssetTransfer" as part of the transfer functionality (for internal accounting)
+     * @dev Transfers proportional payouts for a withdrawal. Can override and call super._processWithdrawal for any
+     * additional checks/functionality.
      */
     function _processWithdrawal(
         address receiver,
@@ -119,7 +129,31 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
         uint256 sharesTotalSupply,
         IERC20[] calldata tokens
     ) internal virtual {
-        // _transferBaseAsset(receiver, withdrawAmount);
+        if (sharesTotalSupply > 0 && sharesBurned > 0) {
+            // Iterate through the token addresses, sending proportional payouts (using address(0) for ETH)
+            for (uint256 i = 0; i < tokens.length;) {
+                uint256 tokenBalance;
+                if (address(tokens[i]) == address(0)) {
+                    tokenBalance = address(this).balance;
+                } else {
+                    tokenBalance = tokens[i].balanceOf(address(this));
+                }
+
+                uint256 payout = Math.mulDiv(tokenBalance, sharesBurned, sharesTotalSupply);
+
+                if (payout > 0) {
+                    if (address(tokens[i]) == address(0)) {
+                        (bool success,) = receiver.call{value: payout}("");
+                        if (!success) revert ETHTransferFailed();
+                    } else {
+                        tokens[i].safeTransfer(receiver, payout);
+                    }
+                }
+                unchecked { ++i; }
+            }
+        }
+
+        emit WithdrawalProcessed(receiver, sharesBurned, sharesTotalSupply, tokens);
     }
 
     /**
