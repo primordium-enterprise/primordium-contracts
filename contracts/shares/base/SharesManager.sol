@@ -88,11 +88,13 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         _setFundingPeriods(fundingBeginsAt_, fundingEndsAt_);
     }
 
-    function treasury() public view virtual returns (ITreasury _treasury) {
+    /// @inheritdoc ISharesManager
+    function treasury() public view virtual override returns (ITreasury _treasury) {
         _treasury = _getSharesManagerStorage()._treasury;
     }
 
-    function setTreasury(address newTreasury) external virtual onlyOwner {
+    /// @inheritdoc ISharesManager
+    function setTreasury(address newTreasury) external virtual override onlyOwner {
         _setTreasury(newTreasury);
     }
 
@@ -111,10 +113,13 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         $._treasury = ITreasury(newTreasury);
     }
 
-    /**
-     * @notice Function to get the current max supply of vote tokens available for minting.
-     * @dev Overrides to use the updateable _maxSupply
-     */
+    /// @inheritdoc ISharesManager
+    function mint(address account, uint256 amount) external virtual override onlyOwner {
+        _mint(account, amount);
+    }
+
+    /// @inheritdoc ISharesManager
+    /// @dev Overrides to return the updateable _maxSupply
     function maxSupply() public view virtual override(
         ERC20CheckpointsUpgradeable,
         ISharesManager
@@ -122,19 +127,15 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         _maxSupply = _getSharesManagerStorage()._maxSupply;
     }
 
-    /**
-     * @notice Executor-only function to update the max supply of vote tokens.
-     * @param newMaxSupply The new max supply. Must be no greater than type(uint224).max.
-     */
+    /// @inheritdoc ISharesManager
     function setMaxSupply(uint256 newMaxSupply) external virtual onlyOwner {
         _setMaxSupply(newMaxSupply);
     }
 
     /**
      * @dev Internal function to update the max supply.
-     * We DO allow the max supply to be set below the current totalSupply(), because this would allow a DAO to
-     * remain in Funding mode, and continue to reject deposits ABOVE the max supply threshold of tokens minted.
-     * May never be used, but preserves DAO optionality.
+     * We DO allow the max supply to be set below the current totalSupply(), because this would allow a DAO to keep
+     * funding active but continue to reject deposits ABOVE the max supply threshold of tokens minted.
      */
     function _setMaxSupply(uint256 newMaxSupply) internal virtual {
         // Max supply is limited by ERC20Checkpoints
@@ -212,30 +213,18 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         $._fundingEndsAt = castedFundingEndsAt;
     }
 
-    /**
-     * @notice Returns the quoteAmount and the mintAmount of the share price.
-     *
-     * The {quoteAmount} is the minimum amount of the quote asset tokens required to mint {mintAmount} amount of votes.
-     */
+    /// @inheritdoc ISharesManager
     function sharePrice() public view virtual override returns (uint128 quoteAmount, uint128 mintAmount) {
         SharePrice storage _sharePrice = _getSharesManagerStorage()._sharePrice;
         (quoteAmount, mintAmount) = (_sharePrice.quoteAmount, _sharePrice.mintAmount);
     }
 
-    /**
-     * @notice Public function to update the share price. Only the owner can make an update to the share price.
-     * @param newQuoteAmount The new quoteAmount value (the amount of quote asset required for {mintAmount} amount of
-     * shares).
-     * @param newMintAmount The new mintAmount value (the amount of shares minted for every {quoteAmount} amount of the
-     * quote asset).
-     */
+    /// @inheritdoc ISharesManager
     function setSharePrice(uint256 newQuoteAmount, uint256 newMintAmount) external virtual override onlyOwner {
         _setSharePrice(newQuoteAmount, newMintAmount);
     }
 
-    /**
-     * @dev Private function to update the tokenPrice quoteAmount and mintAmount.
-     */
+    /// @dev Private function to update the tokenPrice quoteAmount and mintAmount.
     function _setSharePrice(uint256 newQuoteAmount, uint256 newMintAmount) internal virtual {
         // Casting checks for overflow
         uint128 castedQuoteAmount = newQuoteAmount.toUint128();

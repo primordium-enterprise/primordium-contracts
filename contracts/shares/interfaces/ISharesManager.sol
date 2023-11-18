@@ -79,13 +79,37 @@ interface ISharesManager {
     error WithdrawAmountInvalid();
     error RelayDataToExecutorNotAllowed(bytes data);
 
+    /**
+     * Returns the address for the treasury that processes deposits and withdrawals (usually the DAO executor contract).
+     * @return _treasury
+     */
     function treasury() external view returns (ITreasury _treasury);
-    function setTreasury() external;
 
-    /// Function to query the max supply
+    /**
+     * Sets the address of the treasury to register deposits and process withdrawals.
+     * @notice Only the owner can update the treasury address.
+     */
+    function setTreasury(address newTreasury) external;
+
+    /**
+     * Mints vote shares to an account.
+     * @notice Only the owner can mint shares. Shares can be otherwise minted through the deposit functionality.
+     * @param account The address to receive the newly minted shares.
+     * @param amount The amount of vote shares to mint.
+     */
+    function mint(address account, uint256 amount) external;
+
+    /**
+     * The current max supply of vote shares available for minting.
+     */
     function maxSupply() external view returns (uint256 _maxSupply);
 
-    /// Function to update the max supply, executor only
+    /**
+     * Function to update the max supply of vote tokens available to be minted by deposits during active funding.
+     * @notice Only the owner can update the max supply.
+     * @notice The max supply can be set below the total supply of tokens.
+     * @param newMaxSupply The new max supply. Must be no greater than type(uint224).max.
+     */
     function setMaxSupply(uint256 newMaxSupply) external;
 
     function quoteAsset() external view returns (IERC20 _quoteAsset);
@@ -99,11 +123,24 @@ interface ISharesManager {
     function setFundingEndsAt(uint256 fundingEndsAt) external;
     function setFundingPeriods(uint256 newFundingBeginsAt, uint256 newFundingEndsAt) external;
 
-    /// Function to query the current price per share
+    /**
+     * Returns the quote amount and the mint amount of the share price.
+     * @notice Because the decimals value can be different for every ERC20 token, the decimals should be taken into
+     * account when representing the human-readable amounts as a ratio of quote asset to vote tokens.
+     * @return quoteAmount The amount of quote asset tokens required to mint {mintAmount} of vote shares.
+     * @return mintAmount The amount of vote shares minted for every {quoteAmount} of quote asset tokens.
+     */
     function sharePrice() external view returns (uint128 quoteAmount, uint128 mintAmount);
 
-    /// Function to update the share price, executor only
-    function setSharePrice(uint256 quoteAmount, uint256 mintAmount) external;
+    /**
+     * Public function to update the share price.
+     * @notice Only the owner can make an update to the share price.
+     * @param newQuoteAmount The new quoteAmount value (the amount of quote asset required for {mintAmount} amount of
+     * shares).
+     * @param newMintAmount The new mintAmount value (the amount of shares minted for every {quoteAmount} amount of the
+     * quote asset).
+     */
+    function setSharePrice(uint256 newQuoteAmount, uint256 newMintAmount) external;
 
     /// Function to make a deposit, and have votes minted to the supplied account
     function depositFor(address account, uint256 depositAmount) external payable returns (uint256 totalMintAmount);
