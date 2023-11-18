@@ -20,6 +20,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
 
     SharesManager internal immutable _token;
 
+
     // The total balance of the base asset that is allocated to Distributions, BalanceShares, etc.
     uint256 internal _stashedBalance;
 
@@ -88,6 +89,21 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
      */
     function treasuryBalance() public view returns (uint256) {
         return _treasuryBalance();
+    }
+
+    function initializeDeposits() external onlyDuringModuleExecution {
+        _initializeDeposits();
+    }
+
+
+    function _initializeDeposits() internal virtual {
+        // TODO: Ensure that deposits have not already been initialized
+        // TODO: Retrieve the deposit share amount
+        uint256 totalSupply = _token.totalSupply();
+        (uint256 quoteAmount, uint256 mintAmount) = _token.sharePrice();
+        uint256 totalDeposits = Math.mulDiv(totalSupply, quoteAmount, mintAmount);
+        // TODO: Need to transfer totalDeposits to the deposit share contract
+        // TODO: Set state to show that deposits are now initialized
     }
 
     function governanceInitialized(address asset, uint256 totalDeposits) external onlyToken {

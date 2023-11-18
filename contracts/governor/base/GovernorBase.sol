@@ -188,6 +188,10 @@ abstract contract GovernorBase is
 
     /// @inheritdoc IGovernorBase
     function initializeGovernance() external virtual onlyGovernance {
+        _initializeGovernance();
+    }
+
+    function _initializeGovernance() internal virtual {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
         $._votesManagement._isFounded = true;
         emit GovernanceInitialized();

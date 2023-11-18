@@ -12,8 +12,6 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
  */
 interface ITreasury {
 
-    function initializeDeposits() external;
-
     /**
      * @dev Registers a deposit on the Treasury. Should only be callable by the votes contract.
      * @param quoteAsset The ERC20 asset that is being deposited. address(0) for native currency (such as ETH).
