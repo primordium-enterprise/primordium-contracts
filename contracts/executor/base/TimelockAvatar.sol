@@ -29,6 +29,22 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, ITimelockAvatar, Guardab
         bytes32 opHash;
     }
 
+    /// @custom:storage-location erc7201:TimelockAvatar.ModuleExecution.Storage
+    struct ModuleExecutionStorage {
+        address _executingModule;
+    }
+
+    bytes32 private immutable MODULE_EXECUTION_STORAGE = keccak256(
+        abi.encode(uint256(keccak256("TimelockAvatar.ModuleExecution.Storage")) - 1)) & ~bytes32(uint256(0xff)
+    );
+
+    function _getModuleExecutionStorage() private view returns (ModuleExecutionStorage storage $) {
+        bytes32 moduleExecutionStorageSlot = MODULE_EXECUTION_STORAGE;
+        assembly {
+            $.slot := moduleExecutionStorageSlot
+        }
+    }
+
     address internal constant MODULES_HEAD = address(0x1);
     mapping(address => address) internal _modules;
 
@@ -53,6 +69,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, ITimelockAvatar, Guardab
         address to,
         uint256 value,
         bytes data,
+        Enum.Operation operation,
         uint256 delay
     );
 
@@ -61,7 +78,8 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, ITimelockAvatar, Guardab
         address indexed module,
         address to,
         uint256 value,
-        bytes data
+        bytes data,
+        Enum.Operation operation
     );
 
     event OperationCancelled(uint256 indexed opNonce, address indexed module);
@@ -69,6 +87,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, ITimelockAvatar, Guardab
     error MinDelayOutOfRange(uint256 min, uint256 max);
     error InsufficientDelay();
     error ModuleNotEnabled(address module);
+    error SenderMustBeExecutingModule(address sender, address executingModule);
     error ModulesAlreadyInitialized();
     error ModuleInitializationNeedsMoreThanZeroModules();
     error InvalidModuleAddress(address module);
@@ -80,18 +99,30 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, ITimelockAvatar, Guardab
     error UnauthorizedModule();
     error InvalidCallParameters();
 
-    /**
-     * Modifier for only enabled modules to take the specified action
-     */
+    /// @dev Only enabled modules to take the specified action.
     modifier onlyModule() {
         if (!isModuleEnabled(msg.sender)) revert ModuleNotEnabled(msg.sender);
         _;
+    }
+
+    /// @dev Only allows the function to be called by the module actively executing the current operation.
+    modifier onlyDuringModuleExecution() {
+        address _executingModule = executingModule();
+        if (msg.sender != _executingModule) revert SenderMustBeExecutingModule(msg.sender, _executingModule);
+        _;
+    }
+
+    /// @dev Returns the module that is actively executing the operation.
+    function executingModule() public view returns (address module) {
+        return _getModuleExecutionStorage()._executingModule;
     }
 
     function __ModuleTimelockAdmin_init(
         uint256 minDelay_,
         address[] memory modules_
     ) internal {
+        // Initialize the module execution to address(0x01) for cheaper gas updates
+        _setModuleExecution(MODULES_HEAD);
         _updateMinDelay(minDelay_);
         _setUpModules(modules_);
     }
@@ -318,7 +349,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, ITimelockAvatar, Guardab
             opHash: opHash
         });
 
-        emit OperationScheduled(opNonce, module, to, value, data, delay);
+        emit OperationScheduled(opNonce, module, to, value, data, operation, delay);
 
         return (true, abi.encode(opNonce, opHash, executableAt));
     }
@@ -347,10 +378,13 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, ITimelockAvatar, Guardab
         address guard = getGuard();
         bytes32 guardHash;
         if (guard != address(0)) {
-            guardHash = IGuard(guard).checkTransactionFromModule(to, value, data, Enum.Operation.Call, module, opNonce);
+            guardHash = IGuard(guard).checkTransactionFromModule(to, value, data, operation, module, opNonce);
         }
 
+        // Set module execution before executing operation, then reset back to address(0x01) after finished.
+        _setModuleExecution(module);
         _execute(to, value, data, operation);
+        _setModuleExecution(MODULES_HEAD);
 
         // Check the guard after execution
         if (guard != address(0)) {
@@ -362,7 +396,12 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, ITimelockAvatar, Guardab
         if (opStatus != OperationStatus.Ready) revert InvalidOperationStatus(opStatus, OperationStatus.Ready);
         op.executableAt = uint48(OperationStatus.Done);
 
-        emit OperationExecuted(opNonce, module, to, value, data);
+        emit OperationExecuted(opNonce, module, to, value, data, operation);
+    }
+
+    function _setModuleExecution(address module) private {
+        // TODO: Make this transient storage once it's available
+        _getModuleExecutionStorage()._executingModule = module;
     }
 
     /// @inheritdoc ITimelockAvatar

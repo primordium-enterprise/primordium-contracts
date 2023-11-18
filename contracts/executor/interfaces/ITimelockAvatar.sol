@@ -18,6 +18,12 @@ interface ITimelockAvatar is IAvatar {
     }
 
     /**
+     * Returns the address of the module that that scheduled the operation under active execution.
+     * @return module The module address.
+     */
+    function executingModule() external view returns (address module);
+
+    /**
      * Retrieve the current minimum timelock delay before scheduled transactions can be executed.
      * @return duration The minimum timelock delay.
      */
