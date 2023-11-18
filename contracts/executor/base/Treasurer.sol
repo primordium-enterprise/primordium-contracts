@@ -105,7 +105,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
     }
 
     /**
-     * @dev Can override and call super._registerDeposit for additional checks/functionality depending on baseAsset used
+     * @dev Can override and call super._registerDeposit for additional checks/functionality
     */
     function _registerDeposit(IERC20 quoteAsset, uint256 depositAmount) internal virtual {
         if (depositAmount == 0) revert InvalidDepositAmount();

@@ -171,11 +171,11 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         $._quoteAsset = IERC20(newQuoteAsset);
     }
 
-    function isFundingActive() public view override returns (bool fundingActive) {
+    function isFundingActive() public view virtual override returns (bool fundingActive) {
         (fundingActive,) = _isFundingActive();
     }
 
-    function _isFundingActive() internal view returns (bool fundingActive, ITreasury treasury_) {
+    function _isFundingActive() internal view virtual returns (bool fundingActive, ITreasury treasury_) {
         SharesManagerStorage storage $ = _getSharesManagerStorage();
         treasury_ = $._treasury;
         uint256 fundingBeginsAt_ = $._fundingBeginsAt;
@@ -186,7 +186,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
             block.timestamp < fundingEndsAt_;
     }
 
-    function fundingPeriods() public view override returns (uint256 fundingBeginsAt, uint256 fundingEndsAt) {
+    function fundingPeriods() public view virtual override returns (uint256 fundingBeginsAt, uint256 fundingEndsAt) {
         SharesManagerStorage storage $ = _getSharesManagerStorage();
         (fundingBeginsAt, fundingEndsAt) = ($._fundingBeginsAt, $._fundingEndsAt);
     }
@@ -199,13 +199,13 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     }
 
     function _setFundingPeriods(uint256 newFundingBeginsAt, uint256 newFundingEndsAt) internal virtual {
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-        uint256 currentFundingBeginsAt = $._fundingBeginsAt;
-        uint256 currentFundingEndsAt = $._fundingEndsAt;
-
         // Cast to uint48, which will revert on overflow
         uint48 castedFundingBeginsAt = newFundingBeginsAt.toUint48();
         uint48 castedFundingEndsAt = newFundingEndsAt.toUint48();
+
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        uint256 currentFundingBeginsAt = $._fundingBeginsAt;
+        uint256 currentFundingEndsAt = $._fundingEndsAt;
 
         emit FundingPeriodChange(currentFundingBeginsAt, newFundingBeginsAt, currentFundingEndsAt, newFundingEndsAt);
         $._fundingBeginsAt = castedFundingBeginsAt;
@@ -213,52 +213,38 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     }
 
     /**
-     * @notice Returns the quoteAmount and the mintAmount of the token price.
+     * @notice Returns the quoteAmount and the mintAmount of the share price.
      *
      * The {quoteAmount} is the minimum amount of the quote asset tokens required to mint {mintAmount} amount of votes.
      */
-    function sharePrice() public view override returns (uint128 quoteAmount, uint128 mintAmount) {
+    function sharePrice() public view virtual override returns (uint128 quoteAmount, uint128 mintAmount) {
         SharePrice storage _sharePrice = _getSharesManagerStorage()._sharePrice;
         (quoteAmount, mintAmount) = (_sharePrice.quoteAmount, _sharePrice.mintAmount);
     }
 
     /**
-     * @notice Public function to update the token price. Only the executor can make an update to the token price.
+     * @notice Public function to update the share price. Only the owner can make an update to the share price.
      * @param newQuoteAmount The new quoteAmount value (the amount of quote asset required for {mintAmount} amount of
-     * shares). Set to zero to keep the quoteAmount unchanged.
+     * shares).
      * @param newMintAmount The new mintAmount value (the amount of shares minted for every {quoteAmount} amount of the
-     * quote asset). Set to zero to keep the mintAmount unchanged.
+     * quote asset).
      */
     function setSharePrice(uint256 newQuoteAmount, uint256 newMintAmount) external virtual override onlyOwner {
         _setSharePrice(newQuoteAmount, newMintAmount);
     }
 
     /**
-     * @dev Private function to update the tokenPrice quoteAmount and mintAmount. Skips update of zero values (unless the
-     * current value is zero, in which case it throws an error).
+     * @dev Private function to update the tokenPrice quoteAmount and mintAmount.
      */
-    function _setSharePrice(uint256 newQuoteAmount, uint256 newMintAmount) private {
+    function _setSharePrice(uint256 newQuoteAmount, uint256 newMintAmount) internal virtual {
+        // Casting checks for overflow
+        uint128 castedQuoteAmount = newQuoteAmount.toUint128();
+        uint128 castedMintAmount = newMintAmount.toUint128();
+
         SharesManagerStorage storage $ = _getSharesManagerStorage();
-        uint256 currentQuoteAmount = $._sharePrice.quoteAmount;
-        uint256 currentMintAmount = $._sharePrice.mintAmount;
-        // Only update if the new value is not zero
-        if (newQuoteAmount > 0) {
-            $._sharePrice.quoteAmount = SafeCast.toUint128(newQuoteAmount);
-        } else {
-            // Don't allow keeping a zero value
-            if (currentQuoteAmount == 0) {
-                revert SharePriceCannotBeZero();
-            }
-        }
-        if (newMintAmount > 0) {
-            $._sharePrice.mintAmount = SafeCast.toUint128(newMintAmount);
-        } else {
-            // Don't allow keeping a zero value
-            if (currentMintAmount == 0) {
-                revert SharePriceCannotBeZero();
-            }
-        }
-        emit SharePriceChange(currentQuoteAmount, newQuoteAmount, currentMintAmount, newMintAmount);
+        emit SharePriceChange($._sharePrice.quoteAmount, newQuoteAmount, $._sharePrice.mintAmount, newMintAmount);
+        $._sharePrice.quoteAmount = castedQuoteAmount;
+        $._sharePrice.mintAmount = castedMintAmount;
     }
 
     /**
@@ -333,7 +319,9 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         // NOTE: The {_mint} function already checks to ensure the account address != address(0)
         if (depositAmount == 0) revert InvalidDepositAmount();
 
+        // Share price must not be zero
         (uint256 quoteAmount, uint256 mintAmount) = sharePrice();
+        if (quoteAmount == 0 || mintAmount == 0) revert FundingIsNotActive();
 
         // The "depositAmount" must be a multiple of the share price quoteAmount
         if (depositAmount % quoteAmount != 0) revert InvalidDepositAmountMultiple();

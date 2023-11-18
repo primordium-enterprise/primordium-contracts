@@ -67,7 +67,6 @@ interface ISharesManager {
     error CannotSetQuoteAssetToSelf();
     error UnsupportedQuoteAssetInterface();
     error MaxSupplyTooLarge(uint256 max);
-    error SharePriceCannotBeZero();
     error FundingIsNotActive();
     error InvalidDepositAmount();
     error InvalidPermitSpender(address providedSpender, address correctSpender);
