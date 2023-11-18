@@ -3,10 +3,12 @@
 
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
 
 library BalanceShares {
+    using BasisPoints for uint256;
 
     struct BalanceShare {
         // Tracks the balance remainder when processing account balance updates
@@ -42,7 +44,6 @@ library BalanceShares {
         address[] approvedAddressesForWithdrawal;
     }
 
-    uint256 constant private MAX_BPS = 10_000; // Max total BPS (1 basis point == 0.01%, which is 1 / 10_000)
     uint40 constant private MAX_INDEX = type(uint40).max;
     uint256 constant private MAX_CHECK_BALANCE_AMOUNT = type(uint240).max;
 
@@ -481,7 +482,7 @@ library BalanceShares {
             balanceIncreasedBy,
             accountShare.bps
         );
-        return balanceAvailable + Math.mulDiv(addedTotalBalance, accountShare.bps, MAX_BPS);
+        return balanceAvailable + addedTotalBalance.bps(accountShare.bps);
     }
 
     /**
@@ -578,8 +579,8 @@ library BalanceShares {
     ) private view returns (uint256, uint256) {
         balanceIncreasedBy += self._balanceRemainder; // Adds the previous remainder into the calculation
         return (
-            Math.mulDiv(balanceIncreasedBy, bps, MAX_BPS),
-            mulmod(balanceIncreasedBy, bps, MAX_BPS)
+            balanceIncreasedBy.bps(bps),
+            balanceIncreasedBy.bpsMulmod(bps)
         );
     }
 
@@ -697,7 +698,7 @@ library BalanceShares {
         uint256 latestBalanceCheckIndex,
         uint256 newTotalBps
     ) private {
-        if (newTotalBps > MAX_BPS) revert UpdateExceedsMaxBps(newTotalBps, MAX_BPS);
+        if (newTotalBps > BasisPoints.MAX_BPS) revert UpdateExceedsMaxBps(newTotalBps, BasisPoints.MAX_BPS);
         // If the latestBalance is greater than 0, then push a new item, otherwise just update the current item
         if (latestBalance > 0) {
             self._balanceChecks.push(BalanceCheck(uint16(newTotalBps), 0));

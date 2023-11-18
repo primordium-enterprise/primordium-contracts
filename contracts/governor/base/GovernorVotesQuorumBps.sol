@@ -5,9 +5,10 @@
 pragma solidity ^0.8.20;
 
 import {GovernorBase} from "./GovernorBase.sol";
-import "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
-import "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import "@openzeppelin/contracts/utils/math/Math.sol";
+import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
 
 /**
  * @dev Extension of {GovernorBase} for voting weight extraction from an {ERC20Votes} token and a quorum expressed as a
@@ -18,16 +19,13 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
  * _Available since v4.3._
  */
 abstract contract GovernorVotesQuorumBps is GovernorBase {
-
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace224;
-
-    uint256 constant private MAX_BPS = 10_000;
+    using BasisPoints for uint256;
 
     Checkpoints.Trace224 private _quorumBpsCheckpoints;
 
     event QuorumBpsUpdated(uint256 oldQuorumBps, uint256 newQuorumBps);
-
     error QuorumBpsTooLarge();
 
     /**
@@ -68,8 +66,8 @@ abstract contract GovernorVotesQuorumBps is GovernorBase {
         // Check for zero bps to save gas
         uint256 bps = quorumBps(timepoint);
         if (bps == 0) return 0;
-        // NOTE: We don't need Math.mulDiv for overflow AS LONG AS the max supply of the token is <= type(uint224).max
-        return (token().getPastTotalSupply(timepoint) * quorumBps(timepoint)) / MAX_BPS;
+        // NOTE: We don't need to check for overflow AS LONG AS the max supply of the token is <= type(uint224).max
+        return token().getPastTotalSupply(timepoint).bpsUnchecked(quorumBps(timepoint));
     }
 
     /**
@@ -96,7 +94,7 @@ abstract contract GovernorVotesQuorumBps is GovernorBase {
      * - New bps must be smaller or equal to 10_000.
      */
     function _updateQuorumBps(uint256 newQuorumBps) internal virtual {
-        if (newQuorumBps > MAX_BPS) revert QuorumBpsTooLarge();
+        if (newQuorumBps > BasisPoints.MAX_BPS) revert QuorumBpsTooLarge();
 
         uint256 oldQuorumBps = quorumBps();
 

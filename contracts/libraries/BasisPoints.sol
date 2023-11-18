@@ -3,6 +3,8 @@
 
 pragma solidity ^0.8.20;
 
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
 library BasisPoints {
 
     uint256 internal constant MAX_BPS = 10_000;
@@ -10,22 +12,29 @@ library BasisPoints {
     error BPSValueTooLarge(uint256 bpsValue);
 
     /**
-     * Calculates the basis using the provided bpsValue and baseValue. Checks that the bpsValue is no greater than
+     * @dev Calculates the basis using the provided bpsValue and baseValue. Checks that the bpsValue is no greater than
      * 10_000 (max BPS). Also allows the native solidity overflow checks.
      */
-    function bps(uint256 bpsValue, uint256 baseValue) internal pure returns (uint256 basis) {
+    function bps(uint256 baseValue, uint256 bpsValue) internal pure returns (uint256 basis) {
         if (bpsValue > MAX_BPS) revert BPSValueTooLarge(bpsValue);
-        basis = bpsValue * baseValue / MAX_BPS;
+        basis = Math.mulDiv(baseValue, bpsValue, MAX_BPS);
     }
 
     /**
-     * Calculates the basis using the provided bpsValue and baseValue, but in an unchecked block to save gas. Therefore,
+     * @dev Calculates the basis using the provided bpsValue and baseValue, but in an unchecked block to save gas. Therefore,
      * be sure that no overflow is expected to occur if you use this function!
      */
-    function bpsUnchecked(uint256 bpsValue, uint256 baseValue) internal pure returns (uint256 basis) {
+    function bpsUnchecked(uint256 baseValue, uint256 bpsValue) internal pure returns (uint256 basis) {
         unchecked {
-            basis = bpsValue * baseValue / MAX_BPS;
+            basis = baseValue * bpsValue / MAX_BPS;
         }
+    }
+
+    /**
+     * @dev Calculates the mulmod(baseValue, bpsValue, MAX_BPS).
+     */
+    function bpsMulmod(uint256 baseValue, uint256 bpsValue) internal pure returns (uint256 result) {
+        result = mulmod(baseValue, bpsValue, MAX_BPS);
     }
 
 }

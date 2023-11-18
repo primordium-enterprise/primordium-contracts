@@ -394,7 +394,7 @@ abstract contract GovernorBase is
                 _governanceThresholdBps := and(shr(0xd0, packedVotesManagement), 0xffff)
             }
             uint256 currentVoteSupply = _token.getPastTotalSupply(currentClock - 1);
-            uint256 requiredVoteSupply = _governanceThresholdBps.bpsUnchecked(_token.maxSupply());
+            uint256 requiredVoteSupply = _token.maxSupply().bpsUnchecked(_governanceThresholdBps);
             if (requiredVoteSupply > currentVoteSupply) {
                 revert GovernanceThresholdIsNotMet(_governanceThresholdBps, currentVoteSupply, requiredVoteSupply);
             }
