@@ -3,8 +3,10 @@
 
 pragma solidity ^0.8.20;
 
+import {IAvatar} from "contracts/executor/interfaces/IAvatar.sol";
 import {ITimelockAvatar} from "contracts/executor/interfaces/ITimelockAvatar.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 
@@ -20,7 +22,7 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
 
     /// @custom:storage-location erc7201:TimelockAvatarControlled.Storage
-    struct TimelockStorage {
+    struct TimelockAvatarControlledStorage {
         // This queue keeps track of the governor operating on itself. Calls to functions protected by the
         // {onlyGovernance} modifier needs to be whitelisted in this queue. Whitelisting is set in {execute}, consumed
         // by the {onlyGovernance} modifier and eventually reset after {_executeOperations} is complete. This ensures
@@ -34,7 +36,7 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
     bytes32 private immutable TIMELOCK_STORAGE =
         keccak256(abi.encode(uint256(keccak256("TimelockAvatarControlled.Storage")) - 1)) & ~bytes32(uint256(0xff));
 
-    function _getTimelockStorage() private view returns (TimelockStorage storage $) {
+    function _getTimelockStorage() private view returns (TimelockAvatarControlledStorage storage $) {
         bytes32 timelockStorageSlot = TIMELOCK_STORAGE;
         assembly {
             $.slot := timelockStorageSlot
@@ -48,6 +50,7 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
 
     error OnlyGovernance();
     error InvalidTimelockAvatarAddress(address invalidAddress);
+    error TimelockAvatarInterfacesNotSupported(address invalidAddress);
     error TimelockAvatarAlreadyInitialized();
 
     /**
@@ -60,7 +63,7 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
     }
 
     function _onlyGovernance() private {
-        TimelockStorage storage $ = _getTimelockStorage();
+        TimelockAvatarControlledStorage storage $ = _getTimelockStorage();
         address executor_ = address(executor());
         if (msg.sender != executor_) revert OnlyGovernance();
         bytes32 msgDataHash = keccak256(_msgData());
@@ -79,7 +82,9 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
     /**
      * @dev Get the governance call dequeuer for governance operations.
      */
-    function _getGovernanceCallQueue() internal view returns (DoubleEndedQueue.Bytes32Deque storage governanceCall) {
+    function _getGovernanceCallQueue() internal view virtual returns (
+        DoubleEndedQueue.Bytes32Deque storage governanceCall
+    ) {
         governanceCall = _getTimelockStorage()._governanceCall;
     }
 
@@ -87,7 +92,7 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
      * Returns the address of the executor.
      */
     function executor() public view virtual returns (ITimelockAvatar) {
-        TimelockStorage storage $ = _getTimelockStorage();
+        TimelockAvatarControlledStorage storage $ = _getTimelockStorage();
         return $._executor;
     }
 
@@ -97,20 +102,25 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
      *
      * CAUTION: It is not recommended to change the timelock while there are other queued governance proposals.
      */
-    function updateExecutor(address newExecutor) external onlyGovernance {
+    function updateExecutor(address newExecutor) external virtual onlyGovernance {
         _updateExecutor(newExecutor);
     }
 
-    /// @dev Internal function to update the Executor to a new address. Does not allow setting to itself.
-    function _updateExecutor(address executor_) internal {
+    /// @dev Internal function to update the Executor to a new address. Does not allow setting to itself. Checks that
+    /// the exectur interface follows the IAvatar and ITimelockAvatar interfaces.
+    function _updateExecutor(address newExecutor) internal virtual {
         if (
-            executor_ == address(0) || executor_ == address(this)
-        ) revert InvalidTimelockAvatarAddress(executor_);
+            newExecutor == address(0) || newExecutor == address(this)
+        ) revert InvalidTimelockAvatarAddress(newExecutor);
 
-        TimelockStorage storage $ = _getTimelockStorage();
+        if (
+            !IERC165(newExecutor).supportsInterface(type(IAvatar).interfaceId) ||
+            !IERC165(newExecutor).supportsInterface(type(ITimelockAvatar).interfaceId)
+        ) revert TimelockAvatarInterfacesNotSupported(newExecutor);
 
-        emit TimelockAvatarChange(address($._executor), executor_);
-        $._executor = ITimelockAvatar(payable(executor_));
+        TimelockAvatarControlledStorage storage $ = _getTimelockStorage();
+        emit TimelockAvatarChange(address($._executor), newExecutor);
+        $._executor = ITimelockAvatar(payable(newExecutor));
     }
 
 }
