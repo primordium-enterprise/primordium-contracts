@@ -11,14 +11,16 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
 
 /**
+ * @title VotesQuorumBps
+ *
  * @dev Extension of {GovernorBase} for voting weight extraction from an {ERC20Votes} token and a quorum expressed as a
  * fraction of the total supply, in basis points.
  *
  * The DAO can set the {quorumBps} to zero to allow any vote to pass without a quorum.
  *
- * _Available since v4.3._
+ * @author Ben Jett - @BCJdevelopment
  */
-abstract contract GovernorVotesQuorumBps is GovernorBase {
+abstract contract VotesQuorumBps is GovernorBase {
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace224;
     using BasisPoints for uint256;

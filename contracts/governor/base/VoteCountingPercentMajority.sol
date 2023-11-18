@@ -3,12 +3,19 @@
 
 pragma solidity ^0.8.20;
 
-import "./GovernorCountingSimple.sol";
-import "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
-import "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {VoteCountingSimple} from "./VoteCountingSimple.sol";
+import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-abstract contract GovernorCountingPercentMajority is GovernorCountingSimple {
-
+/**
+ * @title VoteCountingPercentMajority
+ *
+ * @dev Extends the {VoteCountingSimple} to use an updateable percent majority to determine whether a proposal is
+ * successful or not.
+ *
+ * @author Ben Jett - @BCJdevelopment
+ */
+abstract contract VoteCountingPercentMajority is VoteCountingSimple {
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace224;
 

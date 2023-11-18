@@ -9,17 +9,17 @@ import {IGovernorToken} from "../interfaces/IGovernorToken.sol";
 import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
 
 /**
- * @dev Extension of {GovernorBase} for settings updatable through governance.
+ * @title ProposalSettings
  *
- * By default, sets the proposal threshold in basis points, allowing the votes to fluctuate dynamically according to the
- * total allocated token supply. The maximum BPS to set the proposal threshold to is 1_000 (10%).
+ * @dev Extends {GovernorBase} with updateable proposal settings, such as the proposalThreshold in basis points, the
+ * proposal voting delay, and the proposal voting period.
  *
- * _Available since v4.4._
+ * By default, the maximum proposal threshold is 10% (1_000 bps). This can be overridden.
+ *
+ * @author Ben Jett - @BCJdevelopment
  */
-abstract contract GovernorSettings is GovernorBase {
+abstract contract ProposalSettings is GovernorBase {
     using BasisPoints for uint256;
-
-    uint256 constant public MAX_PROPOSAL_THRESHOLD_BPS = 1_000;
 
     /// @notice The minimum setable voting delay, set to 1.
     uint256 public constant MIN_VOTING_DELAY = 1;
@@ -39,7 +39,7 @@ abstract contract GovernorSettings is GovernorBase {
     event VotingDelaySet(uint256 oldVotingDelay, uint256 newVotingDelay);
     event VotingPeriodSet(uint256 oldVotingPeriod, uint256 newVotingPeriod);
 
-    error ProposalThresholdBpsTooLarge(uint256 max);
+    error ProposalThresholdBpsTooLarge(uint256 providedBps, uint256 maxBps);
     error VotingDelayOutOfRange(uint256 min, uint256 max);
     error VotingPeriodOutOfRange(uint256 min, uint256 max);
 
@@ -67,6 +67,10 @@ abstract contract GovernorSettings is GovernorBase {
 
         _setVotingDelay(votingDelay_);
         _setVotingPeriod(votingPeriod_);
+    }
+
+    function MAX_PROPOSAL_THRESHOLD_BPS() public virtual returns (uint256 maxProposalThresholdBps) {
+        maxProposalThresholdBps = 1_000;
     }
 
     /**
@@ -134,9 +138,10 @@ abstract contract GovernorSettings is GovernorBase {
      * Emits a {ProposalThresholdBpsSet} event.
      */
     function _setProposalThresholdBps(uint256 newProposalThresholdBps) internal virtual {
+        uint256 maxProposalThresholdBps = MAX_PROPOSAL_THRESHOLD_BPS();
         if (
-            newProposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS
-        ) revert ProposalThresholdBpsTooLarge(MAX_PROPOSAL_THRESHOLD_BPS);
+            newProposalThresholdBps > maxProposalThresholdBps
+        ) revert ProposalThresholdBpsTooLarge(newProposalThresholdBps, maxProposalThresholdBps);
 
         emit ProposalThresholdBpsSet(_proposalThresholdBps, newProposalThresholdBps);
         _proposalThresholdBps = newProposalThresholdBps;

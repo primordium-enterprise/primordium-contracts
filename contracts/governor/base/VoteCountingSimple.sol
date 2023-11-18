@@ -4,14 +4,16 @@
 
 pragma solidity ^0.8.20;
 
-import "./GovernorBase.sol";
+import {GovernorBase} from "./GovernorBase.sol";
 
 /**
- * @dev Extension of {GovernorBase} for simple, 3 options, vote counting.
+ * @title VoteCountingSimple
  *
- * _Available since v4.3._
+ * @dev Extension of {GovernorBase} for simple, 3 options, vote counting (Against, For, Abstain).
+ *
+ * @author Ben Jett - @BCJdevelopment
  */
-abstract contract GovernorCountingSimple is GovernorBase {
+abstract contract VoteCountingSimple is GovernorBase {
     /**
      * @dev Supported vote types. Matches GovernorBase Bravo ordering.
      */
