@@ -336,9 +336,12 @@ abstract contract GovernorBase is
 
         (, uint256 currentClock) = _authorizeProposal(proposer, targets, values, calldatas);
 
+        (uint256 _votingDelay, uint256 duration) = _getVotingDelayAndPeriod();
+
         return _propose(
             proposer,
-            currentClock + votingDelay(),
+            currentClock + _votingDelay,
+            duration,
             targets,
             values,
             calldatas,
@@ -420,6 +423,7 @@ abstract contract GovernorBase is
     function _propose(
         address proposer,
         uint256 snapshot,
+        uint256 duration,
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas,
@@ -440,8 +444,6 @@ abstract contract GovernorBase is
 
         // Increment proposal counter
         uint256 newProposalId = ++$._proposalCount;
-
-        uint256 duration = votingPeriod();
 
         ProposalCore storage proposal = $._proposals[newProposalId];
         proposal.actionsHash = hashProposalActions(newProposalId, targets, values, calldatas);
@@ -776,6 +778,9 @@ abstract contract GovernorBase is
     function votingDelay() public view virtual returns (uint256);
 
     function votingPeriod() public view virtual returns (uint256);
+
+    /// @dev Get both values at once to optimize gas
+    function _getVotingDelayAndPeriod() internal view virtual returns (uint256 _votingDelay, uint256 _votingPeriod);
 
     function quorum(uint256 timepoint) public view virtual returns (uint256);
 
