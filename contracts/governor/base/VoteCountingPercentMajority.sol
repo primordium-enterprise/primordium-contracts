@@ -3,41 +3,54 @@
 
 pragma solidity ^0.8.20;
 
-import {VoteCountingSimple} from "./VoteCountingSimple.sol";
+import {VoteCounting} from "./VoteCounting.sol";
 import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /**
  * @title VoteCountingPercentMajority
  *
- * @dev Extends the {VoteCountingSimple} to use an updateable percent majority to determine whether a proposal is
+ * @dev Extends the {VoteCounting} to use an updateable percent majority to determine whether a proposal is
  * successful or not.
  *
  * @author Ben Jett - @BCJdevelopment
  */
-abstract contract VoteCountingPercentMajority is VoteCountingSimple {
+abstract contract VoteCountingPercentMajority is VoteCounting {
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace224;
-
-    Checkpoints.Trace224 private _percentMajorityCheckpoints;
 
     uint256 constant private MAX_PERCENT = 100;
     uint256 public constant MIN_PERCENT_MAJORITY = 50;
     uint256 public constant MAX_PERCENT_MAJORITY = 66;
+
+    /// @custom:storage-location erc7201:VCPercentMajority.Storage
+    struct VCPercentMajorityStorage {
+        Checkpoints.Trace224 _percentMajorityCheckpoints;
+    }
+
+    bytes32 private immutable PERCENT_MAJORITY_STORAGE =
+        keccak256(abi.encode(uint256(keccak256("VCPercentMajority.Storage")) - 1)) & ~bytes32(uint256(0xff));
+
+    function _getVCPercentMajorityStorage() private view returns (VCPercentMajorityStorage storage $) {
+        bytes32 slot = PERCENT_MAJORITY_STORAGE;
+        assembly {
+            $.slot := slot
+        }
+    }
 
     event PercentMajorityUpdated(uint256 oldPercentMajority, uint256 newPercentMajority);
 
     error PercentMajorityOutOfRange(uint256 minRange, uint256 maxRange);
 
     constructor(uint256 percentMajority_) {
-        _updatePercentMajority(percentMajority_);
+        _setPercentMajority(percentMajority_);
     }
 
     /**
      * @notice Returns the current percent majority required for passing proposals.
      */
     function percentMajority() public view virtual returns (uint256) {
-        return _percentMajorityCheckpoints.latest();
+        return _getVCPercentMajorityStorage()._percentMajorityCheckpoints.latest();
     }
 
     /**
@@ -49,10 +62,51 @@ abstract contract VoteCountingPercentMajority is VoteCountingSimple {
     }
 
     /**
+     * @dev Helper method to return the percent majority at the specified timepoint.
+     */
+    function _percentMajority(uint256 timepoint) internal view virtual returns (uint256) {
+        VCPercentMajorityStorage storage $ = _getVCPercentMajorityStorage();
+
+        // Optimistic search, check the latest checkpoint
+        (bool exists, uint256 _key, uint256 _value) = $._percentMajorityCheckpoints.latestCheckpoint();
+        if (exists && _key <= timepoint) {
+            return _value;
+        }
+
+        // Otherwise, do the binary search
+        return $._percentMajorityCheckpoints.upperLookupRecent(timepoint.toUint32());
+    }
+
+    /**
      * @notice A method to update the percent majority for future proposals. Only setable through governance.
      */
-    function updatePercentMajority(uint256 newPercentMajority) public virtual onlyGovernance {
-        _updatePercentMajority(newPercentMajority);
+    function setPercentMajority(uint256 newPercentMajority) public virtual onlyGovernance {
+        _setPercentMajority(newPercentMajority);
+    }
+
+    /**
+     * @dev Helper method to create a new percent majority checkpoint.
+     */
+    function _setPercentMajority(uint256 newPercentMajority) internal virtual {
+        if (
+            newPercentMajority < MIN_PERCENT_MAJORITY ||
+            newPercentMajority > MAX_PERCENT_MAJORITY
+        ) revert PercentMajorityOutOfRange(MIN_PERCENT_MAJORITY, MAX_PERCENT_MAJORITY);
+
+        uint256 oldPercentMajority = percentMajority();
+
+        VCPercentMajorityStorage storage $ = _getVCPercentMajorityStorage();
+        // Make sure we keep track of the original in contracts upgraded from a version without checkpoints.
+        if (oldPercentMajority != 0 && $._percentMajorityCheckpoints.length() == 0) {
+            $._percentMajorityCheckpoints._checkpoints.push(
+                Checkpoints.Checkpoint224({_key: 0, _value: oldPercentMajority.toUint224()})
+            );
+        }
+
+        // Set new percent majority for future proposals
+        $._percentMajorityCheckpoints.push(clock().toUint32(), uint224(newPercentMajority));
+
+        emit PercentMajorityUpdated(oldPercentMajority, newPercentMajority);
     }
 
     /**
@@ -127,50 +181,14 @@ abstract contract VoteCountingPercentMajority is VoteCountingSimple {
      * @return againstVotes The number of votes against the proposal
      * @return forVotes The number of votes for the proposal
      */
-    function _getVoteCalculationParams(uint256 proposalId) internal view virtual returns (uint256, uint256, uint256) {
-        uint256 percentToSucceed = _percentMajority(proposalSnapshot(proposalId));
-        (
-            uint256 againstVotes,
-            uint256 forVotes
-        ) = _proposalCountedVotes(proposalId);
-        return (percentToSucceed, againstVotes, forVotes);
-    }
-
-    /**
-     * @dev Helper method to return the percent majority at the specified timepoint.
-     */
-    function _percentMajority(uint256 timepoint) internal view virtual returns (uint256) {
-        // Optimistic search, check the latest checkpoint
-        (bool exists, uint256 _key, uint256 _value) = _percentMajorityCheckpoints.latestCheckpoint();
-        if (exists && _key <= timepoint) {
-            return _value;
-        }
-
-        // Otherwise, do the binary search
-        return _percentMajorityCheckpoints.upperLookupRecent(timepoint.toUint32());
-    }
-
-    /**
-     * @dev Helper method to create a new percent majority checkpoint.
-     */
-    function _updatePercentMajority(uint256 newPercentMajority) internal virtual {
-        if (
-            newPercentMajority < MIN_PERCENT_MAJORITY ||
-            newPercentMajority > MAX_PERCENT_MAJORITY
-        ) revert PercentMajorityOutOfRange(MIN_PERCENT_MAJORITY, MAX_PERCENT_MAJORITY);
-
-        uint256 oldPercentMajority = percentMajority();
-
-        // Make sure we keep track of the original in contracts upgraded from a version without checkpoints.
-        if (oldPercentMajority != 0 && _percentMajorityCheckpoints.length() == 0) {
-            _percentMajorityCheckpoints._checkpoints.push(
-                Checkpoints.Checkpoint224({_key: 0, _value: oldPercentMajority.toUint224()})
-            );
-        }
-
-        // Set new percent majority for future proposals
-        _percentMajorityCheckpoints.push(clock().toUint32(), uint224(newPercentMajority));
-
-        emit PercentMajorityUpdated(oldPercentMajority, newPercentMajority);
+    function _getVoteCalculationParams(uint256 proposalId) internal view virtual returns (
+        uint256 percentToSucceed,
+        uint256 againstVotes,
+        uint256 forVotes
+    ) {
+        percentToSucceed = _percentMajority(proposalSnapshot(proposalId));
+        VoteCounting.ProposalVote storage proposalVote = _proposalVote(proposalId);
+        againstVotes = proposalVote.againstVotes;
+        forVotes = proposalVote.forVotes;
     }
 }

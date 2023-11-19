@@ -7,13 +7,13 @@ pragma solidity ^0.8.20;
 import {GovernorBase} from "./GovernorBase.sol";
 
 /**
- * @title VoteCountingSimple
+ * @title VoteCounting
  *
  * @dev Extension of {GovernorBase} for simple, 3 options, vote counting (Against, For, Abstain).
  *
  * @author Ben Jett - @BCJdevelopment
  */
-abstract contract VoteCountingSimple is GovernorBase {
+abstract contract VoteCounting is GovernorBase {
     /**
      * @dev Supported vote types. Matches GovernorBase Bravo ordering.
      */
@@ -30,7 +30,20 @@ abstract contract VoteCountingSimple is GovernorBase {
         mapping(address => bool) hasVoted;
     }
 
-    mapping(uint256 => ProposalVote) private _proposalVotes;
+    /// @custom:storage-location erc7201:VoteCounting.Storage
+    struct VoteCountingStorage {
+        mapping(uint256 => ProposalVote) _proposalVotes;
+    }
+
+    bytes32 private immutable VOTE_COUNTING_STORAGE =
+        keccak256(abi.encode(uint256(keccak256("VoteCounting.Storage")) - 1)) & ~bytes32(uint256(0xff));
+
+    function _getVoteCountingStorage() private view returns (VoteCountingStorage storage $) {
+        bytes32 slot = VOTE_COUNTING_STORAGE;
+        assembly {
+            $.slot := slot
+        }
+    }
 
     error VoteAlreadyCast();
     error InvalidVoteValue();
@@ -47,7 +60,7 @@ abstract contract VoteCountingSimple is GovernorBase {
      * @dev See {IGovernor-hasVoted}.
      */
     function hasVoted(uint256 proposalId, address account) public view virtual override returns (bool) {
-        return _proposalVotes[proposalId].hasVoted[account];
+        return _getVoteCountingStorage()._proposalVotes[proposalId].hasVoted[account];
     }
 
     /**
@@ -56,22 +69,19 @@ abstract contract VoteCountingSimple is GovernorBase {
     function proposalVotes(
         uint256 proposalId
     ) public view virtual returns (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes) {
-        ProposalVote storage proposalVote = _proposalVotes[proposalId];
+        ProposalVote storage proposalVote = _getVoteCountingStorage()._proposalVotes[proposalId];
         return (proposalVote.againstVotes, proposalVote.forVotes, proposalVote.abstainVotes);
     }
 
-    function _proposalCountedVotes(
-        uint256 proposalId
-    ) internal view virtual returns (uint256 againstVotes, uint256 forVotes) {
-        ProposalVote storage proposalVote = _proposalVotes[proposalId];
-        return (proposalVote.againstVotes, proposalVote.forVotes);
+    function _proposalVote(uint256 proposalId) internal view virtual returns (ProposalVote storage proposalVote) {
+        proposalVote = _getVoteCountingStorage()._proposalVotes[proposalId];
     }
 
     /**
      * @dev See {GovernorBase-_quorumReached}.
      */
     function _quorumReached(uint256 proposalId) internal view virtual override returns (bool) {
-        ProposalVote storage proposalVote = _proposalVotes[proposalId];
+        ProposalVote storage proposalVote = _getVoteCountingStorage()._proposalVotes[proposalId];
 
         return quorum(proposalSnapshot(proposalId)) <= proposalVote.forVotes + proposalVote.abstainVotes;
     }
@@ -80,7 +90,7 @@ abstract contract VoteCountingSimple is GovernorBase {
      * @dev See {GovernorBase-_voteSucceeded}. In this module, the forVotes must be strictly over the againstVotes.
      */
     function _voteSucceeded(uint256 proposalId) internal view virtual override returns (bool) {
-        ProposalVote storage proposalVote = _proposalVotes[proposalId];
+        ProposalVote storage proposalVote = _getVoteCountingStorage()._proposalVotes[proposalId];
 
         return proposalVote.forVotes > proposalVote.againstVotes;
     }
@@ -90,7 +100,7 @@ abstract contract VoteCountingSimple is GovernorBase {
      * againstVotes.
      */
     function _voteMargin(uint256 proposalId) internal view virtual override returns (uint256) {
-        ProposalVote storage proposalVote = _proposalVotes[proposalId];
+        ProposalVote storage proposalVote = _getVoteCountingStorage()._proposalVotes[proposalId];
         uint256 forVotes = proposalVote.forVotes;
         uint256 againstVotes = proposalVote.againstVotes;
         return forVotes > againstVotes ? forVotes - againstVotes : againstVotes - forVotes;
@@ -106,7 +116,7 @@ abstract contract VoteCountingSimple is GovernorBase {
         uint256 weight,
         bytes memory // params
     ) internal virtual override {
-        ProposalVote storage proposalVote = _proposalVotes[proposalId];
+        ProposalVote storage proposalVote = _getVoteCountingStorage()._proposalVotes[proposalId];
 
         if (proposalVote.hasVoted[account]) revert VoteAlreadyCast();
         proposalVote.hasVoted[account] = true;
