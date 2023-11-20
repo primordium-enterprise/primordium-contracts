@@ -7,7 +7,20 @@ pragma solidity ^0.8.20;
 
 contract Roles is ContextUpgradeable {
 
-    mapping(bytes32 => mapping(address => uint256)) internal _roleMembers;
+    /// @custom:storage-location erc7201:Roles.Storage
+    struct RolesStorage {
+        mapping(bytes32 => mapping(address => uint256)) _roleMembers;
+    }
+
+    bytes32 private immutable ROLES_STORAGE =
+        keccak256(abi.encode(uint256(keccak256("Roles.Storage")) - 1)) & ~bytes32(uint256(0xff));
+
+    function _getRolesStorage() private view returns (RolesStorage storage $) {
+        bytes32 slot = ROLES_STORAGE;
+        assembly {
+            $.slot := slot
+        }
+    }
 
     event RoleGranted(bytes32 role, address account, uint256 expiresAt);
     event RoleRevoked(bytes32 role, address account);
@@ -38,14 +51,14 @@ contract Roles is ContextUpgradeable {
      * @param account The account to be checked.
      */
     function roleExpiresAt(bytes32 role, address account) public view virtual returns (uint256) {
-        return _roleMembers[role][account];
+        return _getRolesStorage()._roleMembers[role][account];
     }
 
     /**
      * @dev Internal utility to see whether or not an account has a specified role.
      */
     function _hasRole(bytes32 role, address account) internal view virtual returns (bool) {
-        return _roleMembers[role][account] > block.timestamp;
+        return _getRolesStorage()._roleMembers[role][account] > block.timestamp;
     }
 
     /**
@@ -75,7 +88,7 @@ contract Roles is ContextUpgradeable {
      * @dev Internal utility to grant a role to an account up until the provided expiresAt timestamp.
      */
     function _grantRole(bytes32 role, address account, uint256 expiresAt) internal virtual {
-        _roleMembers[role][account] = expiresAt;
+        _getRolesStorage()._roleMembers[role][account] = expiresAt;
         emit RoleGranted(role, account, expiresAt);
     }
 
@@ -103,7 +116,7 @@ contract Roles is ContextUpgradeable {
      */
     function _revokeRole(bytes32 role, address account) internal virtual {
         if (hasRole(role, account)) {
-            delete _roleMembers[role][account];
+            delete _getRolesStorage()._roleMembers[role][account];
             emit RoleRevoked(role, account);
         }
     }

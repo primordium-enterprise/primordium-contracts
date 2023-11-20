@@ -8,7 +8,7 @@ import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/crypt
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
-import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
+import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
 import {IGovernorBase} from "../interfaces/IGovernorBase.sol";
 import {IGovernorToken} from "../interfaces/IGovernorToken.sol";
 import {Roles} from "contracts/utils/Roles.sol";
@@ -40,7 +40,7 @@ abstract contract GovernorBase is
     TimelockAvatarControlled,
     ERC165,
     EIP712Upgradeable,
-    Nonces,
+    NoncesUpgradeable,
     IGovernorBase,
     Roles,
     ClockUtils
