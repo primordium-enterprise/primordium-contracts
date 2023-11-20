@@ -11,6 +11,7 @@ import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {IGovernorBase} from "../interfaces/IGovernorBase.sol";
 import {IGovernorToken} from "../interfaces/IGovernorToken.sol";
 import {Roles} from "contracts/utils/Roles.sol";
+import {ClockUtils} from "contracts/utils/ClockUtils.sol";
 import {TimelockAvatarControlled} from "./TimelockAvatarControlled.sol";
 import {ITimelockAvatar} from "contracts/executor/interfaces/ITimelockAvatar.sol";
 import {Enum} from "contracts/common/Enum.sol";
@@ -39,7 +40,8 @@ abstract contract GovernorBase is
     ERC165,
     EIP712Upgradeable,
     IGovernorBase,
-    Roles
+    Roles,
+    ClockUtils
 {
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
     using SafeCast for uint256;
@@ -154,7 +156,7 @@ abstract contract GovernorBase is
     }
 
     /// @inheritdoc IERC6372
-    function clock() public view virtual override returns (uint48) {
+    function clock() public view virtual override(ClockUtils, IERC6372) returns (uint48) {
         return _clock(token());
     }
 

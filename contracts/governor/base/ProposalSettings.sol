@@ -25,14 +25,11 @@ abstract contract ProposalSettings is GovernorBase {
     /// @notice The minimum setable voting delay, set to 1 (regardless of clock mode)
     uint256 public constant MIN_VOTING_DELAY = 1;
     /// @notice The maximum setable voting delay, set to approximately 1 week at 12sec/block.
-    uint256 private constant MAX_VOTING_DELAY_BLOCKS = 50_400;
+    uint256 internal constant MAX_VOTING_DELAY_BLOCKS = 50_400;
     /// @notice The minimum setable voting period, set to approximately 24 hours at 12sec/block.
-    uint256 private constant MIN_VOTING_PERIOD_BLOCKS = 7_200;
+    uint256 internal constant MIN_VOTING_PERIOD_BLOCKS = 7_200;
     /// @notice The maximum setable voting period, set to approximately 2 weeks at 12sec/block.
-    uint256 private constant MAX_VOTING_PERIOD_BLOCKS = 100_800;
-
-    /// @dev The seconds per block, set in the constructor based on the chain used.
-    uint256 private immutable SECONDS_PER_BLOCK;
+    uint256 internal constant MAX_VOTING_PERIOD_BLOCKS = 100_800;
 
     /// @custom:storage-location erc7201:ProposalSettings.Storage
     struct ProposalSettingsStorage {
@@ -60,10 +57,6 @@ abstract contract ProposalSettings is GovernorBase {
     error VotingDelayOutOfRange(uint256 min, uint256 max);
     error VotingPeriodOutOfRange(uint256 min, uint256 max);
 
-    constructor(uint256 secondsPerBlock) {
-        SECONDS_PER_BLOCK = secondsPerBlock > 0 ? secondsPerBlock : 12; // assumes 12 seconds per block
-    }
-
     function __ProposalSettings_init(
         uint256 proposalThresholdBps_,
         uint256 votingDelay_,
@@ -79,15 +72,15 @@ abstract contract ProposalSettings is GovernorBase {
     }
 
     function MAX_VOTING_DELAY() public view virtual returns (uint256 maxVotingDelay) {
-        maxVotingDelay = _convertBlockPeriodByClock(MAX_VOTING_DELAY_BLOCKS);
+        maxVotingDelay = _transformBlockDuration(MAX_VOTING_DELAY_BLOCKS);
     }
 
     function MIN_VOTING_PERIOD() public view virtual returns (uint256 minVotingPeriod) {
-        minVotingPeriod = _convertBlockPeriodByClock(MIN_VOTING_PERIOD_BLOCKS);
+        minVotingPeriod = _transformBlockDuration(MIN_VOTING_PERIOD_BLOCKS);
     }
 
     function MAX_VOTING_PERIOD() public view virtual returns (uint256 maxVotingPeriod) {
-        maxVotingPeriod = _convertBlockPeriodByClock(MAX_VOTING_PERIOD_BLOCKS);
+        maxVotingPeriod = _transformBlockDuration(MAX_VOTING_PERIOD_BLOCKS);
     }
 
     /**
@@ -190,8 +183,8 @@ abstract contract ProposalSettings is GovernorBase {
      */
     function _setVotingPeriod(uint256 newVotingPeriod) internal virtual {
         bool usesBlockNumbers = clock() == block.number;
-        uint256 minVotingPeriod = _convertBlockPeriod(MIN_VOTING_PERIOD_BLOCKS, usesBlockNumbers);
-        uint256 maxVotingPeriod = _convertBlockPeriod(MAX_VOTING_PERIOD_BLOCKS, usesBlockNumbers);
+        uint256 minVotingPeriod = _transformBlockDuration(MIN_VOTING_PERIOD_BLOCKS, usesBlockNumbers);
+        uint256 maxVotingPeriod = _transformBlockDuration(MAX_VOTING_PERIOD_BLOCKS, usesBlockNumbers);
         // voting period must be at least one block long
         if (
             newVotingPeriod < minVotingPeriod ||
@@ -212,11 +205,5 @@ abstract contract ProposalSettings is GovernorBase {
         _votingPeriod = $._votingPeriod;
     }
 
-    function _convertBlockPeriodByClock(uint256 period) private view returns (uint256 converted) {
-        converted = _convertBlockPeriod(period, clock() == block.number);
-    }
 
-    function _convertBlockPeriod(uint256 period, bool usesBlockNumbers) private view returns (uint256 converted) {
-        converted = usesBlockNumbers ? period : period * SECONDS_PER_BLOCK;
-    }
 }
