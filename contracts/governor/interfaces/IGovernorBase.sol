@@ -116,6 +116,7 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     error InvalidActionsForProposal();
     error TooLateToCancelProposal();
     error ProposalAlreadyFinished();
+    error GovernorInvalidSignature();
 
     /**
      * @dev Name of the governor instance (used in building the ERC712 domain separator).
@@ -367,6 +368,7 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     function castVoteBySig(
         uint256 proposalId,
         uint8 support,
+        address voter,
         uint8 v,
         bytes32 r,
         bytes32 s
@@ -380,6 +382,7 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     function castVoteWithReasonAndParamsBySig(
         uint256 proposalId,
         uint8 support,
+        address voter,
         string calldata reason,
         bytes memory params,
         uint8 v,

@@ -8,6 +8,7 @@ import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/crypt
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
+import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {IGovernorBase} from "../interfaces/IGovernorBase.sol";
 import {IGovernorToken} from "../interfaces/IGovernorToken.sol";
 import {Roles} from "contracts/utils/Roles.sol";
@@ -39,6 +40,7 @@ abstract contract GovernorBase is
     TimelockAvatarControlled,
     ERC165,
     EIP712Upgradeable,
+    Nonces,
     IGovernorBase,
     Roles,
     ClockUtils
@@ -64,9 +66,12 @@ abstract contract GovernorBase is
         uint16 _governanceThresholdBps; // 2 bytes
     }
 
-    bytes32 public constant BALLOT_TYPEHASH = keccak256("Ballot(uint256 proposalId,uint8 support)");
+    bytes32 public constant BALLOT_TYPEHASH =
+        keccak256("Ballot(uint256 proposalId,uint8 support,address voter,uint256 nonce)");
     bytes32 public constant EXTENDED_BALLOT_TYPEHASH =
-        keccak256("ExtendedBallot(uint256 proposalId,uint8 support,string reason,bytes params)");
+        keccak256(
+            "ExtendedBallot(uint256 proposalId,uint8 support,address voter,uint256 nonce,string reason,bytes params)"
+        );
 
     bytes32 public constant PROPOSER_ROLE = keccak256("PROPOSER");
     bytes32 public constant CANCELER_ROLE = keccak256("CANCELER");
@@ -679,36 +684,45 @@ abstract contract GovernorBase is
     function castVoteBySig(
         uint256 proposalId,
         uint8 support,
+        address voter,
         uint8 v,
         bytes32 r,
         bytes32 s
     ) public virtual override returns (uint256) {
-        address voter = ECDSA.recover(
-            _hashTypedDataV4(keccak256(abi.encode(BALLOT_TYPEHASH, proposalId, support))),
+        address signer = ECDSA.recover(
+            _hashTypedDataV4(keccak256(abi.encode(BALLOT_TYPEHASH, proposalId, support, voter, _useNonce(voter)))),
             v,
             r,
             s
         );
-        return _castVote(proposalId, voter, support, "");
+
+        if (signer != voter) {
+            revert GovernorInvalidSignature();
+        }
+
+        return _castVote(proposalId, signer, support, "");
     }
 
     /// @inheritdoc IGovernorBase
     function castVoteWithReasonAndParamsBySig(
         uint256 proposalId,
         uint8 support,
+        address voter,
         string calldata reason,
         bytes memory params,
         uint8 v,
         bytes32 r,
         bytes32 s
     ) public virtual override returns (uint256) {
-        address voter = ECDSA.recover(
+        address signer = ECDSA.recover(
             _hashTypedDataV4(
                 keccak256(
                     abi.encode(
                         EXTENDED_BALLOT_TYPEHASH,
                         proposalId,
                         support,
+                        voter,
+                        _useNonce(voter),
                         keccak256(bytes(reason)),
                         keccak256(params)
                     )
@@ -719,7 +733,11 @@ abstract contract GovernorBase is
             s
         );
 
-        return _castVote(proposalId, voter, support, reason, params);
+        if (voter != signer) {
+            revert GovernorInvalidSignature();
+        }
+
+        return _castVote(proposalId, signer, support, reason, params);
     }
 
     /**
@@ -749,13 +767,13 @@ abstract contract GovernorBase is
         uint8 support,
         string memory reason,
         bytes memory params
-    ) internal virtual returns (uint256) {
+    ) internal virtual returns (uint256 weight) {
         if (state(proposalId) != ProposalState.Active) revert ProposalVotingInactive();
 
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
         ProposalCore storage proposal = $._proposals[proposalId];
 
-        uint256 weight = _getVotes(account, proposal.voteStart, params);
+        weight = _getVotes(account, proposal.voteStart, params);
         _countVote(proposalId, account, support, weight, params);
 
         if (params.length == 0) {
@@ -763,8 +781,6 @@ abstract contract GovernorBase is
         } else {
             emit VoteCastWithParams(account, proposalId, support, weight, reason, params);
         }
-
-        return weight;
     }
 
     /**
