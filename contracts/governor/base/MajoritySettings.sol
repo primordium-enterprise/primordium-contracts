@@ -8,30 +8,30 @@ import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /**
- * @title VoteCountingPercentMajority
+ * @title MajoritySettings
  *
  * @dev Extends the {VoteCounting} to use an updateable percent majority to determine whether a proposal is
  * successful or not.
  *
  * @author Ben Jett - @BCJdevelopment
  */
-abstract contract VoteCountingPercentMajority is VoteCounting {
+abstract contract MajoritySettings is VoteCounting {
     using SafeCast for *;
-    using Checkpoints for Checkpoints.Trace224;
+    using Checkpoints for Checkpoints.Trace208;
 
     uint256 constant private MAX_PERCENT = 100;
     uint256 public constant MIN_PERCENT_MAJORITY = 50;
     uint256 public constant MAX_PERCENT_MAJORITY = 66;
 
-    /// @custom:storage-location erc7201:VCPercentMajority.Storage
-    struct VCPercentMajorityStorage {
-        Checkpoints.Trace224 _percentMajorityCheckpoints;
+    /// @custom:storage-location erc7201:MajoritySettings.Storage
+    struct MajoritySettingsStorage {
+        Checkpoints.Trace208 _percentMajorityCheckpoints;
     }
 
     bytes32 private immutable PERCENT_MAJORITY_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("VCPercentMajority.Storage")) - 1)) & ~bytes32(uint256(0xff));
+        keccak256(abi.encode(uint256(keccak256("MajoritySettings.Storage")) - 1)) & ~bytes32(uint256(0xff));
 
-    function _getVCPercentMajorityStorage() private view returns (VCPercentMajorityStorage storage $) {
+    function _getMajoritySettingsStorage() private view returns (MajoritySettingsStorage storage $) {
         bytes32 slot = PERCENT_MAJORITY_STORAGE;
         assembly {
             $.slot := slot
@@ -42,7 +42,9 @@ abstract contract VoteCountingPercentMajority is VoteCounting {
 
     error PercentMajorityOutOfRange(uint256 minRange, uint256 maxRange);
 
-    constructor(uint256 percentMajority_) {
+    function __MajoritySettings_init(
+        uint256 percentMajority_
+    ) internal virtual onlyInitializing {
         _setPercentMajority(percentMajority_);
     }
 
@@ -50,7 +52,7 @@ abstract contract VoteCountingPercentMajority is VoteCounting {
      * @notice Returns the current percent majority required for passing proposals.
      */
     function percentMajority() public view virtual returns (uint256) {
-        return _getVCPercentMajorityStorage()._percentMajorityCheckpoints.latest();
+        return _getMajoritySettingsStorage()._percentMajorityCheckpoints.latest();
     }
 
     /**
@@ -65,7 +67,7 @@ abstract contract VoteCountingPercentMajority is VoteCounting {
      * @dev Helper method to return the percent majority at the specified timepoint.
      */
     function _percentMajority(uint256 timepoint) internal view virtual returns (uint256) {
-        VCPercentMajorityStorage storage $ = _getVCPercentMajorityStorage();
+        MajoritySettingsStorage storage $ = _getMajoritySettingsStorage();
 
         // Optimistic search, check the latest checkpoint
         (bool exists, uint256 _key, uint256 _value) = $._percentMajorityCheckpoints.latestCheckpoint();
@@ -74,7 +76,7 @@ abstract contract VoteCountingPercentMajority is VoteCounting {
         }
 
         // Otherwise, do the binary search
-        return $._percentMajorityCheckpoints.upperLookupRecent(timepoint.toUint32());
+        return $._percentMajorityCheckpoints.upperLookupRecent(timepoint.toUint48());
     }
 
     /**
@@ -95,16 +97,9 @@ abstract contract VoteCountingPercentMajority is VoteCounting {
 
         uint256 oldPercentMajority = percentMajority();
 
-        VCPercentMajorityStorage storage $ = _getVCPercentMajorityStorage();
-        // Make sure we keep track of the original in contracts upgraded from a version without checkpoints.
-        if (oldPercentMajority != 0 && $._percentMajorityCheckpoints.length() == 0) {
-            $._percentMajorityCheckpoints._checkpoints.push(
-                Checkpoints.Checkpoint224({_key: 0, _value: oldPercentMajority.toUint224()})
-            );
-        }
-
         // Set new percent majority for future proposals
-        $._percentMajorityCheckpoints.push(clock().toUint32(), uint224(newPercentMajority));
+        MajoritySettingsStorage storage $ = _getMajoritySettingsStorage();
+        $._percentMajorityCheckpoints.push(clock(), uint208(newPercentMajority));
 
         emit PercentMajorityUpdated(oldPercentMajority, newPercentMajority);
     }

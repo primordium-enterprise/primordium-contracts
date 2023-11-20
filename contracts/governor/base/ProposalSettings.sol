@@ -68,7 +68,7 @@ abstract contract ProposalSettings is GovernorBase {
         uint256 proposalThresholdBps_,
         uint256 votingDelay_,
         uint256 votingPeriod_
-    ) internal virtual {
+    ) internal virtual onlyInitializing {
         _setProposalThresholdBps(proposalThresholdBps_);
         _setVotingDelay(votingDelay_);
         _setVotingPeriod(votingPeriod_);

@@ -22,12 +22,26 @@ import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
  */
 abstract contract VotesQuorumBps is GovernorBase {
     using SafeCast for *;
-    using Checkpoints for Checkpoints.Trace224;
+    using Checkpoints for Checkpoints.Trace208;
     using BasisPoints for uint256;
 
-    Checkpoints.Trace224 private _quorumBpsCheckpoints;
+    /// @custom:storage-location erc7201:VotesQuorumBps.Storage
+    struct VotesQuorumBpsStorage {
+        Checkpoints.Trace208 _quorumBpsCheckpoints;
+    }
+
+    bytes32 private immutable VOTES_QUORUM_BPS_STORAGE =
+        keccak256(abi.encode(uint256(keccak256("VotesQuorumBps.Storage")) - 1)) & ~bytes32(uint256(0xff));
+
+    function _getVotesQuorumBpsStorage() private view returns (VotesQuorumBpsStorage storage $) {
+        bytes32 slot = VOTES_QUORUM_BPS_STORAGE;
+        assembly {
+            $.slot := slot
+        }
+    }
 
     event QuorumBpsUpdated(uint256 oldQuorumBps, uint256 newQuorumBps);
+
     error QuorumBpsTooLarge();
 
     /**
@@ -36,15 +50,17 @@ abstract contract VotesQuorumBps is GovernorBase {
      * The fraction is specified as `bps / 10_000`. So, the quorum is specified as a percent: a bps of 1_000 corresponds
      * to quorum being 10% of total supply.
      */
-    constructor(uint256 quorumBps_) {
-        _updateQuorumBps(quorumBps_);
+    function __VotesQuorumBps_init(
+        uint256 quorumBps_
+    ) internal virtual onlyInitializing {
+        _setQuorumBps(quorumBps_);
     }
 
     /**
      * @dev Returns the current quorum bps.
      */
     function quorumBps() public view virtual returns (uint256) {
-        return _quorumBpsCheckpoints.latest();
+        return _getVotesQuorumBpsStorage()._quorumBpsCheckpoints.latest();
     }
 
     /**
@@ -52,13 +68,14 @@ abstract contract VotesQuorumBps is GovernorBase {
      */
     function quorumBps(uint256 timepoint) public view virtual returns (uint256) {
         // Optimistic search, check the latest checkpoint
-        (bool exists, uint256 _key, uint256 _value) = _quorumBpsCheckpoints.latestCheckpoint();
+        VotesQuorumBpsStorage storage $ = _getVotesQuorumBpsStorage();
+        (bool exists, uint256 _key, uint256 _value) = $._quorumBpsCheckpoints.latestCheckpoint();
         if (exists && _key <= timepoint) {
             return _value;
         }
 
         // Otherwise, do the binary search
-        return _quorumBpsCheckpoints.upperLookupRecent(timepoint.toUint32());
+        return $._quorumBpsCheckpoints.upperLookupRecent(timepoint.toUint48());
     }
 
     /**
@@ -66,10 +83,10 @@ abstract contract VotesQuorumBps is GovernorBase {
      */
     function quorum(uint256 timepoint) public view virtual override returns (uint256) {
         // Check for zero bps to save gas
-        uint256 bps = quorumBps(timepoint);
-        if (bps == 0) return 0;
+        uint256 _quorumBps = quorumBps(timepoint);
+        if (_quorumBps == 0) return 0;
         // NOTE: We don't need to check for overflow AS LONG AS the max supply of the token is <= type(uint224).max
-        return token().getPastTotalSupply(timepoint).bpsUnchecked(quorumBps(timepoint));
+        return token().getPastTotalSupply(timepoint).bpsUnchecked(_quorumBps);
     }
 
     /**
@@ -82,8 +99,8 @@ abstract contract VotesQuorumBps is GovernorBase {
      * - Must be called through a governance proposal.
      * - New bps must be smaller or equal to 10_000.
      */
-    function updateQuorumBps(uint256 newQuorumBps) external virtual onlyGovernance {
-        _updateQuorumBps(newQuorumBps);
+    function setQuorumBps(uint256 newQuorumBps) external virtual onlyGovernance {
+        _setQuorumBps(newQuorumBps);
     }
 
     /**
@@ -95,20 +112,14 @@ abstract contract VotesQuorumBps is GovernorBase {
      *
      * - New bps must be smaller or equal to 10_000.
      */
-    function _updateQuorumBps(uint256 newQuorumBps) internal virtual {
+    function _setQuorumBps(uint256 newQuorumBps) internal virtual {
         if (newQuorumBps > BasisPoints.MAX_BPS) revert QuorumBpsTooLarge();
 
         uint256 oldQuorumBps = quorumBps();
 
-        // Make sure we keep track of the original bps in contracts upgraded from a version without checkpoints.
-        if (oldQuorumBps != 0 && _quorumBpsCheckpoints.length() == 0) {
-            _quorumBpsCheckpoints._checkpoints.push(
-                Checkpoints.Checkpoint224({_key: 0, _value: oldQuorumBps.toUint224()})
-            );
-        }
-
         // Set new quorum for future proposals
-        _quorumBpsCheckpoints.push(clock().toUint32(), newQuorumBps.toUint224());
+        VotesQuorumBpsStorage storage $ = _getVotesQuorumBpsStorage();
+        $._quorumBpsCheckpoints.push(clock(), uint208(newQuorumBps));
 
         emit QuorumBpsUpdated(oldQuorumBps, newQuorumBps);
     }
