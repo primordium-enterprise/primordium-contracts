@@ -19,7 +19,7 @@ import {Enum} from "contracts/common/Enum.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {SelectorChecker} from "contracts/libraries/SelectorChecker.sol";
 import {MultiSendEncoder} from "contracts/libraries/MultiSendEncoder.sol";
@@ -685,22 +685,19 @@ abstract contract GovernorBase is
         uint256 proposalId,
         uint8 support,
         address voter,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        bytes memory signature
     ) public virtual override returns (uint256) {
-        address signer = ECDSA.recover(
+        bool valid = SignatureChecker.isValidSignatureNow(
+            voter,
             _hashTypedDataV4(keccak256(abi.encode(BALLOT_TYPEHASH, proposalId, support, voter, _useNonce(voter)))),
-            v,
-            r,
-            s
+            signature
         );
 
-        if (signer != voter) {
-            revert GovernorInvalidSignature();
+        if (!valid) {
+            revert GovernorInvalidSignature(voter);
         }
 
-        return _castVote(proposalId, signer, support, "");
+        return _castVote(proposalId, voter, support, "");
     }
 
     /// @inheritdoc IGovernorBase
@@ -710,11 +707,10 @@ abstract contract GovernorBase is
         address voter,
         string calldata reason,
         bytes memory params,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        bytes memory signature
     ) public virtual override returns (uint256) {
-        address signer = ECDSA.recover(
+        bool valid = SignatureChecker.isValidSignatureNow(
+            voter,
             _hashTypedDataV4(
                 keccak256(
                     abi.encode(
@@ -728,16 +724,14 @@ abstract contract GovernorBase is
                     )
                 )
             ),
-            v,
-            r,
-            s
+            signature
         );
 
-        if (voter != signer) {
-            revert GovernorInvalidSignature();
+        if (!valid) {
+            revert GovernorInvalidSignature(voter);
         }
 
-        return _castVote(proposalId, signer, support, reason, params);
+        return _castVote(proposalId, voter, support, reason, params);
     }
 
     /**

@@ -116,7 +116,7 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     error InvalidActionsForProposal();
     error TooLateToCancelProposal();
     error ProposalAlreadyFinished();
-    error GovernorInvalidSignature();
+    error GovernorInvalidSignature(address voter);
 
     /**
      * @dev Name of the governor instance (used in building the ERC712 domain separator).
@@ -361,23 +361,25 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     ) external returns (uint256 balance);
 
     /**
-     * @dev Cast a vote using the user's cryptographic signature.
+     * Cast a vote using the user's cryptographic signature.
      *
      * Emits a {VoteCast} event.
+     *
+     * @param signature The signature is a packed bytes encoding of the ECDSA r, s, and v signature values.
      */
     function castVoteBySig(
         uint256 proposalId,
         uint8 support,
         address voter,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        bytes memory signature
     ) external returns (uint256 balance);
 
     /**
      * @dev Cast a vote with a reason and additional encoded parameters using the user's cryptographic signature.
      *
      * Emits a {VoteCast} or {VoteCastWithParams} event depending on the length of params.
+     *
+     * @param signature The signature is a packed bytes encoding of the ECDSA r, s, and v signature values.
      */
     function castVoteWithReasonAndParamsBySig(
         uint256 proposalId,
@@ -385,9 +387,7 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         address voter,
         string calldata reason,
         bytes memory params,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        bytes memory signature
     ) external returns (uint256 balance);
 
 }
