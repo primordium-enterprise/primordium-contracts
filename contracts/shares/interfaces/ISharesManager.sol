@@ -64,8 +64,8 @@ interface ISharesManager {
 
     error InvalidTreasuryAddress(address treasury);
     error TreasuryInterfaceNotSupported(address treasury);
+    error QuoteAssetInterfaceNotSupported(address quoteAsset);
     error CannotSetQuoteAssetToSelf();
-    error UnsupportedQuoteAssetInterface();
     error MaxSupplyTooLarge(uint256 max);
     error FundingIsNotActive();
     error InvalidDepositAmount();

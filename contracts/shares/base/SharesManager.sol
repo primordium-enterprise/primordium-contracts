@@ -15,6 +15,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
 /**
  * @title SharesManager - Contract responsible for managing permissionless deposits and withdrawals (rage quit).
@@ -104,7 +105,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
             newTreasury == address(this)
         ) revert InvalidTreasuryAddress(newTreasury);
 
-        if (!IERC165(newTreasury).supportsInterface(type(ITreasury).interfaceId)) {
+        if (!ERC165Checker.supportsInterface(newTreasury, type(ITreasury).interfaceId)) {
             revert TreasuryInterfaceNotSupported(newTreasury);
         }
 
@@ -162,8 +163,8 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     function _setQuoteAsset(address newQuoteAsset, bool checkInterfaceSupport) internal virtual {
         if (newQuoteAsset == address(this)) revert CannotSetQuoteAssetToSelf();
         if (checkInterfaceSupport) {
-            if (!IERC165(newQuoteAsset).supportsInterface(type(IERC20).interfaceId)) {
-                revert UnsupportedQuoteAssetInterface();
+            if (!ERC165Checker.supportsInterface(newQuoteAsset, type(IERC20).interfaceId)) {
+                revert QuoteAssetInterfaceNotSupported(newQuoteAsset);
             }
         }
 

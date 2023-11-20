@@ -9,6 +9,7 @@ import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Cont
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
 /**
  * @title TimelockAvatarControlled
@@ -113,10 +114,17 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
             newExecutor == address(0) || newExecutor == address(this)
         ) revert InvalidTimelockAvatarAddress(newExecutor);
 
+        bytes4[] memory requiredInterfaceIds = new bytes4[](2);
+        requiredInterfaceIds[0] = type(IAvatar).interfaceId;
+        requiredInterfaceIds[1] = type(ITimelockAvatar).interfaceId;
         if (
-            !IERC165(newExecutor).supportsInterface(type(IAvatar).interfaceId) ||
-            !IERC165(newExecutor).supportsInterface(type(ITimelockAvatar).interfaceId)
-        ) revert TimelockAvatarInterfacesNotSupported(newExecutor);
+            !ERC165Checker.supportsAllInterfaces(
+                newExecutor,
+                requiredInterfaceIds
+            )
+        ) {
+            revert TimelockAvatarInterfacesNotSupported(newExecutor);
+        }
 
         TimelockAvatarControlledStorage storage $ = _getTimelockStorage();
         emit TimelockAvatarChange(address($._executor), newExecutor);
