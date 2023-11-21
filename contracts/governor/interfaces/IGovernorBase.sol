@@ -98,6 +98,17 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         bytes params
     );
 
+    /**
+     * @dev The current state of a proposal is not the required for performing an operation.
+     * The `expectedStates` is a bitmap with the bits enabled for each ProposalState enum position
+     * counting from right to left.
+     *
+     * NOTE: If `expectedState` is `bytes32(0)`, the proposal is expected to not be in any state (i.e. not exist).
+     * This is the case when a proposal that is expected to be unset is already initiated (the proposal is duplicated).
+     *
+     * See {GovernorBase-_encodeStateBitmap}.
+     */
+    error GovernorUnexpectedProposalState(uint256 proposalId, ProposalState current, bytes32 expectedStates);
     error GovernanceCannotInitializeYet(uint256 governanceCanBeginAt);
     error GovernanceThresholdIsNotMet(
         uint256 governanceThresholdBps,
@@ -112,11 +123,8 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     error UnauthorizedToCancelProposal();
     error NotReadyForGovernance();
     error InvalidActionSignature(uint256 index);
-    error ProposalUnsuccessful();
-    error ProposalVotingInactive();
     error InvalidActionsForProposal();
     error TooLateToCancelProposal();
-    error ProposalAlreadyFinished();
     error GovernorInvalidSignature(address voter);
 
     /**

@@ -64,6 +64,8 @@ abstract contract GovernorBase is
         uint16 _governanceThresholdBps; // 2 bytes
     }
 
+    bytes32 private constant ALL_PROPOSAL_STATES_BITMAP = bytes32((2 ** (uint8(type(ProposalState).max) + 1)) - 1);
+
     bytes32 public immutable BALLOT_TYPEHASH =
         keccak256("Ballot(uint256 proposalId,uint8 support,address voter,uint256 nonce)");
     bytes32 public immutable EXTENDED_BALLOT_TYPEHASH =
@@ -489,7 +491,8 @@ abstract contract GovernorBase is
     ) public virtual override returns (uint256) {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
 
-        if (state(proposalId) != ProposalState.Succeeded) revert ProposalUnsuccessful();
+        _validateStateBitmap(proposalId, _encodeStateBitmap(ProposalState.Succeeded));
+
         if(
             $._proposals[proposalId].actionsHash != hashProposalActions(proposalId, targets, values, calldatas)
         ) revert InvalidActionsForProposal();
@@ -530,10 +533,8 @@ abstract contract GovernorBase is
     ) public virtual override returns (uint256) {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
 
-        ProposalState status = state(proposalId);
-        if (
-            status != ProposalState.Queued
-        ) revert ProposalUnsuccessful();
+        _validateStateBitmap(proposalId, _encodeStateBitmap(ProposalState.Queued));
+
         // NOTE: We don't check the actionsHash here because the TimelockAvatar's opHash will be checked
         $._proposals[proposalId].executed = true;
 
@@ -581,13 +582,13 @@ abstract contract GovernorBase is
     function cancel(
         uint256 proposalId
     ) public virtual override returns (uint256) {
-        // Only allow cancellation if the sender is canceler role, or if the proposer cancels before voting starts
-        if (!(
-            _hasRole(CANCELER_ROLE, msg.sender) || (
-                msg.sender == proposalProposer(proposalId) &&
-                state(proposalId) == ProposalState.Pending
-            )
-        )) revert UnauthorizedToCancelProposal();
+        // Only allow cancellation if the sender is CANCELER_ROLE, or if the proposer cancels before voting starts
+        if (!_hasRole(CANCELER_ROLE, msg.sender)) {
+            if (msg.sender != proposalProposer(proposalId)) {
+                revert UnauthorizedToCancelProposal();
+            }
+            _validateStateBitmap(proposalId, _encodeStateBitmap(ProposalState.Pending));
+        }
 
         return _cancel(proposalId);
     }
@@ -598,17 +599,18 @@ abstract contract GovernorBase is
      *
      * Emits a {IGovernor-ProposalCanceled} event.
      */
-    // This function can reenter through the external call to the timelock, but we assume the timelock is trusted and
-    // well behaved (according to TimelockController) and this will not happen.
-    // slither-disable-next-line reentrancy-no-eth
     function _cancel(
         uint256 proposalId
     ) internal virtual returns (uint256) {
-        ProposalState status = state(proposalId);
 
-        if (
-            status == ProposalState.Canceled || status == ProposalState.Expired || status == ProposalState.Executed
-        ) revert ProposalAlreadyFinished();
+        // Can cancel in any state other than Canceled, Expired, or Executed.
+        _validateStateBitmap(
+            proposalId,
+            ALL_PROPOSAL_STATES_BITMAP ^
+                _encodeStateBitmap(ProposalState.Canceled) ^
+                _encodeStateBitmap(ProposalState.Expired) ^
+                _encodeStateBitmap(ProposalState.Executed)
+        );
 
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
         $._proposals[proposalId].canceled = true;
@@ -767,10 +769,9 @@ abstract contract GovernorBase is
         string memory reason,
         bytes memory params
     ) internal virtual returns (uint256 weight) {
-        if (state(proposalId) != ProposalState.Active) revert ProposalVotingInactive();
+        _validateStateBitmap(proposalId, _encodeStateBitmap(ProposalState.Active));
 
-        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
-        ProposalCore storage proposal = $._proposals[proposalId];
+        ProposalCore storage proposal = _getGovernorBaseStorage()._proposals[proposalId];
 
         weight = _getVotes(account, proposal.voteStart, params);
         _countVote(proposalId, account, support, weight, params);
@@ -876,6 +877,36 @@ abstract contract GovernorBase is
         uint256 weight,
         bytes memory params
     ) internal virtual;
+
+    /**
+     * @dev Encodes a `ProposalState` into a `bytes32` representation where each bit enabled corresponds to
+     * the underlying position in the `ProposalState` enum. For example:
+     *
+     * 0x000...10000
+     *   ^^^^^^------ ...
+     *         ^----- Succeeded
+     *          ^---- Defeated
+     *           ^--- Canceled
+     *            ^-- Active
+     *             ^- Pending
+     */
+    function _encodeStateBitmap(ProposalState proposalState) internal pure returns (bytes32) {
+        return bytes32(1 << uint8(proposalState));
+    }
+
+    /**
+     * @dev Check that the current state of a proposal matches the requirements described by the `allowedStates` bitmap.
+     * This bitmap should be built using `_encodeStateBitmap`.
+     *
+     * If requirements are not met, reverts with a {GovernorUnexpectedProposalState} error.
+     */
+    function _validateStateBitmap(uint256 proposalId, bytes32 allowedStates) private view returns (ProposalState) {
+        ProposalState currentState = state(proposalId);
+        if (_encodeStateBitmap(currentState) & allowedStates == bytes32(0)) {
+            revert GovernorUnexpectedProposalState(proposalId, currentState, allowedStates);
+        }
+        return currentState;
+    }
 
     /**
      * @dev Check if the proposer is authorized to submit a proposal with the given description.
