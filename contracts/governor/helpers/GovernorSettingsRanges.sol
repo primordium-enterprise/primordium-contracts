@@ -40,6 +40,7 @@ abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions, Proposal
     error ProposalThresholdBpsTooLarge(uint256 providedBps, uint256 maxBps);
     error VotingDelayOutOfRange(uint256 min, uint256 max);
     error VotingPeriodOutOfRange(uint256 min, uint256 max);
+    error ProposalGracePeriodOutOfRange(uint256 min, uint256 max);
 
     /// @notice The maximum proposal threshold BPS value
     uint256 public immutable MAX_PROPOSAL_THRESHOLD_BPS = 1_000;
@@ -55,6 +56,12 @@ abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions, Proposal
 
     /// @notice The maximum setable voting period
     uint256 public immutable MAX_VOTING_PERIOD = 2 weeks / 12;
+
+    /// @notice The minimum setable proposal grace period
+    uint256 public immutable MIN_PROPOSAL_GRACE_PERIOD = 2 weeks / 12;
+
+    /// @notice The maximum setable proposal grace period
+    uint256 public immutable MAX_PROPOSAL_GRACE_PERIOD = 12 weeks / 12;
 
     function _setProposalThresholdBps(uint256 newProposalThresholdBps) internal virtual override {
         if (
@@ -79,6 +86,14 @@ abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions, Proposal
             newVotingPeriod > MAX_VOTING_PERIOD
         ) revert VotingPeriodOutOfRange(MIN_VOTING_PERIOD, MAX_VOTING_PERIOD);
         super._setVotingPeriod(newVotingPeriod);
+    }
+
+    function _setProposalGracePeriod(uint256 newGracePeriod) internal virtual override {
+        if (
+            newGracePeriod < MIN_PROPOSAL_GRACE_PERIOD ||
+            newGracePeriod > MAX_PROPOSAL_GRACE_PERIOD
+        ) revert ProposalGracePeriodOutOfRange(MIN_PROPOSAL_GRACE_PERIOD, MAX_PROPOSAL_GRACE_PERIOD);
+        super._setProposalGracePeriod(newGracePeriod);
     }
 
     /**

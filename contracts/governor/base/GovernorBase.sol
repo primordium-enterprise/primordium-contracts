@@ -262,6 +262,10 @@ abstract contract GovernorBase is
 
         uint256 opNonce = $._opNonces[proposalId];
         if (opNonce == 0) {
+            uint256 grace = proposalGracePeriod();
+            if (deadline + grace >= currentTimepoint) {
+                return ProposalState.Expired;
+            }
             return ProposalState.Succeeded;
         }
 
@@ -783,13 +787,16 @@ abstract contract GovernorBase is
         return "";
     }
 
+    /// @inheritdoc IGovernorBase
     function votingDelay() public view virtual returns (uint256);
 
+    /// @inheritdoc IGovernorBase
     function votingPeriod() public view virtual returns (uint256);
 
-    /// @dev Get both values at once to optimize gas
-    function _getVotingDelayAndPeriod() internal view virtual returns (uint256 _votingDelay, uint256 _votingPeriod);
+    /// @inheritdoc IGovernorBase
+    function proposalGracePeriod() public view virtual returns (uint256);
 
+    /// @inheritdoc IGovernorBase
     function quorum(uint256 timepoint) public view virtual returns (uint256);
 
     /**
@@ -833,6 +840,9 @@ abstract contract GovernorBase is
     ) public virtual onlyGovernance {
         _revokeRolesBatch(roles, accounts);
     }
+
+    /// @dev Get both values at once to optimize gas where applicable
+    function _getVotingDelayAndPeriod() internal view virtual returns (uint256 _votingDelay, uint256 _votingPeriod);
 
     /**
      * @dev Amount of votes already cast passes the threshold limit.

@@ -5,6 +5,7 @@
 pragma solidity ^0.8.20;
 
 import {GovernorBase} from "./GovernorBase.sol";
+import {IGovernorBase} from "../interfaces/IGovernorBase.sol";
 import {IGovernorToken} from "../interfaces/IGovernorToken.sol";
 import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -25,9 +26,11 @@ abstract contract ProposalSettings is GovernorBase {
     /// @custom:storage-location erc7201:ProposalSettings.Storage
     struct ProposalSettingsStorage {
         uint16 _proposalThresholdBps;
-        // uint24 allows each period to be up to 194 days long using seconds for the clock (longer using block numbers)
+        // uint24 allows each period to be up to 194 days long using timestamps (longer using block numbers)
         uint24 _votingDelay;
         uint24 _votingPeriod;
+        // Grace period can be set to max to be unlimited
+        uint48 _gracePeriod;
     }
 
     bytes32 private immutable PROPOSAL_BASE_STORAGE =
@@ -43,22 +46,21 @@ abstract contract ProposalSettings is GovernorBase {
     event ProposalThresholdBpsSet(uint256 oldProposalThresholdBps, uint256 newProposalThresholdBps);
     event VotingDelaySet(uint256 oldVotingDelay, uint256 newVotingDelay);
     event VotingPeriodSet(uint256 oldVotingPeriod, uint256 newVotingPeriod);
+    event ProposalGracePeriodSet(uint256 oldGracePeriod, uint256 newGracePeriod);
 
     function __ProposalSettings_init(
         uint256 proposalThresholdBps_,
         uint256 votingDelay_,
-        uint256 votingPeriod_
+        uint256 votingPeriod_,
+        uint256 gracePeriod_
     ) internal virtual onlyInitializing {
         _setProposalThresholdBps(proposalThresholdBps_);
         _setVotingDelay(votingDelay_);
         _setVotingPeriod(votingPeriod_);
+        _setProposalGracePeriod(gracePeriod_);
     }
 
-    /**
-     * @dev Returns the current proposal threshold of votes required to submit a proposal, as a basis points function of
-     * the current total supply.
-     * @return votesThreshold The total votes required.
-     */
+    /// @inheritdoc IGovernorBase
     function proposalThreshold() public view virtual override returns (uint256 votesThreshold) {
         // Overflow not a problem as long as the token's max supply <= type(uint224).max
         IGovernorToken _token = token();
@@ -74,73 +76,54 @@ abstract contract ProposalSettings is GovernorBase {
     }
 
     /**
-     * @dev Update the proposal threshold BPS. This operation can only be performed through a governance proposal.
-     *
+     * @dev Update the proposal threshold BPS.
+     * @notice This operation can only be performed through a governance proposal.
      * Emits a {ProposalThresholdBpsSet} event.
      */
     function setProposalThresholdBps(uint256 newProposalThresholdBps) public virtual onlyGovernance {
         _setProposalThresholdBps(newProposalThresholdBps);
     }
 
-    /**
-     * @dev Internal setter for the proposal threshold BPS.
-     *
-     * Emits a {ProposalThresholdBpsSet} event.
-     */
     function _setProposalThresholdBps(uint256 newProposalThresholdBps) internal virtual {
         ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
         emit ProposalThresholdBpsSet($._proposalThresholdBps, newProposalThresholdBps);
         $._proposalThresholdBps = SafeCast.toUint16(newProposalThresholdBps);
     }
 
-    /**
-     * @dev See {IGovernor-votingDelay}.
-     */
+    /// @inheritdoc IGovernorBase
     function votingDelay() public view virtual override returns (uint256 _votingDelay) {
         _votingDelay = _getProposalSettingsStorage()._votingDelay;
     }
 
     /**
-     * @dev Update the voting delay. This operation can only be performed through a governance proposal.
-     *
+     * @dev Update the voting delay.
+     * @notice This operation can only be performed through a governance proposal.
      * Emits a {VotingDelaySet} event.
      */
     function setVotingDelay(uint256 newVotingDelay) public virtual onlyGovernance {
         _setVotingDelay(newVotingDelay);
     }
 
-    /**
-     * @dev Internal setter for the voting delay.
-     *
-     * Emits a {VotingDelaySet} event.
-     */
     function _setVotingDelay(uint256 newVotingDelay) internal virtual {
         ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
         emit VotingDelaySet($._votingDelay, newVotingDelay);
         $._votingDelay = SafeCast.toUint24(newVotingDelay);
     }
 
-    /**
-     * @dev See {IGovernor-votingPeriod}.
-     */
+    /// @inheritdoc IGovernorBase
     function votingPeriod() public view virtual override returns (uint256 _votingPeriod) {
         _votingPeriod =  _getProposalSettingsStorage()._votingPeriod;
     }
 
     /**
-     * @dev Update the voting period. This operation can only be performed through a governance proposal.
-     *
+     * @dev Update the voting period.
+     * @notice This operation can only be performed through a governance proposal.
      * Emits a {VotingPeriodSet} event.
      */
     function setVotingPeriod(uint256 newVotingPeriod) public virtual onlyGovernance {
         _setVotingPeriod(newVotingPeriod);
     }
 
-    /**
-     * @dev Internal setter for the voting period.
-     *
-     * Emits a {VotingPeriodSet} event.
-     */
     function _setVotingPeriod(uint256 newVotingPeriod) internal virtual {
         ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
         emit VotingPeriodSet($._votingPeriod, newVotingPeriod);
@@ -156,5 +139,29 @@ abstract contract ProposalSettings is GovernorBase {
         _votingPeriod = $._votingPeriod;
     }
 
+    /// @inheritdoc IGovernorBase
+    function proposalGracePeriod() public view virtual override returns (uint256 _gracePeriod) {
+        _gracePeriod = _getProposalSettingsStorage()._gracePeriod;
+    }
+
+    /**
+     * @dev Update the proposal grace period.
+     * @notice This operation can only be performed through a governance proposal.
+     * Emits a {ProposalGracePeriodSet} event.
+     */
+    function setProposalGracePeriod(uint256 newGracePeriod) public virtual onlyGovernance {
+        _setProposalGracePeriod(newGracePeriod);
+    }
+
+    function _setProposalGracePeriod(uint256 newGracePeriod) internal virtual {
+        // Don't allow overflow for setting to a high value "unlimited" value
+        if (newGracePeriod > type(uint48).max) {
+            newGracePeriod = type(uint48).max;
+        }
+
+        ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
+        emit ProposalGracePeriodSet($._gracePeriod, newGracePeriod);
+        $._gracePeriod = uint48(newGracePeriod);
+    }
 
 }

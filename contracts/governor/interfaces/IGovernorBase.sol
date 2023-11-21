@@ -211,6 +211,13 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     function votingPeriod() external view returns (uint256);
 
     /**
+     * @dev Grace period after a proposal deadline passes in which a successful proposal must be queued for execution,
+     * or else the proposal will expire. The unit this duration is expressed in depends on the clock (see EIP-6372) this
+     * contract uses.
+     */
+    function proposalGracePeriod() external view returns (uint256);
+
+    /**
      * @dev Minimum number of cast voted required for a proposal to be successful.
      *
      * NOTE: The `timepoint` parameter corresponds to the snapshot used for counting vote. This allows to scale the
