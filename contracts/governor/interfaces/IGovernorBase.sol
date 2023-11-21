@@ -107,6 +107,7 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     error GovernanceInitializationActionRequired();
     error UnknownProposalId(uint256 proposalId);
     error GovernorClockMustMatchTokenClock();
+    error GovernorRestrictedProposer(address proposer);
     error UnauthorizedToSubmitProposal(address proposer);
     error UnauthorizedToCancelProposal();
     error NotReadyForGovernance();
@@ -278,12 +279,20 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     ) external pure returns (bytes32);
 
     /**
-     * @dev Create a new proposal. Vote start after a delay specified by {IGovernor-votingDelay} and lasts for a
-     * duration specified by {IGovernor-votingPeriod}.
+     * Create a new proposal. Emits a {ProposalCreated} event.
      *
-     * Emits a {ProposalCreated} event.
+     * @notice Accounts with the PROPOSER_ROLE can submit proposals regardless of delegation.
      *
-     * Accounts with the PROPOSER_ROLE can submit proposals regardless of delegation.
+     * @param targets The execution targets.
+     * @param values The execution values.
+     * @param calldatas The execution calldatas.
+     * @param signatures The human-readable signatures associated with the calldatas selectors. These are checked
+     * against the selectors in the calldatas to ensure the provided actions line up with the human-readable signatures.
+     * @param description The proposal description.
+     * @dev If the proposal description ends with `#proposer=0x???`, where `0x???` is an address written as a hex string
+     * (case insensitive), then the submission of this proposal will only be authorized to said address. This is used
+     * as an opt-in protection against front-running.
+     * @return proposalId Returns the ID of the newly created proposal.
      */
     function propose(
         address[] calldata targets,
