@@ -22,15 +22,6 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 abstract contract ProposalSettings is GovernorBase {
     using BasisPoints for uint256;
 
-    /// @notice The minimum setable voting delay, set to 1 (regardless of clock mode)
-    uint256 public constant MIN_VOTING_DELAY = 1;
-    /// @notice The maximum setable voting delay, set to approximately 1 week at 12sec/block.
-    uint256 internal constant MAX_VOTING_DELAY_BLOCKS = 50_400;
-    /// @notice The minimum setable voting period, set to approximately 24 hours at 12sec/block.
-    uint256 internal constant MIN_VOTING_PERIOD_BLOCKS = 7_200;
-    /// @notice The maximum setable voting period, set to approximately 2 weeks at 12sec/block.
-    uint256 internal constant MAX_VOTING_PERIOD_BLOCKS = 100_800;
-
     /// @custom:storage-location erc7201:ProposalSettings.Storage
     struct ProposalSettingsStorage {
         uint16 _proposalThresholdBps;
@@ -53,10 +44,6 @@ abstract contract ProposalSettings is GovernorBase {
     event VotingDelaySet(uint256 oldVotingDelay, uint256 newVotingDelay);
     event VotingPeriodSet(uint256 oldVotingPeriod, uint256 newVotingPeriod);
 
-    error ProposalThresholdBpsTooLarge(uint256 providedBps, uint256 maxBps);
-    error VotingDelayOutOfRange(uint256 min, uint256 max);
-    error VotingPeriodOutOfRange(uint256 min, uint256 max);
-
     function __ProposalSettings_init(
         uint256 proposalThresholdBps_,
         uint256 votingDelay_,
@@ -65,22 +52,6 @@ abstract contract ProposalSettings is GovernorBase {
         _setProposalThresholdBps(proposalThresholdBps_);
         _setVotingDelay(votingDelay_);
         _setVotingPeriod(votingPeriod_);
-    }
-
-    function MAX_PROPOSAL_THRESHOLD_BPS() public virtual returns (uint256 maxProposalThresholdBps) {
-        maxProposalThresholdBps = 1_000;
-    }
-
-    function MAX_VOTING_DELAY() public view virtual returns (uint256 maxVotingDelay) {
-        maxVotingDelay = _transformBlockDuration(MAX_VOTING_DELAY_BLOCKS);
-    }
-
-    function MIN_VOTING_PERIOD() public view virtual returns (uint256 minVotingPeriod) {
-        minVotingPeriod = _transformBlockDuration(MIN_VOTING_PERIOD_BLOCKS);
-    }
-
-    function MAX_VOTING_PERIOD() public view virtual returns (uint256 maxVotingPeriod) {
-        maxVotingPeriod = _transformBlockDuration(MAX_VOTING_PERIOD_BLOCKS);
     }
 
     /**
@@ -117,11 +88,6 @@ abstract contract ProposalSettings is GovernorBase {
      * Emits a {ProposalThresholdBpsSet} event.
      */
     function _setProposalThresholdBps(uint256 newProposalThresholdBps) internal virtual {
-        uint256 maxProposalThresholdBps = MAX_PROPOSAL_THRESHOLD_BPS();
-        if (
-            newProposalThresholdBps > maxProposalThresholdBps
-        ) revert ProposalThresholdBpsTooLarge(newProposalThresholdBps, maxProposalThresholdBps);
-
         ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
         emit ProposalThresholdBpsSet($._proposalThresholdBps, newProposalThresholdBps);
         $._proposalThresholdBps = SafeCast.toUint16(newProposalThresholdBps);
@@ -149,12 +115,6 @@ abstract contract ProposalSettings is GovernorBase {
      * Emits a {VotingDelaySet} event.
      */
     function _setVotingDelay(uint256 newVotingDelay) internal virtual {
-        uint256 maxVotingDelay = MAX_VOTING_DELAY();
-        if (
-            newVotingDelay < MIN_VOTING_DELAY ||
-            newVotingDelay > maxVotingDelay
-        ) revert VotingDelayOutOfRange(MIN_VOTING_DELAY, maxVotingDelay);
-
         ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
         emit VotingDelaySet($._votingDelay, newVotingDelay);
         $._votingDelay = SafeCast.toUint24(newVotingDelay);
@@ -182,15 +142,6 @@ abstract contract ProposalSettings is GovernorBase {
      * Emits a {VotingPeriodSet} event.
      */
     function _setVotingPeriod(uint256 newVotingPeriod) internal virtual {
-        bool usesBlockNumbers = clock() == block.number;
-        uint256 minVotingPeriod = _transformBlockDuration(MIN_VOTING_PERIOD_BLOCKS, usesBlockNumbers);
-        uint256 maxVotingPeriod = _transformBlockDuration(MAX_VOTING_PERIOD_BLOCKS, usesBlockNumbers);
-        // voting period must be at least one block long
-        if (
-            newVotingPeriod < minVotingPeriod ||
-            newVotingPeriod > maxVotingPeriod
-        ) revert VotingPeriodOutOfRange(minVotingPeriod, maxVotingPeriod);
-
         ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
         emit VotingPeriodSet($._votingPeriod, newVotingPeriod);
         $._votingPeriod = SafeCast.toUint24(newVotingPeriod);
