@@ -12,6 +12,8 @@ import {IGuard} from "../interfaces/IGuard.sol";
 import {ITimelockAvatar} from "../interfaces/ITimelockAvatar.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 /**
  * @title Timelock Avatar implements a timelock control on all call executions for the Executor.
@@ -20,7 +22,15 @@ import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Cont
  *
  * @author Ben Jett @BCJdevelopment
  */
-abstract contract TimelockAvatar is MultiSend, IAvatar, ITimelockAvatar, Guardable, ContextUpgradeable {
+abstract contract TimelockAvatar is
+    MultiSend,
+    IAvatar,
+    ITimelockAvatar,
+    Guardable,
+    ContextUpgradeable,
+    ERC721Holder,
+    ERC1155Holder
+{
 
     struct Operation {
         address module;
@@ -127,7 +137,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, ITimelockAvatar, Guardab
         _setUpModules(modules_);
     }
 
-    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC1155Holder, Guardable) returns (bool) {
         return
             interfaceId == type(IAvatar).interfaceId ||
             interfaceId == type(ITimelockAvatar).interfaceId ||

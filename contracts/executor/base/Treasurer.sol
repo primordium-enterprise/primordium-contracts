@@ -8,14 +8,12 @@ import {ITreasury} from "../interfaces/ITreasury.sol";
 import {Enum} from "contracts/common/Enum.sol";
 import {SharesManager} from "contracts/shares/base/SharesManager.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
-import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1155Receiver {
+abstract contract Treasurer is TimelockAvatar, ITreasury {
     using SafeERC20 for IERC20;
 
     SharesManager internal immutable _token;
@@ -49,9 +47,8 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
         _token = token_;
     }
 
-    function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, TimelockAvatar) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         return
-            interfaceId == type(IERC1155Receiver).interfaceId ||
             interfaceId == type(ITreasury).interfaceId ||
             super.supportsInterface(interfaceId);
     }
@@ -99,9 +96,11 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
     function _initializeDeposits() internal virtual {
         // TODO: Ensure that deposits have not already been initialized
         // TODO: Retrieve the deposit share amount
-        uint256 totalSupply = _token.totalSupply();
-        (uint256 quoteAmount, uint256 mintAmount) = _token.sharePrice();
-        uint256 totalDeposits = Math.mulDiv(totalSupply, quoteAmount, mintAmount);
+
+        // uint256 totalSupply = _token.totalSupply();
+        // (uint256 quoteAmount, uint256 mintAmount) = _token.sharePrice();
+        // uint256 totalDeposits = Math.mulDiv(totalSupply, quoteAmount, mintAmount);
+
         // TODO: Need to transfer totalDeposits to the deposit share contract
         // TODO: Set state to show that deposits are now initialized
     }
@@ -273,39 +272,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC721Receiver, IERC1
     function _transferStashedBaseAsset(address to, uint256 amount) internal virtual {
         _unstashBaseAsset(amount);
         _safeTransferBaseAsset(to, amount);
-    }
-
-    /**
-     * @dev See {IERC721Receiver-onERC721Received}.
-     */
-    function onERC721Received(address, address, uint256, bytes memory) public virtual override returns (bytes4) {
-        return IERC721Receiver.onERC721Received.selector;
-    }
-
-    /**
-     * @dev See {IERC1155Receiver-onERC1155Received}.
-     */
-    function onERC1155Received(
-        address,
-        address,
-        uint256,
-        uint256,
-        bytes memory
-    ) public virtual override returns (bytes4) {
-        return IERC1155Receiver.onERC1155Received.selector;
-    }
-
-    /**
-     * @dev See {IERC1155Receiver-onERC1155BatchReceived}.
-     */
-    function onERC1155BatchReceived(
-        address,
-        address,
-        uint256[] memory,
-        uint256[] memory,
-        bytes memory
-    ) public virtual override returns (bytes4) {
-        return IERC1155Receiver.onERC1155BatchReceived.selector;
     }
 
 }
