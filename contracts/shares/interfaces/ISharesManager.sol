@@ -179,10 +179,8 @@ interface ISharesManager {
         address receiver,
         uint256 amount,
         IERC20[] calldata tokens,
-        uint256 expiry,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        uint256 deadline,
+        bytes memory signature
     ) external returns (uint256 totalSharesBurned);
 
 }

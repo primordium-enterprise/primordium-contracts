@@ -379,7 +379,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         IERC20[] calldata tokens,
         uint256 deadline,
         bytes memory signature
-    ) public virtual returns (uint256 totalSharesBurned) {
+    ) public virtual override returns (uint256 totalSharesBurned) {
         if (block.timestamp > deadline) {
             revert VotesExpiredSignature(deadline);
         }
