@@ -66,15 +66,15 @@ abstract contract GovernorBase is
         uint16 _governanceThresholdBps; // 2 bytes
     }
 
-    bytes32 public constant BALLOT_TYPEHASH =
+    bytes32 public immutable BALLOT_TYPEHASH =
         keccak256("Ballot(uint256 proposalId,uint8 support,address voter,uint256 nonce)");
-    bytes32 public constant EXTENDED_BALLOT_TYPEHASH =
+    bytes32 public immutable EXTENDED_BALLOT_TYPEHASH =
         keccak256(
             "ExtendedBallot(uint256 proposalId,uint8 support,address voter,uint256 nonce,string reason,bytes params)"
         );
 
-    bytes32 public constant PROPOSER_ROLE = keccak256("PROPOSER");
-    bytes32 public constant CANCELER_ROLE = keccak256("CANCELER");
+    bytes32 public immutable PROPOSER_ROLE = keccak256("PROPOSER");
+    bytes32 public immutable CANCELER_ROLE = keccak256("CANCELER");
 
     /// @custom:storage-location erc7201:GovernorBase.Storage
     struct GovernorBaseStorage {

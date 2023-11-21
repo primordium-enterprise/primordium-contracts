@@ -37,7 +37,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     using SafeCast for *;
     using SafeERC20 for IERC20;
 
-    bytes32 private constant WITHDRAW_TYPEHASH = keccak256(
+    bytes32 private immutable WITHDRAW_TYPEHASH = keccak256(
         "Withdraw(address owner,address receiver,uint256 amount,address[] tokens,uint256 nonce,uint256 deadline)"
     );
 
