@@ -8,14 +8,14 @@ import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /**
- * @title MajoritySettings
+ * @title VoteMajoritySettings
  *
  * @dev Extends the {VoteCounting} to use an updateable percent majority to determine whether a proposal is
  * successful or not.
  *
  * @author Ben Jett - @BCJdevelopment
  */
-abstract contract MajoritySettings is VoteCounting {
+abstract contract VoteMajoritySettings is VoteCounting {
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace208;
 
@@ -23,15 +23,15 @@ abstract contract MajoritySettings is VoteCounting {
     uint256 public constant MIN_PERCENT_MAJORITY = 50;
     uint256 public constant MAX_PERCENT_MAJORITY = 66;
 
-    /// @custom:storage-location erc7201:MajoritySettings.Storage
-    struct MajoritySettingsStorage {
+    /// @custom:storage-location erc7201:VoteMajoritySettings.Storage
+    struct VoteMajoritySettingsStorage {
         Checkpoints.Trace208 _percentMajorityCheckpoints;
     }
 
     bytes32 private immutable PERCENT_MAJORITY_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("MajoritySettings.Storage")) - 1)) & ~bytes32(uint256(0xff));
+        keccak256(abi.encode(uint256(keccak256("VoteMajoritySettings.Storage")) - 1)) & ~bytes32(uint256(0xff));
 
-    function _getMajoritySettingsStorage() private view returns (MajoritySettingsStorage storage $) {
+    function _getVoteMajoritySettingsStorage() private view returns (VoteMajoritySettingsStorage storage $) {
         bytes32 slot = PERCENT_MAJORITY_STORAGE;
         assembly {
             $.slot := slot
@@ -42,7 +42,7 @@ abstract contract MajoritySettings is VoteCounting {
 
     error PercentMajorityOutOfRange(uint256 minRange, uint256 maxRange);
 
-    function __MajoritySettings_init(
+    function __VoteMajoritySettings_init(
         uint256 percentMajority_
     ) internal virtual onlyInitializing {
         _setPercentMajority(percentMajority_);
@@ -52,7 +52,7 @@ abstract contract MajoritySettings is VoteCounting {
      * @notice Returns the current percent majority required for passing proposals.
      */
     function percentMajority() public view virtual returns (uint256) {
-        return _getMajoritySettingsStorage()._percentMajorityCheckpoints.latest();
+        return _getVoteMajoritySettingsStorage()._percentMajorityCheckpoints.latest();
     }
 
     /**
@@ -67,7 +67,7 @@ abstract contract MajoritySettings is VoteCounting {
      * @dev Helper method to return the percent majority at the specified timepoint.
      */
     function _percentMajority(uint256 timepoint) internal view virtual returns (uint256) {
-        MajoritySettingsStorage storage $ = _getMajoritySettingsStorage();
+        VoteMajoritySettingsStorage storage $ = _getVoteMajoritySettingsStorage();
 
         // Optimistic search, check the latest checkpoint
         (bool exists, uint256 _key, uint256 _value) = $._percentMajorityCheckpoints.latestCheckpoint();
@@ -98,7 +98,7 @@ abstract contract MajoritySettings is VoteCounting {
         uint256 oldPercentMajority = percentMajority();
 
         // Set new percent majority for future proposals
-        MajoritySettingsStorage storage $ = _getMajoritySettingsStorage();
+        VoteMajoritySettingsStorage storage $ = _getVoteMajoritySettingsStorage();
         $._percentMajorityCheckpoints.push(clock(), uint208(newPercentMajority));
 
         emit PercentMajorityUpdated(oldPercentMajority, newPercentMajority);

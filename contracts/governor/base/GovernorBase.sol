@@ -222,9 +222,7 @@ abstract contract GovernorBase is
         return 10e18;
     }
 
-    /**
-     * @dev See {IGovernor-state}.
-     */
+    /// @inheritdoc IGovernorBase
     function state(uint256 proposalId) public view virtual override returns (ProposalState) {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
 
