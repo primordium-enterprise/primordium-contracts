@@ -122,6 +122,8 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable
 
     /**
      * @dev Delegates votes from `delegator` to `delegatee`. Supports ECDSA or EIP1271 signatures.
+     *
+     * @param signature The signature is a packed bytes encoding of the ECDSA r, s, and v signature values.
      */
     function delegateBySig(
         address delegator,

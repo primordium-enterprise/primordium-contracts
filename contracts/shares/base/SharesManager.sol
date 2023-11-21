@@ -12,7 +12,7 @@ import {Ownable1Or2StepUpgradeable} from "contracts/utils/Ownable1Or2StepUpgrade
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
@@ -38,7 +38,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     using SafeERC20 for IERC20;
 
     bytes32 private constant WITHDRAW_TYPEHASH = keccak256(
-        "Withdraw(address owner,address receiver,uint256 amount,address[] tokens,uint256 nonce,uint256 expiry)"
+        "Withdraw(address owner,address receiver,uint256 amount,address[] tokens,uint256 nonce,uint256 deadline)"
     );
 
     struct SharePrice {
@@ -368,31 +368,60 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     }
 
     /**
-     * @dev Allow withdrawal by EIP712 signature
+     * @dev Allow withdrawal by EIP712 signature or EIP1271 for smart contracts.
+     *
+     * @param signature The signature is a packed bytes encoding of the ECDSA r, s, and v signature values.
      */
     function withdrawBySig(
         address owner,
         address receiver,
         uint256 amount,
         IERC20[] calldata tokens,
-        uint256 expiry,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        uint256 deadline,
+        bytes memory signature
     ) public virtual returns (uint256 totalSharesBurned) {
-        if (block.timestamp > expiry) revert ERC2612ExpiredSignature(expiry);
-        address signer = ECDSA.recover(
+        if (block.timestamp > deadline) {
+            revert VotesExpiredSignature(deadline);
+        }
+
+        // Copy the tokens content to memory and hash
+        bytes32 tokensContentHash;
+        // @solidity memory-safe-assembly
+        assembly {
+            // Store the total byte length of the array items (length * 32 bytes per item)
+            mstore(0, mul(tokens.length, 0x20))
+            // Allocate memory for the array items
+            mstore(0x20, mload(0x40))
+            mstore(0x40, add(mload(0x20), mload(0)))
+            // Copy the array items
+            calldatacopy(mload(0x20), tokens.offset, mload(0))
+            // Hash the items
+            tokensContentHash := keccak256(mload(0x20), mload(0))
+        }
+
+        bool valid = SignatureChecker.isValidSignatureNow(
+            owner,
             _hashTypedDataV4(
                 keccak256(
-                    abi.encode(WITHDRAW_TYPEHASH, owner, receiver, amount, tokens, _useNonce(owner), expiry)
+                    abi.encode(
+                        WITHDRAW_TYPEHASH,
+                        owner,
+                        receiver,
+                        amount,
+                        tokensContentHash,
+                        _useNonce(owner),
+                        deadline
+                    )
                 )
             ),
-            v,
-            r,
-            s
+            signature
         );
-        if (signer != owner) revert ERC2612InvalidSigner(signer, owner);
-        totalSharesBurned = _withdraw(signer, receiver, amount, tokens);
+
+        if (!valid) {
+            revert VotesInvalidSignature();
+        }
+
+        totalSharesBurned = _withdraw(owner, receiver, amount, tokens);
     }
 
     /**
