@@ -202,6 +202,18 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     function proposalThreshold() external view returns (uint256);
 
     /**
+     * @dev Public accessor to check the eta of a proposal. Returns zero for an unqueued operation. Otherwise returns
+     * the result of {TimelockAvatar.getOperationExecutableAt}.
+     */
+    function proposalEta(uint256 proposalId) external view returns (uint256);
+
+    /**
+     * @dev Public accessor to check the operation nonce of a proposal queued on the Executor. Returns 0 for a proposal
+     * that has not been queued. Also returns zero for a proposalId that does not exist.
+     */
+    function proposalOpNonce(uint256 proposalId) external view returns (uint256);
+
+    /**
      * @dev Delay, between the proposal is created and the vote starts. The unit this duration is expressed in depends
      * on the clock (see EIP-6372) this contract uses.
      *
@@ -280,7 +292,6 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
      * @dev Hashing function used to verify the proposal actions that were originally submitted.
      */
     function hashProposalActions(
-        uint256 proposalId,
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
@@ -348,11 +359,6 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     function cancel(
         uint256 proposalId
     ) external returns (uint256 proposalId_);
-
-    /**
-     * @dev Public accessor to check the eta of a queued proposal.
-     */
-    function proposalEta(uint256 proposalId) external view returns (uint256);
 
     /**
      * @dev Cast a vote

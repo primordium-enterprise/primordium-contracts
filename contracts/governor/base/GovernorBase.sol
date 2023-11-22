@@ -48,13 +48,11 @@ abstract contract GovernorBase is
     using BasisPoints for uint256;
 
     struct ProposalCore {
-        bytes32 actionsHash;
-        address proposer;
-        uint48 voteStart;
-        uint32 voteDuration;
-        bool executed;
-        bool canceled;
-        uint48 etaSeconds;
+        address proposer; // 20 bytes
+        uint48 voteStart; // 6 bytes
+        uint32 voteDuration; // 4 bytes
+        bool executed; // 1 byte
+        bool canceled; // 1 byte
     }
 
     struct VotesManagement {
@@ -80,11 +78,16 @@ abstract contract GovernorBase is
     struct GovernorBaseStorage {
         uint256 _proposalCount;
 
+        // Tracking core proposal data
         mapping(uint256 => ProposalCore) _proposals;
 
-        // Tracking queued operations on the TimelockAvatar
-        mapping(uint256 => uint256) _opNonces;
+        // Tracking hashes of each proposal's actions
+        mapping(uint256 => bytes32) _proposalActionsHashes;
 
+        // Tracking queued operations on the TimelockAvatar
+        mapping(uint256 => uint256) _proposalOpNonces;
+
+        // Track the token address and other voting management
         VotesManagement _votesManagement;
     }
 
@@ -211,8 +214,8 @@ abstract contract GovernorBase is
     }
 
     /// @inheritdoc IGovernorBase
-    function proposalCount() public view virtual returns (uint256 _proposalCount) {
-        _proposalCount = _getGovernorBaseStorage()._proposalCount;
+    function proposalCount() public view virtual returns (uint256 count) {
+        count = _getGovernorBaseStorage()._proposalCount;
     }
 
     /**
@@ -262,7 +265,7 @@ abstract contract GovernorBase is
             return ProposalState.Defeated;
         }
 
-        uint256 opNonce = $._opNonces[proposalId];
+        uint256 opNonce = $._proposalOpNonces[proposalId];
         if (opNonce == 0) {
             uint256 grace = proposalGracePeriod();
             if (deadline + grace >= currentTimepoint) {
@@ -283,37 +286,45 @@ abstract contract GovernorBase is
     }
 
     /// @inheritdoc IGovernorBase
-    function proposalSnapshot(uint256 proposalId) public view virtual override returns (uint256) {
-        return _getGovernorBaseStorage()._proposals[proposalId].voteStart;
+    function proposalSnapshot(uint256 proposalId) public view virtual override returns (uint256 snapshot) {
+        snapshot = _getGovernorBaseStorage()._proposals[proposalId].voteStart;
     }
 
     /// @inheritdoc IGovernorBase
-    function proposalDeadline(uint256 proposalId) public view virtual override returns (uint256) {
+    function proposalDeadline(uint256 proposalId) public view virtual override returns (uint256 deadline) {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
-        return $._proposals[proposalId].voteStart + $._proposals[proposalId].voteDuration;
+        deadline = $._proposals[proposalId].voteStart + $._proposals[proposalId].voteDuration;
     }
 
     /// @inheritdoc IGovernorBase
-    function proposalActionsHash(uint256 proposalId) public view virtual override returns (bytes32) {
-        return _getGovernorBaseStorage()._proposals[proposalId].actionsHash;
+    function proposalActionsHash(uint256 proposalId) public view virtual override returns (bytes32 actionsHash) {
+        actionsHash = _getGovernorBaseStorage()._proposalActionsHashes[proposalId];
     }
 
     /// @inheritdoc IGovernorBase
-    function proposalProposer(uint256 proposalId) public view virtual override returns (address) {
-        return _getGovernorBaseStorage()._proposals[proposalId].proposer;
+    function proposalProposer(uint256 proposalId) public view virtual override returns (address proposer) {
+        proposer = _getGovernorBaseStorage()._proposals[proposalId].proposer;
     }
 
     /// @inheritdoc IGovernorBase
-    function proposalEta(uint256 proposalId) public view virtual override returns (uint256) {
-        return _getGovernorBaseStorage()._proposals[proposalId].etaSeconds;
+    function proposalEta(uint256 proposalId) public view virtual override returns (uint256 eta) {
+        uint256 opNonce = _getGovernorBaseStorage()._proposalOpNonces[proposalId];
+        if (opNonce == 0) {
+            return eta;
+        }
+        eta = executor().getOperationExecutableAt(opNonce);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function proposalOpNonce(uint256 proposalId) public view virtual override returns (uint256 opNonce) {
+        opNonce = _getGovernorBaseStorage()._proposalOpNonces[proposalId];
     }
 
     /**
      * @dev See {IGovernor-hashProposaActions}.
      *
-     * The actionsHash is produced by hashing the ABI encoded 'proposalId', the `targets` array, the `values` array, and
-     *  the `calldatas` array.
-     * This can be reproduced from the proposal data which is part of the {ProposalCreated} event.
+     * The actionsHash is produced by hashing the ABI encoded `targets` array, the `values` array, and the `calldatas`
+     * array. This can be reproduced from the proposal data which is part of the {ProposalCreated} event.
      *
      * Note that the chainId and the governor address are not part of the proposal id computation. Consequently, the
      * same proposal (with same operation and same description) will have the same id if submitted on multiple governors
@@ -321,12 +332,11 @@ abstract contract GovernorBase is
      * governor) the proposer will have to change the description in order to avoid proposal id conflicts.
      */
     function hashProposalActions(
-        uint256 proposalId,
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
     ) public pure virtual override returns (bytes32) {
-        return keccak256(abi.encode(proposalId, targets, values, calldatas));
+        return keccak256(abi.encode(targets, values, calldatas));
     }
 
     /// @inheritdoc IGovernorBase
@@ -460,7 +470,7 @@ abstract contract GovernorBase is
         uint256 newProposalId = ++$._proposalCount;
 
         ProposalCore storage proposal = $._proposals[newProposalId];
-        proposal.actionsHash = hashProposalActions(newProposalId, targets, values, calldatas);
+        $._proposalActionsHashes[newProposalId] = hashProposalActions(targets, values, calldatas);
         proposal.proposer = proposer;
         proposal.voteStart = snapshot.toUint48();
         proposal.voteDuration = duration.toUint32();
@@ -494,7 +504,7 @@ abstract contract GovernorBase is
         _validateStateBitmap(proposalId, _encodeStateBitmap(ProposalState.Succeeded));
 
         if(
-            $._proposals[proposalId].actionsHash != hashProposalActions(proposalId, targets, values, calldatas)
+            $._proposalActionsHashes[proposalId] != hashProposalActions(targets, values, calldatas)
         ) revert InvalidActionsForProposal();
 
         ITimelockAvatar _executor = executor();
@@ -513,8 +523,7 @@ abstract contract GovernorBase is
         );
 
         (uint256 opNonce,,uint256 eta) = abi.decode(returnData, (uint256, bytes32, uint256));
-        $._opNonces[proposalId] = opNonce;
-        $._proposals[proposalId].etaSeconds = eta.toUint48();
+        $._proposalOpNonces[proposalId] = opNonce;
 
         emit ProposalQueued(proposalId, eta);
 
@@ -576,7 +585,7 @@ abstract contract GovernorBase is
         );
 
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
-        _executor.executeOperation($._opNonces[proposalId], to, value, data, Enum.Operation.Call);
+        _executor.executeOperation($._proposalOpNonces[proposalId], to, value, data, Enum.Operation.Call);
     }
 
     function cancel(
@@ -616,7 +625,7 @@ abstract contract GovernorBase is
         $._proposals[proposalId].canceled = true;
 
         // Cancel the op if it exists (will revert if it cannot be cancelled)
-        uint256 opNonce = $._opNonces[proposalId];
+        uint256 opNonce = $._proposalOpNonces[proposalId];
         if (opNonce != 0) {
             executor().cancelOperation(opNonce);
         }
