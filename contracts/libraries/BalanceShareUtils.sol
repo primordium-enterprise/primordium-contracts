@@ -8,17 +8,59 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
 
 /**
- * @title BalanceShareUtils
+ * @title A utility library for tracking multiple account shares in BPS of ETH/ERC20 assets
+ *
  * @author Ben Jett - @BCJdevelopment
- * @notice A library with math accounting utilities for tracking balance shares of ERC20 assets (plus native currency)
- * by tracking basis point shares for each participating account.
- * @dev This library operates on the principal that the utilizing contract will act as a holding contract for the
+ *
+ * @dev This library operates on the principal that the utilizing contract will act as a holding contract for all of the
  * assets, and will use this library as the internal accounting to allow each account share to withdraw their
- * accumulated claim at any point in time. This optimizes gas as opposed to looping through multiple account shares and
- * completing multiple ERC20 transfers every single time that shares are paid out.
+ * accumulated claim to the assets at any point in time. This splits gas usage to ensure that each individual account
+ * share pays the gas to transfer their own assets, rather than costing the protocol users additional gas to loop
+ * through each account share and transfer them assets during other functionalities.
+ *
+ * This also enables adding additional withdrawal permissions in the utilizing contract to give account share owners the
+ * ability to grant permissions and/or use signed messages to process asset withdrawals in batches.
  */
 library BalanceShareUtils {
     using BasisPoints for uint256;
+
+    /**
+     * NEW STORAGE LAYOUT WITH QUOTE ASSET
+     */
+    struct BalanceShare_ {
+        // New balance sum created every time totalBps changes, or when sum overflow occurs
+        uint256 _currentBalanceSumIndex;
+        mapping(uint256 balanceSumIndex => BalanceSum) _balanceSums; // Mapping, not array, to avoid storage collisions
+
+        // Tracks the asset balance remainder when adding to balance sums
+        mapping(address asset => uint256 balanceRemainder) _balanceRemainders;
+
+        mapping(address => AccountShare_) _accounts;
+        mapping(address => mapping(address => bool)) _accountWithdrawalApprovals;
+    }
+
+    struct BalanceSum {
+        uint256 totalBps; // Tracks the totalBps among all account shares for this balance sum checkpoint
+        mapping(address asset => uint256 balanceSum) assetBalanceSum;
+    }
+
+    struct AccountShare_ {
+        uint16 bps; // The basis points share of this account
+        uint40 createdAt; // A timestamp indicating when this account share was created
+        uint40 removableAt; // A timestamp (in UTC seconds) at which the revenue share can be removed by the DAO
+        uint40 lastWithdrawnAt; // A timestamp (in UTC seconds) at which the revenue share was last withdrawn
+        uint40 startIndex; // Balance index at which this account share starts participating
+        uint40 endIndex; // Where this account finished participating, or type(uint40).max when still active
+        mapping(address asset => AccountCurrentBalanceSum) currentAssetBalanceSum;
+    }
+
+    struct AccountCurrentBalanceSum {
+        uint48 currentBalanceCheckIndex; // The current asset balance check index for the account
+        uint208 lastBalanceSum; // The asset balance when it was last withdrawn by the account
+    }
+    /**
+     * END NEW LAYOUT
+     */
 
     struct BalanceShare {
         // Tracks the balance remainder when processing account balance updates
