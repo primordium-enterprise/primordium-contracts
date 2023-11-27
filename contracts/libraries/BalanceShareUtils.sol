@@ -14,9 +14,16 @@ import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
  *
  * @dev This library operates on the principal that the utilizing contract will act as a holding contract for all of the
  * assets, and will use this library as the internal accounting to allow each account share to withdraw their
- * accumulated claim to the assets at any point in time. This splits gas usage to ensure that each individual account
- * share pays the gas to transfer their own assets, rather than costing the protocol users additional gas to loop
- * through each account share and transfer them assets during other functionalities.
+ * accumulated claim to shared assets at any point in time.
+ *
+ * The main point of this library's accounting is to optimize gas costs into a single batch withdrawal for each account
+ * share recipient while significantly reducing the gas costs for a protocol's users.
+ *
+ * A hypothetical example: 4 accounts need to each receive 5% of the deposit amount for an on-chain mint. Rather than
+ * paying huge gas costs to send 5% of the deposit amount to 4 different accounts every time asset(s) are minted, the
+ * minting contract would send 20% of the deposit amount to this contract in each mint transaction. Then, each
+ * individual account recipient can process a batch withdrawal of their claim to the accumulated share funds at any
+ * point in time.
  *
  * This also enables adding additional withdrawal permissions in the utilizing contract to give account share owners the
  * ability to grant permissions and/or use signed messages to process asset withdrawals in batches.
@@ -29,33 +36,47 @@ library BalanceShareUtils {
      */
     struct BalanceShare_ {
         // New balance sum created every time totalBps changes, or when sum overflow occurs
+        // Mapping, not array, to avoid storage collisions
         uint256 _currentBalanceSumIndex;
-        mapping(uint256 balanceSumIndex => BalanceSum) _balanceSums; // Mapping, not array, to avoid storage collisions
-
-        // Tracks the asset balance remainder when adding to balance sums
-        mapping(address asset => uint256 balanceRemainder) _balanceRemainders;
+        mapping(uint256 balanceSumIndex => BalanceSumCheckpoint) _balanceSums;
 
         mapping(address => AccountShare_) _accounts;
-        mapping(address => mapping(address => bool)) _accountWithdrawalApprovals;
     }
 
+    struct BalanceSumCheckpoint {
+        uint256 _totalBps; // Tracks the totalBps among all account shares for this balance sum checkpoint
+        mapping(address asset => BalanceSum) _assetBalanceSum;
+    }
+
+    /**
+     * @dev Storing asset remainders in the BalanceSum struct will not carry asset remainders over to a new
+     * BalanceSumCheckpoint, but packing the storage with the asset balanceSum avoids writing to an extra storage slot
+     * when a new balance is processed and added to the balance sum. We optimize for the gas usage here, as new
+     * checkpoints will only be written when the total BPS changes or an asset overflows, both of which are not likely
+     * to be as common of events as the actual balance processing itself. And the point of this library is to offload
+     * gas costs for balance shares from the users to the account recipients.
+     */
     struct BalanceSum {
-        uint256 totalBps; // Tracks the totalBps among all account shares for this balance sum checkpoint
-        mapping(address asset => uint256 balanceSum) assetBalanceSum;
+        uint48 remainder;
+        uint208 balanceSum;
     }
 
     struct AccountShare_ {
-        uint16 bps; // The basis points share of this account
-        uint40 createdAt; // A timestamp indicating when this account share was created
-        uint40 removableAt; // A timestamp (in UTC seconds) at which the revenue share can be removed by the DAO
-        uint40 lastWithdrawnAt; // A timestamp (in UTC seconds) at which the revenue share was last withdrawn
-        uint40 startIndex; // Balance index at which this account share starts participating
-        uint40 endIndex; // Where this account finished participating, or type(uint40).max when still active
+        uint256 _nextPeriod;
+        mapping(uint256 checkpointIndex => AccountSharePeriod) _periods;
+    }
+
+    struct AccountSharePeriod {
+        uint16 bps;
+        uint48 startBalanceSumIndex;
+        uint48 endBalanceSumIndex; // Balance sum index where this account share period ends, or MAX_INDEX when active
+        uint48 initializedAt; // Block number this checkpoint was initialized
+        uint48 removableAt; // Timestamp in seconds at which the account share can be removed
         mapping(address asset => AccountCurrentBalanceSum) currentAssetBalanceSum;
     }
 
     struct AccountCurrentBalanceSum {
-        uint48 currentBalanceCheckIndex; // The current asset balance check index for the account
+        uint48 currentBalanceSumIndex; // The current asset balance check index for the account
         uint208 lastBalanceSum; // The asset balance when it was last withdrawn by the account
     }
     /**
