@@ -67,11 +67,17 @@ library BalanceShareUtils {
     }
 
     struct AccountSharePeriod {
-        uint16 bps; // The account's BPS share this period
-        uint48 startBalanceSumIndex; // Balance sum index where this account share period begins
-        uint48 endBalanceSumIndex; // Balance sum index where this account share period ends, or MAX_INDEX when active
-        uint48 initializedAt; // Block number this checkpoint was initialized
-        uint48 removeableAt; // Timestamp in seconds at which the account share can be removed
+        // The account's BPS share this period
+        uint16 bps;
+        // Balance sum index where this account share period begins (inclusive)
+        uint48 startBalanceSumIndex;
+        // Balance sum index where this account share period ends, or MAX_INDEX when active (non-inclusive)
+        uint48 endBalanceSumIndex;
+        // Block number this checkpoint was initialized
+        uint48 initializedAt;
+        // Timestamp in seconds at which the account share can be removed
+        uint48 removeableAt;
+        // Tracks the current balance sum position for the last withdrawal per asset
         mapping(address asset => AccountCurrentBalanceSum) currentAssetBalanceSum;
     }
 
@@ -84,6 +90,7 @@ library BalanceShareUtils {
     uint256 constant private MAX_INDEX = type(uint48).max;
     uint256 constant private MAX_BALANCE_SUM = type(uint208).max;
 
+    error MaxIndexOverflow(uint256 maxIndex);
     error InvalidAddress(address account);
     error AccountSharePeriodAlreadyExists(address account, uint256 period);
     error AccountNotActive(address account);
@@ -111,8 +118,7 @@ library BalanceShareUtils {
             accounts.length != removeableAts.length
         ) revert IArrayLengthErrors.MismatchingArrayLengths();
 
-        uint48 _balanceSumCheckpointIndex = uint48(_self.balanceSumCheckpointIndex);
-        uint256 _totalBps = _self.balanceSumCheckpoints[_balanceSumCheckpointIndex].totalBps;
+        (uint256 _balanceSumCheckpointIndex, uint256 _totalBps) = _startNewBalanceSumCheckpoint(_self);
 
         // Increment to new BalanceSumCheckpoint if the totalBps is already greater than zero
         if (_totalBps > 0) {
@@ -141,7 +147,7 @@ library BalanceShareUtils {
 
             // Initialize the new AccountSharePeriod (overwriting period with BPS of zero)
             _accountSharePeriod.bps = uint16(basisPoints[i]);
-            _accountSharePeriod.startBalanceSumIndex = _balanceSumCheckpointIndex;
+            _accountSharePeriod.startBalanceSumIndex = uint48(_balanceSumCheckpointIndex);
             _accountSharePeriod.endBalanceSumIndex = uint48(MAX_INDEX);
             _accountSharePeriod.initializedAt = uint48(block.number);
             _accountSharePeriod.removeableAt = SafeCast.toUint48(removeableAts[i]);
@@ -152,6 +158,33 @@ library BalanceShareUtils {
         // Update the totalBps (which checks for total basis points value that exceeds the max)
         _updateTotalBps(_self, _balanceSumCheckpointIndex, _totalBps + increaseTotalBpsBy);
 
+    }
+
+    /**
+     * @dev Helper method to begin a new BalanceSumCheckpoint. Increments the max balance sum checkpoint index in
+     * storage, and returns the index of the new checkpoint as well as the total bps from the previous checkpoint.
+     * Reverts if the balance index reaches the max (basically impossible to ever occur).
+     */
+    function _startNewBalanceSumCheckpoint(BalanceShare storage _self) private returns (
+        uint256 newBalanceSumCheckpointIndex,
+        uint256 totalBps
+    ) {
+        newBalanceSumCheckpointIndex = _self.balanceSumCheckpointIndex;
+        totalBps = _self.balanceSumCheckpoints[newBalanceSumCheckpointIndex].totalBps;
+
+        // If the current total bps is already greater than zero, we need to start a new checkpoint
+        if (totalBps > 0) {
+            // Increment in memory and store the update
+            unchecked {
+                ++newBalanceSumCheckpointIndex;
+                _self.balanceSumCheckpointIndex = newBalanceSumCheckpointIndex;
+            }
+
+            // Don't allow incrementation to include MAX_INDEX (end indices are non-inclusive)
+            if (!(newBalanceSumCheckpointIndex < MAX_INDEX)) {
+                revert MaxIndexOverflow(MAX_INDEX);
+            }
+        }
     }
 
     /**
