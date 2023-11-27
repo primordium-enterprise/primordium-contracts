@@ -76,7 +76,7 @@ library BalanceShareUtils {
         // Block number this checkpoint was initialized
         uint48 initializedAt;
         // Timestamp in seconds at which the account share can be removed
-        uint48 removeableAt;
+        uint48 removableAt;
         // Tracks the current balance sum position for the last withdrawal per asset
         mapping(address asset => AccountCurrentBalanceSum) currentAssetBalanceSum;
     }
@@ -100,60 +100,6 @@ library BalanceShareUtils {
     error ZeroValueNotAllowed();
     error CannotDecreaseAccountBPSToZero();
     error UpdateExceedsMaxBps(uint256 newTotalBps, uint256 maxBps);
-
-    /**
-     * @dev Adds the provided account shares to the balance share. Must provide the account addresses, the basis points
-     * share per account, and a timestamp for when the account share can be removed. Reverts for accounts that already
-     * have active BPS shares.
-     */
-    function createAccountShares(
-        BalanceShare storage _self,
-        address[] memory accounts,
-        uint256[] memory basisPoints,
-        uint256[] memory removeableAts
-    ) internal {
-        if (accounts.length == 0) revert IArrayLengthErrors.MissingArrayItems();
-        if (
-            accounts.length != basisPoints.length ||
-            accounts.length != removeableAts.length
-        ) revert IArrayLengthErrors.MismatchingArrayLengths();
-
-        (uint256 _balanceSumCheckpointIndex, uint256 _totalBps) = _startNewBalanceSumCheckpoint(_self);
-
-        // Loop through accounts and track BPS changes
-        uint256 increaseTotalBpsBy;
-
-        for (uint256 i = 0; i < accounts.length;) {
-            // No zero addresses
-            if (accounts[0] == address(0)) {
-                revert InvalidAddress(accounts[0]);
-            }
-
-            // Revert if the account share already has an active bps share
-            AccountShare storage _accountShare = _self.accounts[accounts[i]];
-            uint256 _accountSharePeriodIndex = _accountShare.periodIndex;
-            AccountSharePeriod storage _accountSharePeriod = _accountShare.periods[_accountSharePeriodIndex];
-            if (_accountSharePeriod.bps > 0) {
-                revert AccountSharePeriodAlreadyExists(accounts[i], _accountSharePeriodIndex);
-            }
-
-            // We don't verify the BPS amount here, because total will be verified when updating the bps
-            increaseTotalBpsBy += basisPoints[i];
-
-            // Initialize the new AccountSharePeriod (overwriting period with BPS of zero)
-            _accountSharePeriod.bps = uint16(basisPoints[i]);
-            _accountSharePeriod.startBalanceSumIndex = uint48(_balanceSumCheckpointIndex);
-            _accountSharePeriod.endBalanceSumIndex = uint48(MAX_INDEX);
-            _accountSharePeriod.initializedAt = uint48(block.number);
-            _accountSharePeriod.removeableAt = SafeCast.toUint48(removeableAts[i]);
-
-            unchecked { ++i; }
-        }
-
-        // Update the totalBps (which checks for total basis points value that exceeds the max)
-        _updateTotalBps(_self, _balanceSumCheckpointIndex, _totalBps + increaseTotalBpsBy);
-
-    }
 
     /**
      * @dev Helper method to begin a new BalanceSumCheckpoint. Increments the max balance sum checkpoint index in
@@ -198,48 +144,145 @@ library BalanceShareUtils {
         _self.balanceSumCheckpoints[balanceSumCheckpointIndex].totalBps = newTotalBps;
     }
 
-    // /**
-    //  * @dev Removes the specified accounts from receiving further shares. Does not process withdrawals. The receivers
-    //  * will still have access to withdraw their balances that were accumulated prior to removal.
-    //  *
-    //  * Requires that the block.timestamp is greater than the account's "removableAt" parameter, or else throws an error.
-    //  *
-    //  * It is recommended that the host contract process current balance shares before removing accounts.
-    //  */
-    // function removeAccountShares(
-    //     BalanceShare storage _self,
-    //     address[] calldata accounts
-    // ) internal {
-    //     uint256 subFromTotalBps;
-    //     uint256 latestBalanceCheckIndex = _self._balanceChecks.length - 1;
-    //     for (uint256 i = 0; i < accounts.length;) {
-    //         unchecked {
-    //             // Can be unchecked, bps was checked when the account share was added
-    //             subFromTotalBps += _destroyAccountShare(_self, accounts[i], latestBalanceCheckIndex);
-    //             ++i;
-    //         }
-    //     }
+    /**
+     * @dev Adds the provided account shares to the balance share. Must provide the account addresses, the basis points
+     * share per account, and a timestamp for when the account share can be removed. Reverts for accounts that already
+     * have active BPS shares.
+     */
+    function createAccountShares(
+        BalanceShare storage _self,
+        address[] memory accounts,
+        uint256[] memory basisPoints,
+        uint256[] memory removeableAts
+    ) internal {
+        if (accounts.length == 0) revert IArrayLengthErrors.MissingArrayItems();
+        if (
+            accounts.length != basisPoints.length ||
+            accounts.length != removeableAts.length
+        ) revert IArrayLengthErrors.MismatchingArrayLengths();
 
-    //     // Update the totalBps
-    //     BalanceCheck memory latestBalanceCheck = _self._balanceChecks[latestBalanceCheckIndex];
-    //     uint256 newTotalBps = latestBalanceCheck.totalBps - subFromTotalBps;
-    //     _updateTotalBps(_self, latestBalanceCheck.balance, latestBalanceCheckIndex, newTotalBps);
-    // }
+        (uint256 _balanceSumCheckpointIndex, uint256 _totalBps) = _startNewBalanceSumCheckpoint(_self);
 
-    // /**
-    //  * @dev A helper function for allowing an AccountShare recipient to remove their own account.
-    //  *
-    //  * (_destroyAccountShare allows the msg.sender to destroy the account share before the removableAt timestamp)
-    //  */
-    // function removeAccountShareSelf(
-    //     BalanceShare storage _self
-    // ) internal {
-    //     uint256 latestBalanceCheckIndex = _self._balanceChecks.length - 1;
-    //     BalanceCheck memory latestBalanceCheck = _self._balanceChecks[latestBalanceCheckIndex];
-    //     uint256 newTotalBps =
-    //         latestBalanceCheck.totalBps - _destroyAccountShare(_self, msg.sender, latestBalanceCheckIndex);
-    //     _updateTotalBps(_self, latestBalanceCheck.balance, latestBalanceCheckIndex, newTotalBps);
-    // }
+        // Loop through accounts and track BPS changes
+        uint256 increaseTotalBpsBy;
+
+        for (uint256 i = 0; i < accounts.length;) {
+            // No zero addresses
+            if (accounts[0] == address(0)) {
+                revert InvalidAddress(accounts[0]);
+            }
+
+            AccountShare storage _accountShare = _self.accounts[accounts[i]];
+            uint256 _accountSharePeriodIndex = _accountShare.periodIndex;
+            AccountSharePeriod storage _accountSharePeriod = _accountShare.periods[_accountSharePeriodIndex];
+
+            // Revert if the account share already has an active bps share
+            if (_accountSharePeriod.bps > 0) {
+                revert AccountSharePeriodAlreadyExists(accounts[i], _accountSharePeriodIndex);
+            }
+
+            // We don't verify the BPS amount here, because total will be verified when updating the bps
+            increaseTotalBpsBy += basisPoints[i];
+
+            // Initialize the new AccountSharePeriod (overwriting period with BPS of zero)
+            _accountSharePeriod.bps = uint16(basisPoints[i]);
+            _accountSharePeriod.startBalanceSumIndex = uint48(_balanceSumCheckpointIndex);
+            _accountSharePeriod.endBalanceSumIndex = uint48(MAX_INDEX);
+            _accountSharePeriod.initializedAt = uint48(block.number);
+            _accountSharePeriod.removableAt = SafeCast.toUint48(removeableAts[i]);
+
+            unchecked { ++i; }
+        }
+
+        // Update the totalBps (which checks for total basis points value that exceeds the max)
+        _updateTotalBps(_self, _balanceSumCheckpointIndex, _totalBps + increaseTotalBpsBy);
+
+    }
+
+    /**
+     * @dev Removes the specified accounts from receiving further shares. Does not process withdrawals. The receivers
+     * will still have access to withdraw their balance claims that were accumulated prior to removal.
+     *
+     * Requires that the block.timestamp is greater than the account's "removableAt" parameter, unless the msg.sender
+     * is the account itself, in which case they are allowed to remove their own account share.
+     */
+    function removeAccountShares(
+        BalanceShare storage _self,
+        address[] memory accounts
+    ) internal {
+        if (accounts.length == 0) revert IArrayLengthErrors.MissingArrayItems();
+
+        // Increments balance sum checkpoint index, which becomes the end index for the current account share periods
+        (uint256 _balanceSumCheckpointIndex, uint256 _totalBps) = _startNewBalanceSumCheckpoint(_self);
+
+        // Track bps changes per account removed
+        uint256 decreaseTotalBpsBy;
+
+        for (uint256 i = 0; i < accounts.length;) {
+            AccountShare storage _accountShare = _self.accounts[accounts[i]];
+            uint256 _accountSharePeriodIndex = _accountShare.periodIndex;
+            AccountSharePeriod storage _accountSharePeriod = _accountShare.periods[_accountSharePeriodIndex];
+
+            // Revert if the account share is already at zero bps (implicitly will be zero for address(0))
+            if (_accountSharePeriod.bps == 0) {
+                revert AccountSharePeriodAlreadyExists(accounts[i], _accountSharePeriodIndex);
+            }
+
+            // TODO: CHECK THE REMOVEABLE AT, ONLY ALLOW THE ACCOUNT SHARE OWNER TO REMOVE THEIR OWN ACCOUNT
+
+            // TODO: TRACK THE CHANGE TO THE BPS
+
+            // Set the end checkpoint to the newly incremented checkpoint
+            _accountSharePeriod.endBalanceSumIndex = _balanceSumCheckpointIndex;
+
+            unchecked {
+                // Can be unchecked, bps was checked when the account share was added
+                decreaseTotalBpsBy += _destroyAccountShare(_self, accounts[i], latestBalanceCheckIndex);
+                ++i;
+            }
+        }
+
+        // TODO: UPDATE TOTAL BPS PROPERLY
+        // Update the totalBps
+        BalanceCheck memory latestBalanceCheck = _self._balanceChecks[latestBalanceCheckIndex];
+        uint256 newTotalBps = latestBalanceCheck.totalBps - decreaseTotalBpsBy;
+        _updateTotalBps(_self, latestBalanceCheck.balance, latestBalanceCheckIndex, newTotalBps);
+    }
+
+    /**
+     * @dev A helper function for allowing an AccountShare recipient to remove their own account.
+     *
+     * (_destroyAccountShare allows the msg.sender to destroy the account share before the removableAt timestamp)
+     */
+    function removeAccountShareSelf(
+        BalanceShare storage _self
+    ) internal {
+        uint256 latestBalanceCheckIndex = _self._balanceChecks.length - 1;
+        BalanceCheck memory latestBalanceCheck = _self._balanceChecks[latestBalanceCheckIndex];
+        uint256 newTotalBps =
+            latestBalanceCheck.totalBps - _destroyAccountShare(_self, msg.sender, latestBalanceCheckIndex);
+        _updateTotalBps(_self, latestBalanceCheck.balance, latestBalanceCheckIndex, newTotalBps);
+    }
+
+    function _destroyAccountShare(
+        BalanceShare storage _self,
+        address account,
+        uint256 latestBalanceCheckIndex
+    ) private returns (uint256) {
+        AccountShare storage accountShare = _self._accounts[account];
+        uint256 bps = accountShare.bps;
+        uint256 endIndex = accountShare.endIndex;
+        uint256 removableAt = accountShare.removableAt;
+        // The account share must be active to be removed
+        if (endIndex != MAX_INDEX) revert AccountNotActive(account);
+        // The current timestamp must be greater than the removableAt timestamp (unless the msg.sender owns the account)
+        if (block.timestamp < removableAt && msg.sender != account) revert AccountShareStillLocked(account);
+
+        // Set the bps to 0, and the endIndex to be the current balance share index
+        accountShare.bps = 0;
+        accountShare.endIndex = uint40(latestBalanceCheckIndex);
+        return bps;
+    }
 
     // /**
     //  * @dev Method to add to the total pool of balance available to the account shares, at the rate of:
@@ -588,26 +631,6 @@ library BalanceShareUtils {
     //     address account
     // ) internal view returns (bool) {
     //     return _accountHasFinishedWithdrawals(_self._accounts[account]);
-    // }
-
-    // function _destroyAccountShare(
-    //     BalanceShare storage _self,
-    //     address account,
-    //     uint256 latestBalanceCheckIndex
-    // ) private returns (uint256) {
-    //     AccountShare storage accountShare = _self._accounts[account];
-    //     uint256 bps = accountShare.bps;
-    //     uint256 endIndex = accountShare.endIndex;
-    //     uint256 removableAt = accountShare.removableAt;
-    //     // The account share must be active to be removed
-    //     if (endIndex != MAX_INDEX) revert AccountNotActive(account);
-    //     // The current timestamp must be greater than the removableAt timestamp (unless the msg.sender owns the account)
-    //     if (block.timestamp < removableAt && msg.sender != account) revert AccountShareStillLocked(account);
-
-    //     // Set the bps to 0, and the endIndex to be the current balance share index
-    //     accountShare.bps = 0;
-    //     accountShare.endIndex = uint40(latestBalanceCheckIndex);
-    //     return bps;
     // }
 
     // /**
