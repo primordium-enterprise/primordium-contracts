@@ -120,11 +120,6 @@ library BalanceShareUtils {
 
         (uint256 _balanceSumCheckpointIndex, uint256 _totalBps) = _startNewBalanceSumCheckpoint(_self);
 
-        // Increment to new BalanceSumCheckpoint if the totalBps is already greater than zero
-        if (_totalBps > 0) {
-            _balanceSumCheckpointIndex++;
-        }
-
         // Loop through accounts and track BPS changes
         uint256 increaseTotalBpsBy;
 
