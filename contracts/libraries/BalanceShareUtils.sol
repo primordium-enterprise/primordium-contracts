@@ -94,7 +94,7 @@ library BalanceShareUtils {
     error InvalidAddress(address account);
     error AccountSharePeriodAlreadyExists(address account, uint256 period);
     error AccountNotActive(address account);
-    error AccountShareStillLocked(address account);
+    error AccountShareIsCurrentlyLocked(address account, uint256 removableAt);
     error Unauthorized();
     error AccountWithdrawalsFinished();
     error ZeroValueNotAllowed();
@@ -161,7 +161,7 @@ library BalanceShareUtils {
             accounts.length != removeableAts.length
         ) revert IArrayLengthErrors.MismatchingArrayLengths();
 
-        (uint256 _balanceSumCheckpointIndex, uint256 _totalBps) = _startNewBalanceSumCheckpoint(_self);
+        (uint256 balanceSumCheckpointIndex, uint256 totalBps) = _startNewBalanceSumCheckpoint(_self);
 
         // Loop through accounts and track BPS changes
         uint256 increaseTotalBpsBy;
@@ -173,12 +173,12 @@ library BalanceShareUtils {
             }
 
             AccountShare storage _accountShare = _self.accounts[accounts[i]];
-            uint256 _accountSharePeriodIndex = _accountShare.periodIndex;
-            AccountSharePeriod storage _accountSharePeriod = _accountShare.periods[_accountSharePeriodIndex];
+            uint256 periodIndex = _accountShare.periodIndex;
+            AccountSharePeriod storage _accountSharePeriod = _accountShare.periods[periodIndex];
 
             // Revert if the account share already has an active bps share
             if (_accountSharePeriod.bps > 0) {
-                revert AccountSharePeriodAlreadyExists(accounts[i], _accountSharePeriodIndex);
+                revert AccountSharePeriodAlreadyExists(accounts[i], periodIndex);
             }
 
             // We don't verify the BPS amount here, because total will be verified when updating the bps
@@ -186,7 +186,7 @@ library BalanceShareUtils {
 
             // Initialize the new AccountSharePeriod (overwriting period with BPS of zero)
             _accountSharePeriod.bps = uint16(basisPoints[i]);
-            _accountSharePeriod.startBalanceSumIndex = uint48(_balanceSumCheckpointIndex);
+            _accountSharePeriod.startBalanceSumIndex = uint48(balanceSumCheckpointIndex);
             _accountSharePeriod.endBalanceSumIndex = uint48(MAX_INDEX);
             _accountSharePeriod.initializedAt = uint48(block.number);
             _accountSharePeriod.removableAt = SafeCast.toUint48(removeableAts[i]);
@@ -194,13 +194,11 @@ library BalanceShareUtils {
             unchecked { ++i; }
         }
 
-        // Update the totalBps (which checks for total basis points value that exceeds the max)
-        _updateTotalBps(_self, _balanceSumCheckpointIndex, _totalBps + increaseTotalBpsBy);
-
+        _updateTotalBps(_self, balanceSumCheckpointIndex, totalBps + increaseTotalBpsBy);
     }
 
     /**
-     * @dev Removes the specified accounts from receiving further shares. Does not process withdrawals. The receivers
+     * @dev Removes the specified accounts from receiving further shares. Does not process withdrawals. The accounts
      * will still have access to withdraw their balance claims that were accumulated prior to removal.
      *
      * Requires that the block.timestamp is greater than the account's "removableAt" parameter, unless the msg.sender
@@ -213,75 +211,42 @@ library BalanceShareUtils {
         if (accounts.length == 0) revert IArrayLengthErrors.MissingArrayItems();
 
         // Increments balance sum checkpoint index, which becomes the end index for the current account share periods
-        (uint256 _balanceSumCheckpointIndex, uint256 _totalBps) = _startNewBalanceSumCheckpoint(_self);
+        (uint256 balanceSumCheckpointIndex, uint256 totalBps) = _startNewBalanceSumCheckpoint(_self);
 
         // Track bps changes per account removed
         uint256 decreaseTotalBpsBy;
 
         for (uint256 i = 0; i < accounts.length;) {
             AccountShare storage _accountShare = _self.accounts[accounts[i]];
-            uint256 _accountSharePeriodIndex = _accountShare.periodIndex;
-            AccountSharePeriod storage _accountSharePeriod = _accountShare.periods[_accountSharePeriodIndex];
+            uint256 periodIndex = _accountShare.periodIndex;
+            AccountSharePeriod storage _accountSharePeriod = _accountShare.periods[periodIndex];
 
             // Revert if the account share is already at zero bps (implicitly will be zero for address(0))
             if (_accountSharePeriod.bps == 0) {
-                revert AccountSharePeriodAlreadyExists(accounts[i], _accountSharePeriodIndex);
+                revert AccountSharePeriodAlreadyExists(accounts[i], periodIndex);
             }
 
-            // TODO: CHECK THE REMOVEABLE AT, ONLY ALLOW THE ACCOUNT SHARE OWNER TO REMOVE THEIR OWN ACCOUNT
+            uint256 accountBps = _accountSharePeriod.bps;
+            uint256 removableAt = _accountSharePeriod.removableAt;
 
-            // TODO: TRACK THE CHANGE TO THE BPS
-
-            // Set the end checkpoint to the newly incremented checkpoint
-            _accountSharePeriod.endBalanceSumIndex = _balanceSumCheckpointIndex;
-
-            unchecked {
-                // Can be unchecked, bps was checked when the account share was added
-                decreaseTotalBpsBy += _destroyAccountShare(_self, accounts[i], latestBalanceCheckIndex);
-                ++i;
+            // Current timestamp must be greater than the removableAt timestamp (unless msg.sender is account owner)
+            if (block.timestamp < removableAt && msg.sender != accounts[i]) {
+                revert AccountShareIsCurrentlyLocked(accounts[i], removableAt);
             }
+
+            // Track bps changes
+            decreaseTotalBpsBy += accountBps;
+
+            // Set the end checkpoint for this period to mark it as completed
+            _accountSharePeriod.endBalanceSumIndex = uint48(balanceSumCheckpointIndex);
+
+            // Increment the account share's period index to the next (un-initialized) period
+            ++_accountShare.periodIndex;
+
+            unchecked { ++i; }
         }
 
-        // TODO: UPDATE TOTAL BPS PROPERLY
-        // Update the totalBps
-        BalanceCheck memory latestBalanceCheck = _self._balanceChecks[latestBalanceCheckIndex];
-        uint256 newTotalBps = latestBalanceCheck.totalBps - decreaseTotalBpsBy;
-        _updateTotalBps(_self, latestBalanceCheck.balance, latestBalanceCheckIndex, newTotalBps);
-    }
-
-    /**
-     * @dev A helper function for allowing an AccountShare recipient to remove their own account.
-     *
-     * (_destroyAccountShare allows the msg.sender to destroy the account share before the removableAt timestamp)
-     */
-    function removeAccountShareSelf(
-        BalanceShare storage _self
-    ) internal {
-        uint256 latestBalanceCheckIndex = _self._balanceChecks.length - 1;
-        BalanceCheck memory latestBalanceCheck = _self._balanceChecks[latestBalanceCheckIndex];
-        uint256 newTotalBps =
-            latestBalanceCheck.totalBps - _destroyAccountShare(_self, msg.sender, latestBalanceCheckIndex);
-        _updateTotalBps(_self, latestBalanceCheck.balance, latestBalanceCheckIndex, newTotalBps);
-    }
-
-    function _destroyAccountShare(
-        BalanceShare storage _self,
-        address account,
-        uint256 latestBalanceCheckIndex
-    ) private returns (uint256) {
-        AccountShare storage accountShare = _self._accounts[account];
-        uint256 bps = accountShare.bps;
-        uint256 endIndex = accountShare.endIndex;
-        uint256 removableAt = accountShare.removableAt;
-        // The account share must be active to be removed
-        if (endIndex != MAX_INDEX) revert AccountNotActive(account);
-        // The current timestamp must be greater than the removableAt timestamp (unless the msg.sender owns the account)
-        if (block.timestamp < removableAt && msg.sender != account) revert AccountShareStillLocked(account);
-
-        // Set the bps to 0, and the endIndex to be the current balance share index
-        accountShare.bps = 0;
-        accountShare.endIndex = uint40(latestBalanceCheckIndex);
-        return bps;
+        _updateTotalBps(_self, balanceSumCheckpointIndex, totalBps - decreaseTotalBpsBy);
     }
 
     // /**
