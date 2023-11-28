@@ -122,6 +122,13 @@ library BalanceShareUtils {
         uint256[] memory basisPoints,
         uint256[] memory removableAts
     ) internal {
+        if (
+            accounts.length != basisPoints.length ||
+            accounts.length != removableAts.length
+        ) {
+            revert IArrayLengthErrors.MismatchingArrayLengths();
+        }
+
         _updateAccountShares(_self, accounts, basisPoints, removableAts);
     }
 
@@ -135,6 +142,10 @@ library BalanceShareUtils {
         address[] memory accounts,
         uint256[] memory basisPoints
     ) internal {
+        if (accounts.length != basisPoints.length) {
+            revert IArrayLengthErrors.MismatchingArrayLengths();
+        }
+
         _updateAccountShares(_self, accounts, basisPoints, new uint256[](0));
     }
 
@@ -147,11 +158,17 @@ library BalanceShareUtils {
         address[] memory accounts,
         uint256[] memory removableAts
     ) internal {
+        if (accounts.length != removableAts.length) {
+            revert IArrayLengthErrors.MismatchingArrayLengths();
+        }
+
         _updateAccountShares(_self, accounts, new uint256[](0), removableAts);
     }
 
     /**
      * @dev Private helper to update account shares by updating or pushing a new AccountSharePeriod.
+     * @notice This helper assumes that array length equality checks are performed in the calling function. This
+     * function will only check that the accounts length is not zero.
      * @param _self The storage reference to the BalanceShare struct.
      * @param accounts The account addresses to update.
      * @param basisPoints The updated BPS shares for each account. Pass an array of length zero to only update the
@@ -168,13 +185,6 @@ library BalanceShareUtils {
     ) private {
         if (accounts.length == 0) {
             revert IArrayLengthErrors.MissingArrayItems();
-        }
-
-        if (
-            (accounts.length != basisPoints.length && basisPoints.length != 0) ||
-            (accounts.length != removableAts.length && removableAts.length != 0)
-        ) {
-            revert IArrayLengthErrors.MismatchingArrayLengths();
         }
 
         uint256 balanceSumCheckpointIndex = _self.balanceSumCheckpointIndex;
