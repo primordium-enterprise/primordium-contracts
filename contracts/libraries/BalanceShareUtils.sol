@@ -147,6 +147,86 @@ library BalanceShareUtils {
         _self.balanceSumCheckpoints[balanceSumCheckpointIndex].totalBps = newTotalBps;
     }
 
+    function updateAccountShares(
+        BalanceShare storage _self,
+        address[] memory accounts,
+        uint256[] memory basisPoints,
+        uint256[] memory removableAts
+    ) internal {
+        if (accounts.length == 0) {
+            revert IArrayLengthErrors.MissingArrayItems();
+        }
+
+        if (
+            accounts.length != basisPoints.length ||
+            accounts.length != removableAts.length
+        ) {
+            revert IArrayLengthErrors.MismatchingArrayLengths();
+        }
+
+        (uint256 balanceSumCheckpointIndex, uint256 totalBps) = _startNewBalanceSumCheckpoint(_self);
+
+        uint256 increaseTotalBpsBy;
+        uint256 decreaseTotalBpsBy;
+
+        for (uint256 i = 0; i < accounts.length;) {
+            // No zero addresses
+            if (accounts[i] == address(0)) {
+                revert InvalidAddress(accounts[i]);
+            }
+
+            AccountShare storage _accountShare = _self.accounts[accounts[i]];
+            AccountSharePeriod storage _accountSharePeriod = _accountShare.periods[_accountShare.periodIndex];
+
+            uint256 currentBps = _accountSharePeriod.bps;
+            uint256 currentRemovableAt = _accountSharePeriod.removableAt;
+
+            // TODO: Need to handle only updating removableAt
+            if (currentBps == basisPoints[i]) {
+                revert InvalidBasisPointsUpdate(accounts[i], currentBps, basisPoints[i]);
+            }
+
+            // Increment to new period if updating existing bps (zero bps period gets overwritten)
+            if (currentBps > 0) {
+                // Set end index for current period, then increment period index and update the storage reference
+                _accountSharePeriod.endBalanceSumIndex = uint48(balanceSumCheckpointIndex);
+                _accountSharePeriod = _accountShare.periods[++_accountShare.periodIndex];
+
+                // If decreasing bps or decreasing removableAt timestamp...
+                if (basisPoints[i] < currentBps || removableAts[i] < currentRemovableAt) {
+                    // Current timestamp must be greater than the removableAt timestamp (unless msg.sender is owner)
+                    if (block.timestamp < currentRemovableAt && msg.sender != accounts[i]) {
+                        revert AccountShareIsCurrentlyLocked(accounts[i], currentRemovableAt);
+                    }
+                }
+            }
+
+            // Track bps changes
+            if (basisPoints[i] > currentBps) {
+                increaseTotalBpsBy += basisPoints[i];
+            } else {
+                decreaseTotalBpsBy += basisPoints[i];
+            }
+
+            // Store the new period if the new basis points value is greater than zero (otherwise leave uninitialized)
+            if (basisPoints[i] > 0) {
+                _accountSharePeriod.bps = uint16(basisPoints[i]);
+                _accountSharePeriod.startBalanceSumIndex = uint48(balanceSumCheckpointIndex);
+                _accountSharePeriod.endBalanceSumIndex = uint48(MAX_INDEX);
+                _accountSharePeriod.initializedAt = uint48(block.number);
+                _accountSharePeriod.removableAt = uint48(Math.min(removableAts[i], type(uint48).max));
+            }
+
+            unchecked { ++i; }
+        }
+
+        _updateTotalBps(
+            _self,
+            balanceSumCheckpointIndex,
+            totalBps + increaseTotalBpsBy - decreaseTotalBpsBy
+        );
+    }
+
     /**
      * @dev Adds the provided account shares to the balance share. Must provide the account addresses, the basis points
      * share per account, and a timestamp for when the account share can be removed. Reverts for accounts that already
