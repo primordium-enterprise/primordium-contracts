@@ -211,7 +211,7 @@ contract BalanceSharesSingleton {
         address[] memory accounts,
         uint256[] memory basisPoints,
         uint256[] memory removableAts
-    ) private returns (uint256 newTotalBps) {
+    ) internal returns (uint256 newTotalBps) {
         if (accounts.length == 0) {
             revert IArrayLengthErrors.MissingArrayItems();
         }
@@ -315,44 +315,166 @@ contract BalanceSharesSingleton {
         _balanceShare.balanceSumCheckpoints[balanceSumCheckpointIndex].totalBps = newTotalBps;
     }
 
-    // /**
-    //  * @dev Method to add to the total pool of balance available to the account shares, at the rate of:
-    //  * balanceIncreasedBy * totalBps / 10_000
-    //  * @param balanceIncreasedBy A uint256 representing how much the core balance increased by, which will be multiplied
-    //  * by the totalBps for all active balance shares to be made available to those accounts.
-    //  * @return balanceAddedToShares Returns the amount added to the balance shares, which should be accounted for in the
-    //  * host contract.
-    //  */
-    // function processBalance(
-    //     BalanceShare storage _self,
-    //     uint256 balanceIncreasedBy
-    // ) internal returns (uint256 balanceAddedToShares) {
-    //     uint256 length = _self._balanceChecks.length;
-    //     // Only continue if the length is greater than zero, otherwise returns zero by default
-    //     if (length > 0) {
-    //         BalanceCheck storage latestBalanceCheck = _self._balanceChecks[length - 1];
-    //         uint256 currentTotalBps = latestBalanceCheck.totalBps;
-    //         if (currentTotalBps > 0) {
-    //             balanceAddedToShares = _processBalance(_self, currentTotalBps, balanceIncreasedBy);
-    //             _addBalance(_self, latestBalanceCheck, balanceAddedToShares);
-    //         }
-    //     }
-    // }
+    function mockProcessBalanceShareIncrease(
+        uint256 balanceShareId,
+        address asset,
+        uint256 balanceIncreasedBy
+    ) external returns (uint256 amountToAllocateToShares) {
+        (amountToAllocateToShares,) = _processBalanceShareIncrease(msg.sender, balanceShareId, asset, balanceIncreasedBy);
+    }
 
-    // /**
-    //  * @dev A function to directly add a given amount to the balance shares. This amount should be accounted for in the
-    //  * host contract.
-    //  */
-    // function addBalanceToShares(
-    //     BalanceShare storage _self,
-    //     uint256 amount
-    // ) internal {
-    //     uint256 length = _self._balanceChecks.length;
-    //     if (length > 0) {
-    //         BalanceCheck storage latestBalanceCheck = _self._balanceChecks[length - 1];
-    //         _addBalance(_self, latestBalanceCheck, amount);
-    //     }
-    // }
+    function mockProcessBalanceShareIncrease(
+        address client,
+        uint256 balanceShareId,
+        address asset,
+        uint256 balanceIncreasedBy
+    ) external returns (uint256 amountToAllocateToShares) {
+        (amountToAllocateToShares,) = _processBalanceShareIncrease(client, balanceShareId, asset, balanceIncreasedBy);
+    }
+
+    function _processBalanceShareIncrease(
+        address client,
+        uint256 balanceShareId,
+        address asset,
+        uint256 balanceIncreasedBy
+    ) internal returns (uint256 amountToAllocateToShares, uint256 newAssetRemainder) {
+        BalanceShare storage _balanceShare = _balanceShares[client][balanceShareId];
+        BalanceSumCheckpoint storage _balanceSumCheckpoint =
+            _balanceShare.balanceSumCheckpoints[_balanceShare.balanceSumCheckpointIndex];
+
+        uint256 totalBps = _balanceSumCheckpoint.totalBps;
+        if (totalBps > 0) {
+            uint256 currentAssetRemainder = _balanceSumCheckpoint.assetBalanceSum[asset].remainder;
+            balanceIncreasedBy += currentAssetRemainder;
+
+            amountToAllocateToShares = balanceIncreasedBy.bps(totalBps);
+            newAssetRemainder = balanceIncreasedBy.bpsMulmod(totalBps);
+        }
+    }
+
+    /**
+     * @dev Method to add to the total pool of balance available to the account shares, at the rate of:
+     * balanceIncreasedBy * totalBps / 10_000
+     * @param balanceIncreasedBy A uint256 representing how much the core balance increased by, which will be multiplied
+     * by the totalBps for all active balance shares to be made available to those accounts.
+     * @return balanceAddedToShares Returns the amount added to the balance shares, which should be accounted for in the
+     * host contract.
+     */
+    function processBalance(
+        BalanceShare storage _self,
+        uint256 balanceIncreasedBy
+    ) internal returns (uint256 balanceAddedToShares) {
+        uint256 length = _self._balanceChecks.length;
+        // Only continue if the length is greater than zero, otherwise returns zero by default
+        if (length > 0) {
+            BalanceCheck storage latestBalanceCheck = _self._balanceChecks[length - 1];
+            uint256 currentTotalBps = latestBalanceCheck.totalBps;
+            if (currentTotalBps > 0) {
+                balanceAddedToShares = _processBalance(_self, currentTotalBps, balanceIncreasedBy);
+                _addBalance(_self, latestBalanceCheck, balanceAddedToShares);
+            }
+        }
+    }
+
+    /**
+     * @dev Private function that takes the balanceIncreasedBy, adds the previous _balanceRemainder, and returns the
+     * balanceToAddToShares, updating the stored _balanceRemainder in the process.
+     */
+    function _processBalance(
+        BalanceShare storage _self,
+        uint256 currentTotalBps,
+        uint256 balanceIncreasedBy
+    ) private returns (uint256) {
+        (
+            uint256 balanceToAddToShares,
+            uint256 newBalanceRemainder
+        ) = _calculateBalanceShare(_self, balanceIncreasedBy, currentTotalBps);
+        // Update with the new remainder
+        _self._balanceRemainder = SafeCast.toUint16(newBalanceRemainder);
+        return balanceToAddToShares;
+    }
+
+    /**
+     * @dev A function to directly add a given amount to the balance shares. This amount should be accounted for in the
+     * host contract.
+     */
+    function addBalanceToShares(
+        BalanceShare storage _self,
+        uint256 amount
+    ) internal {
+        uint256 length = _self._balanceChecks.length;
+        if (length > 0) {
+            BalanceCheck storage latestBalanceCheck = _self._balanceChecks[length - 1];
+            _addBalance(_self, latestBalanceCheck, amount);
+        }
+    }
+
+    /**
+     * @dev Private function, adds the provided balance amount to the shared balances.
+     */
+    function _addBalance(
+        BalanceShare storage _self,
+        BalanceCheck storage latestBalanceCheck,
+        uint256 amount
+    ) private {
+        if (amount > 0) {
+            // Unchecked because manual checks ensure no overflow/underflow
+            unchecked {
+                // Start with a reference to the current balance
+                uint256 currentBalance = latestBalanceCheck.balance;
+                // Loop until break
+                while (true) {
+                    // Can only increase current balanceCheck up to the MAX_CHECK_BALANCE_AMOUNT
+                    uint256 balanceIncrease = Math.min(amount, MAX_CHECK_BALANCE_AMOUNT - currentBalance);
+                    latestBalanceCheck.balance = uint240(currentBalance + balanceIncrease);
+                    amount -= balanceIncrease;
+                    // If there is still more balance remaining, push a new balanceCheck and zero out the currentBalance
+                    if (amount > 0) {
+                        _self._balanceChecks.push(BalanceCheck(latestBalanceCheck.totalBps, 0));
+                        latestBalanceCheck = _self._balanceChecks[_self._balanceChecks.length - 1];
+                        currentBalance = 0;
+                    } else {
+                        break; // Can complete once amount remaining is zero
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * @dev A function to calculate the balance to be added to the shares provided the amount the balance increased by
+     * and the current total BPS. Returns both the calculated balance to be added to the balance shares, as well as the
+     * remainder (useful for storing for next time).
+     * @param balanceIncreasedBy A uint256 representing how much the core balance increased by, which will be multiplied
+     * by the totalBps for all active balance shares to be made available to those accounts.
+     * @return balanceToAddToShares The calculated balance to add the shares
+     */
+    function calculateBalanceToAddToShares(
+        BalanceShare storage _self,
+        uint256 balanceIncreasedBy
+    ) internal view returns (uint256 balanceToAddToShares) {
+        uint256 currentTotalBps = totalBps(_self);
+        if (currentTotalBps > 0) {
+            (balanceToAddToShares,) = _calculateBalanceShare(_self, balanceIncreasedBy, currentTotalBps);
+        }
+    }
+
+    /**
+     * @dev Private function that returns the balanceToAddToShares, and the mulmod remainder of the operation.
+     * NOTE: This function adds the previous _balanceRemainder to the balanceIncreasedBy parameter before running the
+     * calculations.
+     */
+    function _calculateBalanceShare(
+        BalanceShare storage _self,
+        uint256 balanceIncreasedBy,
+        uint256 bps
+    ) private view returns (uint256, uint256) {
+        balanceIncreasedBy += _self._balanceRemainder; // Adds the previous remainder into the calculation
+        return (
+            balanceIncreasedBy.bps(bps),
+            balanceIncreasedBy.bpsMulmod(bps)
+        );
+    }
 
     // /**
     //  * @dev Processes an account withdrawal, calculating the balance amount that should be paid out to the account. As a
@@ -494,24 +616,6 @@ contract BalanceSharesSingleton {
     // }
 
     // /**
-    //  * @dev A function to calculate the balance to be added to the shares provided the amount the balance increased by
-    //  * and the current total BPS. Returns both the calculated balance to be added to the balance shares, as well as the
-    //  * remainder (useful for storing for next time).
-    //  * @param balanceIncreasedBy A uint256 representing how much the core balance increased by, which will be multiplied
-    //  * by the totalBps for all active balance shares to be made available to those accounts.
-    //  * @return balanceToAddToShares The calculated balance to add the shares
-    //  */
-    // function calculateBalanceToAddToShares(
-    //     BalanceShare storage _self,
-    //     uint256 balanceIncreasedBy
-    // ) internal view returns (uint256 balanceToAddToShares) {
-    //     uint256 currentTotalBps = totalBps(_self);
-    //     if (currentTotalBps > 0) {
-    //         (balanceToAddToShares,) = _calculateBalanceShare(_self, balanceIncreasedBy, currentTotalBps);
-    //     }
-    // }
-
-    // /**
     //  * @dev Returns the current withdrawable balance for an account share.
     //  * @return balanceAvailable The balance available for withdraw from this account.
     //  */
@@ -596,72 +700,7 @@ contract BalanceSharesSingleton {
     //     return _accountHasFinishedWithdrawals(_self._accounts[account]);
     // }
 
-    // /**
-    //  * @dev Private function that takes the balanceIncreasedBy, adds the previous _balanceRemainder, and returns the
-    //  * balanceToAddToShares, updating the stored _balanceRemainder in the process.
-    //  */
-    // function _processBalance(
-    //     BalanceShare storage _self,
-    //     uint256 currentTotalBps,
-    //     uint256 balanceIncreasedBy
-    // ) private returns (uint256) {
-    //     (
-    //         uint256 balanceToAddToShares,
-    //         uint256 newBalanceRemainder
-    //     ) = _calculateBalanceShare(_self, balanceIncreasedBy, currentTotalBps);
-    //     // Update with the new remainder
-    //     _self._balanceRemainder = SafeCast.toUint16(newBalanceRemainder);
-    //     return balanceToAddToShares;
-    // }
 
-    // /**
-    //  * @dev Private function that returns the balanceToAddToShares, and the mulmod remainder of the operation.
-    //  * NOTE: This function adds the previous _balanceRemainder to the balanceIncreasedBy parameter before running the
-    //  * calculations.
-    //  */
-    // function _calculateBalanceShare(
-    //     BalanceShare storage _self,
-    //     uint256 balanceIncreasedBy,
-    //     uint256 bps
-    // ) private view returns (uint256, uint256) {
-    //     balanceIncreasedBy += _self._balanceRemainder; // Adds the previous remainder into the calculation
-    //     return (
-    //         balanceIncreasedBy.bps(bps),
-    //         balanceIncreasedBy.bpsMulmod(bps)
-    //     );
-    // }
-
-    // /**
-    //  * @dev Private function, adds the provided balance amount to the shared balances.
-    //  */
-    // function _addBalance(
-    //     BalanceShare storage _self,
-    //     BalanceCheck storage latestBalanceCheck,
-    //     uint256 amount
-    // ) private {
-    //     if (amount > 0) {
-    //         // Unchecked because manual checks ensure no overflow/underflow
-    //         unchecked {
-    //             // Start with a reference to the current balance
-    //             uint256 currentBalance = latestBalanceCheck.balance;
-    //             // Loop until break
-    //             while (true) {
-    //                 // Can only increase current balanceCheck up to the MAX_CHECK_BALANCE_AMOUNT
-    //                 uint256 balanceIncrease = Math.min(amount, MAX_CHECK_BALANCE_AMOUNT - currentBalance);
-    //                 latestBalanceCheck.balance = uint240(currentBalance + balanceIncrease);
-    //                 amount -= balanceIncrease;
-    //                 // If there is still more balance remaining, push a new balanceCheck and zero out the currentBalance
-    //                 if (amount > 0) {
-    //                     _self._balanceChecks.push(BalanceCheck(latestBalanceCheck.totalBps, 0));
-    //                     latestBalanceCheck = _self._balanceChecks[_self._balanceChecks.length - 1];
-    //                     currentBalance = 0;
-    //                 } else {
-    //                     break; // Can complete once amount remaining is zero
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
 
     // /**
     //  * @dev Private function to calculate the current balance owed to the AccountShare.
