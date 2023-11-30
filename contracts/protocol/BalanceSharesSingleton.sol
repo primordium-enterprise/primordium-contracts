@@ -8,6 +8,8 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
 import {IArrayLengthErrors} from "contracts/interfaces/IArrayLengthErrors.sol";
 import {IBalanceSharesManager} from "contracts/executor/interfaces/IBalanceSharesManager.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title A singleton contract for clients to manage account shares (in basis points) for ETH/ERC20 assets.
@@ -34,6 +36,10 @@ import {IBalanceSharesManager} from "contracts/executor/interfaces/IBalanceShare
  *
  * Account share recipients can also give permissions to other accounts (or open permissions to any account) to process
  * withdrawals on their behalf (still sending the assets to their own account).
+ *
+ * As a final dev note, this contract uses mappings instead of arrays to store checkpoints, because the author of this
+ * contract has storage collision paranoia. There are gas optimized function helpers to access some of these mapping
+ * values, but changing the ordering of any of the mappings in storage will result in errors with these functions.
  */
 contract BalanceSharesSingleton {
     using BasisPoints for uint256;
@@ -131,6 +137,7 @@ contract BalanceSharesSingleton {
     error AccountShareNoUpdate(address account);
     error AccountShareIsCurrentlyLocked(address account, uint256 removableAt);
     error UpdateExceedsMaxTotalBps(uint256 newTotalBps, uint256 maxBps);
+    error InvalidMsgValue(uint256 expectedValue, uint256 actualValue);
 
     /**
      * Sets the provided accounts with the provided BPS values and removable at timestamps for the balance share ID. For
@@ -410,9 +417,7 @@ contract BalanceSharesSingleton {
             balanceIncreasedBy
         );
 
-        // Transfer funds here, and allocate to the balance share
-        // TODO: SAFE TRANSFER OF FUNDS (COULD MAYBE ADD IN THE ADD BALANCE TO SHARES FUNCTION)
-
+        // Add the asset to the balance share (which transfers the asset here as well)
         BalanceSum storage _balanceSum = _addAssetToBalanceShare(
             _balanceShare,
             _currentBalanceSumCheckpoint,
@@ -427,9 +432,11 @@ contract BalanceSharesSingleton {
     }
 
     /**
-     * @dev Internal helper function that adds the provided asset amount to the balance sum checkpoint.
-     * @notice IMPORTANT: This function assumes the provided _balanceSumCheckpoint is the current checkpoint (at
-     * the current balanceSumCheckpointIndex).
+     * @dev Helper function that adds the provided asset amount to the balance sum checkpoint. Transfers the
+     * amountToAllocate of the ERC20 asset from msg.sender to this contract (or checks that msg.value is equal to the
+     * amountToAllocate for an address(0) asset).
+     * @notice This function assumes the provided _balanceSumCheckpoint is the CURRENT checkpoint (at the current
+     * balanceSumCheckpointIndex).
      */
     function _addAssetToBalanceShare(
         BalanceShare storage _balanceShare,
@@ -442,13 +449,21 @@ contract BalanceSharesSingleton {
         BalanceSumCheckpoint storage _currentBalanceSumCheckpoint = _balanceSumCheckpoint;
         _currentBalanceSum = _getBalanceSum(_currentBalanceSumCheckpoint, asset);
 
+        // First, transfer the asset to this contract
+        if (asset == address(0)) {
+            if (amountToAllocate != msg.value) {
+                revert InvalidMsgValue(amountToAllocate, msg.value);
+            }
+        } else {
+            SafeERC20.safeTransferFrom(IERC20(asset), msg.sender, address(this), amountToAllocate);
+        }
+
         if (amountToAllocate > 0) {
             unchecked {
                 uint256 currentBalance = _currentBalanceSum.balance;
                 uint256 balanceIncrease;
                 while (true) {
                     // For each checkpoint, the balance cannot exceed MAX_BALANCE_SUM
-
                     balanceIncrease = Math.min(amountToAllocate, MAX_BALANCE_SUM - currentBalance);
                     _currentBalanceSum.balance = uint208(currentBalance + balanceIncrease);
 
