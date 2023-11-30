@@ -53,12 +53,12 @@ contract BalanceSharesSingleton {
 
     struct BalanceSumCheckpoint {
         uint256 totalBps; // Tracks the totalBps among all account shares for this balance sum checkpoint
-        mapping(address asset => BalanceSum) assetBalanceSum;
+        mapping(address asset => BalanceSum) balanceSums;
     }
 
     /**
      * @dev Storing asset remainders in the BalanceSum struct will not carry asset remainders over to a new
-     * BalanceSumCheckpoint, but packing the storage with the asset balanceSum avoids writing to an extra storage slot
+     * BalanceSumCheckpoint, but packing the storage with the asset balance avoids writing to an extra storage slot
      * when a new balance is processed and added to the balance sum. We optimize for the gas usage here, as new
      * checkpoints will only be written when the total BPS changes or an asset overflows, both of which are not likely
      * to be as common of events as the actual balance processing itself. And the point of this library is to offload
@@ -66,7 +66,7 @@ contract BalanceSharesSingleton {
      */
     struct BalanceSum {
         uint48 remainder;
-        uint208 balanceSum;
+        uint208 balance;
     }
 
     struct AccountShare {
@@ -216,7 +216,7 @@ contract BalanceSharesSingleton {
             revert IArrayLengthErrors.MissingArrayItems();
         }
 
-        BalanceShare storage _balanceShare = _balanceShares[client][balanceShareId];
+        BalanceShare storage _balanceShare = _getBalanceShare(client, balanceShareId);
 
         uint256 balanceSumCheckpointIndex = _balanceShare.balanceSumCheckpointIndex;
         uint256 totalBps = _balanceShare.balanceSumCheckpoints[balanceSumCheckpointIndex].totalBps;
@@ -316,164 +316,145 @@ contract BalanceSharesSingleton {
     }
 
     function mockProcessBalanceShareIncrease(
+        address client,
         uint256 balanceShareId,
         address asset,
         uint256 balanceIncreasedBy
-    ) external returns (uint256 amountToAllocateToShares) {
-        (amountToAllocateToShares,) = _processBalanceShareIncrease(msg.sender, balanceShareId, asset, balanceIncreasedBy);
+    ) external view returns (uint256 amountToAllocate) {
+        (amountToAllocate,,) = _calculateBalanceShareAllocation(
+            _getBalanceShare(client, balanceShareId),
+            asset,
+            balanceIncreasedBy
+        );
     }
 
     function mockProcessBalanceShareIncrease(
-        address client,
         uint256 balanceShareId,
         address asset,
         uint256 balanceIncreasedBy
-    ) external returns (uint256 amountToAllocateToShares) {
-        (amountToAllocateToShares,) = _processBalanceShareIncrease(client, balanceShareId, asset, balanceIncreasedBy);
+    ) external view returns (uint256 amountToAllocate) {
+        (amountToAllocate,,) = _calculateBalanceShareAllocation(
+            _getBalanceShare(msg.sender, balanceShareId),
+            asset,
+            balanceIncreasedBy
+        );
     }
 
-    function _processBalanceShareIncrease(
+    function processBalanceShareIncrease(
         address client,
         uint256 balanceShareId,
         address asset,
         uint256 balanceIncreasedBy
-    ) internal returns (uint256 amountToAllocateToShares, uint256 newAssetRemainder) {
-        BalanceShare storage _balanceShare = _balanceShares[client][balanceShareId];
-        BalanceSumCheckpoint storage _balanceSumCheckpoint =
-            _balanceShare.balanceSumCheckpoints[_balanceShare.balanceSumCheckpointIndex];
+    ) external payable returns (uint256 amountAllocatedToShares) {
+        amountAllocatedToShares = _processBalanceShareIncrease(
+            _getBalanceShare(client, balanceShareId),
+            asset,
+            balanceIncreasedBy
+        );
+    }
 
-        uint256 totalBps = _balanceSumCheckpoint.totalBps;
+    function processBalanceShareIncrease(
+        uint256 balanceShareId,
+        address asset,
+        uint256 balanceIncreasedBy
+    ) external payable returns (uint256 amountAllocatedToShares) {
+        amountAllocatedToShares = _processBalanceShareIncrease(
+            _getBalanceShare(msg.sender, balanceShareId),
+            asset,
+            balanceIncreasedBy
+        );
+    }
+
+    function _calculateBalanceShareAllocation(
+        BalanceShare storage _balanceShare,
+        address asset,
+        uint256 balanceIncreasedBy
+    ) internal view returns (
+        uint256 amountToAllocate,
+        uint256 newAssetRemainder,
+        BalanceSumCheckpoint storage _currentBalanceSumCheckpoint
+    ) {
+        _currentBalanceSumCheckpoint = _balanceShare.balanceSumCheckpoints[_balanceShare.balanceSumCheckpointIndex];
+
+        uint256 totalBps = _currentBalanceSumCheckpoint.totalBps;
         if (totalBps > 0) {
-            uint256 currentAssetRemainder = _balanceSumCheckpoint.assetBalanceSum[asset].remainder;
+            uint256 currentAssetRemainder = _currentBalanceSumCheckpoint.balanceSums[asset].remainder;
             balanceIncreasedBy += currentAssetRemainder;
 
-            amountToAllocateToShares = balanceIncreasedBy.bps(totalBps);
+            amountToAllocate = balanceIncreasedBy.bps(totalBps);
             newAssetRemainder = balanceIncreasedBy.bpsMulmod(totalBps);
         }
     }
 
-    /**
-     * @dev Method to add to the total pool of balance available to the account shares, at the rate of:
-     * balanceIncreasedBy * totalBps / 10_000
-     * @param balanceIncreasedBy A uint256 representing how much the core balance increased by, which will be multiplied
-     * by the totalBps for all active balance shares to be made available to those accounts.
-     * @return balanceAddedToShares Returns the amount added to the balance shares, which should be accounted for in the
-     * host contract.
-     */
-    function processBalance(
-        BalanceShare storage _self,
+    function _processBalanceShareIncrease(
+        BalanceShare storage _balanceShare,
+        address asset,
         uint256 balanceIncreasedBy
-    ) internal returns (uint256 balanceAddedToShares) {
-        uint256 length = _self._balanceChecks.length;
-        // Only continue if the length is greater than zero, otherwise returns zero by default
-        if (length > 0) {
-            BalanceCheck storage latestBalanceCheck = _self._balanceChecks[length - 1];
-            uint256 currentTotalBps = latestBalanceCheck.totalBps;
-            if (currentTotalBps > 0) {
-                balanceAddedToShares = _processBalance(_self, currentTotalBps, balanceIncreasedBy);
-                _addBalance(_self, latestBalanceCheck, balanceAddedToShares);
-            }
-        }
-    }
-
-    /**
-     * @dev Private function that takes the balanceIncreasedBy, adds the previous _balanceRemainder, and returns the
-     * balanceToAddToShares, updating the stored _balanceRemainder in the process.
-     */
-    function _processBalance(
-        BalanceShare storage _self,
-        uint256 currentTotalBps,
-        uint256 balanceIncreasedBy
-    ) private returns (uint256) {
+    ) internal returns (uint256 amountAllocatedToShares) {
+        // Get the allocation amount
         (
-            uint256 balanceToAddToShares,
-            uint256 newBalanceRemainder
-        ) = _calculateBalanceShare(_self, balanceIncreasedBy, currentTotalBps);
-        // Update with the new remainder
-        _self._balanceRemainder = SafeCast.toUint16(newBalanceRemainder);
-        return balanceToAddToShares;
+            uint256 amountToAllocate,
+            uint256 newAssetRemainder,
+            BalanceSumCheckpoint storage _currentBalanceSumCheckpoint
+        ) = _calculateBalanceShareAllocation(
+            _balanceShare,
+            asset,
+            balanceIncreasedBy
+        );
+
+        // Transfer funds here, and allocate to the balance share
+        // TODO: SAFE TRANSFER OF FUNDS (COULD MAYBE ADD IN THE ADD BALANCE TO SHARES FUNCTION)
+
+        _currentBalanceSumCheckpoint = _addAssetToBalanceShare(
+            _balanceShare,
+            _currentBalanceSumCheckpoint,
+            asset,
+            amountToAllocate
+        );
+
+        // Update the remainder for the checkpoint
+        _currentBalanceSumCheckpoint.balanceSums[asset].remainder = uint48(newAssetRemainder);
+
+        amountAllocatedToShares = amountToAllocate;
     }
 
     /**
-     * @dev A function to directly add a given amount to the balance shares. This amount should be accounted for in the
-     * host contract.
+     * @dev Internal helper function that adds the provided asset amount to the balance sum checkpoint.
+     * @notice IMPORTANT: This function assumes the provided _currentBalanceSumCheckpoint is the current checkpoint (at
+     * the current balanceSumCheckpointIndex).
      */
-    function addBalanceToShares(
-        BalanceShare storage _self,
-        uint256 amount
-    ) internal {
-        uint256 length = _self._balanceChecks.length;
-        if (length > 0) {
-            BalanceCheck storage latestBalanceCheck = _self._balanceChecks[length - 1];
-            _addBalance(_self, latestBalanceCheck, amount);
-        }
-    }
+    function _addAssetToBalanceShare(
+        BalanceShare storage _balanceShare,
+        BalanceSumCheckpoint storage _currentBalanceSumCheckpoint,
+        address asset,
+        uint256 amountToAllocate
+    ) internal returns (BalanceSumCheckpoint storage _updatedBalanceSumCheckpoint) {
+        _updatedBalanceSumCheckpoint = _currentBalanceSumCheckpoint;
 
-    /**
-     * @dev Private function, adds the provided balance amount to the shared balances.
-     */
-    function _addBalance(
-        BalanceShare storage _self,
-        BalanceCheck storage latestBalanceCheck,
-        uint256 amount
-    ) private {
-        if (amount > 0) {
-            // Unchecked because manual checks ensure no overflow/underflow
+        if (amountToAllocate > 0) {
             unchecked {
-                // Start with a reference to the current balance
-                uint256 currentBalance = latestBalanceCheck.balance;
-                // Loop until break
+                uint256 currentBalance = _updatedBalanceSumCheckpoint.balanceSums[asset].balance;
+                uint256 balanceIncrease;
                 while (true) {
-                    // Can only increase current balanceCheck up to the MAX_CHECK_BALANCE_AMOUNT
-                    uint256 balanceIncrease = Math.min(amount, MAX_CHECK_BALANCE_AMOUNT - currentBalance);
-                    latestBalanceCheck.balance = uint240(currentBalance + balanceIncrease);
-                    amount -= balanceIncrease;
-                    // If there is still more balance remaining, push a new balanceCheck and zero out the currentBalance
-                    if (amount > 0) {
-                        _self._balanceChecks.push(BalanceCheck(latestBalanceCheck.totalBps, 0));
-                        latestBalanceCheck = _self._balanceChecks[_self._balanceChecks.length - 1];
-                        currentBalance = 0;
-                    } else {
-                        break; // Can complete once amount remaining is zero
+                    // For each checkpoint, the balance cannot exceed MAX_BALANCE_SUM
+                    balanceIncrease = Math.min(amountToAllocate, MAX_BALANCE_SUM - currentBalance);
+                    _updatedBalanceSumCheckpoint.balanceSums[asset].balance = uint208(currentBalance + balanceIncrease);
+
+                    // Finished once the allocation reaches zero
+                    amountToAllocate -= balanceIncrease;
+                    if (amountToAllocate == 0) {
+                        break;
                     }
+
+                    // Increment the checkpoint index and update the storage reference (keep previous totalBps)
+                    uint256 totalBps = _updatedBalanceSumCheckpoint.totalBps;
+                    _updatedBalanceSumCheckpoint =
+                        _balanceShare.balanceSumCheckpoints[++_balanceShare.balanceSumCheckpointIndex];
+                    _updatedBalanceSumCheckpoint.totalBps = totalBps;
+                    currentBalance = 0;
                 }
             }
         }
-    }
-
-    /**
-     * @dev A function to calculate the balance to be added to the shares provided the amount the balance increased by
-     * and the current total BPS. Returns both the calculated balance to be added to the balance shares, as well as the
-     * remainder (useful for storing for next time).
-     * @param balanceIncreasedBy A uint256 representing how much the core balance increased by, which will be multiplied
-     * by the totalBps for all active balance shares to be made available to those accounts.
-     * @return balanceToAddToShares The calculated balance to add the shares
-     */
-    function calculateBalanceToAddToShares(
-        BalanceShare storage _self,
-        uint256 balanceIncreasedBy
-    ) internal view returns (uint256 balanceToAddToShares) {
-        uint256 currentTotalBps = totalBps(_self);
-        if (currentTotalBps > 0) {
-            (balanceToAddToShares,) = _calculateBalanceShare(_self, balanceIncreasedBy, currentTotalBps);
-        }
-    }
-
-    /**
-     * @dev Private function that returns the balanceToAddToShares, and the mulmod remainder of the operation.
-     * NOTE: This function adds the previous _balanceRemainder to the balanceIncreasedBy parameter before running the
-     * calculations.
-     */
-    function _calculateBalanceShare(
-        BalanceShare storage _self,
-        uint256 balanceIncreasedBy,
-        uint256 bps
-    ) private view returns (uint256, uint256) {
-        balanceIncreasedBy += _self._balanceRemainder; // Adds the previous remainder into the calculation
-        return (
-            balanceIncreasedBy.bps(bps),
-            balanceIncreasedBy.bpsMulmod(bps)
-        );
     }
 
     // /**
@@ -774,29 +755,24 @@ contract BalanceSharesSingleton {
 
     // }
 
-    // /**
-    //  * @dev Overload for when the reference is already present
-    //  */
-    // function _accountHasFinishedWithdrawals(
-    //     AccountShare storage accountShare
-    // ) private view returns (bool) {
-    //     (uint256 createdAt, uint256 lastBalanceCheckIndex, uint256 endIndex) = (
-    //         accountShare.createdAt,
-    //         accountShare.lastBalanceCheckIndex,
-    //         accountShare.endIndex
-    //     );
-    //     return _accountHasFinishedWithdrawals(createdAt, lastBalanceCheckIndex, endIndex);
-    // }
-
-    // /**
-    //  * @dev Overload for checking if these values are already loaded into memory (to save gas).
-    //  */
-    // function _accountHasFinishedWithdrawals(
-    //     uint256 createdAt,
-    //     uint256 lastBalanceCheckIndex,
-    //     uint256 endIndex
-    // ) private pure returns (bool) {
-    //     return createdAt == 0 || lastBalanceCheckIndex > endIndex;
-    // }
+    /// @dev Private helper to retrieve a BalanceShare for the client and balanceShareId (gas optimized)
+    function _getBalanceShare(address client, uint256 balanceShareId) private pure returns (BalanceShare storage $) {
+        /// @solidity memory-safe-assembly
+        assembly {
+            /**
+             * Use scratch space to get storage slot for _balanceShares[client][balanceShareId]
+             * keccak256(
+             *  balanceShareId . keccak256(
+             *   client . _balanceShares.slot
+             *  )
+             * )
+             */
+            mstore(0, client)
+            mstore(0x20, _balanceShares.slot)
+            mstore(0x20, keccak256(0, 0x40))
+            mstore(0, balanceShareId)
+            $.slot := keccak256(0, 0x40)
+        }
+    }
 
 }
