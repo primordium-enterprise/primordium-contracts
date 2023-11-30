@@ -130,6 +130,7 @@ contract BalanceSharesSingleton {
         uint256 period
     );
 
+    error BalanceShareInactive(address client, uint256 balanceShareId);
     error BalanceSumCheckpointIndexOverflow(uint256 maxIndex);
     error InvalidAddress(address account);
     error AccountShareAlreadyExists(address account);
@@ -380,6 +381,31 @@ contract BalanceSharesSingleton {
         );
     }
 
+    function donateToBalanceShare(
+        address client,
+        uint256 balanceShareId,
+        address asset,
+        uint256 amountToAllocate
+    ) external payable returns (uint256 amountAllocatedToShares) {
+        BalanceShare storage _balanceShare = _getBalanceShare(client, balanceShareId);
+        BalanceSumCheckpoint storage _currentBalanceSumCheckpoint = _getCurrentBalanceSumCheckpoint(_balanceShare);
+
+        // Check that the balance share is active
+        if (_currentBalanceSumCheckpoint.totalBps == 0) {
+            revert BalanceShareInactive(client, balanceShareId);
+        }
+
+        // Add the asset to the balance share (which transfers the asset to this contract)
+        _addAssetToBalanceShare(
+            _balanceShare,
+            _currentBalanceSumCheckpoint,
+            asset,
+            amountToAllocate
+        );
+
+        amountAllocatedToShares = amountToAllocate;
+    }
+
     function _calculateBalanceShareAllocation(
         BalanceShare storage _balanceShare,
         address asset,
@@ -417,7 +443,7 @@ contract BalanceSharesSingleton {
             balanceIncreasedBy
         );
 
-        // Add the asset to the balance share (which transfers the asset here as well)
+        // Add the asset to the balance share (which transfers the asset to this contract)
         BalanceSum storage _balanceSum = _addAssetToBalanceShare(
             _balanceShare,
             _currentBalanceSumCheckpoint,
