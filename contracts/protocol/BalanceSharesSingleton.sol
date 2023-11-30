@@ -40,6 +40,10 @@ contract BalanceSharesSingleton {
 
     mapping(address client => mapping(uint256 balanceShareId => BalanceShare)) private _balanceShares;
 
+    /**
+     * @dev IMPORTANT: Changing the order of variables in this struct could affect the optimized mapping retrieval
+     * functions at the bottom of the file.
+     */
     struct BalanceShare {
         // New balance sum checkpoint created every time totalBps changes, or when asset sum overflow occurs
         // Mapping, not array, to avoid storage collisions
@@ -51,6 +55,10 @@ contract BalanceSharesSingleton {
         // TODO: Client approval of account withdrawal per balance share
     }
 
+    /**
+     * @dev IMPORTANT: Changing the order of variables in this struct could affect the optimized mapping retrieval
+     * functions at the bottom of the file.
+     */
     struct BalanceSumCheckpoint {
         uint256 totalBps; // Tracks the totalBps among all account shares for this balance sum checkpoint
         mapping(address asset => BalanceSum) balanceSums;
@@ -374,11 +382,11 @@ contract BalanceSharesSingleton {
         uint256 newAssetRemainder,
         BalanceSumCheckpoint storage _currentBalanceSumCheckpoint
     ) {
-        _currentBalanceSumCheckpoint = _balanceShare.balanceSumCheckpoints[_balanceShare.balanceSumCheckpointIndex];
+        _currentBalanceSumCheckpoint = _getCurrentBalanceSumCheckpoint(_balanceShare);
 
         uint256 totalBps = _currentBalanceSumCheckpoint.totalBps;
         if (totalBps > 0) {
-            uint256 currentAssetRemainder = _currentBalanceSumCheckpoint.balanceSums[asset].remainder;
+            uint256 currentAssetRemainder = _getBalanceSum(_currentBalanceSumCheckpoint, asset).remainder;
             balanceIncreasedBy += currentAssetRemainder;
 
             amountToAllocate = balanceIncreasedBy.bps(totalBps);
@@ -405,7 +413,7 @@ contract BalanceSharesSingleton {
         // Transfer funds here, and allocate to the balance share
         // TODO: SAFE TRANSFER OF FUNDS (COULD MAYBE ADD IN THE ADD BALANCE TO SHARES FUNCTION)
 
-        _currentBalanceSumCheckpoint = _addAssetToBalanceShare(
+        BalanceSum storage _balanceSum = _addAssetToBalanceShare(
             _balanceShare,
             _currentBalanceSumCheckpoint,
             asset,
@@ -413,32 +421,36 @@ contract BalanceSharesSingleton {
         );
 
         // Update the remainder for the checkpoint
-        _currentBalanceSumCheckpoint.balanceSums[asset].remainder = uint48(newAssetRemainder);
+        _balanceSum.remainder = uint48(newAssetRemainder);
 
         amountAllocatedToShares = amountToAllocate;
     }
 
     /**
      * @dev Internal helper function that adds the provided asset amount to the balance sum checkpoint.
-     * @notice IMPORTANT: This function assumes the provided _currentBalanceSumCheckpoint is the current checkpoint (at
+     * @notice IMPORTANT: This function assumes the provided _balanceSumCheckpoint is the current checkpoint (at
      * the current balanceSumCheckpointIndex).
      */
     function _addAssetToBalanceShare(
         BalanceShare storage _balanceShare,
-        BalanceSumCheckpoint storage _currentBalanceSumCheckpoint,
+        BalanceSumCheckpoint storage _balanceSumCheckpoint,
         address asset,
         uint256 amountToAllocate
-    ) internal returns (BalanceSumCheckpoint storage _updatedBalanceSumCheckpoint) {
-        _updatedBalanceSumCheckpoint = _currentBalanceSumCheckpoint;
+    ) internal returns (
+        BalanceSum storage _currentBalanceSum
+    ) {
+        BalanceSumCheckpoint storage _currentBalanceSumCheckpoint = _balanceSumCheckpoint;
+        _currentBalanceSum = _getBalanceSum(_currentBalanceSumCheckpoint, asset);
 
         if (amountToAllocate > 0) {
             unchecked {
-                uint256 currentBalance = _updatedBalanceSumCheckpoint.balanceSums[asset].balance;
+                uint256 currentBalance = _currentBalanceSum.balance;
                 uint256 balanceIncrease;
                 while (true) {
                     // For each checkpoint, the balance cannot exceed MAX_BALANCE_SUM
+
                     balanceIncrease = Math.min(amountToAllocate, MAX_BALANCE_SUM - currentBalance);
-                    _updatedBalanceSumCheckpoint.balanceSums[asset].balance = uint208(currentBalance + balanceIncrease);
+                    _currentBalanceSum.balance = uint208(currentBalance + balanceIncrease);
 
                     // Finished once the allocation reaches zero
                     amountToAllocate -= balanceIncrease;
@@ -446,12 +458,15 @@ contract BalanceSharesSingleton {
                         break;
                     }
 
-                    // Increment the checkpoint index and update the storage reference (keep previous totalBps)
-                    uint256 totalBps = _updatedBalanceSumCheckpoint.totalBps;
-                    _updatedBalanceSumCheckpoint =
+                    // Increment the checkpoint index, update the BalanceSumCheckpoint reference (copy the totalBps)
+                    uint256 totalBps = _currentBalanceSumCheckpoint.totalBps;
+                    _currentBalanceSumCheckpoint =
                         _balanceShare.balanceSumCheckpoints[++_balanceShare.balanceSumCheckpointIndex];
-                    _updatedBalanceSumCheckpoint.totalBps = totalBps;
+                    _currentBalanceSumCheckpoint.totalBps = totalBps;
+                    // Reset currentBalance to zero
                     currentBalance = 0;
+                    // Update the BalanceSum reference
+                    _currentBalanceSum = _getBalanceSum(_currentBalanceSumCheckpoint, asset);
                 }
             }
         }
@@ -760,17 +775,41 @@ contract BalanceSharesSingleton {
         /// @solidity memory-safe-assembly
         assembly {
             /**
-             * Use scratch space to get storage slot for _balanceShares[client][balanceShareId]
-             * keccak256(
-             *  balanceShareId . keccak256(
-             *   client . _balanceShares.slot
-             *  )
-             * )
+             * keccak256(balanceShareId . keccak256(client . _balanceShares.slot))
              */
             mstore(0, client)
             mstore(0x20, _balanceShares.slot)
             mstore(0x20, keccak256(0, 0x40))
             mstore(0, balanceShareId)
+            $.slot := keccak256(0, 0x40)
+        }
+    }
+
+    function _getCurrentBalanceSumCheckpoint(
+        BalanceShare storage _balanceShare
+    ) private view returns (BalanceSumCheckpoint storage $) {
+        /// @solidity memory-safe-assembly
+        assembly {
+            /**
+             * keccak256(_balanceShare.balanceSumCheckpointIndex . _balanceShare.balanceSumCheckpoints.slot))
+             */
+            mstore(0, sload(_balanceShare.slot))
+            mstore(0x20, add(_balanceShare.slot, 0x01))
+            $.slot := keccak256(0, 0x40)
+        }
+    }
+
+    function _getBalanceSum(
+        BalanceSumCheckpoint storage _balanceSumCheckpoint,
+        address asset
+    ) private pure returns (BalanceSum storage $) {
+        /// @solidity memory-safe-assembly
+        assembly {
+            /**
+             * keccak256(address . _balanceSumCheckpoint.balanceSums.slot))
+             */
+            mstore(0, asset)
+            mstore(0x20, add(_balanceSumCheckpoint.slot, 0x01))
             $.slot := keccak256(0, 0x40)
         }
     }
