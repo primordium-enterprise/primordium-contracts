@@ -131,6 +131,13 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
         uint256 period
     );
 
+    event BalanceShareAssetAllocated(
+        address indexed client,
+        uint256 indexed balanceShareId,
+        address indexed asset,
+        uint256 amountAllocated
+    );
+
     error BalanceShareInactive(address client, uint256 balanceShareId);
     error BalanceSumCheckpointIndexOverflow(uint256 maxIndex);
     error InvalidAddress(address account);
@@ -141,6 +148,12 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
     error UpdateExceedsMaxTotalBps(uint256 newTotalBps, uint256 maxBps);
     error InvalidMsgValue(uint256 expectedValue, uint256 actualValue);
     error InvalidAssetRemainder(uint256 providedRemainder, uint256 maxRemainder);
+    error InvalidAssetAllocation(
+        address asset,
+        uint256 amountToAllocate,
+        uint256 newAssetRemainder,
+        uint256 currentAssetRemainder
+    );
 
     /**
      * Sets the provided accounts with the provided BPS values and removable at timestamps for the balance share ID. For
@@ -523,6 +536,8 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
             amountToAllocate,
             newAssetRemainder
         );
+
+        emit BalanceShareAssetAllocated(client, balanceShareId, asset, amountToAllocate);
     }
 
     /**
@@ -541,45 +556,52 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
         uint256 newAssetRemainder
     ) internal {
         BalanceSumCheckpoint storage _balanceSumCheckpoint = _currentBalanceSumCheckpoint;
+        BalanceSum storage _currentBalanceSum = _getBalanceSum(_balanceSumCheckpoint, asset);
 
-        if (amountToAllocate > 0) {
-            // First, transfer the asset to this contract
-            if (asset == address(0)) {
-                if (amountToAllocate != msg.value) {
-                    revert InvalidMsgValue(amountToAllocate, msg.value);
-                }
-            } else {
-                SafeERC20.safeTransferFrom(IERC20(asset), msg.sender, address(this), amountToAllocate);
+        // Decreasing the remainder for allocation of zero is not allowed
+        if (amountToAllocate == 0) {
+            uint256 currentAssetRemainder = _currentBalanceSum.remainder;
+            if (currentAssetRemainder <= newAssetRemainder) {
+                revert InvalidAssetAllocation(asset, amountToAllocate, newAssetRemainder, currentAssetRemainder);
             }
+        }
 
-            unchecked {
-                BalanceSum storage _currentBalanceSum = _getBalanceSum(_balanceSumCheckpoint, asset);
-                uint256 currentBalance = _currentBalanceSum.balance;
-                while (true) {
-                    // For each checkpoint, the balance cannot exceed MAX_BALANCE_SUM
-                    uint256 balanceIncrease = Math.min(amountToAllocate, MAX_BALANCE_SUM - currentBalance);
-                    // TODO: Use assembly to store this update at the same time, masking in memory on the conditional below
-                    _currentBalanceSum.balance = uint208(currentBalance + balanceIncrease);
-                    if (newAssetRemainder < MAX_BPS) {
-                        _currentBalanceSum.remainder = uint48(newAssetRemainder);
-                    }
+        // First, transfer the asset to this contract
+        if (asset == address(0)) {
+            if (amountToAllocate != msg.value) {
+                revert InvalidMsgValue(amountToAllocate, msg.value);
+            }
+        } else {
+            SafeERC20.safeTransferFrom(IERC20(asset), msg.sender, address(this), amountToAllocate);
+        }
 
-                    // Finished once the allocation reaches zero
-                    amountToAllocate -= balanceIncrease;
-                    if (amountToAllocate == 0) {
-                        break;
-                    }
+        unchecked {
+            uint256 currentBalance = _currentBalanceSum.balance;
 
-                    // Increment the checkpoint index, update the BalanceSumCheckpoint reference (copy the totalBps)
-                    uint256 totalBps = _balanceSumCheckpoint.totalBps;
-                    _balanceSumCheckpoint =
-                        _balanceShare.balanceSumCheckpoints[++_balanceShare.balanceSumCheckpointIndex];
-                    _balanceSumCheckpoint.totalBps = totalBps;
-                    // Reset currentBalance to zero
-                    currentBalance = 0;
-                    // Update the BalanceSum reference
-                    _currentBalanceSum = _getBalanceSum(_balanceSumCheckpoint, asset);
+            while (true) {
+                // For each checkpoint, the balance cannot exceed MAX_BALANCE_SUM
+                uint256 balanceIncrease = Math.min(amountToAllocate, MAX_BALANCE_SUM - currentBalance);
+                // TODO: Use assembly to store this update at the same time, masking in memory on the conditional below
+                _currentBalanceSum.balance = uint208(currentBalance + balanceIncrease);
+                if (newAssetRemainder < MAX_BPS) {
+                    _currentBalanceSum.remainder = uint48(newAssetRemainder);
                 }
+
+                // Finished once the allocation reaches zero
+                amountToAllocate -= balanceIncrease;
+                if (amountToAllocate == 0) {
+                    break;
+                }
+
+                // Increment the checkpoint index, update the BalanceSumCheckpoint reference (copy the totalBps)
+                uint256 totalBps = _balanceSumCheckpoint.totalBps;
+                _balanceSumCheckpoint =
+                    _balanceShare.balanceSumCheckpoints[++_balanceShare.balanceSumCheckpointIndex];
+                _balanceSumCheckpoint.totalBps = totalBps;
+                // Reset currentBalance to zero
+                currentBalance = 0;
+                // Update the BalanceSum reference
+                _currentBalanceSum = _getBalanceSum(_balanceSumCheckpoint, asset);
             }
         }
     }
