@@ -144,6 +144,7 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
     error AccountShareAlreadyExists(address account);
     error AccountShareDoesNotExist(address account);
     error AccountShareNoUpdate(address account);
+    error UnauthorizedToEditAccountShares(address client, address msgSender);
     error AccountShareIsCurrentlyLocked(address account, uint256 removableAt);
     error UpdateExceedsMaxTotalBps(uint256 newTotalBps, uint256 maxBps);
     error InvalidMsgValue(uint256 expectedValue, uint256 actualValue);
@@ -229,6 +230,24 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
         _updateAccountShares(msg.sender, balanceShareId, accounts, new uint256[](0), removableAts);
     }
 
+    function updateAccountShareAsAccountOwner(
+        address client,
+        uint256 balanceShareId,
+        uint256 newBasisPoints,
+        uint256 newRemovableAt
+    ) external {
+        address[] memory accounts = new address[](1);
+        accounts[0] = msg.sender;
+
+        uint256[] memory basisPoints = new uint256[](1);
+        basisPoints[0] = newBasisPoints;
+
+        uint256[] memory removableAts = new uint256[](1);
+        removableAts[0] = newRemovableAt;
+
+        _updateAccountShares(client, balanceShareId, accounts, basisPoints, removableAts);
+    }
+
     /**
      * @dev Private helper to update account shares by updating or pushing a new AccountSharePeriod.
      * @notice This helper assumes that array length equality checks are performed in the calling function. This
@@ -294,7 +313,19 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
                 revert AccountShareNoUpdate(accounts[i]);
             }
 
-            // If decreasing bps or decreasing removableAt timestamp, check the account lock
+            // If the client is not the msg.sender...
+            if (msg.sender != client) {
+                // Only update if msg.sender is account owner && they are not increasing BPS or removableAt
+                if (
+                    msg.sender != accounts[i] ||
+                    newBps > currentBps ||
+                    newRemovableAt > currentRemovableAt
+                ) {
+                    revert UnauthorizedToEditAccountShares(client, msg.sender);
+                }
+            }
+
+            // If decreasing bps or removableAt timestamp, check the account lock
             if (newBps < currentBps || newRemovableAt < currentRemovableAt) {
                 // Current timestamp must be greater than the removableAt timestamp (unless msg.sender is owner)
                 if (block.timestamp < currentRemovableAt && msg.sender != accounts[i]) {
