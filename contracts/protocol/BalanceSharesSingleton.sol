@@ -41,7 +41,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * contract has storage collision paranoia. There are gas optimized function helpers to access some of these mapping
  * values, but changing the ordering of any of the mappings in storage will result in errors with these functions.
  */
-contract BalanceSharesSingleton {
+contract BalanceSharesSingleto is IBalanceSharesManager {
     using BasisPoints for uint256;
 
     mapping(address client => mapping(uint256 balanceShareId => BalanceShare)) private _balanceShares;
@@ -79,8 +79,8 @@ contract BalanceSharesSingleton {
      * gas costs for balance shares from the users to the account recipients.
      */
     struct BalanceSum {
-        uint48 remainder;
         uint208 balance;
+        uint48 remainder;
     }
 
     struct AccountShare {
@@ -111,6 +111,7 @@ contract BalanceSharesSingleton {
     }
 
     // HELPER CONSTANTS
+    uint256 constant public MAX_BPS = BasisPoints.MAX_BPS;
     uint256 constant private MAX_INDEX = type(uint48).max;
     uint256 constant private MAX_BALANCE_SUM = type(uint208).max;
 
@@ -139,6 +140,7 @@ contract BalanceSharesSingleton {
     error AccountShareIsCurrentlyLocked(address account, uint256 removableAt);
     error UpdateExceedsMaxTotalBps(uint256 newTotalBps, uint256 maxBps);
     error InvalidMsgValue(uint256 expectedValue, uint256 actualValue);
+    error InvalidAssetRemainder(uint256 providedRemainder, uint256 maxRemainder);
 
     /**
      * Sets the provided accounts with the provided BPS values and removable at timestamps for the balance share ID. For
@@ -324,69 +326,160 @@ contract BalanceSharesSingleton {
 
         // Calculate the new total bps, and update in the balance sum checkpoint
         newTotalBps = totalBps + increaseTotalBpsBy - decreaseTotalBpsBy;
-        if (newTotalBps > BasisPoints.MAX_BPS) {
-            revert UpdateExceedsMaxTotalBps(newTotalBps, BasisPoints.MAX_BPS);
+        if (newTotalBps > MAX_BPS) {
+            revert UpdateExceedsMaxTotalBps(newTotalBps, MAX_BPS);
         }
 
         _balanceShare.balanceSumCheckpoints[balanceSumCheckpointIndex].totalBps = newTotalBps;
     }
 
-    function mockProcessBalanceShareIncrease(
+    /**
+     * For the provided balance share and asset, returns the amount of the asset to send to this contract for the
+     * provided amount that the balance increased by (as a function of the balance share's total BPS).
+     * @notice The {processBalanceShareIncrease} function takes the same parameters as this function, and will add any
+     * integer remainders from the BPS calculation the last time that a balance increase was "processed." Therefore, it
+     * is recommended to use this function to get the amount to allocate to the balance share INCLUDING previous
+     * remainders in order to approve/send the transfer amount of the ERC20/ETH asset.
+     * @param client The client account for the balance share.
+     * @param balanceShareId The uint256 identifier of the balance share.
+     * @param asset The ERC20 asset to process the balance share for (address(0) for ETH).
+     * @param balanceIncreasedBy The amount that the total balance share increased by.
+     * @return amountToAllocate The amount of the asset that should be allocated to the balance share. Mathematically:
+     * amountToAllocate = balanceIncreasedBy * totalBps / 10_000
+     */
+    function getBalanceShareAllocation(
         address client,
         uint256 balanceShareId,
         address asset,
         uint256 balanceIncreasedBy
-    ) external view returns (uint256 amountToAllocate) {
-        (amountToAllocate,,) = _calculateBalanceShareAllocation(
+    ) public view returns (uint256 amountToAllocate) {
+        (amountToAllocate,) = _calculateBalanceShareAllocation(
             _getBalanceShare(client, balanceShareId),
             asset,
-            balanceIncreasedBy
+            balanceIncreasedBy,
+            false
         );
     }
 
-    function mockProcessBalanceShareIncrease(
-        uint256 balanceShareId,
-        address asset,
-        uint256 balanceIncreasedBy
-    ) external view returns (uint256 amountToAllocate) {
-        (amountToAllocate,,) = _calculateBalanceShareAllocation(
-            _getBalanceShare(msg.sender, balanceShareId),
-            asset,
-            balanceIncreasedBy
-        );
-    }
-
-    function processBalanceShareIncrease(
+    /**
+     * For the provided balance share and asset, returns the amount of the asset to send to this contract for the
+     * provided amount that the balance increased by (as a function of the balance share's total BPS).
+     * @notice The {processBalanceShareIncrease} function takes the same parameters as this function, and will add any
+     * integer remainders from the BPS calculation the last time that a balance increase was "processed." Therefore, it
+     * is recommended to use this function to get the amount to allocate to the balance share INCLUDING previous
+     * remainders in order to approve/send the transfer amount of the ERC20/ETH asset.
+     * @param client The client account for the balance share.
+     * @param balanceShareId The uint256 identifier of the balance share.
+     * @param asset The ERC20 asset to process the balance share for (address(0) for ETH).
+     * @param balanceIncreasedBy The amount that the total balance share increased by.
+     * @return amountToAllocate The amount of the asset that should be allocated to the balance share. Mathematically:
+     * amountToAllocate = balanceIncreasedBy * totalBps / 10_000
+     */
+    function getBalanceShareAllocationWithRemainder(
         address client,
         uint256 balanceShareId,
         address asset,
         uint256 balanceIncreasedBy
-    ) external payable returns (uint256 amountAllocatedToShares) {
-        amountAllocatedToShares = _processBalanceShareIncrease(
+    ) public view returns (uint256 amountToAllocate, uint256 newAssetRemainder) {
+        (amountToAllocate, newAssetRemainder) = _calculateBalanceShareAllocation(
             _getBalanceShare(client, balanceShareId),
             asset,
-            balanceIncreasedBy
+            balanceIncreasedBy,
+            true
         );
     }
 
-    function processBalanceShareIncrease(
+    function getBalanceShareAllocation(
         uint256 balanceShareId,
         address asset,
         uint256 balanceIncreasedBy
-    ) external payable returns (uint256 amountAllocatedToShares) {
-        amountAllocatedToShares = _processBalanceShareIncrease(
-            _getBalanceShare(msg.sender, balanceShareId),
-            asset,
-            balanceIncreasedBy
-        );
+    ) external view override returns (uint256) {
+        return getBalanceShareAllocation(msg.sender, balanceShareId, asset, balanceIncreasedBy);
     }
 
-    function donateToBalanceShare(
+    function getBalanceShareAllocationWithRemainder(
+        uint256 balanceShareId,
+        address asset,
+        uint256 balanceIncreasedBy
+    ) external view override returns (uint256, uint256) {
+        return getBalanceShareAllocationWithRemainder(msg.sender, balanceShareId, asset, balanceIncreasedBy);
+    }
+
+    function _calculateBalanceShareAllocation(
+        BalanceShare storage _balanceShare,
+        address asset,
+        uint256 balanceIncreasedBy,
+        bool useRemainder
+    ) internal view returns (
+        uint256 amountToAllocate,
+        uint256 newAssetRemainder
+    ) {
+        BalanceSumCheckpoint storage _currentBalanceSumCheckpoint = _getCurrentBalanceSumCheckpoint(_balanceShare);
+
+        uint256 totalBps = _currentBalanceSumCheckpoint.totalBps;
+        if (totalBps > 0) {
+            if (useRemainder) {
+                uint256 currentAssetRemainder = _getBalanceSum(_currentBalanceSumCheckpoint, asset).remainder;
+                balanceIncreasedBy += currentAssetRemainder;
+                newAssetRemainder = balanceIncreasedBy.bpsMulmod(totalBps);
+            }
+
+            amountToAllocate = balanceIncreasedBy.bps(totalBps);
+        }
+    }
+
+    function allocateToBalanceShare(
         address client,
         uint256 balanceShareId,
         address asset,
         uint256 amountToAllocate
-    ) external payable returns (uint256 amountAllocatedToShares) {
+    ) public payable {
+        _allocateToBalanceShare(client, balanceShareId, asset, amountToAllocate, MAX_BPS);
+    }
+
+    function allocateToBalanceShareWithRemainder(
+        address client,
+        uint256 balanceShareId,
+        address asset,
+        uint256 amountToAllocate,
+        uint256 newAssetRemainder
+    ) public payable {
+        _allocateToBalanceShare(client, balanceShareId, asset, amountToAllocate, newAssetRemainder);
+    }
+
+    function allocateToBalanceShare(
+        uint256 balanceShareId,
+        address asset,
+        uint256 amountToAllocate
+    ) external payable override {
+        allocateToBalanceShare(msg.sender, balanceShareId, asset, amountToAllocate);
+    }
+
+    function allocateToBalanceShareWithRemainder(
+        uint256 balanceShareId,
+        address asset,
+        uint256 amountToAllocate,
+        uint256 newAssetRemainder
+    ) external payable override {
+        allocateToBalanceShareWithRemainder(msg.sender, balanceShareId, asset, amountToAllocate, newAssetRemainder);
+    }
+
+    /**
+     * @dev Allocates the provided amount to the balance share. Skips asset remainder update if newAssetRemainder is
+     * equal to the MAX_BPS.
+     */
+    function _allocateToBalanceShare(
+        address client,
+        uint256 balanceShareId,
+        address asset,
+        uint256 amountToAllocate,
+        uint256 newAssetRemainder
+    ) internal {
+        // Validate the asset remainder
+        if (newAssetRemainder > MAX_BPS) {
+            revert InvalidAssetRemainder(newAssetRemainder, MAX_BPS);
+        }
+
         BalanceShare storage _balanceShare = _getBalanceShare(client, balanceShareId);
         BalanceSumCheckpoint storage _currentBalanceSumCheckpoint = _getCurrentBalanceSumCheckpoint(_balanceShare);
 
@@ -400,98 +493,46 @@ contract BalanceSharesSingleton {
             _balanceShare,
             _currentBalanceSumCheckpoint,
             asset,
-            amountToAllocate
+            amountToAllocate,
+            newAssetRemainder
         );
-
-        amountAllocatedToShares = amountToAllocate;
-    }
-
-    function _calculateBalanceShareAllocation(
-        BalanceShare storage _balanceShare,
-        address asset,
-        uint256 balanceIncreasedBy
-    ) internal view returns (
-        uint256 amountToAllocate,
-        uint256 newAssetRemainder,
-        BalanceSumCheckpoint storage _currentBalanceSumCheckpoint
-    ) {
-        _currentBalanceSumCheckpoint = _getCurrentBalanceSumCheckpoint(_balanceShare);
-
-        uint256 totalBps = _currentBalanceSumCheckpoint.totalBps;
-        if (totalBps > 0) {
-            uint256 currentAssetRemainder = _getBalanceSum(_currentBalanceSumCheckpoint, asset).remainder;
-            balanceIncreasedBy += currentAssetRemainder;
-
-            amountToAllocate = balanceIncreasedBy.bps(totalBps);
-            newAssetRemainder = balanceIncreasedBy.bpsMulmod(totalBps);
-        }
-    }
-
-    function _processBalanceShareIncrease(
-        BalanceShare storage _balanceShare,
-        address asset,
-        uint256 balanceIncreasedBy
-    ) internal returns (uint256 amountAllocatedToShares) {
-        // Get the allocation amount
-        (
-            uint256 amountToAllocate,
-            uint256 newAssetRemainder,
-            BalanceSumCheckpoint storage _currentBalanceSumCheckpoint
-        ) = _calculateBalanceShareAllocation(
-            _balanceShare,
-            asset,
-            balanceIncreasedBy
-        );
-
-        // Add the asset to the balance share (which transfers the asset to this contract)
-        BalanceSum storage _balanceSum = _addAssetToBalanceShare(
-            _balanceShare,
-            _currentBalanceSumCheckpoint,
-            asset,
-            amountToAllocate
-        );
-
-        // Update the remainder for the checkpoint
-        _balanceSum.remainder = uint48(newAssetRemainder);
-
-        amountAllocatedToShares = amountToAllocate;
     }
 
     /**
      * @dev Helper function that adds the provided asset amount to the balance sum checkpoint. Transfers the
      * amountToAllocate of the ERC20 asset from msg.sender to this contract (or checks that msg.value is equal to the
-     * amountToAllocate for an address(0) asset).
-     * @notice This function assumes the provided _balanceSumCheckpoint is the CURRENT checkpoint (at the current
+     * amountToAllocate for an address(0) asset). Also updates the asset remainder unless newAssetRemainder is equal to
+     * the MAX_BPS.
+     * @notice This function assumes the provided _currentBalanceSumCheckpoint is the CURRENT checkpoint (at the current
      * balanceSumCheckpointIndex).
      */
     function _addAssetToBalanceShare(
         BalanceShare storage _balanceShare,
-        BalanceSumCheckpoint storage _balanceSumCheckpoint,
+        BalanceSumCheckpoint storage _currentBalanceSumCheckpoint,
         address asset,
-        uint256 amountToAllocate
-    ) internal returns (
-        BalanceSum storage _currentBalanceSum
-    ) {
-        BalanceSumCheckpoint storage _currentBalanceSumCheckpoint = _balanceSumCheckpoint;
-        _currentBalanceSum = _getBalanceSum(_currentBalanceSumCheckpoint, asset);
-
-        // First, transfer the asset to this contract
-        if (asset == address(0)) {
-            if (amountToAllocate != msg.value) {
-                revert InvalidMsgValue(amountToAllocate, msg.value);
-            }
-        } else {
-            SafeERC20.safeTransferFrom(IERC20(asset), msg.sender, address(this), amountToAllocate);
-        }
+        uint256 amountToAllocate,
+        uint256 newAssetRemainder
+    ) internal {
+        BalanceSumCheckpoint storage _balanceSumCheckpoint = _currentBalanceSumCheckpoint;
 
         if (amountToAllocate > 0) {
+            // First, transfer the asset to this contract
+            if (asset == address(0)) {
+                if (amountToAllocate != msg.value) {
+                    revert InvalidMsgValue(amountToAllocate, msg.value);
+                }
+            } else {
+                SafeERC20.safeTransferFrom(IERC20(asset), msg.sender, address(this), amountToAllocate);
+            }
+
             unchecked {
+                BalanceSum storage _currentBalanceSum = _getBalanceSum(_balanceSumCheckpoint, asset);
                 uint256 currentBalance = _currentBalanceSum.balance;
-                uint256 balanceIncrease;
                 while (true) {
                     // For each checkpoint, the balance cannot exceed MAX_BALANCE_SUM
-                    balanceIncrease = Math.min(amountToAllocate, MAX_BALANCE_SUM - currentBalance);
+                    uint256 balanceIncrease = Math.min(amountToAllocate, MAX_BALANCE_SUM - currentBalance);
                     _currentBalanceSum.balance = uint208(currentBalance + balanceIncrease);
+                    _currentBalanceSum.remainder = uint48(newAssetRemainder);
 
                     // Finished once the allocation reaches zero
                     amountToAllocate -= balanceIncrease;
@@ -500,14 +541,14 @@ contract BalanceSharesSingleton {
                     }
 
                     // Increment the checkpoint index, update the BalanceSumCheckpoint reference (copy the totalBps)
-                    uint256 totalBps = _currentBalanceSumCheckpoint.totalBps;
-                    _currentBalanceSumCheckpoint =
+                    uint256 totalBps = _balanceSumCheckpoint.totalBps;
+                    _balanceSumCheckpoint =
                         _balanceShare.balanceSumCheckpoints[++_balanceShare.balanceSumCheckpointIndex];
-                    _currentBalanceSumCheckpoint.totalBps = totalBps;
+                    _balanceSumCheckpoint.totalBps = totalBps;
                     // Reset currentBalance to zero
                     currentBalance = 0;
                     // Update the BalanceSum reference
-                    _currentBalanceSum = _getBalanceSum(_currentBalanceSumCheckpoint, asset);
+                    _currentBalanceSum = _getBalanceSum(_balanceSumCheckpoint, asset);
                 }
             }
         }
