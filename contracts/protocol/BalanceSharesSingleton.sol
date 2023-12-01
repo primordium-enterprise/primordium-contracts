@@ -566,14 +566,23 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
             }
         }
 
-        // First, transfer the asset to this contract
+        // Transfer the asset to this contract
         if (asset == address(0)) {
+            // Validate the msg.value
             if (amountToAllocate != msg.value) {
                 revert InvalidMsgValue(amountToAllocate, msg.value);
             }
         } else {
-            SafeERC20.safeTransferFrom(IERC20(asset), msg.sender, address(this), amountToAllocate);
+            // No msg.value allowed for ERC20 transfer
+            if (msg.value > 0) {
+                revert InvalidMsgValue(0, msg.value);
+            }
+            // Only need to call transfer if the amount is greater than zero
+            if (amountToAllocate > 0) {
+                SafeERC20.safeTransferFrom(IERC20(asset), msg.sender, address(this), amountToAllocate);
+            }
         }
+
 
         unchecked {
             uint256 currentBalance = _currentBalanceSum.balance;
