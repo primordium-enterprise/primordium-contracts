@@ -15,7 +15,7 @@ interface IBalanceSharesManager {
         uint256 balanceShareId,
         address asset,
         uint256 balanceIncreasedBy
-    ) external view returns (uint256 amountToAllocate, uint256 newAssetRemainder);
+    ) external view returns (uint256 amountToAllocate);
 
     function allocateToBalanceShare(
         uint256 balanceShareId,
@@ -26,8 +26,7 @@ interface IBalanceSharesManager {
     function allocateToBalanceShareWithRemainder(
         uint256 balanceShareId,
         address asset,
-        uint256 amountToAllocate,
-        uint256 newAssetRemainder
+        uint256 balanceIncreasedBy
     ) external payable;
 
 }

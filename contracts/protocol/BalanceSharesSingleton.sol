@@ -41,7 +41,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * contract has storage collision paranoia. There are gas optimized function helpers to access some of these mapping
  * values, but changing the ordering of any of the mappings in storage will result in errors with these functions.
  */
-contract BalanceSharesSingleto is IBalanceSharesManager {
+contract BalanceSharesSingleton is IBalanceSharesManager {
     using BasisPoints for uint256;
 
     mapping(address client => mapping(uint256 balanceShareId => BalanceShare)) private _balanceShares;
@@ -167,7 +167,7 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
      * updates.
      * @notice If the update decreases the current BPS share or removable at timestamp for the account, then the current
      * block.timestamp must be greater than the account's existing removable at timestamp.
-     * @param balanceShareId The uint256 identifier of the balance share.
+     * @param balanceShareId The uint256 identifier of the client's balance share.
      * @param accounts An array of account addresses to update.
      * @param basisPoints An array of the new basis point share values for each account.
      * @param removableAts An array of the new removable at timestamps, before which the account's BPS cannot be
@@ -193,7 +193,7 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
     /**
      * For the given balance share ID, updates the BPS share for each provided account, or creates a new BPS share for
      * accounts that do not already have an active BPS share (in which case the removable at timestamp will be zero).
-     * @param balanceShareId The uint256 identifier of the balance share.
+     * @param balanceShareId The uint256 identifier of the client's balance share.
      * @param accounts An array of account addresses to update the BPS for.
      * @param basisPoints An array of the new basis point share values for each account.
      * @return totalBps The new total BPS for the balance share.
@@ -213,7 +213,7 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
     /**
      * Updates the removable at timestamps for the provided accounts. Reverts if the account does not have an active
      * BPS share.
-     * @param balanceShareId The uint256 identifier of the balance share.
+     * @param balanceShareId The uint256 identifier of the client's balance share.
      * @param accounts An array of account addresses to update the BPS for.
      * @param removableAts An array of the new removable at timestamps, before which the account's BPS cannot be
      * decreased.
@@ -381,7 +381,7 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
      * For the provided balance share and asset, returns the amount of the asset to send to this contract for the
      * provided amount that the balance increased by (as a function of the balance share's total BPS).
      * @param client The client account for the balance share.
-     * @param balanceShareId The uint256 identifier of the balance share.
+     * @param balanceShareId The uint256 identifier of the client's balance share.
      * @param asset The ERC20 asset to process the balance share for (address(0) for ETH).
      * @param balanceIncreasedBy The amount that the total balance share increased by.
      * @return amountToAllocate The amount of the asset that should be allocated to the balance share. Mathematically:
@@ -393,39 +393,11 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
         address asset,
         uint256 balanceIncreasedBy
     ) public view returns (uint256 amountToAllocate) {
-        (amountToAllocate,) = _calculateBalanceShareAllocation(
+        (amountToAllocate,,) = _calculateBalanceShareAllocation(
             _getBalanceShare(client, balanceShareId),
             asset,
             balanceIncreasedBy,
             false
-        );
-    }
-
-    /**
-     * Same as {getBalanceShareAllocation}, but also includes integer remainders from the previous balance allocation.
-     * This is useful for calculations with small balance increase amounts relative to the max BPS (10,000). Use this
-     * in conjunction with {allocateToBalanceShareWithRemainder} to track the remainders over each allocation.
-     * @param client The client account for the balance share.
-     * @param balanceShareId The uint256 identifier of the balance share.
-     * @param asset The ERC20 asset to process the balance share for (address(0) for ETH).
-     * @param balanceIncreasedBy The amount that the total balance share increased by.
-     * @return amountToAllocate The amount of the asset that should be allocated to the balance share. Mathematically:
-     * amountToAllocate = (balanceIncreasedBy + previousAssetRemainder) * totalBps / 10_000
-     * @return newAssetRemainder The new asset remainder to be provided in the {allocateToBalanceShareWithRemainder}
-     * function. Mathematically (using the modulus):
-     * newAssetRemainder = (balanceIncreasedBy + previousAssetRemainder) * totalBps % 10_000
-     */
-    function getBalanceShareAllocationWithRemainder(
-        address client,
-        uint256 balanceShareId,
-        address asset,
-        uint256 balanceIncreasedBy
-    ) public view returns (uint256 amountToAllocate, uint256 newAssetRemainder) {
-        (amountToAllocate, newAssetRemainder) = _calculateBalanceShareAllocation(
-            _getBalanceShare(client, balanceShareId),
-            asset,
-            balanceIncreasedBy,
-            true
         );
     }
 
@@ -441,13 +413,38 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
     }
 
     /**
+     * Same as {getBalanceShareAllocation}, but also includes integer remainders from the previous balance allocation.
+     * This is useful for calculations with small balance increase amounts relative to the max BPS (10,000). Use this
+     * in conjunction with {allocateToBalanceShareWithRemainder} to track the remainders over each allocation.
+     * @param client The client account for the balance share.
+     * @param balanceShareId The uint256 identifier of the client's balance share.
+     * @param asset The ERC20 asset to process the balance share for (address(0) for ETH).
+     * @param balanceIncreasedBy The amount that the total balance share increased by.
+     * @return amountToAllocate The amount of the asset that should be allocated to the balance share. Mathematically:
+     * amountToAllocate = (balanceIncreasedBy + previousAssetRemainder) * totalBps / 10_000
+     */
+    function getBalanceShareAllocationWithRemainder(
+        address client,
+        uint256 balanceShareId,
+        address asset,
+        uint256 balanceIncreasedBy
+    ) public view returns (uint256 amountToAllocate) {
+        (amountToAllocate,,) = _calculateBalanceShareAllocation(
+            _getBalanceShare(client, balanceShareId),
+            asset,
+            balanceIncreasedBy,
+            true
+        );
+    }
+
+    /**
      * Same as {getBalanceShareAllocationWithRemainder} above, but uses the msg.sender as the "client" parameter.
      */
     function getBalanceShareAllocationWithRemainder(
         uint256 balanceShareId,
         address asset,
         uint256 balanceIncreasedBy
-    ) external view override returns (uint256, uint256) {
+    ) external view override returns (uint256) {
         return getBalanceShareAllocationWithRemainder(msg.sender, balanceShareId, asset, balanceIncreasedBy);
     }
 
@@ -458,9 +455,10 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
         bool useRemainder
     ) internal view returns (
         uint256 amountToAllocate,
-        uint256 newAssetRemainder
+        uint256 newAssetRemainder,
+        BalanceSumCheckpoint storage _currentBalanceSumCheckpoint
     ) {
-        BalanceSumCheckpoint storage _currentBalanceSumCheckpoint = _getCurrentBalanceSumCheckpoint(_balanceShare);
+        _currentBalanceSumCheckpoint = _getCurrentBalanceSumCheckpoint(_balanceShare);
 
         uint256 totalBps = _currentBalanceSumCheckpoint.totalBps;
         if (totalBps > 0) {
@@ -475,9 +473,10 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
     }
 
     /**
-     * Allocates the provided amount of the asset to the balance share.
+     * Transfers the specified amount to allocate of the given ERC20 asset from the msg.sender to this contract to be
+     * split amongst the account shares for this balance share ID.
      * @param client The client account for the balance share.
-     * @param balanceShareId The uint256 identifier of the balance share.
+     * @param balanceShareId The uint256 identifier of the client's balance share.
      * @param asset The ERC20 asset to process the balance share for (address(0) for ETH).
      * @param amountToAllocate The amount of the asset to transfer. This must equal the msg.value for asset address(0),
      * otherwise this contract must be approved to transfer at least this amount for the ERC20 asset.
@@ -488,28 +487,24 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
         address asset,
         uint256 amountToAllocate
     ) public payable {
-        _allocateToBalanceShare(client, balanceShareId, asset, amountToAllocate, MAX_BPS);
-    }
+        BalanceShare storage _balanceShare = _getBalanceShare(client, balanceShareId);
+        BalanceSumCheckpoint storage _currentBalanceSumCheckpoint = _getCurrentBalanceSumCheckpoint(_balanceShare);
 
-    /**
-     * Allocates the provided amount of the asset to the balance share, but also overwrites the current asset integer
-     * remainder with the newly provided one.
-     * @dev Intended to be used in conjunction with the {getBalanceShareAllocationWithRemainder} function.
-     * @param client The client account for the balance share.
-     * @param balanceShareId The uint256 identifier of the balance share.
-     * @param asset The ERC20 asset to process the balance share for (address(0) for ETH).
-     * @param amountToAllocate The amount of the asset to transfer. This must equal the msg.value for asset address(0),
-     * otherwise this contract must be approved to transfer at least this amount for the ERC20 asset.
-     * @param newAssetRemainder The new asset remainder, stored for future balance allocation calculations.
-     */
-    function allocateToBalanceShareWithRemainder(
-        address client,
-        uint256 balanceShareId,
-        address asset,
-        uint256 amountToAllocate,
-        uint256 newAssetRemainder
-    ) public payable {
-        _allocateToBalanceShare(client, balanceShareId, asset, amountToAllocate, newAssetRemainder);
+        // Check that the balance share is active
+        if (_currentBalanceSumCheckpoint.totalBps == 0) {
+            revert BalanceShareInactive(client, balanceShareId);
+        }
+
+        // Add the amount to the share (use MAX_BPS for remainder to signal no change)
+        _addAssetToBalanceShare(
+            _balanceShare,
+            _getCurrentBalanceSumCheckpoint(_balanceShare),
+            asset,
+            amountToAllocate,
+            MAX_BPS
+        );
+
+        emit BalanceShareAssetAllocated(client, balanceShareId, asset, amountToAllocate);
     }
 
     /**
@@ -524,51 +519,43 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
     }
 
     /**
-     * Same as {allocateToBalanceShareWithRemainder} above, but uses msg.sender as the "client" parameter.
+     * Calculates the amount to allocate using the provided amount the balance increased by, adding in the integer
+     * remainder from the last balance allocation, and transfers the amount to allocate to this contract. Tracks the
+     * resulting remainder for the next function call as well.
+     * @notice The msg.sender is used as the client for this function, meaning only the client owner of a balance share
+     * can process balance increases with the remainder included. This is to prevent an attack vector where outside
+     * parties increment the remainder right up to the threshold.
+     * @dev Intended to be used in conjunction with the {getBalanceShareAllocationWithRemainder} function.
+     * @param balanceShareId The uint256 identifier of the client's balance share.
+     * @param asset The ERC20 asset to process the balance share for (address(0) for ETH).
+     * @param balanceIncreasedBy The amount of the asset to transfer. This must equal the msg.value for asset of
+     * address(0), otherwise this contract must be approved to transfer at least this amount for the ERC20 asset.
      */
     function allocateToBalanceShareWithRemainder(
         uint256 balanceShareId,
         address asset,
-        uint256 amountToAllocate,
-        uint256 newAssetRemainder
-    ) external payable override {
-        allocateToBalanceShareWithRemainder(msg.sender, balanceShareId, asset, amountToAllocate, newAssetRemainder);
-    }
+        uint256 balanceIncreasedBy
+    ) public payable {
+        if (balanceIncreasedBy > 0) {
+            BalanceShare storage _balanceShare = _getBalanceShare(msg.sender, balanceShareId);
 
-    /**
-     * @dev Allocates the provided amount to the balance share. Skips asset remainder update if newAssetRemainder is
-     * equal to the MAX_BPS.
-     */
-    function _allocateToBalanceShare(
-        address client,
-        uint256 balanceShareId,
-        address asset,
-        uint256 amountToAllocate,
-        uint256 newAssetRemainder
-    ) internal {
-        // Validate the asset remainder
-        if (newAssetRemainder > MAX_BPS) {
-            revert InvalidAssetRemainder(newAssetRemainder, MAX_BPS);
+            // Calculate the amount to allocate and asset remainder internally
+            (
+                uint256 amountToAllocate,
+                uint256 newAssetRemainder,
+                BalanceSumCheckpoint storage _currentBalanceSumCheckpoint
+            ) = _calculateBalanceShareAllocation(_balanceShare, asset, balanceIncreasedBy, true);
+
+            _addAssetToBalanceShare(
+                _balanceShare,
+                _currentBalanceSumCheckpoint,
+                asset,
+                amountToAllocate,
+                newAssetRemainder
+            );
+
+            emit BalanceShareAssetAllocated(msg.sender, balanceShareId, asset, amountToAllocate);
         }
-
-        BalanceShare storage _balanceShare = _getBalanceShare(client, balanceShareId);
-        BalanceSumCheckpoint storage _currentBalanceSumCheckpoint = _getCurrentBalanceSumCheckpoint(_balanceShare);
-
-        // Check that the balance share is active
-        if (_currentBalanceSumCheckpoint.totalBps == 0) {
-            revert BalanceShareInactive(client, balanceShareId);
-        }
-
-        // Add the asset to the balance share (which transfers the asset to this contract)
-        _addAssetToBalanceShare(
-            _balanceShare,
-            _currentBalanceSumCheckpoint,
-            asset,
-            amountToAllocate,
-            newAssetRemainder
-        );
-
-        emit BalanceShareAssetAllocated(client, balanceShareId, asset, amountToAllocate);
     }
 
     /**
@@ -587,15 +574,6 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
         uint256 newAssetRemainder
     ) internal {
         BalanceSumCheckpoint storage _balanceSumCheckpoint = _currentBalanceSumCheckpoint;
-        BalanceSum storage _currentBalanceSum = _getBalanceSum(_balanceSumCheckpoint, asset);
-
-        // Decreasing the remainder for allocation of zero is not allowed
-        if (amountToAllocate == 0) {
-            uint256 currentAssetRemainder = _currentBalanceSum.remainder;
-            if (currentAssetRemainder <= newAssetRemainder) {
-                revert InvalidAssetAllocation(asset, amountToAllocate, newAssetRemainder, currentAssetRemainder);
-            }
-        }
 
         // Transfer the asset to this contract
         if (asset == address(0)) {
@@ -614,8 +592,8 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
             }
         }
 
-
         unchecked {
+            BalanceSum storage _currentBalanceSum = _getBalanceSum(_balanceSumCheckpoint, asset);
             uint256 currentBalance = _currentBalanceSum.balance;
 
             while (true) {
@@ -688,28 +666,6 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
     //     return balanceToBePaid;
     // }
 
-
-
-    // /**
-    //  * @dev Helper method to update the "removableAt" timestamp for an account. Can only decrease if msg.sender is the
-    //  * account, otherwise can only increase.
-    //  */
-    // function updateAccountRemovableAt(
-    //     BalanceShare storage _self,
-    //     address account,
-    //     uint256 newRemovableAt
-    // ) internal {
-    //     uint256 currentRemovableAt = _self._accounts[account].removableAt;
-    //     // If msg.sender, then can decrease, otherwise can only increase
-    //     // NOTE: This also ensures uninitiated accounts don't change anything as well. If msg.sender is the account,
-    //     // then currentRemovableAt will be zero, which will throw an error
-    //     if (
-    //         msg.sender == account ?
-    //         newRemovableAt >= currentRemovableAt :
-    //         newRemovableAt <= currentRemovableAt
-    //     ) revert Unauthorized();
-    //     _self._accounts[account].removableAt = SafeCast.toUint40(newRemovableAt);
-    // }
 
     // /**
     //  * @dev Approve the provided list of addresses to initiate withdrawal on the account. Approve address(0) to allow
@@ -856,21 +812,6 @@ contract BalanceSharesSingleto is IBalanceSharesManager {
     //         accountShare.lastWithdrawnAt
     //     );
     // }
-
-    // /**
-    //  * @dev An account is considered to be finished with withdrawals when the account's "lastBalanceCheckIndex" is
-    //  * greater than the account's "endIndex".
-    //  *
-    //  * Returns true if the account has not been initialized with any shares yet.
-    //  */
-    // function accountHasFinishedWithdrawals(
-    //     BalanceShare storage _self,
-    //     address account
-    // ) internal view returns (bool) {
-    //     return _accountHasFinishedWithdrawals(_self._accounts[account]);
-    // }
-
-
 
     // /**
     //  * @dev Private function to calculate the current balance owed to the AccountShare.
