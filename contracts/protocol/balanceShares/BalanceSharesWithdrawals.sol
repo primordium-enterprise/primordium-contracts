@@ -96,6 +96,7 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
         }
 
         // Set the end index (which is not allowed to be greater than _balanceShare.balanceSumCheckpointIndex + 1)
+        // End index is non-inclusive, so when calculating the max, we add 1 to the current index
         /// @solidity memory-safe-assembly
         assembly {
             let maxBalanceSumIndex := add(sload(_balanceShare.slot), 0x01)
@@ -175,10 +176,6 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
                     prevBalance := shr(0x30, packedWithdrawalCheckpoint)
                 }
 
-
-                // Updated will be endBalanceSumIndex - 1, because checkpoint is still active
-                uint256 updatedStartBalanceSumIndex = endBalanceSumIndex - 1;
-
                 // Loop through cached checkpoints
                 /**
                  * Skip to the cache index where this asset last withdrew from. Example:
@@ -219,8 +216,8 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
                     // Update the packed value in the WithdrawalCheckpointCache
                     /// @solidity memory-safe-assembly
                     assembly {
-                        // Store the endBalanceSumIndex - 1, because checkpoint is still active
-                        mstore(withdrawalCheckpointCache, or(updatedStartBalanceSumIndex, shl(0x30, prevBalance)))
+                        // Store the endBalanceSumIndex - 1 since end index is non-inclusive
+                        mstore(withdrawalCheckpointCache, or(sub(endBalanceSumIndex, 0x01), shl(0x30, prevBalance)))
                     }
                 }
 

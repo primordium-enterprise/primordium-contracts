@@ -32,6 +32,21 @@ contract BalanceSharesProcessing is BalanceSharesStorage, IBalanceSharesManager 
     }
 
     /**
+     * Returns the current total BPS for the given balance share (the combined BPS share of all active account shares).
+     * @param client The client account for the balance share.
+     * @param balanceShareId The uint256 identifier of the client's balance share.
+     * @return totalBps The current total BPS across all account shares for this balance share.
+     */
+    function getBalanceShareTotalBPS(
+        address client,
+        uint256 balanceShareId
+    ) public view returns (uint256 totalBps) {
+        totalBps = _getCurrentBalanceSumCheckpoint(
+            _getBalanceShare(client, balanceShareId)
+        ).totalBps;
+    }
+
+    /**
      * For the provided balance share and asset, returns the amount of the asset to send to this contract for the
      * provided amount that the balance increased by (as a function of the balance share's total BPS).
      * @param client The client account for the balance share.
