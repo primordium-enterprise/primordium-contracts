@@ -159,60 +159,67 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
         }
 
         // Loop through assets again (ouch), total the withdrawable asset balance across each BalanceSumCheckpointCache
-        for (uint256 i = 0; i < assetCount;) {
-            address asset = assets[i];
-            uint256 assetWithdrawBalance;
+        unchecked {
+            for (uint256 i = 0; i < assetCount;) {
+                address asset = assets[i];
+                uint256 assetWithdrawBalance;
 
-            // Unpack the withdrawal checkpoint cache
-            WithdrawalCheckpointCache memory withdrawalCheckpointCache = withdrawalCheckpointCaches[i];
-            uint256 startIndex;
-            uint256 prevBalance;
-            /// @solidity memory-safe-assembly
-            assembly {
-                let packedBalanceSumWithdrawal := mload(withdrawalCheckpointCache)
-                startIndex := and(packedBalanceSumWithdrawal, MASK_UINT48)
-                prevBalance := shr(0x30, packedBalanceSumWithdrawal)
-            }
-
-            // Loop through cached checkpoints, starting at this asset's starting point
-            uint256 j = checkpointCount - endBalanceSumIndex - startIndex;
-            if (j < checkpointCount) {
-                while (true) {
-                    BalanceSumCheckpointCache memory checkpoint = balanceSumCheckpointCaches[j];
-                    uint256 currentBalanceSum;
-                    /// @solidity memory-safe-assembly
-                    assembly {
-                        // Load the current balance sum
-                        mstore(0, asset)
-                        mstore(0x20, mload(add(checkpoint, 0x20)))
-                        currentBalanceSum := sload(keccak256(0, 0x40))
-                    }
-
-                    uint256 diff = currentBalanceSum - prevBalance;
-                    if (diff > 0 && checkpoint.totalBps > 0) {
-                        assetWithdrawBalance += Math.mulDiv(diff, bps, checkpoint.totalBps);
-                    }
-
-                    if (j == checkpointCount - 1) {
-                        prevBalance = currentBalanceSum;
-                        break;
-                    } else {
-                        prevBalance = 0;
-                        unchecked { ++j; }
-                    }
-                }
-
-                // Update the packed value in the WithdrawalCheckpointCache
+                // Unpack the withdrawal checkpoint cache
+                WithdrawalCheckpointCache memory withdrawalCheckpointCache = withdrawalCheckpointCaches[i];
+                uint256 startIndex;
+                uint256 prevBalance;
                 /// @solidity memory-safe-assembly
                 assembly {
-                    mstore(withdrawalCheckpointCache, or(endBalanceSumIndex, shl(0x30, prevBalance)))
+                    let packedBalanceSumWithdrawal := mload(withdrawalCheckpointCache)
+                    startIndex := and(packedBalanceSumWithdrawal, MASK_UINT48)
+                    prevBalance := shr(0x30, packedBalanceSumWithdrawal)
                 }
+
+
+                // Updated will be endBalanceSumIndex - 1, because checkpoint is still active
+                uint256 updatedStartBalanceSumIndex = endBalanceSumIndex - 1;
+
+                // Loop through cached checkpoints, starting at this asset's starting point
+                uint256 j = checkpointCount - endBalanceSumIndex - startIndex;
+                if (j < checkpointCount) {
+                    while (true) {
+                        BalanceSumCheckpointCache memory checkpoint = balanceSumCheckpointCaches[j];
+                        uint256 currentBalanceSum;
+                        /// @solidity memory-safe-assembly
+                        assembly {
+                            // Load the current balance sum
+                            mstore(0, asset)
+                            mstore(0x20, mload(add(checkpoint, 0x20)))
+                            currentBalanceSum := sload(keccak256(0, 0x40))
+                        }
+
+                        uint256 diff = currentBalanceSum - prevBalance;
+                        if (diff > 0 && checkpoint.totalBps > 0) {
+                            assetWithdrawBalance += Math.mulDiv(diff, bps, checkpoint.totalBps);
+                        }
+
+                        if (j == checkpointCount - 1) {
+                            prevBalance = currentBalanceSum;
+                            break;
+                        } else {
+                            prevBalance = 0;
+                            ++j;
+                        }
+                    }
+
+                    // Update the packed value in the WithdrawalCheckpointCache
+                    /// @solidity memory-safe-assembly
+                    assembly {
+                        // Store the endBalanceSumIndex - 1, because checkpoint is still active
+                        mstore(withdrawalCheckpointCache, or(updatedStartBalanceSumIndex, shl(0x30, prevBalance)))
+                    }
+                }
+
+                // Update the asset withdrawal balance
+                withdrawableBalances[i] = assetWithdrawBalance;
+
+                ++i;
             }
-
-            // Update the asset withdrawal balance
-            withdrawableBalances[i] = assetWithdrawBalance;
-
-            unchecked { ++i; }
         }
     }
 
