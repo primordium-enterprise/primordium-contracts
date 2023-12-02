@@ -8,38 +8,38 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract BalanceSharesWithdrawals is BalanceSharesStorage {
 
-    // Helper struct to be used in memory when withdrawing
-    struct BalanceSumWithdrawalCache {
-        bytes32 slot;
+    struct WithdrawalCheckpointCache {
+        bytes32 storageSlot;
         bytes32 packedValue;
     }
 
     struct BalanceSumCheckpointCache {
         uint256 totalBps;
-        bytes32 baalnceSumsSlot;
+        bytes32 balanceSumsStorageSlot;
     }
 
-    error NoAssetsProvided();
+    error MissingAssets();
 
-    function _getAccountPeriodAssetBalances(
+    function _getAccountPeriodWithdrawableBalances(
         BalanceShare storage _balanceShare,
         address account,
         address[] memory assets,
         uint256 periodIndex
     ) internal view returns (
-        uint256[] memory withdrawBalances,
-        BalanceSumWithdrawalCache[] memory balanceSumWithdrawals
+        uint256[] memory withdrawableBalances,
+        WithdrawalCheckpointCache[] memory withdrawalCheckpointCaches
     ) {
-        if (assets.length == 0) {
-            revert NoAssetsProvided();
+        uint256 assetCount = assets.length;
+        if (assetCount == 0) {
+            revert MissingAssets();
         }
 
-        withdrawBalances = new uint256[](assets.length);
-        balanceSumWithdrawals = new BalanceSumWithdrawalCache[](assets.length);
+        withdrawableBalances = new uint256[](assetCount);
+        withdrawalCheckpointCaches = new WithdrawalCheckpointCache[](assetCount);
 
         AccountSharePeriod storage _accountSharePeriod = _balanceShare.accounts[account].periods[periodIndex];
 
-        // Unpack the struct values
+        // Unpack the AccountSharePeriod struct values
         uint256 bps;
         uint256 startBalanceSumIndex;
         uint256 endBalanceSumIndex;
@@ -53,74 +53,87 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
             endBalanceSumIndex := and(shr(0x40, mload(0)), MASK_UINT48)
         }
 
+        // Zero bps, just return zero values
         if (bps == 0) {
-            return (withdrawBalances, balanceSumWithdrawals);
+            return (withdrawableBalances, withdrawalCheckpointCaches);
         }
 
-        // Set the end index, keeping max index in mind
-        uint256 maxEndBalanceSumIndex = _balanceShare.balanceSumCheckpointIndex + 1;
-        if (maxEndBalanceSumIndex < endBalanceSumIndex) {
-            endBalanceSumIndex = maxEndBalanceSumIndex;
+        // Set the end index (which should not be greater than _balanceShare.balanceSumCheckpointIndex + 1)
+        /// @solidity memory-safe-assembly
+        assembly {
+            mstore(0, add(sload(_balanceShare.slot), 0x01))
+            if lt(mload(0), endBalanceSumIndex) {
+                endBalanceSumIndex := mload(0)
+            }
         }
 
-        {
-            // Initialize the array of balanceSumWithdrawals with the packed values and the storage slot references
-            uint256 skipToStartIndex = endBalanceSumIndex;
-            for (uint256 i = 0; i < assets.length;) {
-                BalanceSumWithdrawal storage _balanceSumWithdrawal =
-                    _accountSharePeriod.assetBalanceSumWithdrawal[assets[i]];
-                assembly {
-                    // Store the address of the current asset struct in scratch space
-                    mstore(0, mload(add(mul(i, 0x20), add(balanceSumWithdrawals, 0x20))))
-                    // Store slot in struct
-                    mstore(mload(0), _balanceSumWithdrawal.slot)
-                    // Store packed value in struct
-                    mstore(0x20, sload(_balanceSumWithdrawal.slot))
-                    mstore(add(mload(0), 0x20), mload(0x20))
 
-                    // Read the currentCheckpointIndex, and assign to skipToStartIndex if lower than the current value
-                    mstore(0, and(mload(0x20), MASK_UINT48))
-                    if lt(mload(0), skipToStartIndex) {
-                        skipToStartIndex := mload(0)
-                    }
+        // Initialize the array of withdrawalCheckpointCaches with the packed values and the storage slot references
+        /// @solidity memory-safe-assembly
+        assembly {
+            let skipToStartIndex := endBalanceSumIndex
+            let _withdrawalCheckpointSlot := 0
+
+            for { let i := 0 } lt(i, assetCount) { i := add(i, 0x01) } {
+                // Get the mapping slot for the WithdrawalCheckpoint first
+                mstore(0, mload(add(mul(i, 0x20), add(assets, 0x20))))
+                mstore(0x20, add(_accountSharePeriod.slot, 0x01))
+                _withdrawalCheckpointSlot := keccak256(0, 0x40)
+
+                // Store the address of the current withdrawalCheckpointCache struct in scratch space
+                mstore(0, mload(add(mul(i, 0x20), add(withdrawalCheckpointCaches, 0x20))))
+                // set storageSlot in struct
+                mstore(mload(0), _withdrawalCheckpointSlot)
+                // set packedValue in struct
+                mstore(0x20, sload(_withdrawalCheckpointSlot))
+                mstore(add(mload(0), 0x20), mload(0x20))
+
+                // Read the currentCheckpointIndex, and assign to skipToStartIndex if lower than the current value
+                let currentCheckpointIndex := and(mload(0x20), MASK_UINT48)
+                if lt(currentCheckpointIndex, skipToStartIndex) {
+                    skipToStartIndex := currentCheckpointIndex
                 }
-
-                unchecked { ++i; }
             }
 
-            startBalanceSumIndex = skipToStartIndex;
+            startBalanceSumIndex := skipToStartIndex
         }
 
-        // Cache the needed BalanceSumCheckpoints in memory
+        // Cache the BalanceSumCheckpoints in memory that will be used for each asset
         uint256 checkpointCount = endBalanceSumIndex - startBalanceSumIndex;
-        BalanceSumCheckpointCache[] memory checkpointCaches = new BalanceSumCheckpointCache[](checkpointCount);
+        BalanceSumCheckpointCache[] memory balanceSumCheckpointCaches =
+            new BalanceSumCheckpointCache[](checkpointCount);
 
-        for (uint256 i = 0; i < checkpointCount;) {
-            BalanceSumCheckpoint storage _balanceSumCheckpoint =
-                _balanceShare.balanceSumCheckpoints[startBalanceSumIndex + i];
+        /// @solidity memory-safe-assembly
+        assembly {
+            let _balanceSumCheckpointSlot := 0
 
-            assembly {
-                // Store the address of the current struct in scratch space
-                mstore(0, mload(add(mul(i, 0x20), add(checkpointCaches, 0x20))))
-                // Store the totalBps
-                mstore(mload(0), sload(_balanceSumCheckpoint.slot))
-                // Store the slot for the mapping, used below to retrieve value based on asset key
-                mstore(add(mload(0), 0x20), add(_balanceSumCheckpoint.slot, 0x01))
+            for { let i := 0 } lt(i, checkpointCount) { i := add(i, 0x01) } {
+                // Get the mapping slot for the BalanceSumCheckpoint first
+                mstore(0, add(startBalanceSumIndex, i))
+                mstore(0x20, add(_balanceShare.slot, 0x01))
+                _balanceSumCheckpointSlot := keccak256(0, 0x40)
+
+                // Pointer to the address of the current struct in scratch space
+                let cache := mload(add(mul(i, 0x20), add(balanceSumCheckpointCaches, 0x20)))
+                // cache the totalBps
+                mstore(cache, sload(_balanceSumCheckpointSlot))
+                // cache the slot for the mapping, used below to retrieve value based on asset key
+                mstore(add(cache, 0x20), add(_balanceSumCheckpointSlot, 0x01))
             }
-
-            unchecked { ++i; }
         }
 
-        // Finally, loop through each asset again (yes repetitive), calculate sum total asset balance with account bps
-        for (uint256 i = 0; i < assets.length;) {
+        // Loop through assets again (ouch), total the withdrawable asset balance across each BalanceSumCheckpointCache
+        for (uint256 i = 0; i < assetCount;) {
             address asset = assets[i];
             uint256 assetWithdrawBalance;
 
-            bytes32 packedBalanceSumWithdrawal = balanceSumWithdrawals[i].packedValue;
-
+            // Unpack the withdrawal checkpoint cache
+            WithdrawalCheckpointCache memory withdrawalCheckpointCache = withdrawalCheckpointCaches[i];
             uint256 startIndex;
             uint256 prevBalance;
+            /// @solidity memory-safe-assembly
             assembly {
+                let packedBalanceSumWithdrawal := mload(add(withdrawalCheckpointCache, 0x20))
                 startIndex := and(packedBalanceSumWithdrawal, MASK_UINT48)
                 prevBalance := shr(0x30, packedBalanceSumWithdrawal)
             }
@@ -128,9 +141,10 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
             // Loop through cached checkpoints, starting at this asset's starting point
             uint256 j = endBalanceSumIndex - startIndex;
             while (true) {
-                BalanceSumCheckpointCache memory checkpoint = checkpointCaches[j];
+                BalanceSumCheckpointCache memory checkpoint = balanceSumCheckpointCaches[j];
                 uint256 currentBalanceSum;
                 assembly {
+                    // Load the current balance sum
                     mstore(0, asset)
                     mstore(0x20, mload(add(checkpoint, 0x20)))
                     currentBalanceSum := sload(keccak256(0, 0x40))
@@ -150,14 +164,13 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
                 }
             }
 
-            // Update the BalanceSumWithdrawalCache
+            // Update the packed value in the WithdrawalCheckpointCache
             assembly {
-                packedBalanceSumWithdrawal := or(endBalanceSumIndex, shl(0x30, prevBalance))
+                mstore(add(withdrawalCheckpointCache, 0x20), or(endBalanceSumIndex, shl(0x30, prevBalance)))
             }
-            balanceSumWithdrawals[i].packedValue = packedBalanceSumWithdrawal;
 
             // Update the asset withdrawal balance
-            withdrawBalances[i] = assetWithdrawBalance;
+            withdrawableBalances[i] = assetWithdrawBalance;
 
             unchecked { ++i; }
         }

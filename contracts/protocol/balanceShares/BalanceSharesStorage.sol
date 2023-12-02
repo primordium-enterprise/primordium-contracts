@@ -69,10 +69,10 @@ mapping(address client => mapping(uint256 balanceShareId => BalanceShare)) inter
         // Timestamp in seconds at which the account share bps can be decreased or removed by the client
         uint48 removableAt;
         // Tracks the current balance sum position for the last withdrawal per asset
-        mapping(address asset => BalanceSumWithdrawal) assetBalanceSumWithdrawal;
+        mapping(address asset => WithdrawalCheckpoint) withdrawalCheckpoints;
     }
 
-    struct BalanceSumWithdrawal {
+    struct WithdrawalCheckpoint {
         uint48 currentCheckpointIndex; // The current asset balance check index for the account
         uint208 previousBalanceAtWithdrawal; // The asset balance when it was last withdrawn by the account
     }
