@@ -7,9 +7,7 @@ import {BalanceSharesStorage} from "./balanceShares/BalanceSharesStorage.sol";
 import {BalanceSharesProcessing} from "./balanceShares/BalanceSharesProcessing.sol";
 import {BalanceSharesAccounts} from "./balanceShares/BalanceSharesAccounts.sol";
 import {BalanceSharesWithdrawals} from "./balanceShares/BalanceSharesWithdrawals.sol";
-import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
+import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 /**
  * @title A singleton contract for clients to manage account shares (in basis points) for ETH/ERC20 assets.
@@ -42,12 +40,13 @@ import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
  * values, but changing the ordering of any of the mappings in storage will result in errors with these functions.
  */
 contract BalanceSharesSingleton is
-    BalanceSharesAccounts,
-    BalanceSharesWithdrawals,
+    BalanceSharesStorage,
     BalanceSharesProcessing,
+    BalanceSharesAccounts,
+    BalanceSharesWithdrawals
 {
 
-    function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC165, BalanceSharesProcessing) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
