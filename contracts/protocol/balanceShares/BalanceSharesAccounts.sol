@@ -13,7 +13,14 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  */
 contract BalanceSharesAccounts is BalanceSharesStorage {
 
-    event AccountShareBpsUpdate(
+    event BalanceShareTotalBPSUpdate(
+        address indexed client,
+        uint256 indexed balanceShareId,
+        uint256 oldBps,
+        uint256 newBps
+    );
+
+    event AccountShareBPSUpdate(
         address indexed client,
         uint256 indexed balanceShareId,
         address indexed account,
@@ -244,7 +251,7 @@ contract BalanceSharesAccounts is BalanceSharesStorage {
                 }
 
                 // Log bps update
-                emit AccountShareBpsUpdate(
+                emit AccountShareBPSUpdate(
                     client,
                     balanceShareId,
                     account,
@@ -279,6 +286,11 @@ contract BalanceSharesAccounts is BalanceSharesStorage {
             revert UpdateExceedsMaxTotalBps(newTotalBps, MAX_BPS);
         }
 
+        // Update the storage value (even if no change) because it might be a new balance sum checkpoint
         _balanceShare.balanceSumCheckpoints[balanceSumCheckpointIndex].totalBps = newTotalBps;
+
+        if (newTotalBps != totalBps) {
+            emit BalanceShareTotalBPSUpdate(client, balanceShareId, totalBps, newTotalBps);
+        }
     }
 }
