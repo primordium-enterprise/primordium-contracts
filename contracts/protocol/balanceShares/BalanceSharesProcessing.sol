@@ -16,13 +16,19 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract BalanceSharesProcessing is BalanceSharesStorage, IBalanceSharesManager {
 
     error BalanceShareInactive(address client, uint256 balanceShareId);
+    error InvalidAllocationAmount(uint256 amountToAllocate);
     error InvalidMsgValue(uint256 expectedValue, uint256 actualValue);
 
+    /**
+     * Emitted when an asset is allocated to a balance share for the specified client and balance share ID.
+     * @notice The new asset remainder will only be included if the amountAllocated is zero.
+     */
     event BalanceShareAssetAllocated(
         address indexed client,
         uint256 indexed balanceShareId,
         address indexed asset,
-        uint256 amountAllocated
+        uint256 amountAllocated,
+        uint256 newAssetRemainder
     );
 
     function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
@@ -156,6 +162,10 @@ contract BalanceSharesProcessing is BalanceSharesStorage, IBalanceSharesManager 
         address asset,
         uint256 amountToAllocate
     ) public payable {
+        if (amountToAllocate == 0) {
+            revert InvalidAllocationAmount(amountToAllocate);
+        }
+
         BalanceShare storage _balanceShare = _getBalanceShare(client, balanceShareId);
         BalanceSumCheckpoint storage _currentBalanceSumCheckpoint = _getCurrentBalanceSumCheckpoint(_balanceShare);
 
@@ -173,7 +183,7 @@ contract BalanceSharesProcessing is BalanceSharesStorage, IBalanceSharesManager 
             MAX_BPS
         );
 
-        emit BalanceShareAssetAllocated(client, balanceShareId, asset, amountToAllocate);
+        emit BalanceShareAssetAllocated(client, balanceShareId, asset, amountToAllocate, 0);
     }
 
     /**
@@ -223,7 +233,7 @@ contract BalanceSharesProcessing is BalanceSharesStorage, IBalanceSharesManager 
                 newAssetRemainder
             );
 
-            emit BalanceShareAssetAllocated(msg.sender, balanceShareId, asset, amountToAllocate);
+            emit BalanceShareAssetAllocated(msg.sender, balanceShareId, asset, amountToAllocate, newAssetRemainder);
         }
     }
 
@@ -264,99 +274,63 @@ contract BalanceSharesProcessing is BalanceSharesStorage, IBalanceSharesManager 
         unchecked {
             BalanceSum storage _currentBalanceSum = _getBalanceSum(_balanceSumCheckpoint, asset);
 
-            // TODO: Make the whole while loop in assembly
-
-            // uint256 maxBalanceSum = MAX_BALANCE_SUM_BALANCE;
-            // uint256 maxBps = MAX_BPS;
-            // /// @solidity memory-safe-assembly
-            // assembly {
-            //     // Cache current packed BalanceSum slot to memory
-            //     let balanceSumPacked := sload(_currentBalanceSum.slot)
-            //     // Load current remainder (first 48 bits)
-            //     let assetRemainder := and(balanceSumPacked, MASK_UINT48)
-            //     // Update to new remainder if the new one is less than MAX_BPS
-            //     if lt(newAssetRemainder, maxBps) {
-            //         assetRemainder := newAssetRemainder
-            //     }
-            //     // Load current balance (shift BalanceSum slot right by 48 bits)
-            //     let assetBalance := shr(0x30, balanceSumPacked)
-
-            //     for { } true { } {
-            //         // Set the balance increase amount in scratch space (do not allow overflow of BalanceSum.balance)
-            //         mstore(0, sub(maxBalanceSum, assetBalance))
-            //         if lt(amountToAllocate, mload(0)) {
-            //             mstore(0, amountToAllocate)
-            //         }
-
-            //         // Add to the current balance
-            //         assetBalance := add(assetBalance, mload(0))
-
-            //         // Update the slot cache in memory, then store
-            //         balanceSumPacked := or(shl(0x30, assetBalance), assetRemainder)
-            //         sstore(_currentBalanceSum.slot, balanceSumPacked)
-
-            //         // Finished once the allocation reaches zero
-            //         amountToAllocate := sub(amountToAllocate, mload(0))
-            //         if eq(amountToAllocate, 0) {
-            //             break
-            //         }
-
-            //         // If more to allocate, increment the balance sum checkpoint index (copy the totalBps)
-            //         let totalBps := sload(_balanceSumCheckpoint.slot)
-            //         // Store incremented checkpoint index in scratch space and update in storage
-            //         mstore(0, add(sload(_balanceShare.slot), 0x01))
-            //         sstore(_balanceShare.slot, mload(0))
-            //         // Set the new storage reference for the BalanceSumCheckpoint
-            //         // keccak256(_balanceShare.balanceSumCheckpointIndex . _balanceShare.balanceSumCheckpoints.slot))
-            //         mstore(0x20, add(_balanceShare.slot, 0x01))
-            //         _balanceSumCheckpoint.slot := keccak256(0, 0x40)
-            //         // Copy over the totalBps
-            //         sstore(_balanceSumCheckpoint.slot, totalBps)
-
-            //         // Reset the current balance to zero in memory, update the BalanceSum reference
-            //         // keccak256(address . _balanceSumCheckpoint.balanceSums.slot))
-            //         assetBalance := 0
-            //         mstore(0, asset)
-            //         mstore(0x20, add(_balanceSumCheckpoint.slot, 0x01))
-            //         _currentBalanceSum.slot := keccak256(0, 0x40)
-            //     }
-            // }
-
-            uint256 assetRemainder = _currentBalanceSum.remainder;
-            uint256 assetBalance = _currentBalanceSum.balance;
-            if (newAssetRemainder < MAX_BPS) {
-                assetRemainder = newAssetRemainder;
-            }
-
-            while (true) {
-                // For each checkpoint, the balance cannot exceed MAX_BALANCE_SUM_BALANCE
-                uint256 balanceIncrease = MAX_BALANCE_SUM_BALANCE - assetBalance;
-                if (amountToAllocate < balanceIncrease) {
-                    balanceIncrease = amountToAllocate;
+            uint256 maxBalanceSum = MAX_BALANCE_SUM_BALANCE;
+            uint256 maxBps = MAX_BPS;
+            /// @solidity memory-safe-assembly
+            assembly {
+                // Cache current packed BalanceSum slot
+                let balanceSumPacked := sload(_currentBalanceSum.slot)
+                // Load current remainder (first 48 bits)
+                let assetRemainder := and(balanceSumPacked, MASK_UINT48)
+                // Update to new remainder if the new one is less than MAX_BPS
+                if lt(newAssetRemainder, maxBps) {
+                    assetRemainder := newAssetRemainder
                 }
-                assetBalance += balanceIncrease;
-                assembly {
-                    // Store the packed remainder + balance (shift the assetBalance left by 48 bits)
-                    sstore(_currentBalanceSum.slot, or(assetRemainder, shl(0x30, assetBalance)))
-                }
+                // Load current balance (shift BalanceSum slot right by 48 bits)
+                let assetBalance := shr(0x30, balanceSumPacked)
 
-                // Finished once the allocation reaches zero
-                amountToAllocate -= balanceIncrease;
-                if (amountToAllocate == 0) {
-                    break;
-                }
+                for { } true { } {
+                    // Set the balance increase amount (do not allow overflow of BalanceSum.balance)
+                    let balanceIncrease := sub(maxBalanceSum, assetBalance)
+                    if lt(amountToAllocate, balanceIncrease) {
+                        balanceIncrease := amountToAllocate
+                    }
 
-                // Increment the checkpoint index, update the BalanceSumCheckpoint reference (copy the totalBps)
-                uint256 totalBps = _balanceSumCheckpoint.totalBps;
-                _balanceSumCheckpoint =
-                    _balanceShare.balanceSumCheckpoints[++_balanceShare.balanceSumCheckpointIndex];
-                _balanceSumCheckpoint.totalBps = totalBps;
-                // Reset currentBalance to zero
-                assetBalance = 0;
-                // Update the BalanceSum reference
-                _currentBalanceSum = _getBalanceSum(_balanceSumCheckpoint, asset);
+                    // Add to the current balance
+                    assetBalance := add(assetBalance, balanceIncrease)
+
+                    // Update the slot cache, then store
+                    balanceSumPacked := or(assetRemainder, shl(0x30, assetBalance))
+                    sstore(_currentBalanceSum.slot, balanceSumPacked)
+
+                    // Finished once the allocation reaches zero
+                    amountToAllocate := sub(amountToAllocate, balanceIncrease)
+                    if eq(amountToAllocate, 0) {
+                        break
+                    }
+
+                    // If more to allocate, increment the balance sum checkpoint index (copy the totalBps)
+                    let totalBps := sload(_balanceSumCheckpoint.slot)
+                    // Store incremented checkpoint index in scratch space and update in storage
+                    mstore(0, add(sload(_balanceShare.slot), 0x01))
+                    sstore(_balanceShare.slot, mload(0))
+                    // Set the new storage reference for the BalanceSumCheckpoint
+                    // keccak256(_balanceShare.balanceSumCheckpointIndex . _balanceShare.balanceSumCheckpoints.slot))
+                    mstore(0x20, add(_balanceShare.slot, 0x01))
+                    _balanceSumCheckpoint.slot := keccak256(0, 0x40)
+                    // Copy over the totalBps
+                    sstore(_balanceSumCheckpoint.slot, totalBps)
+
+                    // Reset the current balance to zero
+                    assetBalance := 0
+
+                    // Update the BalanceSum reference
+                    // keccak256(address . _balanceSumCheckpoint.balanceSums.slot))
+                    mstore(0, asset)
+                    mstore(0x20, add(_balanceSumCheckpoint.slot, 0x01))
+                    _currentBalanceSum.slot := keccak256(0, 0x40)
+                }
             }
         }
     }
-
 }
