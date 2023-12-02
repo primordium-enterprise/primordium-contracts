@@ -170,17 +170,26 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
                 uint256 prevBalance;
                 /// @solidity memory-safe-assembly
                 assembly {
-                    let packedBalanceSumWithdrawal := mload(withdrawalCheckpointCache)
-                    startIndex := and(packedBalanceSumWithdrawal, MASK_UINT48)
-                    prevBalance := shr(0x30, packedBalanceSumWithdrawal)
+                    let packedWithdrawalCheckpoint := mload(withdrawalCheckpointCache)
+                    startIndex := and(packedWithdrawalCheckpoint, MASK_UINT48)
+                    prevBalance := shr(0x30, packedWithdrawalCheckpoint)
                 }
 
 
                 // Updated will be endBalanceSumIndex - 1, because checkpoint is still active
                 uint256 updatedStartBalanceSumIndex = endBalanceSumIndex - 1;
 
-                // Loop through cached checkpoints, starting at this asset's starting point
-                uint256 j = checkpointCount - endBalanceSumIndex - startIndex;
+                // Loop through cached checkpoints
+                /**
+                 * Skip to the cache index where this asset last withdrew from. Example:
+                 * startBalanceSumIndex = 20
+                 * endBalanceSumIndex = 30
+                 * checkpointCount = 30 - 20 = 10
+                 *
+                 * If the asset last withdrew from index 25, then skip the first five elements, starting at the sixth
+                 * j = 10 - (30 - 25) = 5
+                 */
+                uint256 j = checkpointCount - (endBalanceSumIndex - startIndex);
                 if (j < checkpointCount) {
                     while (true) {
                         BalanceSumCheckpointCache memory checkpoint = balanceSumCheckpointCaches[j];

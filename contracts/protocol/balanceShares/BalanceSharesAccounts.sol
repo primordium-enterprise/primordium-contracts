@@ -227,6 +227,7 @@ contract BalanceSharesAccounts is BalanceSharesStorage {
 
             if (newBps != currentBps) {
                 // If currentBps is greater than zero, then the account already has an active bps share
+                // Otherwise, just overwrite the current zero BPS period with the updates
                 if (currentBps > 0) {
                     // Set end index for current period, then increment period index and update the storage reference
                     _accountSharePeriod.endBalanceSumIndex = uint48(balanceSumCheckpointIndex);
