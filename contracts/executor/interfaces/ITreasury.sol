@@ -22,7 +22,7 @@ interface ITreasury {
     /**
      * @dev Processes a withdrawal from the Treasurer to the withdrawing member. Should only be callable by the shares
      * contract.
-     * @param receiver The address to send the shares of the treasury to.TT
+     * @param receiver The address to send the shares of the treasury to.
      * @param sharesBurned The amount of share tokens being burned.
      * @param sharesTotalSupply The total supply of share tokens before the burning the withdraw amount.
      * @param tokens A list of ERC20 token addresses to send pro rata shares of. Uses address(0) for native currency
