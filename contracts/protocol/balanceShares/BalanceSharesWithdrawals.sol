@@ -4,11 +4,14 @@
 pragma solidity ^0.8.20;
 
 import {BalanceSharesAccounts} from "./BalanceSharesAccounts.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract BalanceSharesWithdrawals is BalanceSharesAccounts {
+abstract contract BalanceSharesWithdrawals is BalanceSharesAccounts, EIP712, Nonces {
 
     struct WithdrawalCheckpointCache {
         bytes32 packedValue;
@@ -20,6 +23,10 @@ contract BalanceSharesWithdrawals is BalanceSharesAccounts {
         bytes32 balanceSumsStorageSlot;
     }
 
+    bytes32 public immutable WITHDRAW_TO_TYPEHASH = keccak256(
+        "WithdrawTo(address client,uint256 balanceShareId,address account,address receiver,address[] assets,uint256 periodIndex,uint256 nonce,uint256 deadline)"
+    );
+
     event AccountSharePeriodAssetWithdrawal(
         address indexed client,
         uint256 indexed balanceShareId,
@@ -30,6 +37,9 @@ contract BalanceSharesWithdrawals is BalanceSharesAccounts {
         uint256 periodIndex
     );
 
+    error UnauthorizedForWithdrawal(address sender);
+    error WithdrawInvalidSignature();
+    error WithdrawExpiredSignature(uint256 deadline);
     error MissingAssets();
     error ETHTransferFailed();
 
@@ -240,13 +250,100 @@ contract BalanceSharesWithdrawals is BalanceSharesAccounts {
         }
     }
 
-    function _processAcountSharePeriodWithdrawal(
+    function withdrawAccountSharePeriodTo(
+        address client,
+        uint256 balanceShareId,
+        address account,
+        address receiver,
+        address[] memory assets,
+        uint256 periodIndex
+    ) public returns (uint256[] memory withdrawAmounts) {
+        if (msg.sender != account) {
+            revert UnauthorizedForWithdrawal(msg.sender);
+        }
+
+        withdrawAmounts = _processAcountSharePeriodWithdrawal(
+            client,
+            balanceShareId,
+            account,
+            receiver,
+            assets,
+            periodIndex
+        );
+    }
+
+    function withdrawAccountSharePeriod(
         address client,
         uint256 balanceShareId,
         address account,
         address[] memory assets,
+        uint256 periodIndex
+    ) external returns (uint256[] memory) {
+        return withdrawAccountSharePeriodTo(client, balanceShareId, account, account, assets, periodIndex);
+    }
+
+    function withdrawAccountSharePeriodToBySig(
+        address client,
+        uint256 balanceShareId,
+        address account,
+        address receiver,
+        address[] memory assets,
         uint256 periodIndex,
-        address receiver
+        uint256 deadline,
+        bytes memory signature
+    ) public virtual returns (uint256[] memory withdrawAmounts) {
+        if (block.timestamp > deadline) {
+            revert WithdrawExpiredSignature(deadline);
+        }
+
+        // Copy the tokens content to memory and hash
+        bytes32 encodedAssets;
+        // @solidity memory-safe-assembly
+        assembly {
+            // Get the total byte length of the items (array length * 32 bytes per item)
+            let byteLength := mul(mload(assets), 0x20)
+            let dataStart := add(assets, 0x20)
+            let dataEnd := add(dataStart, mul(mload(assets), 0x20))
+            encodedAssets := keccak256(dataStart, dataEnd)
+        }
+
+        bool valid = SignatureChecker.isValidSignatureNow(
+            account,
+            _hashTypedDataV4(keccak256(abi.encode(
+                WITHDRAW_TO_TYPEHASH,
+                client,
+                balanceShareId,
+                account,
+                receiver,
+                encodedAssets,
+                periodIndex,
+                _useNonce(account),
+                deadline
+            ))),
+            signature
+        );
+
+        if (!valid) {
+            revert WithdrawInvalidSignature();
+        }
+
+        withdrawAmounts = _processAcountSharePeriodWithdrawal(
+            client,
+            balanceShareId,
+            account,
+            receiver,
+            assets,
+            periodIndex
+        );
+    }
+
+    function _processAcountSharePeriodWithdrawal(
+        address client,
+        uint256 balanceShareId,
+        address account,
+        address receiver,
+        address[] memory assets,
+        uint256 periodIndex
     ) internal returns (uint256[] memory withdrawAmounts) {
         // Get the withdrawable balances
         (

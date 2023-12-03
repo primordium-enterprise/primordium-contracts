@@ -30,7 +30,7 @@ import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable {
     using Checkpoints for Checkpoints.Trace208;
 
-    bytes32 private immutable DELEGATION_TYPEHASH =
+    bytes32 public immutable DELEGATION_TYPEHASH =
         keccak256("Delegation(address delegator,address delegatee,uint256 nonce,uint256 deadline)");
 
     /// @custom:storage-location erc7201:ERC20Votes.Storage
