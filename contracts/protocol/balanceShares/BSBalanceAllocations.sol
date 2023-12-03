@@ -286,8 +286,7 @@ contract BSBalanceAllocations is BSStorage, IBalanceSharesManager {
 
             uint256 maxBalanceSum = MAX_BALANCE_SUM_BALANCE;
             uint256 maxBps = MAX_BPS;
-            /// @solidity memory-safe-assembly
-            assembly {
+            assembly ("memory-safe") {
                 // Cache current packed BalanceSum slot
                 let balanceSumPacked := sload(_currentBalanceSum.slot)
                 // Load current remainder (first 48 bits)

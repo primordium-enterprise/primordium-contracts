@@ -254,6 +254,7 @@ contract BSAccountsManagement is BSStorage {
 
         uint256 balanceSumCheckpointIndex = _balanceShare.balanceSumCheckpointIndex;
         uint256 totalBps = _balanceShare.balanceSumCheckpoints[balanceSumCheckpointIndex].totalBps;
+
         // Increment to a new balance sum checkpoint if we are updating basis points and the current totalBps > 0
         if (basisPoints.length > 0 && totalBps > 0) {
             // Increment checkpoint index in memory and store the update
@@ -268,8 +269,7 @@ contract BSAccountsManagement is BSStorage {
         }
 
         // Track changes to total BPS
-        uint256 increaseTotalBpsBy;
-        uint256 decreaseTotalBpsBy;
+        newTotalBps = totalBps;
 
         // Loop through and update account share periods
         for (uint256 i = 0; i < accounts.length;) {
@@ -330,11 +330,9 @@ contract BSAccountsManagement is BSStorage {
                     _accountSharePeriod = _accountShare.periods[periodIndex];
                 }
 
-                // Track bps changes
-                if (newBps > currentBps) {
-                    increaseTotalBpsBy += newBps - currentBps;
-                } else {
-                    decreaseTotalBpsBy += currentBps - newBps;
+                // Track totalBps changes (allow temporary underflows)
+                unchecked {
+                    newTotalBps += newBps - currentBps;
                 }
 
                 // Store new period if the newBps value is greater than zero (otherwise leave uninitialized)
@@ -376,8 +374,7 @@ contract BSAccountsManagement is BSStorage {
             unchecked { ++i; }
         }
 
-        // Calculate the new total bps, and update in the balance sum checkpoint
-        newTotalBps = totalBps + increaseTotalBpsBy - decreaseTotalBpsBy;
+        // Update the new total BPS in the balance sum checkpoint
         if (newTotalBps > MAX_BPS) {
             revert UpdateExceedsMaxTotalBps(newTotalBps, MAX_BPS);
         }

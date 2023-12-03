@@ -102,7 +102,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
         uint256 bps;
         uint256 startBalanceSumIndex;
         uint256 endBalanceSumIndex;
-        assembly {
+        assembly ("memory-safe") {
             mstore(0, sload(_accountSharePeriod.slot))
             // bps is first 16 bits
             bps := and(mload(0), MASK_UINT16)
@@ -119,8 +119,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
 
         // Set the end index (which is not allowed to be greater than _balanceShare.balanceSumCheckpointIndex + 1)
         // End index is non-inclusive, so when calculating the max, we add 1 to the current index
-        /// @solidity memory-safe-assembly
-        assembly {
+        assembly ("memory-safe") {
             let maxBalanceSumIndex := add(sload(_balanceShare.slot), 0x01)
             if lt(maxBalanceSumIndex, endBalanceSumIndex) {
                 endBalanceSumIndex := mload(0)
@@ -129,8 +128,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
 
 
         // Initialize the array of withdrawalCheckpointCaches with the packed values and the storage slot references
-        /// @solidity memory-safe-assembly
-        assembly {
+        assembly ("memory-safe") {
             let skipToStartIndex := endBalanceSumIndex
             let _withdrawalCheckpointSlot := 0
 
@@ -162,8 +160,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
         BalanceSumCheckpointCache[] memory balanceSumCheckpointCaches =
             new BalanceSumCheckpointCache[](checkpointIterations);
 
-        /// @solidity memory-safe-assembly
-        assembly {
+        assembly ("memory-safe") {
             let _balanceSumCheckpointSlot := 0
 
             for { let i := 0 } lt(i, checkpointIterations) { i := add(i, 0x01) } {
@@ -191,8 +188,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
                 WithdrawalCheckpointCache memory withdrawalCheckpointCache = withdrawalCheckpointCaches[i];
                 uint256 startIndex;
                 uint256 prevBalance;
-                /// @solidity memory-safe-assembly
-                assembly {
+                assembly ("memory-safe") {
                     let packedWithdrawalCheckpoint := mload(withdrawalCheckpointCache)
                     startIndex := and(packedWithdrawalCheckpoint, MASK_UINT48)
                     prevBalance := shr(0x30, packedWithdrawalCheckpoint)
@@ -213,8 +209,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
                     while (true) {
                         BalanceSumCheckpointCache memory checkpoint = balanceSumCheckpointCaches[j];
                         uint256 currentBalanceSum;
-                        /// @solidity memory-safe-assembly
-                        assembly {
+                        assembly ("memory-safe") {
                             // Load the current balance sum
                             mstore(0, asset)
                             mstore(0x20, mload(add(checkpoint, 0x20)))
@@ -236,8 +231,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
                     }
 
                     // Update the packed value in the WithdrawalCheckpointCache
-                    /// @solidity memory-safe-assembly
-                    assembly {
+                    assembly ("memory-safe") {
                         // Store the endBalanceSumIndex - 1 since end index is non-inclusive
                         mstore(withdrawalCheckpointCache, or(sub(endBalanceSumIndex, 0x01), shl(0x30, prevBalance)))
                     }
@@ -320,8 +314,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
 
         // EIP712 encode assets for struct hash
         bytes32 encodedAssets;
-        // @solidity memory-safe-assembly
-        assembly {
+        assembly ("memory-safe") {
             encodedAssets := keccak256(add(assets, 0x20), mul(mload(assets), 0x20))
         }
 
@@ -378,8 +371,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
         uint256 length = assets.length;
         for (uint256 i = 0; i < length;) {
             // Write the withdrawal storage update for the asset
-            /// @solidity memory-safe-assembly
-            assembly {
+            assembly ("memory-safe") {
                 let cache := mload(add(mul(i, 0x20), add(withdrawalCheckpointCaches, 0x20)))
                 sstore(mload(add(cache, 0x20)), mload(cache))
             }
