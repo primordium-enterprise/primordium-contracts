@@ -388,15 +388,17 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
         bytes32 tokensContentHash;
         // @solidity memory-safe-assembly
         assembly {
+            // Get free mem pointer
+            let m := mload(0x40)
+            let offset := tokens.offset
             // Store the total byte length of the array items (length * 32 bytes per item)
-            mstore(0, mul(tokens.length, 0x20))
-            // Allocate memory for the array items
-            mstore(0x20, mload(0x40))
-            mstore(0x40, add(mload(0x20), mload(0)))
-            // Copy the array items
-            calldatacopy(mload(0x20), tokens.offset, mload(0))
-            // Hash the items
-            tokensContentHash := keccak256(mload(0x20), mload(0))
+            let byteLength := mul(tokens.length, 0x20)
+            // Allocate the memory
+            mstore(m, add(m, byteLength))
+            // Copy to memory for hashing
+            calldatacopy(m, offset, byteLength)
+            // Hash the packed items
+            tokensContentHash := keccak256(m, byteLength)
         }
 
         bool valid = SignatureChecker.isValidSignatureNow(

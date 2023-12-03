@@ -322,9 +322,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
         bytes32 encodedAssets;
         // @solidity memory-safe-assembly
         assembly {
-            let dataStart := add(assets, 0x20)
-            let dataEnd := add(dataStart, mul(mload(assets), 0x20))
-            encodedAssets := keccak256(dataStart, dataEnd)
+            encodedAssets := keccak256(add(assets, 0x20), mul(mload(assets), 0x20))
         }
 
         bool valid = SignatureChecker.isValidSignatureNow(
