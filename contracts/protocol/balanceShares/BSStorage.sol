@@ -10,7 +10,7 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
  * @title Storage layout for BalanceSharesSingleton
  * @author Ben Jett - @BCJdevelopment
  */
-contract BalanceSharesStorage is ERC165 {
+contract BSStorage is ERC165 {
 
 mapping(address client => mapping(uint256 balanceShareId => BalanceShare)) internal _balanceShares;
 

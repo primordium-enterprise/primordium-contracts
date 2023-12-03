@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.20;
 
-import {BalanceSharesAccounts} from "./BalanceSharesAccounts.sol";
+import {BSAccountsManagement} from "./BSAccountsManagement.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
@@ -11,7 +11,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-abstract contract BalanceSharesWithdrawals is BalanceSharesAccounts, EIP712, Nonces {
+abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
 
     struct WithdrawalCheckpointCache {
         bytes32 packedValue;

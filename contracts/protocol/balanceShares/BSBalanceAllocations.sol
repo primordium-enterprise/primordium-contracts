@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.20;
 
-import {BalanceSharesStorage} from "./BalanceSharesStorage.sol";
+import {BSStorage} from "./BSStorage.sol";
 import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
 import {IBalanceSharesManager} from "contracts/executor/interfaces/IBalanceSharesManager.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -13,7 +13,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * @title Balance share processing functions for BalanceSharesSingleton
  * @author Ben Jett - @BCJdevelopment
  */
-contract BalanceSharesProcessing is BalanceSharesStorage, IBalanceSharesManager {
+contract BSBalanceAllocations is BSStorage, IBalanceSharesManager {
 
     error BalanceShareInactive(address client, uint256 balanceShareId);
     error InvalidAllocationAmount(uint256 amountToAllocate);

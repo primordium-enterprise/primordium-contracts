@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.20;
 
-import {BalanceSharesStorage} from "./BalanceSharesStorage.sol";
+import {BSStorage} from "./BSStorage.sol";
 import {IArrayLengthErrors} from "contracts/interfaces/IArrayLengthErrors.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -11,7 +11,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  * @title Account management for each balance share.
  * @author Ben Jett - @BCJdevelopment
  */
-contract BalanceSharesAccounts is BalanceSharesStorage {
+contract BSAccountsManagement is BSStorage {
 
     event BalanceShareTotalBPSUpdate(
         address indexed client,

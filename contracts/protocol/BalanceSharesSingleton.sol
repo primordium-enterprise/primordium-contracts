@@ -3,11 +3,12 @@
 
 pragma solidity ^0.8.20;
 
-import {BalanceSharesStorage} from "./balanceShares/BalanceSharesStorage.sol";
-import {BalanceSharesProcessing} from "./balanceShares/BalanceSharesProcessing.sol";
-import {BalanceSharesAccounts} from "./balanceShares/BalanceSharesAccounts.sol";
-import {BalanceSharesWithdrawals} from "./balanceShares/BalanceSharesWithdrawals.sol";
+import {BSStorage} from "./balanceShares/BSStorage.sol";
+import {BSBalanceAllocations} from "./balanceShares/BSBalanceAllocations.sol";
+import {BSAccountsManagement} from "./balanceShares/BSAccountsManagement.sol";
+import {BSWithdrawals} from "./balanceShares/BSWithdrawals.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 /**
  * @title A singleton contract for clients to manage account shares (in basis points) for ETH/ERC20 assets.
@@ -40,13 +41,15 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
  * values, but changing the ordering of any of the mappings in storage will result in errors with these functions.
  */
 contract BalanceSharesSingleton is
-    BalanceSharesStorage,
-    BalanceSharesProcessing,
-    BalanceSharesAccounts,
-    BalanceSharesWithdrawals
+    BSStorage,
+    BSBalanceAllocations,
+    BSAccountsManagement,
+    BSWithdrawals
 {
 
-    function supportsInterface(bytes4 interfaceId) public view override(ERC165, BalanceSharesProcessing) returns (bool) {
+    constructor() EIP712("BalanceSharesSingleton", "1") { }
+
+    function supportsInterface(bytes4 interfaceId) public view override(ERC165, BSBalanceAllocations) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
@@ -112,19 +115,6 @@ contract BalanceSharesSingleton is
     // }
 
     // /**
-    //  * @dev The total basis points sum for all currently active account shares.
-    //  * @return totalBps An integer representing the total basis points sum. 1 basis point = 0.01%
-    //  */
-    // function totalBps(
-    //     BalanceShare storage _self
-    // ) internal view returns (uint256) {
-    //     uint256 length = _self._balanceChecks.length;
-    //     return length > 0 ?
-    //         _self._balanceChecks[length - 1].totalBps :
-    //         0;
-    // }
-
-    // /**
     //  * @dev Returns a bool indicating whether or not the address is approved for withdrawal on the specified account.
     //  */
     // function isAddressApprovedForWithdrawal(
@@ -133,26 +123,6 @@ contract BalanceSharesSingleton is
     //     address address_
     // ) internal view returns (bool) {
     //     return _self._accountWithdrawalApprovals[account][address_];
-    // }
-
-    // /**
-    //  * @dev Returns the following details (in order) for the specified account:
-    //  * - bps
-    //  * - createdAt
-    //  * - removableAt
-    //  * - lastWithdrawnAt
-    //  */
-    // function accountDetails(
-    //     BalanceShare storage _self,
-    //     address account
-    // ) internal view returns (uint256, uint256, uint256, uint256) {
-    //     AccountShare storage accountShare = _self._accounts[account];
-    //     return (
-    //         accountShare.bps,
-    //         accountShare.createdAt,
-    //         accountShare.removableAt,
-    //         accountShare.lastWithdrawnAt
-    //     );
     // }
 
 }
