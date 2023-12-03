@@ -14,6 +14,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * @author Ben Jett - @BCJdevelopment
  */
 contract BSBalanceAllocations is BSStorage, IBalanceSharesManager {
+    using SafeERC20 for IERC20;
 
     error BalanceShareInactive(address client, uint256 balanceShareId);
     error InvalidAllocationAmount(uint256 amountToAllocate);
@@ -276,7 +277,7 @@ contract BSBalanceAllocations is BSStorage, IBalanceSharesManager {
             }
             // Only need to call transfer if the amount is greater than zero
             if (amountToAllocate > 0) {
-                SafeERC20.safeTransferFrom(IERC20(asset), msg.sender, address(this), amountToAllocate);
+                IERC20(asset).safeTransferFrom(msg.sender, address(this), amountToAllocate);
             }
         }
 

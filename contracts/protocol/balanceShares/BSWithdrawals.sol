@@ -12,6 +12,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
+    using SafeERC20 for IERC20;
 
     struct WithdrawalCheckpointCache {
         bytes32 packedValue;
@@ -395,7 +396,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
                         revert ETHTransferFailed();
                     }
                 } else {
-                    SafeERC20.safeTransfer(IERC20(assets[i]), receiver, withdrawableAmounts[i]);
+                    IERC20(assets[i]).safeTransfer(receiver, withdrawableAmounts[i]);
                 }
 
                 // Emit withdrawal event
