@@ -250,6 +250,19 @@ abstract contract BalanceSharesWithdrawals is BalanceSharesAccounts, EIP712, Non
         }
     }
 
+    /**
+     * Process a withdrawal for the given account share period. Withdrawn assets are sent to the provided "receiver"
+     * address.
+     * @notice Requires that the msg.sender is the account owner.
+     * @param client The client account for the balance share.
+     * @param balanceShareId The uint256 identifier of the client's balance share.
+     * @param account The account share owner.
+     * @param receiver The receiver of the withdrawn assets.
+     * @param assets A list of ERC20 assets to get withdrawable balances for (address(0) for ETH).
+     * @param periodIndex The period index to withdraw for. Call {getAccountCurrentPeriodIndex} for the current period
+     * index.
+     * @return withdrawAmounts A list of withdrawn amounts, in the same order as the provided assets.
+     */
     function withdrawAccountSharePeriodTo(
         address client,
         uint256 balanceShareId,
@@ -272,6 +285,10 @@ abstract contract BalanceSharesWithdrawals is BalanceSharesAccounts, EIP712, Non
         );
     }
 
+    /**
+     * Same as the above {withdrawAccountSharePeriodTo} function, but uses the account owner as the "receiver" address,
+     * so assets are just sent directly to the account owner.
+     */
     function withdrawAccountSharePeriod(
         address client,
         uint256 balanceShareId,
@@ -282,6 +299,10 @@ abstract contract BalanceSharesWithdrawals is BalanceSharesAccounts, EIP712, Non
         return withdrawAccountSharePeriodTo(client, balanceShareId, account, account, assets, periodIndex);
     }
 
+    /**
+     * Allows withdrawing to the provided a valid EIP712 or EIP1271 signature by the account owner.
+     * @param signature The signature is a packed bytes encoding of the ECDSA r, s, and v signature values.
+     */
     function withdrawAccountSharePeriodToBySig(
         address client,
         uint256 balanceShareId,
@@ -296,12 +317,10 @@ abstract contract BalanceSharesWithdrawals is BalanceSharesAccounts, EIP712, Non
             revert WithdrawExpiredSignature(deadline);
         }
 
-        // Copy the tokens content to memory and hash
+        // EIP712 encode assets for struct hash
         bytes32 encodedAssets;
         // @solidity memory-safe-assembly
         assembly {
-            // Get the total byte length of the items (array length * 32 bytes per item)
-            let byteLength := mul(mload(assets), 0x20)
             let dataStart := add(assets, 0x20)
             let dataEnd := add(dataStart, mul(mload(assets), 0x20))
             encodedAssets := keccak256(dataStart, dataEnd)
