@@ -5,8 +5,9 @@ pragma solidity ^0.8.20;
 
 import {ITreasury} from "contracts/executor/interfaces/ITreasury.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 
-interface ISharesManager {
+interface ISharesManager is IERC6372 {
 
     event QuoteAssetChange(address oldQuoteAsset, address newQuoteAsset);
 

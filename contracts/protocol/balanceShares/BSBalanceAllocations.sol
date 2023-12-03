@@ -32,7 +32,7 @@ contract BSBalanceAllocations is BSStorage, IBalanceSharesManager {
         uint256 newAssetRemainder
     );
 
-    function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         return
             interfaceId == type(IBalanceSharesManager).interfaceId ||
             super.supportsInterface(interfaceId);

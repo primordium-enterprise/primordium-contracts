@@ -130,7 +130,7 @@ abstract contract TimelockAvatar is
     function __ModuleTimelockAdmin_init(
         uint256 minDelay_,
         address[] memory modules_
-    ) internal {
+    ) internal onlyInitializing {
         // Initialize the module execution to address(0x01) for cheaper gas updates
         _setModuleExecution(MODULES_HEAD);
         _updateMinDelay(minDelay_);

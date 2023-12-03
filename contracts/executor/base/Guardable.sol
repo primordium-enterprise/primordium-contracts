@@ -57,6 +57,10 @@ contract Guardable is SelfAuthorized, IGuardable, ERC165Upgradeable {
      * @param guard The address of the guard to be used or the 0 address to disable the guard.
      */
     function setGuard(address guard) external onlySelf {
+        _setGuard(guard);
+    }
+
+    function _setGuard(address guard) internal {
         if (guard != address(0)) {
             if (!ERC165Checker.supportsInterface(guard, type(IGuard).interfaceId)) {
                 revert NotIERC165Compliant(guard);

@@ -49,7 +49,9 @@ contract BalanceSharesSingleton is
 
     constructor() EIP712("BalanceSharesSingleton", "1") { }
 
-    function supportsInterface(bytes4 interfaceId) public view override(ERC165, BSBalanceAllocations) returns (bool) {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC165, BSBalanceAllocations) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
