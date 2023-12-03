@@ -3,12 +3,12 @@
 
 pragma solidity ^0.8.20;
 
-import {BalanceSharesStorage} from "./BalanceSharesStorage.sol";
+import {BalanceSharesAccounts} from "./BalanceSharesAccounts.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract BalanceSharesWithdrawals is BalanceSharesStorage {
+contract BalanceSharesWithdrawals is BalanceSharesAccounts {
 
     struct WithdrawalCheckpointCache {
         bytes32 packedValue;
@@ -30,18 +30,28 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
         uint256 periodIndex
     );
 
-    error InvalidAccountSharePeriodIndex(uint256 providedPeriodIndex, uint256 maxAccountPeriodIndex);
     error MissingAssets();
     error ETHTransferFailed();
 
+    /**
+     * Get the withdrawable asset balances for the provided period index.
+     * @param client The client account for the balance share.
+     * @param balanceShareId The uint256 identifier of the client's balance share.
+     * @param account The address of the account
+     * @param assets A list of ERC20 assets to get withdrawable balances for (address(0) for ETH).
+     * @param periodIndex The period index to withdraw for. Call {getAccountCurrentPeriodIndex} for the current period
+     * index.
+     * @return withdrawableBalances A list of withdrawable balances, in the same order as the assets list.
+     * @return checkpointIterations The total amount of checkpoint iterations to withdraw the full balance.
+     */
     function getAccountSharePeriodWithdrawableBalances(
         address client,
         uint256 balanceShareId,
         address account,
         address[] memory assets,
         uint256 periodIndex
-    ) public view returns (uint256[] memory withdrawableBalances) {
-        (withdrawableBalances,) = _getAccountSharePeriodWithdrawableBalances(
+    ) public view returns (uint256[] memory withdrawableBalances, uint256 checkpointIterations) {
+        (withdrawableBalances,,checkpointIterations) = _getAccountSharePeriodWithdrawableBalances(
             _getBalanceShare(client, balanceShareId),
             account,
             assets,
@@ -56,7 +66,8 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
         uint256 periodIndex
     ) internal view returns (
         uint256[] memory withdrawableBalances,
-        WithdrawalCheckpointCache[] memory withdrawalCheckpointCaches
+        WithdrawalCheckpointCache[] memory withdrawalCheckpointCaches,
+        uint256 checkpointIterations
     ) {
         uint256 assetCount = assets.length;
         if (assetCount == 0) {
@@ -92,7 +103,7 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
 
         // Zero bps, just return zero values
         if (bps == 0) {
-            return (withdrawableBalances, withdrawalCheckpointCaches);
+            return (withdrawableBalances, withdrawalCheckpointCaches, checkpointIterations);
         }
 
         // Set the end index (which is not allowed to be greater than _balanceShare.balanceSumCheckpointIndex + 1)
@@ -136,15 +147,15 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
         }
 
         // Cache the BalanceSumCheckpoints in memory that will be used for each asset
-        uint256 checkpointCount = endBalanceSumIndex - startBalanceSumIndex;
+        checkpointIterations = endBalanceSumIndex - startBalanceSumIndex;
         BalanceSumCheckpointCache[] memory balanceSumCheckpointCaches =
-            new BalanceSumCheckpointCache[](checkpointCount);
+            new BalanceSumCheckpointCache[](checkpointIterations);
 
         /// @solidity memory-safe-assembly
         assembly {
             let _balanceSumCheckpointSlot := 0
 
-            for { let i := 0 } lt(i, checkpointCount) { i := add(i, 0x01) } {
+            for { let i := 0 } lt(i, checkpointIterations) { i := add(i, 0x01) } {
                 // Get the mapping slot for the BalanceSumCheckpoint first
                 mstore(0, add(startBalanceSumIndex, i))
                 mstore(0x20, add(_balanceShare.slot, 0x01))
@@ -181,13 +192,13 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
                  * Skip to the cache index where this asset last withdrew from. Example:
                  * startBalanceSumIndex = 20
                  * endBalanceSumIndex = 30
-                 * checkpointCount = 30 - 20 = 10
+                 * checkpointIterations = 30 - 20 = 10
                  *
                  * If the asset last withdrew from index 25, then skip the first five elements, starting at the sixth
                  * j = 10 - (30 - 25) = 5
                  */
-                uint256 j = checkpointCount - (endBalanceSumIndex - startIndex);
-                if (j < checkpointCount) {
+                uint256 j = checkpointIterations - (endBalanceSumIndex - startIndex);
+                if (j < checkpointIterations) {
                     while (true) {
                         BalanceSumCheckpointCache memory checkpoint = balanceSumCheckpointCaches[j];
                         uint256 currentBalanceSum;
@@ -204,7 +215,7 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
                             assetWithdrawBalance += Math.mulDiv(diff, bps, checkpoint.totalBps);
                         }
 
-                        if (j == checkpointCount - 1) {
+                        if (j == checkpointIterations - 1) {
                             prevBalance = currentBalanceSum;
                             break;
                         } else {
@@ -240,7 +251,7 @@ contract BalanceSharesWithdrawals is BalanceSharesStorage {
         // Get the withdrawable balances
         (
             uint256[] memory withdrawableAmounts,
-            WithdrawalCheckpointCache[] memory withdrawalCheckpointCaches
+            WithdrawalCheckpointCache[] memory withdrawalCheckpointCaches,
         ) = _getAccountSharePeriodWithdrawableBalances(
             _getBalanceShare(client, balanceShareId),
             account,

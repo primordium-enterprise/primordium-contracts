@@ -5,6 +5,10 @@ pragma solidity ^0.8.20;
 
 interface IBalanceSharesManager {
 
+    function getBalanceShareTotalBPS(
+        uint256 balanceShareId
+    ) external view returns (uint256 totalBps);
+
     function getBalanceShareAllocation(
         uint256 balanceShareId,
         address asset,

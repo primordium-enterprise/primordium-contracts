@@ -45,6 +45,101 @@ contract BalanceSharesAccounts is BalanceSharesStorage {
     error AccountShareIsCurrentlyLocked(address account, uint256 removableAt);
     error UpdateExceedsMaxTotalBps(uint256 newTotalBps, uint256 maxBps);
 
+    function getAccountBps(
+        address client,
+        uint256 balanceShareId,
+        address account
+    ) public view returns (uint256 accountBps) {
+        AccountShare storage _accountShare = _getBalanceShare(client, balanceShareId).accounts[account];
+        accountBps = _accountShare.periods[_accountShare.periodIndex].bps;
+    }
+
+    function getAccountCurrentPeriodIndex(
+        address client,
+        uint256 balanceShareId,
+        address account
+    ) public view returns (uint256 currentPeriodIndex) {
+        AccountShare storage _accountShare = _getBalanceShare(client, balanceShareId).accounts[account];
+        currentPeriodIndex = _accountShare.periodIndex;
+    }
+
+    function getAccountDetails(
+        address client,
+        uint256 balanceShareId,
+        address account
+    ) public view returns (
+        uint256 bps,
+        uint256 removableAt,
+        uint256 initializedAtBlock,
+        uint256 currentPeriodIndex,
+        uint256 maxCheckpointIterations
+    ) {
+        (bps, removableAt, initializedAtBlock, currentPeriodIndex, maxCheckpointIterations) =
+            _getAccountDetailsForPeriod(
+                _getBalanceShare(client, balanceShareId),
+                account,
+                type(uint256).max
+            );
+    }
+
+    function getAccountDetailsForPeriod(
+        address client,
+        uint256 balanceShareId,
+        address account,
+        uint256 periodIndex
+    ) public view returns (
+        uint256 bps,
+        uint256 removableAt,
+        uint256 initializedAtBlock,
+        uint256 maxCheckpointIterations
+    ) {
+        (bps, removableAt, initializedAtBlock,, maxCheckpointIterations) = _getAccountDetailsForPeriod(
+            _getBalanceShare(client, balanceShareId),
+            account,
+            periodIndex
+        );
+    }
+
+    function _getAccountDetailsForPeriod(
+        BalanceShare storage _balanceShare,
+        address account,
+        uint256 periodIndex
+    ) internal view returns (
+        uint256 bps,
+        uint256 removableAt,
+        uint256 initializedAtBlock,
+        uint256 maxPeriodIndex,
+        uint256 maxCheckpointIterations
+    ) {
+        AccountShare storage _accountShare = _balanceShare.accounts[account];
+        maxPeriodIndex = _accountShare.periodIndex;
+
+        if (periodIndex == type(uint256).max) {
+            periodIndex == maxPeriodIndex;
+        }
+
+        if (periodIndex > maxPeriodIndex) {
+            revert InvalidAccountSharePeriodIndex(periodIndex, maxPeriodIndex);
+        }
+
+        AccountSharePeriod storage _accountSharePeriod = _accountShare.periods[periodIndex];
+        (bps, removableAt, initializedAtBlock) = (
+            _accountSharePeriod.bps,
+            _accountSharePeriod.initializedAtBlock,
+            _accountSharePeriod.removableAt
+        );
+
+        (uint256 startBalanceSumIndex, uint256 endBalanceSumIndex) = (
+            _accountSharePeriod.startBalanceSumIndex,
+            _accountSharePeriod.endBalanceSumIndex
+        );
+
+        maxCheckpointIterations = Math.min(
+            endBalanceSumIndex,
+            _balanceShare.balanceSumCheckpointIndex + 1
+        ) - startBalanceSumIndex;
+    }
+
     /**
      * Sets the provided accounts with the provided BPS values and removable at timestamps for the balance share ID. For
      * each account:
@@ -247,7 +342,7 @@ contract BalanceSharesAccounts is BalanceSharesStorage {
                     _accountSharePeriod.bps = uint16(newBps);
                     _accountSharePeriod.startBalanceSumIndex = uint48(balanceSumCheckpointIndex);
                     _accountSharePeriod.endBalanceSumIndex = uint48(MAX_INDEX);
-                    _accountSharePeriod.initializedAt = uint48(block.number);
+                    _accountSharePeriod.initializedAtBlock = uint48(block.number);
                     _accountSharePeriod.removableAt = uint48(newRemovableAt);
                 }
 

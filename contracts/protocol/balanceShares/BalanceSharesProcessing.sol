@@ -53,6 +53,15 @@ contract BalanceSharesProcessing is BalanceSharesStorage, IBalanceSharesManager 
     }
 
     /**
+     * Same as above, but uses the msg.sender as the "client" parameter.
+     */
+    function getBalanceShareTotalBPS(
+        uint256 balanceShareId
+    ) public view override returns (uint256) {
+        return getBalanceShareTotalBPS(msg.sender, balanceShareId);
+    }
+
+    /**
      * For the provided balance share and asset, returns the amount of the asset to send to this contract for the
      * provided amount that the balance increased by (as a function of the balance share's total BPS).
      * @param client The client account for the balance share.

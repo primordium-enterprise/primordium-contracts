@@ -65,7 +65,7 @@ mapping(address client => mapping(uint256 balanceShareId => BalanceShare)) inter
         // Balance sum index where this account share period ends, or MAX_INDEX when active (non-inclusive)
         uint48 endBalanceSumIndex;
         // Block number this checkpoint was initialized
-        uint48 initializedAt;
+        uint48 initializedAtBlock;
         // Timestamp in seconds at which the account share bps can be decreased or removed by the client
         uint48 removableAt;
         // Tracks the current balance sum position for the last withdrawal per asset
@@ -84,6 +84,8 @@ mapping(address client => mapping(uint256 balanceShareId => BalanceShare)) inter
 
     uint256 constant internal MASK_UINT16 = 0xffff;
     uint256 constant internal MASK_UINT48 = 0xffffffffffff;
+
+    error InvalidAccountSharePeriodIndex(uint256 providedPeriodIndex, uint256 maxAccountPeriodIndex);
 
     function _getBalanceShare(address client, uint256 balanceShareId) internal pure returns (BalanceShare storage $) {
         /// @solidity memory-safe-assembly
