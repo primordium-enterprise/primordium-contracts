@@ -7,7 +7,7 @@ import {TimelockAvatar} from "./TimelockAvatar.sol";
 import {ITreasury} from "../interfaces/ITreasury.sol";
 import {IBalanceSharesManager} from "../interfaces/IBalanceSharesManager.sol";
 import {Enum} from "contracts/common/Enum.sol";
-import {ISharesManager} from "contracts/shares/interfaces/ISharesManager.sol";
+import {SharesManager} from "contracts/shares/base/SharesManager.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
@@ -20,10 +20,15 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
     using SafeERC20 for IERC20;
     using ERC165Checker for address;
 
+    struct BalanceShares {
+        IBalanceSharesManager _manager;
+        bool _isEnabled;
+    }
+
     /// @custom:storage-location erc7201:Treasurer.Storage
     struct TreasurerStorage {
-        ISharesManager _token;
-        IBalanceSharesManager _balanceSharesManager;
+        SharesManager _token;
+        BalanceShares _balanceShares;
     }
 
     bytes32 private immutable TREASURER_STORAGE =
@@ -36,11 +41,15 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
         }
     }
 
+    uint256 public immutable DEPOSITS_BALANCE_SHARE_ID = uint256(keccak256("deposits"));
+
     event BalanceSharesManagerUpdate(address oldBalanceSharesManager, address newBalanceSharesManager);
+    event BalanceSharesInitialized(address balanceSharesManager, uint256 totalDeposits, uint256 depositsAllocated);
     event DepositRegistered(IERC20 quoteAsset, uint256 depositAmount);
     event WithdrawalProcessed(address receiver, uint256 sharesBurned, uint256 totalSharesSupply, IERC20[] tokens);
 
     error OnlyToken();
+    error DepositSharesAlreadyInitialized();
     error BalanceSharesManagerInterfaceNotSupported(address balanceSharesManager);
     error ETHTransferFailed();
     error FailedToTransferBaseAsset(address to, uint256 amount);
@@ -65,7 +74,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
     ) internal onlyInitializing {
         TreasurerStorage storage $ = _getTreasurerStorage();
         // Token cannot be reset later, must be correct token on initialization
-        $._token = ISharesManager(token_);
+        $._token = SharesManager(token_);
 
         _setBalanceSharesManager(balanceSharesManager_);
     }
@@ -105,7 +114,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
     }
 
     function balanceSharesManager() public view returns (address) {
-        return address(_getTreasurerStorage()._balanceSharesManager);
+        return address(_getTreasurerStorage()._balanceShares._manager);
     }
 
     function setBalanceSharesManager(address newBalanceSharesManager) external onlySelf {
@@ -117,33 +126,48 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
             revert BalanceSharesManagerInterfaceNotSupported(newBalanceSharesManager);
         }
 
+        BalanceShares storage $ = _getTreasurerStorage()._balanceShares;
+        emit BalanceSharesManagerUpdate(address($._manager), newBalanceSharesManager);
+        $._manager = IBalanceSharesManager(newBalanceSharesManager);
+    }
+
+    function initializeBalanceShares() external onlyDuringModuleExecution {
+        _initializeBalanceShares();
+    }
+
+
+    function _initializeBalanceShares() internal virtual {
         TreasurerStorage storage $ = _getTreasurerStorage();
-        emit BalanceSharesManagerUpdate(address($._balanceSharesManager), newBalanceSharesManager);
-        $._balanceSharesManager = IBalanceSharesManager(newBalanceSharesManager);
-    }
-
-    function initializeDeposits() external onlyDuringModuleExecution {
-        _initializeDeposits();
-    }
-
-
-    function _initializeDeposits() internal virtual {
         // TODO: Ensure that deposits have not already been initialized
-        // TODO: Retrieve the deposit share amount
+        IBalanceSharesManager manager = $._balanceShares._manager;
+        bool balanceSharesEnabled = $._balanceShares._isEnabled;
 
-        // uint256 totalSupply = _token.totalSupply();
-        // (uint256 quoteAmount, uint256 mintAmount) = _token.sharePrice();
-        // uint256 totalDeposits = Math.mulDiv(totalSupply, quoteAmount, mintAmount);
+        // Revert if balance shares are already initialized
+        if (balanceSharesEnabled) {
+            revert DepositSharesAlreadyInitialized();
+        }
 
-        // TODO: Need to transfer totalDeposits to the deposit share contract
-        // TODO: Set state to show that deposits are now initialized
+        SharesManager _token = $._token;
+
+        // Retrieve the deposit share amount
+        uint256 totalSupply = _token.totalSupply();
+        (uint256 quoteAmount, uint256 mintAmount) = _token.sharePrice();
+        uint256 totalDeposits = Math.mulDiv(totalSupply, quoteAmount, mintAmount);
+
+        // Allocate the deposit shares to the balance shares manager
+        IERC20 quoteAsset = _token.quoteAsset();
+        uint256 depositsAllocated = _allocateBalanceShare(
+            manager,
+            DEPOSITS_BALANCE_SHARE_ID,
+            quoteAsset,
+            totalDeposits
+        );
+
+        // Enable balance shares going forward
+        $._balanceShares._isEnabled = true;
+
+        emit BalanceSharesInitialized(address(manager), totalDeposits, depositsAllocated);
     }
-
-    function governanceInitialized(address asset, uint256 totalDeposits) external onlyToken {
-        _governanceInitialized(asset, totalDeposits);
-    }
-
-    function _governanceInitialized(address asset, uint256 totalDeposits) internal virtual { }
 
     /**
      * @inheritdoc ITreasury
@@ -159,6 +183,13 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
     function _registerDeposit(IERC20 quoteAsset, uint256 depositAmount) internal virtual {
         if (depositAmount == 0) revert InvalidDepositAmount();
         if (address(quoteAsset) == address(0) && msg.value != depositAmount) revert InvalidDepositAmount();
+
+        BalanceShares storage $ = _getTreasurerStorage()._balanceShares;
+        IBalanceSharesManager manager = $._manager;
+        bool balanceSharesEnabled = $._isEnabled;
+        if (balanceSharesEnabled) {
+            _allocateBalanceShare(manager, DEPOSITS_BALANCE_SHARE_ID, quoteAsset, depositAmount);
+        }
 
         emit DepositRegistered(quoteAsset, depositAmount);
     }
@@ -188,6 +219,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
     ) internal virtual {
         if (sharesTotalSupply > 0 && sharesBurned > 0) {
             // Iterate through the token addresses, sending proportional payouts (using address(0) for ETH)
+            // TODO: Need to add the PROFT/DISTRIBUTIONS Balance share allocation to this function
             for (uint256 i = 0; i < tokens.length;) {
                 uint256 tokenBalance;
                 if (address(tokens[i]) == address(0)) {
@@ -211,5 +243,29 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
         }
 
         emit WithdrawalProcessed(receiver, sharesBurned, sharesTotalSupply, tokens);
+    }
+
+    function _allocateBalanceShare(
+        IBalanceSharesManager manager,
+        uint256 balanceShareId,
+        IERC20 asset,
+        uint256 balanceIncreasedBy
+    ) internal returns (uint256 amountToAllocate) {
+        // Get allocation amount
+        amountToAllocate = manager.getBalanceShareAllocationWithRemainder(
+            balanceShareId,
+            address(asset),
+            balanceIncreasedBy
+        );
+
+        // Approve transfer amount
+        asset.forceApprove(address(manager), amountToAllocate);
+
+        // Allocate to the balance share
+        manager.allocateToBalanceShareWithRemainder(
+            balanceShareId,
+            address(asset),
+            balanceIncreasedBy
+        );
     }
 }

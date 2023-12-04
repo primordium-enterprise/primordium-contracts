@@ -16,11 +16,11 @@ import {Treasurer} from "contracts/executor/base/Treasurer.sol";
 abstract contract GovernanceInitialization is GovernorBase {
 
     /**
-     * @dev Overrides to additionally initialize deposits on the Treasurer contract.
+     * @dev Overrides to additionally try initializing deposits on the Treasurer contract.
      */
     function _initializeGovernance() internal virtual override {
         super._initializeGovernance();
-        Treasurer(payable(address(executor()))).initializeDeposits();
+        try Treasurer(payable(address(executor()))).initializeBalanceShares() { } catch { }
     }
 
 }
