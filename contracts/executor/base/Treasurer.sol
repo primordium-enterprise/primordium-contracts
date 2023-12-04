@@ -14,9 +14,11 @@ import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
 abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
     using SafeERC20 for IERC20;
+    using ERC165Checker for address;
 
     /// @custom:storage-location erc7201:Treasurer.Storage
     struct TreasurerStorage {
@@ -34,10 +36,12 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
         }
     }
 
+    event BalanceSharesManagerUpdate(address oldBalanceSharesManager, address newBalanceSharesManager);
     event DepositRegistered(IERC20 quoteAsset, uint256 depositAmount);
     event WithdrawalProcessed(address receiver, uint256 sharesBurned, uint256 totalSharesSupply, IERC20[] tokens);
 
     error OnlyToken();
+    error BalanceSharesManagerInterfaceNotSupported(address balanceSharesManager);
     error ETHTransferFailed();
     error FailedToTransferBaseAsset(address to, uint256 amount);
     error InsufficientBaseAssetFunds(uint256 balanceTransferAmount, uint256 currentBalance);
@@ -56,10 +60,14 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
     }
 
     function __Treasurer_init(
-        ISharesManager token_
+        address token_,
+        address balanceSharesManager_
     ) internal onlyInitializing {
         TreasurerStorage storage $ = _getTreasurerStorage();
-        $._token = token_;
+        // Token cannot be reset later, must be correct token on initialization
+        $._token = ISharesManager(token_);
+
+        _setBalanceSharesManager(balanceSharesManager_);
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
@@ -94,6 +102,24 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
 
     function token() public view returns (address) {
         return address(_getTreasurerStorage()._token);
+    }
+
+    function balanceSharesManager() public view returns (address) {
+        return address(_getTreasurerStorage()._balanceSharesManager);
+    }
+
+    function setBalanceSharesManager(address newBalanceSharesManager) external onlySelf {
+        _setBalanceSharesManager(newBalanceSharesManager);
+    }
+
+    function _setBalanceSharesManager(address newBalanceSharesManager) internal {
+        if (!newBalanceSharesManager.supportsInterface(type(IBalanceSharesManager).interfaceId)) {
+            revert BalanceSharesManagerInterfaceNotSupported(newBalanceSharesManager);
+        }
+
+        TreasurerStorage storage $ = _getTreasurerStorage();
+        emit BalanceSharesManagerUpdate(address($._balanceSharesManager), newBalanceSharesManager);
+        $._balanceSharesManager = IBalanceSharesManager(newBalanceSharesManager);
     }
 
     function initializeDeposits() external onlyDuringModuleExecution {

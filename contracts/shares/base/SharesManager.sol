@@ -36,6 +36,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     using Math for uint256;
     using SafeCast for *;
     using SafeERC20 for IERC20;
+    using ERC165Checker for address;
 
     bytes32 public immutable WITHDRAW_TYPEHASH = keccak256(
         "Withdraw(address owner,address receiver,uint256 amount,address[] tokens,uint256 nonce,uint256 deadline)"
@@ -105,7 +106,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
             newTreasury == address(this)
         ) revert InvalidTreasuryAddress(newTreasury);
 
-        if (!ERC165Checker.supportsInterface(newTreasury, type(ITreasury).interfaceId)) {
+        if (!newTreasury.supportsInterface(type(ITreasury).interfaceId)) {
             revert TreasuryInterfaceNotSupported(newTreasury);
         }
 
@@ -163,7 +164,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     function _setQuoteAsset(address newQuoteAsset, bool checkInterfaceSupport) internal virtual {
         if (newQuoteAsset == address(this)) revert CannotSetQuoteAssetToSelf();
         if (checkInterfaceSupport) {
-            if (!ERC165Checker.supportsInterface(newQuoteAsset, type(IERC20).interfaceId)) {
+            if (!newQuoteAsset.supportsInterface(type(IERC20).interfaceId)) {
                 revert QuoteAssetInterfaceNotSupported(newQuoteAsset);
             }
         }
