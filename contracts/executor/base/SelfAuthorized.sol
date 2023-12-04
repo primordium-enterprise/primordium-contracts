@@ -15,7 +15,7 @@ abstract contract SelfAuthorized {
         _;
     }
 
-    function _onlySelf() private view {
+    function _onlySelf() internal view {
         if (msg.sender != address(this)) {
             revert OnlySelfAuthorized();
         }

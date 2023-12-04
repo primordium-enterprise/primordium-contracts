@@ -15,10 +15,12 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
     using SafeERC20 for IERC20;
     using ERC165Checker for address;
+    using Address for address;
 
     struct BalanceShares {
         IBalanceSharesManager _manager;
@@ -48,6 +50,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
     event DepositRegistered(IERC20 quoteAsset, uint256 depositAmount);
     event WithdrawalProcessed(address receiver, uint256 sharesBurned, uint256 totalSharesSupply, IERC20[] tokens);
 
+    error BalanceSharesInitializationCallFailed(uint256 index, bytes data);
     error OnlyToken();
     error DepositSharesAlreadyInitialized();
     error BalanceSharesManagerInterfaceNotSupported(address balanceSharesManager);
@@ -70,13 +73,19 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
 
     function __Treasurer_init(
         address token_,
-        address balanceSharesManager_
+        address balanceSharesManager_,
+        bytes[] memory balanceShareInitCalldatas
     ) internal onlyInitializing {
         TreasurerStorage storage $ = _getTreasurerStorage();
         // Token cannot be reset later, must be correct token on initialization
         $._token = SharesManager(token_);
 
         _setBalanceSharesManager(balanceSharesManager_);
+        if (balanceSharesManager_ != address(0)) {
+            for (uint256 i = 0; i < balanceShareInitCalldatas.length;) {
+                balanceSharesManager_.functionCall(balanceShareInitCalldatas[i]);
+            }
+        }
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
@@ -109,14 +118,27 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
         }
     }
 
-    function token() public view returns (address) {
-        return address(_getTreasurerStorage()._token);
+    /**
+     * Returns the address of the ERC20 token used for vote shares.
+     */
+    function token() public view returns (address _token) {
+        _token = address(_getTreasurerStorage()._token);
     }
 
-    function balanceSharesManager() public view returns (address) {
-        return address(_getTreasurerStorage()._balanceShares._manager);
+    /**
+     * Returns the address of the contract used for balance shares management, or address(0) if no balance shares are
+     * currently being used.
+     */
+    function balanceSharesManager() public view returns (address _balanceSharesManager) {
+        _balanceSharesManager = address(_getTreasurerStorage()._balanceShares._manager);
     }
 
+    /**
+     * Sets the address for the balance shares manager contract.
+     * @notice Only callable by the Executor itself.
+     * @param newBalanceSharesManager The address of the new balance shares manager contract, which must implement the
+     * IBalanceSharesManager interface.
+     */
     function setBalanceSharesManager(address newBalanceSharesManager) external onlySelf {
         _setBalanceSharesManager(newBalanceSharesManager);
     }
@@ -131,37 +153,61 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
         $._manager = IBalanceSharesManager(newBalanceSharesManager);
     }
 
-    function initializeBalanceShares() external onlyDuringModuleExecution {
-        _initializeBalanceShares();
+    /**
+     * Returns true if balance shares are enabled for this contract.
+     */
+    function balanceSharesEnabled() external view returns (bool isBalanceSharesEnabled) {
+        BalanceShares storage $ = _getTreasurerStorage()._balanceShares;
+        address manager = address($._manager);
+        bool isEnabled = $._isEnabled;
+        isBalanceSharesEnabled = isEnabled && manager != address(0);
     }
 
+    /**
+     * Enables the accounting for balance shares. Once enabled, it cannot be disabled except by setting the balance
+     * shares manager address to address(0).
+     * @notice This function is only callable by the Executor itself, or by an enabled module during that module's
+     * execution of an Executor operation.
+     * @param applyDepositSharesRetroactively If set to true, this will retroactively apply deposit share accounting to
+     * the total amount of deposits registered so far.
+     */
+    function enableBalanceShares(
+        bool applyDepositSharesRetroactively
+    ) external onlySelfOrDuringModuleExecution {
+        _enableBalanceShares(applyDepositSharesRetroactively);
+    }
 
-    function _initializeBalanceShares() internal virtual {
+    function _enableBalanceShares(bool applyDepositSharesRetroactively) internal virtual {
         TreasurerStorage storage $ = _getTreasurerStorage();
-        // TODO: Ensure that deposits have not already been initialized
+
         IBalanceSharesManager manager = $._balanceShares._manager;
-        bool balanceSharesEnabled = $._balanceShares._isEnabled;
+        bool sharesEnabled = $._balanceShares._isEnabled;
 
         // Revert if balance shares are already initialized
-        if (balanceSharesEnabled) {
+        if (sharesEnabled) {
             revert DepositSharesAlreadyInitialized();
         }
 
-        SharesManager _token = $._token;
+        uint256 totalDeposits;
+        uint256 depositsAllocated;
 
-        // Retrieve the deposit share amount
-        uint256 totalSupply = _token.totalSupply();
-        (uint256 quoteAmount, uint256 mintAmount) = _token.sharePrice();
-        uint256 totalDeposits = Math.mulDiv(totalSupply, quoteAmount, mintAmount);
+        if (applyDepositSharesRetroactively) {
+            SharesManager _token = $._token;
 
-        // Allocate the deposit shares to the balance shares manager
-        IERC20 quoteAsset = _token.quoteAsset();
-        uint256 depositsAllocated = _allocateBalanceShare(
-            manager,
-            DEPOSITS_BALANCE_SHARE_ID,
-            quoteAsset,
-            totalDeposits
-        );
+            // Retrieve the deposit share amount
+            uint256 totalSupply = _token.totalSupply();
+            (uint256 quoteAmount, uint256 mintAmount) = _token.sharePrice();
+            totalDeposits = Math.mulDiv(totalSupply, quoteAmount, mintAmount);
+
+            // Allocate the deposit shares to the balance shares manager
+            IERC20 quoteAsset = _token.quoteAsset();
+            depositsAllocated = _allocateBalanceShare(
+                manager,
+                DEPOSITS_BALANCE_SHARE_ID,
+                quoteAsset,
+                totalDeposits
+            );
+        }
 
         // Enable balance shares going forward
         $._balanceShares._isEnabled = true;
@@ -177,17 +223,14 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
         _registerDeposit(quoteAsset, depositAmount);
     }
 
-    /**
-     * @dev Can override and call super._registerDeposit for additional checks/functionality
-    */
     function _registerDeposit(IERC20 quoteAsset, uint256 depositAmount) internal virtual {
         if (depositAmount == 0) revert InvalidDepositAmount();
         if (address(quoteAsset) == address(0) && msg.value != depositAmount) revert InvalidDepositAmount();
 
         BalanceShares storage $ = _getTreasurerStorage()._balanceShares;
         IBalanceSharesManager manager = $._manager;
-        bool balanceSharesEnabled = $._isEnabled;
-        if (balanceSharesEnabled) {
+        bool sharesEnabled = $._isEnabled;
+        if (sharesEnabled) {
             _allocateBalanceShare(manager, DEPOSITS_BALANCE_SHARE_ID, quoteAsset, depositAmount);
         }
 
@@ -207,10 +250,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
         _processWithdrawal(receiver, sharesBurned, sharesTotalSupply, tokens);
     }
 
-    /**
-     * @dev Transfers proportional payouts for a withdrawal. Can override and call super._processWithdrawal for any
-     * additional checks/functionality.
-     */
     function _processWithdrawal(
         address receiver,
         uint256 sharesBurned,
@@ -245,27 +284,32 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
         emit WithdrawalProcessed(receiver, sharesBurned, sharesTotalSupply, tokens);
     }
 
+    /**
+     * @dev Internal helper for allocating an asset to the provided balance share manager and balanceShareId.
+     */
     function _allocateBalanceShare(
         IBalanceSharesManager manager,
         uint256 balanceShareId,
         IERC20 asset,
         uint256 balanceIncreasedBy
     ) internal returns (uint256 amountToAllocate) {
-        // Get allocation amount
-        amountToAllocate = manager.getBalanceShareAllocationWithRemainder(
-            balanceShareId,
-            address(asset),
-            balanceIncreasedBy
-        );
+        if (address(manager) != address(0)) {
+            // Get allocation amount
+            amountToAllocate = manager.getBalanceShareAllocationWithRemainder(
+                balanceShareId,
+                address(asset),
+                balanceIncreasedBy
+            );
 
-        // Approve transfer amount
-        asset.forceApprove(address(manager), amountToAllocate);
+            // Approve transfer amount
+            asset.forceApprove(address(manager), amountToAllocate);
 
-        // Allocate to the balance share
-        manager.allocateToBalanceShareWithRemainder(
-            balanceShareId,
-            address(asset),
-            balanceIncreasedBy
-        );
+            // Allocate to the balance share
+            manager.allocateToBalanceShareWithRemainder(
+                balanceShareId,
+                address(asset),
+                balanceIncreasedBy
+            );
+        }
     }
 }

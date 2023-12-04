@@ -117,9 +117,20 @@ abstract contract TimelockAvatar is
 
     /// @dev Only allows the function to be called by the module actively executing the current operation.
     modifier onlyDuringModuleExecution() {
+        _onlyDuringModuleExecution();
+        _;
+    }
+
+    modifier onlySelfOrDuringModuleExecution() {
+        if (msg.sender != address(this)) {
+            _onlyDuringModuleExecution();
+        }
+        _;
+    }
+
+    function _onlyDuringModuleExecution() internal view {
         address _executingModule = executingModule();
         if (msg.sender != _executingModule) revert SenderMustBeExecutingModule(msg.sender, _executingModule);
-        _;
     }
 
     /// @dev Returns the module that is actively executing the operation.

@@ -20,7 +20,7 @@ abstract contract GovernanceInitialization is GovernorBase {
      */
     function _initializeGovernance() internal virtual override {
         super._initializeGovernance();
-        try Treasurer(payable(address(executor()))).initializeBalanceShares() { } catch { }
+        try Treasurer(payable(address(executor()))).enableBalanceShares() { } catch { }
     }
 
 }
