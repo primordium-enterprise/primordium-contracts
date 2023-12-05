@@ -6,7 +6,7 @@ pragma solidity ^0.8.20;
 import {TimelockAvatar} from "./TimelockAvatar.sol";
 import {ITreasury} from "../interfaces/ITreasury.sol";
 import {IBalanceSharesManager} from "../interfaces/IBalanceSharesManager.sol";
-import {Enum} from "contracts/common/Enum.sol";
+import {BalanceShareIds} from "contracts/common/BalanceShareIds.sol";
 import {SharesManager} from "contracts/shares/base/SharesManager.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
@@ -17,7 +17,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
+abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShareIds {
     using SafeERC20 for IERC20;
     using ERC165Checker for address;
     using Address for address;
@@ -42,8 +42,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
             $.slot := slot
         }
     }
-
-    uint256 public immutable DEPOSITS_BALANCE_SHARE_ID = uint256(keccak256("deposits"));
 
     event BalanceSharesManagerUpdate(address oldBalanceSharesManager, address newBalanceSharesManager);
     event BalanceSharesInitialized(address balanceSharesManager, uint256 totalDeposits, uint256 depositsAllocated);
@@ -203,7 +201,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
             IERC20 quoteAsset = _token.quoteAsset();
             depositsAllocated = _allocateBalanceShare(
                 manager,
-                DEPOSITS_BALANCE_SHARE_ID,
+                DEPOSITS_ID,
                 quoteAsset,
                 totalDeposits
             );
@@ -231,7 +229,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372 {
         IBalanceSharesManager manager = $._manager;
         bool sharesEnabled = $._isEnabled;
         if (sharesEnabled) {
-            _allocateBalanceShare(manager, DEPOSITS_BALANCE_SHARE_ID, quoteAsset, depositAmount);
+            _allocateBalanceShare(manager, DEPOSITS_ID, quoteAsset, depositAmount);
         }
 
         emit DepositRegistered(quoteAsset, depositAmount);
