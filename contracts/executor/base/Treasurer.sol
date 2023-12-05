@@ -5,6 +5,7 @@ pragma solidity ^0.8.20;
 
 import {TimelockAvatar} from "./TimelockAvatar.sol";
 import {ITreasury} from "../interfaces/ITreasury.sol";
+import {IDistributor} from "../interfaces/IDistributor.sol";
 import {IBalanceSharesManager} from "../interfaces/IBalanceSharesManager.sol";
 import {BalanceShareIds} from "contracts/common/BalanceShareIds.sol";
 import {SharesManager} from "contracts/shares/base/SharesManager.sol";
@@ -48,10 +49,10 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShare
     event DepositRegistered(IERC20 quoteAsset, uint256 depositAmount);
     event WithdrawalProcessed(address receiver, uint256 sharesBurned, uint256 totalSharesSupply, IERC20[] tokens);
 
+    error InvalidERC165InterfaceSupport(address _contract);
     error BalanceSharesInitializationCallFailed(uint256 index, bytes data);
     error OnlyToken();
     error DepositSharesAlreadyInitialized();
-    error BalanceSharesManagerInterfaceNotSupported(address balanceSharesManager);
     error ETHTransferFailed();
     error FailedToTransferBaseAsset(address to, uint256 amount);
     error InsufficientBaseAssetFunds(uint256 balanceTransferAmount, uint256 currentBalance);
@@ -123,6 +124,16 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShare
         _token = address(_getTreasurerStorage()._token);
     }
 
+    function distributor() public view returns (address _distributor) {
+
+    }
+
+    function authorizeDistributorImplementation(address newImplementation) public view virtual {
+        if (!newImplementation.supportsInterface(type(IDistributor).interfaceId)) {
+            revert InvalidERC165InterfaceSupport(newImplementation);
+        }
+    }
+
     /**
      * Returns the address of the contract used for balance shares management, or address(0) if no balance shares are
      * currently being used.
@@ -143,7 +154,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShare
 
     function _setBalanceSharesManager(address newBalanceSharesManager) internal {
         if (!newBalanceSharesManager.supportsInterface(type(IBalanceSharesManager).interfaceId)) {
-            revert BalanceSharesManagerInterfaceNotSupported(newBalanceSharesManager);
+            revert InvalidERC165InterfaceSupport(newBalanceSharesManager);
         }
 
         BalanceShares storage $ = _getTreasurerStorage()._balanceShares;
