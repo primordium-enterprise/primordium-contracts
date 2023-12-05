@@ -4,6 +4,7 @@
 pragma solidity ^0.8.20;
 
 import {TimelockAvatar} from "./TimelockAvatar.sol";
+import {ISharesManager} from "contracts/shares/interfaces/ISharesManager.sol";
 import {ITreasury} from "../interfaces/ITreasury.sol";
 import {IDistributor} from "../interfaces/IDistributor.sol";
 import {IBalanceSharesManager} from "../interfaces/IBalanceSharesManager.sol";
@@ -76,7 +77,14 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShare
         bytes[] memory balanceShareInitCalldatas
     ) internal onlyInitializing {
         TreasurerStorage storage $ = _getTreasurerStorage();
+
         // Token cannot be reset later, must be correct token on initialization
+        if (
+            !token_.supportsInterface(type(ISharesManager).interfaceId) ||
+            !token_.supportsInterface(type(IERC20).interfaceId)
+        ) {
+            revert InvalidERC165InterfaceSupport(token_);
+        }
         $._token = SharesManager(token_);
 
         _setBalanceSharesManager(balanceSharesManager_);
@@ -91,30 +99,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShare
         return
             interfaceId == type(ITreasury).interfaceId ||
             super.supportsInterface(interfaceId);
-    }
-
-    /**
-     * @dev Clock (as specified in EIP-6372) is set to match the token's clock. Fallback to block numbers if the token
-     * does not implement EIP-6372.
-     */
-    function clock() public view virtual returns (uint48) {
-        try _getTreasurerStorage()._token.clock() returns (uint48 timepoint) {
-            return timepoint;
-        } catch {
-            return Time.blockNumber();
-        }
-    }
-
-    /**
-     * @dev Machine-readable description of the clock as specified in EIP-6372.
-     */
-    // solhint-disable-next-line func-name-mixedcase
-    function CLOCK_MODE() public view virtual returns (string memory) {
-        try _getTreasurerStorage()._token.CLOCK_MODE() returns (string memory clockmode) {
-            return clockmode;
-        } catch {
-            return "mode=blocknumber&from=default";
-        }
     }
 
     /**
