@@ -16,6 +16,7 @@ import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC165 {
     using SafeERC20 for IERC20;
@@ -65,6 +66,8 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
         }
     }
 
+    uint256 private constant MASK_UINT128 = 0xffffffffffffffffffffffffffffffff;
+
     uint256 public constant MAX_DISTRIBUTION_AMOUNT = type(uint128).max;
 
     event DistributionCreated(
@@ -78,6 +81,12 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
     event CloseDistributionsApprovalUpdate(address indexed account, bool indexed isApproved);
     event DistributionClosed(uint256 indexed distributionId, address asset, uint256 reclaimAmount);
     event ClaimDistributionsApprovalUpdate(address indexed holder, address indexed account, bool indexed isApproved);
+    event DistributionClaimed(
+        uint256 indexed distributionId,
+        address indexed holder,
+        address asset,
+        uint256 amount
+    );
 
     error Unauthorized();
     error InvalidERC165InterfaceSupport(address _contract);
@@ -88,8 +97,11 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
     error ETHTransferFailed();
     error OwnerAuthorizationRequired();
     error DistributionDoesNotExist();
-    error DistributionIsAlreadyClosed();
+    error DistributionIsClosed();
+    error DistributionClaimsNotYetActive(uint256 clockStartTime);
     error DistributionClaimsStillActive(uint256 closableAt);
+    error DistributionAlreadyClaimed(address holder);
+    error TokenTotalSupplyIsZero(address token, uint256 clockStartTime);
 
     modifier requireOwnerAuthorization() {
         if (SelfAuthorized(owner()).getAuthorizedOperator() != address(this)) {
@@ -302,7 +314,7 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
         uint256 closableAt = _distribution.clockClosableAt;
 
         if (isClosed) {
-            revert DistributionIsAlreadyClosed();
+            revert DistributionIsClosed();
         }
 
         // Check clock time
@@ -376,6 +388,106 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
     ) internal {
         $._claimDistributionsApproval[holder][account] = isApproved;
         emit ClaimDistributionsApprovalUpdate(holder, account, isApproved);
+    }
+
+    function claimDistribution(
+        uint256 distributionId
+    ) public returns (uint256 claimAmount) {
+        claimAmount = claimDistribution(distributionId, msg.sender);
+    }
+
+    function claimDistribution(
+        uint256 distributionId,
+        address holder
+    ) public returns (uint256 claimAmount) {
+        DistributorStorage storage $ = _getDistributorStorage();
+
+        // Authorize the sender
+        address sender = _msgSender();
+        if (sender != holder) {
+            if (
+                !$._claimDistributionsApproval[holder][address(0)] &&
+                !$._claimDistributionsApproval[holder][sender]
+            ) {
+                revert Unauthorized();
+            }
+        }
+
+        claimAmount = _claimDistribution($, distributionId, holder, holder);
+    }
+
+    function _claimDistribution(
+        DistributorStorage storage $,
+        uint256 distributionId,
+        address holder,
+        address receiver
+    ) internal virtual returns (uint256 claimAmount) {
+        Distribution storage _distribution = $._distributions[distributionId];
+
+        // Read slot once
+        address asset = _distribution.asset;
+        bool isClosed = _distribution.isClosed;
+
+        // Distribution must not be closed
+        if (isClosed) {
+            revert DistributionIsClosed();
+        }
+
+        // Must not have claimed already
+        if (_distribution.hasClaimed[holder]) {
+            revert DistributionAlreadyClaimed(holder);
+        }
+
+        uint256 clockStartTime = _distribution.clockStartTime;
+        uint256 totalSupply = _distribution.cachedTotalSupply;
+
+        // If the cached total supply is zero, then check that the distribution is active
+        IERC20Checkpoints _token = $._token;
+        if (totalSupply == 0) {
+            // Check if the distribution exists
+            if (clockStartTime == 0) {
+                revert DistributionDoesNotExist();
+            } else {
+                uint256 currentClock = _token.clock();
+                if (currentClock < clockStartTime) {
+                    revert DistributionClaimsNotYetActive(clockStartTime);
+                }
+            }
+
+            // Get the total supply at the start time
+            totalSupply = _token.getPastTotalSupply(clockStartTime);
+
+            // If the total supply is still zero, throw an error
+            if (totalSupply == 0) {
+                revert TokenTotalSupplyIsZero(address(_token), clockStartTime);
+            }
+
+            // Cache the result for future claims
+            _distribution.cachedTotalSupply = SafeCast.toUint208(totalSupply);
+        }
+
+        // Read balances together
+        uint256 totalBalance = _distribution.balance;
+        uint256 claimedBalance = _distribution.claimedBalance;
+
+        // Calculate the claim amount
+        claimAmount = Math.mulDiv(
+            _token.getPastBalanceOf(holder, clockStartTime),
+            totalBalance,
+            totalSupply
+        );
+
+        // Set the distribution as claimed for the holder, update claimed balance, and transfer the assets
+        _distribution.hasClaimed[holder] = true;
+        claimedBalance += claimAmount;
+        if (claimAmount > 0) {
+            assembly ("memory-safe") {
+                sstore(_distribution.slot, or(totalBalance, shl(128, claimedBalance)))
+            }
+            _safeTransfer(asset, receiver, claimAmount);
+        }
+
+        emit DistributionClaimed(distributionId, holder, asset, claimAmount);
     }
 
     function _safeTransfer(address asset, address to, uint256 amount) internal {
