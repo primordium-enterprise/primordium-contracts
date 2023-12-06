@@ -33,7 +33,7 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
 
         // Slot 2 (27 bytes)
         address asset;
-        bool isDistributionClosed;
+        bool isClosed;
         uint48 clockClosableAt;
 
         // Slot 3
@@ -48,6 +48,8 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
         IERC20Checkpoints _token;
 
         mapping(uint256 distributionId => Distribution) _distributions;
+
+        mapping(address account => bool isApprovedToCloseDistributions) _closeDistributionsApproval;
     }
 
     bytes32 private immutable DISTRIBUTOR_STORAGE =
@@ -70,13 +72,20 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
         uint256 clockClosableAt
     );
     event DistributionClaimPeriodUpdate(uint256 oldClaimPeriod, uint256 newClaimPeriod);
+    event CloseDistributionsApprovalUpdate(address indexed account, bool indexed isApproved);
+    event DistributionClosed(uint256 indexed distributionId, address asset, uint256 reclaimAmount);
 
+    error Unauthorized();
     error InvalidERC165InterfaceSupport(address _contract);
     error ClockStartTimeCannotBeInThePast();
     error DistributionAmountTooLow();
     error DistributionAmountTooHigh(uint256 maxAmount);
     error InvalidMsgValue();
+    error ETHTransferFailed();
     error OwnerAuthorizationRequired();
+    error DistributionDoesNotExist();
+    error DistributionIsAlreadyClosed();
+    error DistributionClaimsStillActive(uint256 closableAt);
 
     modifier requireOwnerAuthorization() {
         if (SelfAuthorized(owner()).getAuthorizedOperator() != address(this)) {
@@ -210,6 +219,118 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
         _distribution.clockClosableAt = SafeCast.toUint48(clockClosableAt);
 
         emit DistributionCreated(distributionId, asset, amount, clockStartTime, clockClosableAt);
+    }
+
+    /**
+     * Returns whether or not the provided address is approved for closing distributions once the claim period has
+     * expired for a distribution.
+     * @param account The address to check the status for.
+     * @return isApproved A bool indicating whether or not the account is approved.
+     */
+    function isApprovedForClosingDistributions(address account) public view virtual returns (bool) {
+        return _getDistributorStorage()._closeDistributionsApproval[account];
+    }
+
+    /**
+     * A timelock-only function to approve addresses to close distributions once the claim period has expired. Approve
+     * address(0) to allow anyone to close a distribution.
+     * @param accounts A list of addresses to approve.
+     */
+    function approveForClosingDistributions(
+        address[] calldata accounts
+    ) external virtual onlyOwner {
+        DistributorStorage storage $ = _getDistributorStorage();
+        for (uint256 i = 0; i < accounts.length;) {
+            _setApprovalForClosingDistributions($, accounts[i], true);
+            unchecked { ++i; }
+        }
+    }
+
+    /**
+     * A timelock-only function to unapprove addresses for closing distributions.
+     * @param accounts A list of addresses to unapprove.
+     */
+    function unapproveForClosingDistributions(
+        address[] calldata accounts
+    ) external virtual onlyOwner {
+        DistributorStorage storage $ = _getDistributorStorage();
+        for (uint256 i = 0; i < accounts.length;) {
+            _setApprovalForClosingDistributions($, accounts[i], false);
+            unchecked { ++i; }
+        }
+    }
+
+    function _setApprovalForClosingDistributions(
+        DistributorStorage storage $,
+        address account,
+        bool isApproved
+    ) internal virtual {
+        $._closeDistributionsApproval[account] = isApproved;
+        emit CloseDistributionsApprovalUpdate(account, isApproved);
+    }
+
+    /**
+     * A function to close a distribution and reclaim the remaining distribution balance to the owner. Only callable by
+     * the owner, or approved addresses. If the distribution claims have not yet started, the owner can close it. If the
+     * distribution claims have already begun, then the distribution cannot be closed until after the claim period has
+     * passed.
+     * @param distributionId The identifier of the distribution to be closed.
+     */
+    function closeDistribution(uint256 distributionId) external virtual {
+        DistributorStorage storage $ = _getDistributorStorage();
+
+        // Authorize the caller
+        address _owner = owner();
+        if (msg.sender != _owner) {
+            if (
+                !$._closeDistributionsApproval[address(0)] &&
+                !$._closeDistributionsApproval[_msgSender()]
+            ) {
+                revert Unauthorized();
+            }
+        }
+
+        Distribution storage _distribution = $._distributions[distributionId];
+
+        // Read together to save gas
+        address asset = _distribution.asset;
+        bool isClosed = _distribution.isClosed;
+        uint256 closableAt = _distribution.clockClosableAt;
+
+        if (isClosed) {
+            revert DistributionIsAlreadyClosed();
+        }
+
+        // Check clock time
+        uint256 currentClock = $._token.clock();
+        uint256 startTime = _distribution.clockStartTime;
+
+        if (startTime == 0) {
+            revert DistributionDoesNotExist();
+        } else if (currentClock < startTime && msg.sender != _owner) {
+            revert Unauthorized();
+        } else if (currentClock < closableAt) {
+            revert DistributionClaimsStillActive(closableAt);
+        }
+
+        // Close and reclaim remaining assets
+        _distribution.isClosed = true;
+
+        uint256 reclaimAmount = _distribution.balance - _distribution.claimedBalance;
+        _safeTransfer(asset, _owner, reclaimAmount);
+
+        emit DistributionClosed(distributionId, asset, reclaimAmount);
+    }
+
+    function _safeTransfer(address asset, address to, uint256 amount) internal {
+        if (asset == address(0)) {
+            (bool success,) = to.call{value: amount}("");
+            if (!success) {
+                revert ETHTransferFailed();
+            }
+        } else {
+            IERC20(asset).safeTransfer(to, amount);
+        }
     }
 
     function _authorizeUpgrade(
