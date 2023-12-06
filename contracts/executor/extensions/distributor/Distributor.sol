@@ -6,6 +6,8 @@ pragma solidity ^0.8.20;
 import {IDistributor} from "../../interfaces/IDistributor.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Treasurer} from "../../base/Treasurer.sol";
@@ -17,11 +19,24 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
-contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC165 {
+contract Distributor is
+    IDistributor,
+    UUPSUpgradeable,
+    OwnableUpgradeable,
+    EIP712Upgradeable,
+    NoncesUpgradeable,
+    ERC165
+{
     using SafeERC20 for IERC20;
     using Address for address;
     using ERC165Verifier for address;
+
+    bytes32 public immutable CLAIM_DISTRIBUTION_TYPEHASH =
+        keccak256(
+            "ClaimDistribution(uint256 distributionId,address holder,address receiver,uint256 nonce,uint256 deadline)"
+        );
 
     struct Distribution {
         // Slot 0 (32 bytes)
@@ -34,8 +49,8 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
 
         // Slot 2 (27 bytes)
         address asset;
-        bool isClosed;
         uint48 clockClosableAt;
+        bool isClosed;
 
         // Slot 3
         mapping(address => bool) hasClaimed;
@@ -43,17 +58,21 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
 
     /// @custom:storage-location erc7201:Distributor.Storage
     struct DistributorStorage {
+        // Slot 0 (32 bytes)
         uint48 _claimPeriod;
         uint208 _distributionsCount;
 
+        // Slot 1 (20 bytes)
         IERC20Checkpoints _token;
 
+        // Slot 2
         mapping(uint256 distributionId => Distribution) _distributions;
 
+        // Slot 3
         mapping(address account => bool isApprovedToClose) _closeDistributionsApproval;
 
+        // Slot 4
         mapping(address holder => mapping(address account => bool isApprovedToClaim)) _claimDistributionsApproval;
-
     }
 
     bytes32 private immutable DISTRIBUTOR_STORAGE =
@@ -102,6 +121,8 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
     error DistributionClaimsStillActive(uint256 closableAt);
     error DistributionAlreadyClaimed(address holder);
     error TokenTotalSupplyIsZero(address token, uint256 clockStartTime);
+    error ClaimsExpiredSignature();
+    error ClaimsInvalidSignature();
 
     modifier requireOwnerAuthorization() {
         if (SelfAuthorized(owner()).getAuthorizedOperator() != address(this)) {
@@ -120,6 +141,7 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
         DistributorStorage storage $ = _getDistributorStorage();
 
         __Ownable_init(msg.sender);
+        __EIP712_init("Distributor", "1");
 
         token_.checkInterfaces([
             type(IERC20Checkpoints).interfaceId,
@@ -171,7 +193,7 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
      * Otherwise, the clockStartTime CANNOT be in the past.
      * @param asset The ERC20 asset to be used for the distribution (address(0) for ETH).
      * @param amount The amount of the ERC20 asset to be transferred to this contract as a total amount avaialable for
-     * distribution.
+     * distribution. Cannot be greater than type(uint128).max for gas reasons.
      * @return distributionId The ID of the newly created distribution.
      *
      * @dev This function requires that not only the owner initiates the call, but also that the owner has flagged this
@@ -390,21 +412,32 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
         emit ClaimDistributionsApprovalUpdate(holder, account, isApproved);
     }
 
-    function claimDistribution(
-        uint256 distributionId
-    ) public returns (uint256 claimAmount) {
-        claimAmount = claimDistribution(distributionId, msg.sender);
-    }
-
+    /**
+     * Claims a distribution for the specified token holder, sending the claimed asset amount to the receiver.
+     * @notice If the msg.sender is not the holder, this requires that the msg.sender is approved for claiming
+     * distributions on behalf of the holder (or that the holder has approved address(0)).
+     * @notice The receiver address MUST be equal to the holder address UNLESS the msg.sender is the holder.
+     * @param distributionId The distribution ID to claim for.
+     * @param holder The address of the token holder.
+     * @param receiver The address to send the claimed assets to.
+     * @return claimAmount The amount of assets claimed by this token holder.
+     */
     function claimDistribution(
         uint256 distributionId,
-        address holder
-    ) public returns (uint256 claimAmount) {
+        address holder,
+        address receiver
+    ) public virtual returns (uint256 claimAmount) {
         DistributorStorage storage $ = _getDistributorStorage();
 
         // Authorize the sender
         address sender = _msgSender();
         if (sender != holder) {
+            // Only holder is authorized to send to a different address
+            if (holder != receiver) {
+                revert Unauthorized();
+            }
+
+            // Sender must be authorized to send to the holder
             if (
                 !$._claimDistributionsApproval[holder][address(0)] &&
                 !$._claimDistributionsApproval[holder][sender]
@@ -413,7 +446,57 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
             }
         }
 
-        claimAmount = _claimDistribution($, distributionId, holder, holder);
+        claimAmount = _claimDistribution($, distributionId, holder, receiver);
+    }
+
+    /**
+     * Same as above, but uses the msg.sender as the holder and the receiver address.
+     */
+    function claimDistribution(
+        uint256 distributionId
+    ) public virtual returns (uint256 claimAmount) {
+        address sender = _msgSender();
+        claimAmount = _claimDistribution(_getDistributorStorage(), distributionId, sender, sender);
+    }
+
+    /**
+     * @dev Claims distribution for holder by signature, sending to receiver. Supports ECDSA or EIP1271 signatures.
+     *
+     * @param signature The signature is a packed bytes encoding of the ECDSA r, s, and v signature values.
+     */
+    function claimDistributionBySig(
+        uint256 distributionId,
+        address holder,
+        address receiver,
+        uint256 deadline,
+        bytes memory signature
+    ) public virtual returns (uint256 claimAmount) {
+        if (block.timestamp > deadline) {
+            revert ClaimsExpiredSignature();
+        }
+
+        bool valid = SignatureChecker.isValidSignatureNow(
+            holder,
+            _hashTypedDataV4(
+                keccak256(
+                    abi.encode(
+                        CLAIM_DISTRIBUTION_TYPEHASH,
+                        distributionId,
+                        holder,
+                        receiver,
+                        _useNonce(holder),
+                        deadline
+                    )
+                )
+            ),
+            signature
+        );
+
+        if (!valid) {
+            revert ClaimsInvalidSignature();
+        }
+
+        claimAmount = _claimDistribution(_getDistributorStorage(), distributionId, holder, receiver);
     }
 
     function _claimDistribution(
@@ -422,9 +505,15 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
         address holder,
         address receiver
     ) internal virtual returns (uint256 claimAmount) {
-        Distribution storage _distribution = $._distributions[distributionId];
+        // Set the distribution reference
+        Distribution storage _distribution;
+        assembly ("memory-safe") {
+            mstore(0, distributionId)
+            mstore(0x20, add($.slot, 0x02))
+            _distribution.slot := keccak256(0, 0x40)
+        }
 
-        // Read slot once
+        // Single read
         address asset = _distribution.asset;
         bool isClosed = _distribution.isClosed;
 
@@ -434,15 +523,26 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
         }
 
         // Must not have claimed already
-        if (_distribution.hasClaimed[holder]) {
-            revert DistributionAlreadyClaimed(holder);
+        {
+            bool hasClaimed;
+            assembly ("memory-safe") {
+                mstore(0, holder)
+                mstore(0x20, add(_distribution.slot, 0x03))
+                hasClaimed := sload(keccak256(0, 0x40))
+            }
+
+            if (hasClaimed) {
+                revert DistributionAlreadyClaimed(holder);
+            }
         }
 
+        // Single read
         uint256 clockStartTime = _distribution.clockStartTime;
         uint256 totalSupply = _distribution.cachedTotalSupply;
 
-        // If the cached total supply is zero, then check that the distribution is active
         IERC20Checkpoints _token = $._token;
+
+        // If the cached total supply is zero, then check that the distribution is active
         if (totalSupply == 0) {
             // Check if the distribution exists
             if (clockStartTime == 0) {
@@ -466,7 +566,7 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
             _distribution.cachedTotalSupply = SafeCast.toUint208(totalSupply);
         }
 
-        // Read balances together
+        // Single read
         uint256 totalBalance = _distribution.balance;
         uint256 claimedBalance = _distribution.claimedBalance;
 

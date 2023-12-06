@@ -21,15 +21,6 @@ abstract contract TreasurerDistributions is Treasurer {
         mapping(address => bool) hasClaimed;
     }
 
-    /**
-     * @notice The maximum claim period for new distributions.
-     */
-    uint256 public immutable MAX_DISTRIBUTION_CLAIM_PERIOD;
-    /**
-     * @notice The minimum claim period for new distributions.
-     */
-    uint256 public immutable MIN_DISTRIBUTION_CLAIM_PERIOD;
-
     // Distributions counter
     uint256 public distributionsCount;
 
@@ -42,7 +33,6 @@ abstract contract TreasurerDistributions is Treasurer {
     // Tracks whether or not a distribution has been closed
     mapping(uint256 => bool) private _closedDistributions;
 
-    mapping(address => mapping(address => bool)) private _approvedAddressesForClaims;
 
     event DistributionCreated(uint256 indexed distributionId, uint256 clockStartTime, uint256 distributionBalance);
     event DistributionClaimPeriodUpdated(uint256 oldClaimPeriod, uint256 newClaimPeriod);
@@ -86,111 +76,7 @@ abstract contract TreasurerDistributions is Treasurer {
         );
     }
 
-    /**
-     * @notice Returns whether or not the provided address is approved to claim the distribution for the specified
-     * owner.
-     * @param owner The token holder.
-     * @param account The address to check for approval for claiming distributions to the owner.
-     */
-    function isAddressApprovedForDistributionClaims(
-        address owner,
-        address account
-    ) public view virtual returns (bool) {
-        return _approvedAddressesForClaims[owner][account];
-    }
 
-    /**
-     * @notice Changes the distribution claim period.
-     */
-    function updateDistributionClaimPeriod(uint256 newClaimPeriod) external virtual onlySelf {
-        _updateDistributionClaimPeriod(newClaimPeriod);
-    }
-
-
-
-
-
-    /**
-     * @notice Public function for claiming a distribution for the msg.sender
-     * @param distributionId The distribution identifier to claim.
-     * @return claimAmount Returns the amount of base asset transferred to the claim recipient.
-     */
-    function claimDistribution(
-        uint256 distributionId
-    ) public virtual returns (uint256) {
-        return _claimDistribution(distributionId, _msgSender());
-    }
-
-    /**
-     * @notice Public function for claiming a distribution on behalf of another account (but the msg.sender must be
-     * approved for claims).
-     * @param distributionId The distribution identifier to claim.
-     * @param claimFor The address of the token holder to claim the distribution for.
-     * @return claimAmount Returns the amount of base asset transferred to the claim recipient.
-     */
-    function claimDistribution(
-        uint256 distributionId,
-        address claimFor
-    ) public virtual returns (uint256) {
-        return _claimDistribution(distributionId, claimFor);
-    }
-
-
-
-    /**
-     * @dev Internal function for claiming a distribution as a token holder
-     */
-    function _claimDistribution(
-        uint256 distributionId,
-        address claimFor
-    ) internal virtual returns (uint256) {
-        // Distribution must not be closed
-        if (_closedDistributions[distributionId]) revert DistributionIsClosed();
-
-        // msg.sender must be claimFor, or must be approved
-        address msgSender = _msgSender();
-        if (msgSender != claimFor) {
-            if (
-                !_approvedAddressesForClaims[claimFor][msgSender] &&
-                !_approvedAddressesForClaims[claimFor][address(0)]
-            ) revert UnapprovedForClaimingDistribution();
-        }
-
-        Distribution storage distribution = _distributions[distributionId];
-
-        // Must not have claimed already
-        if (distribution.hasClaimed[claimFor]) revert AddressAlreadyClaimed();
-
-        uint256 clockStartTime = distribution.clockStartTime;
-        uint256 totalSupply = distribution.cachedTotalSupply;
-
-        // If the cached total supply is zero, then this distribution needs to be initialized (meaning cached)
-        if (totalSupply == 0) {
-            _checkClockValidity(clockStartTime, clock());
-            totalSupply = _token.getPastTotalSupply(clockStartTime);
-            // If the total supply is still zero, then simply reclaim the distribution
-            if (totalSupply == 0) {
-                _reclaimRemainingDistributionFunds(distributionId);
-                return 0;
-            }
-            // Cache the result for future claims
-            distribution.cachedTotalSupply = totalSupply.toUint224();
-        }
-
-        uint256 claimAmount = Math.mulDiv(
-            _token.getPastBalanceOf(claimFor, clockStartTime),
-            distribution.balance,
-            totalSupply
-        );
-
-        distribution.hasClaimed[claimFor] = true;
-        distribution.claimedBalance += claimAmount;
-        _transferStashedBaseAsset(claimFor, claimAmount);
-
-        emit DistributionClaimed(distributionId, claimFor, claimAmount);
-
-        return claimAmount;
-    }
 
 
     function _checkClockValidity(
