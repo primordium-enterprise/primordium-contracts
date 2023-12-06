@@ -51,6 +51,12 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShare
     event BalanceSharesInitialized(address balanceSharesManager, uint256 totalDeposits, uint256 depositsAllocated);
     event DepositRegistered(IERC20 quoteAsset, uint256 depositAmount);
     event WithdrawalProcessed(address receiver, uint256 sharesBurned, uint256 totalSharesSupply, IERC20[] tokens);
+    event BalanceShareAllocated(
+        IBalanceSharesManager indexed manager,
+        uint256 indexed balanceShareId,
+        IERC20 indexed asset,
+        uint256 amountAllocated
+    );
 
     error InvalidERC165InterfaceSupport(address _contract);
     error BalanceSharesInitializationCallFailed(uint256 index, bytes data);
@@ -123,8 +129,49 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShare
         _token = address(_getTreasurerStorage()._token);
     }
 
+    /**
+     * Returns the address of the contract used for distributions.
+     */
     function distributor() public view returns (address _distributor) {
         return address(_getTreasurerStorage()._distributor);
+    }
+
+    /**
+     * Creates a distribution on the distributor contract for the given amount. If there are existing balance share
+     * accounts for distributions, the BPS share will be subtracted from the amount and allocated to the balance share
+     * manager contract before initializing the distribution.
+     */
+    function createDistribution(
+        uint256 clockStartTime,
+        IERC20 asset,
+        uint256 amount
+    ) external virtual onlySelf {
+        IDistributor _distributor = _getTreasurerStorage()._distributor;
+        _createDistribution(_distributor, clockStartTime, asset, amount);
+    }
+
+    function _createDistribution(
+        IDistributor _distributor,
+        uint256 clockStartTime,
+        IERC20 asset,
+        uint256 amount
+    ) internal virtual authorizeOperator(address(_distributor)) {
+        // Allocate to the balance share
+        amount -= _allocateBalanceShare(
+            _getTreasurerStorage()._balanceShares._manager,
+            DISTRIBUTIONS_ID,
+            asset,
+            amount
+        );
+
+        uint256 value = 0;
+        if (address(asset) == address(0)) {
+            value = amount;
+        } else {
+            asset.forceApprove(address(_distributor), amount);
+        }
+
+        _distributor.createDistribution(clockStartTime, address(asset), amount);
     }
 
     function authorizeDistributorImplementation(address newImplementation) public view virtual {
@@ -296,24 +343,39 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShare
         uint256 balanceShareId,
         IERC20 asset,
         uint256 balanceIncreasedBy
-    ) internal returns (uint256 amountToAllocate) {
+    ) internal returns (uint256 amountAllocated) {
         if (address(manager) != address(0)) {
+            uint256 value;
+            bool remainderIncreased;
             // Get allocation amount
-            amountToAllocate = manager.getBalanceShareAllocationWithRemainder(
+            (amountAllocated, remainderIncreased) = manager.getBalanceShareAllocationWithRemainder(
                 balanceShareId,
                 address(asset),
                 balanceIncreasedBy
             );
 
-            // Approve transfer amount
-            asset.forceApprove(address(manager), amountToAllocate);
+            // Only need to continue if balance actually increased, meaning balance share total BPS > 0
+            if (amountAllocated > 0 || remainderIncreased) {
 
-            // Allocate to the balance share
-            manager.allocateToBalanceShareWithRemainder(
-                balanceShareId,
-                address(asset),
-                balanceIncreasedBy
-            );
+                // Approve transfer amount
+                if (amountAllocated > 0 && address(asset) != address(0)) {
+                    asset.forceApprove(address(manager), amountAllocated);
+                }
+
+                if (address(asset) == address(0)) {
+                    value = amountAllocated;
+                }
+
+                // Allocate to the balance share
+                manager.allocateToBalanceShareWithRemainder{value: value}(
+                    balanceShareId,
+                    address(asset),
+                    balanceIncreasedBy
+                );
+
+                emit BalanceShareAllocated(manager, balanceShareId, asset, balanceIncreasedBy);
+
+            }
         }
     }
 }

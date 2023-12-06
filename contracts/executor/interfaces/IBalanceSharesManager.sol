@@ -19,7 +19,7 @@ interface IBalanceSharesManager {
         uint256 balanceShareId,
         address asset,
         uint256 balanceIncreasedBy
-    ) external view returns (uint256 amountToAllocate);
+    ) external view returns (uint256 amountToAllocate, bool remainderIncrease);
 
     function allocateToBalanceShare(
         uint256 balanceShareId,

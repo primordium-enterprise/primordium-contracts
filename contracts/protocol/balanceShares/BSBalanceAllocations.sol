@@ -107,19 +107,23 @@ contract BSBalanceAllocations is BSStorage, IBalanceSharesManager {
      * @param balanceIncreasedBy The amount that the total balance share increased by.
      * @return amountToAllocate The amount of the asset that should be allocated to the balance share. Mathematically:
      * amountToAllocate = (balanceIncreasedBy + previousAssetRemainder) * totalBps / 10_000
+     * @return remainderIncrease A bool indicating whether or not the remainder increased as a result of this function.
+     * Will return true if the remainder increased, even if the amountToAllocate is zero.
      */
     function getBalanceShareAllocationWithRemainder(
         address client,
         uint256 balanceShareId,
         address asset,
         uint256 balanceIncreasedBy
-    ) public view returns (uint256 amountToAllocate) {
-        (amountToAllocate,,) = _calculateBalanceShareAllocation(
+    ) public view returns (uint256 amountToAllocate, bool remainderIncrease) {
+        uint256 newAssetRemainder;
+        (amountToAllocate, newAssetRemainder,) = _calculateBalanceShareAllocation(
             _getBalanceShare(client, balanceShareId),
             asset,
             balanceIncreasedBy,
             true
         );
+        remainderIncrease = newAssetRemainder < MAX_BPS;
     }
 
     /**
@@ -129,7 +133,7 @@ contract BSBalanceAllocations is BSStorage, IBalanceSharesManager {
         uint256 balanceShareId,
         address asset,
         uint256 balanceIncreasedBy
-    ) external view override returns (uint256) {
+    ) external view override returns (uint256, bool) {
         return getBalanceShareAllocationWithRemainder(msg.sender, balanceShareId, asset, balanceIncreasedBy);
     }
 
@@ -151,6 +155,8 @@ contract BSBalanceAllocations is BSStorage, IBalanceSharesManager {
                 uint256 currentAssetRemainder = _getBalanceSum(_currentBalanceSumCheckpoint, asset).remainder;
                 balanceIncreasedBy += currentAssetRemainder;
                 newAssetRemainder = BasisPoints.bpsMulmod(balanceIncreasedBy, totalBps);
+            } else {
+                newAssetRemainder = MAX_BPS;
             }
 
             amountToAllocate = BasisPoints.bps(balanceIncreasedBy, totalBps);
@@ -262,6 +268,10 @@ contract BSBalanceAllocations is BSStorage, IBalanceSharesManager {
         uint256 amountToAllocate,
         uint256 newAssetRemainder
     ) internal {
+        if (amountToAllocate == 0 && newAssetRemainder == MAX_BPS) {
+            return;
+        }
+
         BalanceSumCheckpoint storage _balanceSumCheckpoint = _currentBalanceSumCheckpoint;
 
         // Transfer the asset to this contract

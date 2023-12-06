@@ -21,9 +21,9 @@ abstract contract ExecutorBaseCallOnly is SelfAuthorized {
     /**
      * @dev Contract should be able to receive ETH.
      */
-    receive() external payable {}
+    receive() external payable virtual {}
 
-    fallback() external payable {}
+    fallback() external payable virtual {}
 
     /**
      * @dev Execute an operation's call.

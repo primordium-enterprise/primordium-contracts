@@ -18,6 +18,6 @@ interface IDistributor {
         uint256 clockStartTime,
         address asset,
         uint256 amount
-    ) external returns (uint256 distributionId);
+    ) external payable returns (uint256 distributionId);
 
 }

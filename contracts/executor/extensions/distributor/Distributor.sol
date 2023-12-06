@@ -106,10 +106,10 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
     }
 
     /**
-     * Returns the current distribution claim period. This is the minimum time period (in the token's clock mode) that a
-     * distribution will be claimable by token holders once claims have begun.
+     * Returns the current distribution claim period. This is the minimum time period (in the token's clock unit) that a
+     * distribution will be claimable by token holders once the claims have begun.
      */
-    function distributionClaimPeriod() public view returns (uint256 claimPeriod) {
+    function distributionClaimPeriod() public view virtual returns (uint256 claimPeriod) {
         claimPeriod = _getDistributorStorage()._claimPeriod;
     }
 
@@ -121,17 +121,20 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
      * after claims begin for a distribution to ensure claims continue before the distribution can be closed. If using
      * timestamps, then this is the number of seconds before which claims should be closable.
      */
-    function setDistributionClaimPeriod(uint256 newClaimPeriod) external onlyOwner {
+    function setDistributionClaimPeriod(uint256 newClaimPeriod) external virtual onlyOwner {
         _setDistributionClaimPeriod(newClaimPeriod);
     }
 
-    function _setDistributionClaimPeriod(uint256 newClaimPeriod) internal {
+    function _setDistributionClaimPeriod(uint256 newClaimPeriod) internal virtual {
         DistributorStorage storage $ = _getDistributorStorage();
         emit DistributionClaimPeriodUpdate($._claimPeriod, newClaimPeriod);
         $._claimPeriod = uint48(newClaimPeriod);
     }
 
-    function distributionsCount() public view returns (uint256 _distributionsCount) {
+    /**
+     * Returns the total count of distributions so far.
+     */
+    function distributionsCount() public view virtual returns (uint256 _distributionsCount) {
         _distributionsCount = _getDistributorStorage()._distributionsCount;
     }
 
@@ -154,7 +157,7 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
         uint256 clockStartTime,
         address asset,
         uint256 amount
-    ) public virtual onlyOwner requireOwnerAuthorization returns (uint256 distributionId) {
+    ) public payable virtual onlyOwner requireOwnerAuthorization returns (uint256 distributionId) {
         distributionId = _createDistribution(clockStartTime, asset, amount);
     }
 
@@ -208,8 +211,6 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
 
         emit DistributionCreated(distributionId, asset, amount, clockStartTime, clockClosableAt);
     }
-
-
 
     function _authorizeUpgrade(
         address newImplementation
