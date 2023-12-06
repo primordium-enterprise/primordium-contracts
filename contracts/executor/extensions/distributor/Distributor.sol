@@ -49,7 +49,10 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
 
         mapping(uint256 distributionId => Distribution) _distributions;
 
-        mapping(address account => bool isApprovedToCloseDistributions) _closeDistributionsApproval;
+        mapping(address account => bool isApprovedToClose) _closeDistributionsApproval;
+
+        mapping(address holder => mapping(address account => bool isApprovedToClaim)) _claimDistributionsApproval;
+
     }
 
     bytes32 private immutable DISTRIBUTOR_STORAGE =
@@ -74,6 +77,7 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
     event DistributionClaimPeriodUpdate(uint256 oldClaimPeriod, uint256 newClaimPeriod);
     event CloseDistributionsApprovalUpdate(address indexed account, bool indexed isApproved);
     event DistributionClosed(uint256 indexed distributionId, address asset, uint256 reclaimAmount);
+    event ClaimDistributionsApprovalUpdate(address indexed holder, address indexed account, bool indexed isApproved);
 
     error Unauthorized();
     error InvalidERC165InterfaceSupport(address _contract);
@@ -320,6 +324,58 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
         _safeTransfer(asset, _owner, reclaimAmount);
 
         emit DistributionClosed(distributionId, asset, reclaimAmount);
+    }
+
+    /**
+     * Returns whether or not the provided address is approved to claim distributions for the specified token holder.
+     * @notice Claimed funds are still sent to the token holder. Approved accounts can simply process the claims.
+     * @param holder The token holder.
+     * @param account The address to check for approval for claiming distributions to the owner.
+     */
+    function isApprovedForClaimingDistributions(
+        address holder,
+        address account
+    ) public view virtual returns (bool isApproved) {
+        isApproved = _getDistributorStorage()._claimDistributionsApproval[holder][account];
+    }
+
+    /**
+     * Approves the provided accounts to claim distributions on behalf of the msg.sender.
+     * @notice Claimed distribution funds are still sent to the token holder, not the approved account.
+     * @param accounts A list of addresses to approve.
+     */
+    function approveForClaimingDistributions(
+        address[] calldata accounts
+    ) external virtual {
+        DistributorStorage storage $ = _getDistributorStorage();
+        for (uint256 i = 0; i < accounts.length; ++i) {
+            _setApprovalForClaimingDistributions($, msg.sender, accounts[i], true);
+        }
+    }
+
+    /**
+     * Approves the provided accounts to claim distributions on behalf of the msg.sender. Approving address(0) allows
+     * anyone to claim distributions on behalf of the msg.sender.
+     * @notice Claimed distribution funds are still sent to the token holder, not the approved account.
+     * @param accounts A list of addresses to approve.
+     */
+    function unapproveForClaimingDistributions(
+        address[] calldata accounts
+    ) external virtual {
+        DistributorStorage storage $ = _getDistributorStorage();
+        for (uint256 i = 0; i < accounts.length; ++i) {
+            _setApprovalForClaimingDistributions($, msg.sender, accounts[i], false);
+        }
+    }
+
+    function _setApprovalForClaimingDistributions(
+        DistributorStorage storage $,
+        address holder,
+        address account,
+        bool isApproved
+    ) internal {
+        $._claimDistributionsApproval[holder][account] = isApproved;
+        emit ClaimDistributionsApprovalUpdate(holder, account, isApproved);
     }
 
     function _safeTransfer(address asset, address to, uint256 amount) internal {
