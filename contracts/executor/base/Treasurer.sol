@@ -10,18 +10,19 @@ import {IDistributor} from "../interfaces/IDistributor.sol";
 import {IBalanceSharesManager} from "../interfaces/IBalanceSharesManager.sol";
 import {BalanceShareIds} from "contracts/common/BalanceShareIds.sol";
 import {SharesManager} from "contracts/shares/base/SharesManager.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {ERC165Verifier} from "contracts/libraries/ERC165Verifier.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShareIds {
     using SafeERC20 for IERC20;
-    using ERC165Checker for address;
+    using ERC165Verifier for address;
     using Address for address;
 
     struct BalanceShares {
@@ -33,6 +34,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShare
     struct TreasurerStorage {
         SharesManager _token;
         BalanceShares _balanceShares;
+        IDistributor _distributor;
     }
 
     bytes32 private immutable TREASURER_STORAGE =
@@ -74,25 +76,38 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShare
     function __Treasurer_init(
         address token_,
         address balanceSharesManager_,
-        bytes[] memory balanceShareInitCalldatas
+        bytes[] memory balanceShareInitCalldatas,
+        address distributorImplementation,
+        uint256 distributionClaimPeriod
     ) internal onlyInitializing {
         TreasurerStorage storage $ = _getTreasurerStorage();
 
         // Token cannot be reset later, must be correct token on initialization
-        if (
-            !token_.supportsInterface(type(ISharesManager).interfaceId) ||
-            !token_.supportsInterface(type(IERC20).interfaceId)
-        ) {
-            revert InvalidERC165InterfaceSupport(token_);
-        }
+        token_.checkInterfaces([
+            type(ISharesManager).interfaceId,
+            type(IERC20).interfaceId
+        ]);
         $._token = SharesManager(token_);
 
+        // Set the balance shares manager, and call any initialization functions
         _setBalanceSharesManager(balanceSharesManager_);
-        if (balanceSharesManager_ != address(0)) {
+        if (balanceSharesManager_ != address(0) && balanceShareInitCalldatas.length > 0) {
             for (uint256 i = 0; i < balanceShareInitCalldatas.length;) {
                 balanceSharesManager_.functionCall(balanceShareInitCalldatas[i]);
             }
         }
+
+        // Check distributor interface
+        authorizeDistributorImplementation(distributorImplementation);
+        $._distributor = IDistributor(
+            address(
+                new ERC1967Proxy{salt: bytes32(uint256(uint160(distributorImplementation)))}(
+                    distributorImplementation,
+                    abi.encodeCall(IDistributor.initialize, (token_, distributionClaimPeriod))
+                )
+            )
+        );
+
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
@@ -109,13 +124,11 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShare
     }
 
     function distributor() public view returns (address _distributor) {
-
+        return address(_getTreasurerStorage()._distributor);
     }
 
     function authorizeDistributorImplementation(address newImplementation) public view virtual {
-        if (!newImplementation.supportsInterface(type(IDistributor).interfaceId)) {
-            revert InvalidERC165InterfaceSupport(newImplementation);
-        }
+        newImplementation.checkInterface(type(IDistributor).interfaceId);
     }
 
     /**
@@ -137,9 +150,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShare
     }
 
     function _setBalanceSharesManager(address newBalanceSharesManager) internal {
-        if (!newBalanceSharesManager.supportsInterface(type(IBalanceSharesManager).interfaceId)) {
-            revert InvalidERC165InterfaceSupport(newBalanceSharesManager);
-        }
+        newBalanceSharesManager.checkInterface(type(IBalanceSharesManager).interfaceId);
 
         BalanceShares storage $ = _getTreasurerStorage()._balanceShares;
         emit BalanceSharesManagerUpdate(address($._manager), newBalanceSharesManager);

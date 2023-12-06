@@ -15,7 +15,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
-import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {ERC165Verifier} from "contracts/libraries/ERC165Verifier.sol";
 
 /**
  * @title SharesManager - Contract responsible for managing permissionless deposits and withdrawals (rage quit).
@@ -36,7 +36,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     using Math for uint256;
     using SafeCast for *;
     using SafeERC20 for IERC20;
-    using ERC165Checker for address;
+    using ERC165Verifier for address;
 
     bytes32 public immutable WITHDRAW_TYPEHASH = keccak256(
         "Withdraw(address owner,address receiver,uint256 amount,address[] tokens,uint256 nonce,uint256 deadline)"
@@ -106,9 +106,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
             newTreasury == address(this)
         ) revert InvalidTreasuryAddress(newTreasury);
 
-        if (!newTreasury.supportsInterface(type(ITreasury).interfaceId)) {
-            revert TreasuryInterfaceNotSupported(newTreasury);
-        }
+        newTreasury.checkInterface(type(ITreasury).interfaceId);
 
         SharesManagerStorage storage $ = _getSharesManagerStorage();
         emit TreasuryChange(address($._treasury), newTreasury);
@@ -164,9 +162,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
     function _setQuoteAsset(address newQuoteAsset, bool checkInterfaceSupport) internal virtual {
         if (newQuoteAsset == address(this)) revert CannotSetQuoteAssetToSelf();
         if (checkInterfaceSupport) {
-            if (!newQuoteAsset.supportsInterface(type(IERC20).interfaceId)) {
-                revert QuoteAssetInterfaceNotSupported(newQuoteAsset);
-            }
+            newQuoteAsset.checkInterface(type(IERC20).interfaceId);
         }
 
         SharesManagerStorage storage $ = _getSharesManagerStorage();

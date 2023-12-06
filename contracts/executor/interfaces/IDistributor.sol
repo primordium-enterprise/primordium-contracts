@@ -9,6 +9,15 @@ pragma solidity ^0.8.20;
  */
 interface IDistributor {
 
+    function initialize(
+        address token_,
+        uint256 claimPeriod_
+    ) external;
 
+    function createDistribution(
+        uint256 clockStartTime,
+        address asset,
+        uint256 amount
+    ) external returns (uint256 distributionId);
 
 }

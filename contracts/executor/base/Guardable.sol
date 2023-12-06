@@ -8,7 +8,7 @@ import {IGuard} from "../interfaces/IGuard.sol";
 import {IGuardable} from "../interfaces/IGuardable.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
-import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {ERC165Verifier} from "contracts/libraries/ERC165Verifier.sol";
 
 abstract contract BaseGuard is IGuard, IERC165 {
 
@@ -62,9 +62,7 @@ contract Guardable is SelfAuthorized, IGuardable, ERC165Upgradeable {
 
     function _setGuard(address guard) internal {
         if (guard != address(0)) {
-            if (!ERC165Checker.supportsInterface(guard, type(IGuard).interfaceId)) {
-                revert NotIERC165Compliant(guard);
-            }
+            ERC165Verifier.checkInterface(guard, type(IGuard).interfaceId);
         }
         Guard storage $;
         assembly {

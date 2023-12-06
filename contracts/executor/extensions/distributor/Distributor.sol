@@ -10,7 +10,7 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Treasurer} from "../../base/Treasurer.sol";
 import {SelfAuthorized} from "../../base/SelfAuthorized.sol";
-import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {ERC165Verifier} from "contracts/libraries/ERC165Verifier.sol";
 import {IERC20Checkpoints} from "contracts/shares/interfaces/IERC20Checkpoints.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -20,7 +20,7 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC165 {
     using SafeERC20 for IERC20;
     using Address for address;
-    using ERC165Checker for address;
+    using ERC165Verifier for address;
 
     struct Distribution {
         // Slot 0 (32 bytes)
@@ -96,12 +96,10 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
 
         __Ownable_init(msg.sender);
 
-        if (
-            !token_.supportsInterface(type(IERC20Checkpoints).interfaceId) ||
-            !token_.supportsInterface(type(IERC6372).interfaceId)
-        ) {
-            revert InvalidERC165InterfaceSupport(token_);
-        }
+        token_.checkInterfaces([
+            type(IERC20Checkpoints).interfaceId,
+            type(IERC6372).interfaceId
+        ]);
         $._token = IERC20Checkpoints(token_);
 
         _setDistributionClaimPeriod(claimPeriod_);
