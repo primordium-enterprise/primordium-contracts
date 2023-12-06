@@ -9,6 +9,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Treasurer} from "../../base/Treasurer.sol";
+import {SelfAuthorized} from "../../base/SelfAuthorized.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {IERC20Checkpoints} from "contracts/shares/interfaces/IERC20Checkpoints.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
@@ -75,6 +76,14 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
     error DistributionAmountTooLow();
     error DistributionAmountTooHigh(uint256 maxAmount);
     error InvalidMsgValue();
+    error OwnerAuthorizationRequired();
+
+    modifier requireOwnerAuthorization() {
+        if (SelfAuthorized(owner()).getAuthorizedOperator() != address(this)) {
+            revert OwnerAuthorizationRequired();
+        }
+        _;
+    }
 
     /**
      * By default, initializes to the msg.sender being the owner.
@@ -128,6 +137,29 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
         _distributionsCount = _getDistributorStorage()._distributionsCount;
     }
 
+    /**
+     * Creates a new distribution for share holders.
+     * @notice Only callable by the owner (see dev note about authorized operation).
+     * @param clockStartTime The timepoint (according to the share token clock) when claims will begin for this
+     * distribution. If a value of zero is passed, then this will be set to the current clock value at execution.
+     * Otherwise, the clockStartTime CANNOT be in the past.
+     * @param asset The ERC20 asset to be used for the distribution (address(0) for ETH).
+     * @param amount The amount of the ERC20 asset to be transferred to this contract as a total amount avaialable for
+     * distribution.
+     * @return distributionId The ID of the newly created distribution.
+     *
+     * @dev This function requires that not only the owner initiates the call, but also that the owner has flagged this
+     * contract as the authorized operator. If not, this call will fail. This restricts the call to only be callable
+     * through another function on the owner that specifically authorizes this contract for the operation.
+     */
+    function createDistribution(
+        uint256 clockStartTime,
+        address asset,
+        uint256 amount
+    ) public virtual onlyOwner requireOwnerAuthorization returns (uint256 distributionId) {
+        distributionId = _createDistribution(clockStartTime, asset, amount);
+    }
+
     function _createDistribution(
         uint256 clockStartTime,
         address asset,
@@ -172,7 +204,6 @@ contract Distributor is IDistributor, UUPSUpgradeable, OwnableUpgradeable, ERC16
 
         // Setup the new distribution
         Distribution storage _distribution = $._distributions[distributionId];
-
         _distribution.clockStartTime = uint48(clockStartTime);
         _distribution.balance = uint128(amount);
         _distribution.clockClosableAt = SafeCast.toUint48(clockClosableAt);

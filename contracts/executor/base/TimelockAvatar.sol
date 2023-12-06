@@ -142,6 +142,7 @@ abstract contract TimelockAvatar is
         uint256 minDelay_,
         address[] memory modules_
     ) internal onlyInitializing {
+        __SelfAuthorized_init();
         // Initialize the module execution to address(0x01) for cheaper gas updates
         _setModuleExecution(MODULES_HEAD);
         _updateMinDelay(minDelay_);
