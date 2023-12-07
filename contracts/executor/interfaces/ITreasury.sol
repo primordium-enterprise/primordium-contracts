@@ -29,6 +29,7 @@ interface ITreasury {
      * (such as ETH).
      */
     function processWithdrawal(
+        address account,
         address receiver,
         uint256 sharesBurned,
         uint256 sharesTotalSupply,

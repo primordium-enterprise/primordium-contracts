@@ -50,8 +50,20 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     event BalanceSharesManagerUpdate(address oldBalanceSharesManager, address newBalanceSharesManager);
     event BalanceSharesInitialized(address balanceSharesManager, uint256 totalDeposits, uint256 depositsAllocated);
     event DepositRegistered(IERC20 quoteAsset, uint256 depositAmount);
-    event Withdrawal(address indexed receiver, IERC20 asset, uint256 payout, uint256 distributionShareAllocation);
-    event WithdrawalProcessed(address indexed receiver, uint256 sharesBurned, uint256 totalSharesSupply, IERC20[] assets);
+    event Withdrawal(
+        address indexed account,
+        address receiver,
+        IERC20 asset,
+        uint256 payout,
+        uint256 distributionShareAllocation
+    );
+    event WithdrawalProcessed(
+        address indexed account,
+        uint256 sharesBurned,
+        uint256 totalSharesSupply,
+        address receiver,
+        IERC20[] assets
+    );
     event BalanceShareAllocated(
         IBalanceSharesManager indexed manager,
         uint256 indexed balanceShareId,
@@ -294,15 +306,17 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
      * @notice Only callable by the shares token contract.
      */
     function processWithdrawal(
+        address account,
         address receiver,
         uint256 sharesBurned,
         uint256 sharesTotalSupply,
         IERC20[] calldata assets
     ) external virtual override onlyToken {
-        _processWithdrawal(receiver, sharesBurned, sharesTotalSupply, assets);
+        _processWithdrawal(account, receiver, sharesBurned, sharesTotalSupply, assets);
     }
 
     function _processWithdrawal(
+        address account,
         address receiver,
         uint256 sharesBurned,
         uint256 sharesTotalSupply,
@@ -341,14 +355,14 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                         assets[i].safeTransfer(receiver, payout);
                     }
 
-                    emit Withdrawal(receiver, assets[i], payout, distributionShareAllocation);
+                    emit Withdrawal(account, receiver, assets[i], payout, distributionShareAllocation);
                 }
 
                 unchecked { ++i; }
             }
         }
 
-        emit WithdrawalProcessed(receiver, sharesBurned, sharesTotalSupply, assets);
+        emit WithdrawalProcessed(account, sharesBurned, sharesTotalSupply, receiver, assets);
     }
 
     /**

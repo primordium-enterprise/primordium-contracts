@@ -450,7 +450,7 @@ abstract contract SharesManager is
         _burn(account, amount);
 
         // Transfer withdrawal funds AFTER burning tokens to ensure no re-entrancy
-        treasury().processWithdrawal(receiver, amount, totalSupply, tokens);
+        treasury().processWithdrawal(account, receiver, amount, totalSupply, tokens);
 
         emit Withdrawal(account, receiver, totalSharesBurned, tokens);
     }
