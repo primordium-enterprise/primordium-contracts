@@ -75,6 +75,10 @@ abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271 {
         bytes32 messageHash,
         uint256 signatureExpiration
     ) external virtual onlySelf {
+        _signMessageHash(messageHash, signatureExpiration);
+    }
+
+    function _signMessageHash(bytes32 messageHash, uint256 signatureExpiration) internal virtual {
         if (signatureExpiration < block.timestamp) {
             revert SignatureExpirationMustBeInFuture(signatureExpiration);
         }
@@ -91,6 +95,10 @@ abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271 {
     function cancelSignature(
         bytes32 messageHash
     ) external virtual onlySelf {
+        _cancelSignature(messageHash);
+    }
+
+    function _cancelSignature(bytes32 messageHash) internal virtual {
         EIP1271MessageSignerStorage storage $ = _getEIP1271MessageSignerStorage();
         uint256 expiration = $._messageHashExpirations[messageHash];
         if (expiration == 0) {
