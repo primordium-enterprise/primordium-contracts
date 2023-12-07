@@ -6,7 +6,8 @@
   "scripts": {
     "compile": "forge build",
     "test": "forge test -vvv --no-match-path 'test/foundry/.*/*'",
-    "lint": "solhint 'contracts/**/*.sol'"
+    "lint": "solhint 'contracts/**/*.sol'",
+    "selector-order": "node scripts/selectorOrder.js"
   },
   "repository": {
     "type": "git",
