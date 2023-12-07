@@ -33,8 +33,10 @@ abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271 {
     }
 
     event EIP1271MessageSigned(bytes32 indexed messageHash, uint256 signatureExpiration);
+    event EIP1271MessageCanceled(bytes32 indexed messageHash);
 
     error SignatureExpirationMustBeInFuture(uint256 signatureExpiration);
+    error SignatureDoesNotExist(bytes32 messageHash);
 
     /**
      * Allows other contracts to verify that this contract signed the provided message hash, according to EIP1271.
@@ -59,7 +61,7 @@ abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271 {
      * Returns the expiration timestamp in seconds for the provided message hash.
      * @param messageHash The message hash of the "signed" message.
      */
-    function getSignatureExpiration(bytes32 messageHash) public view returns (uint256 expiration) {
+    function getSignatureExpiration(bytes32 messageHash) public view virtual returns (uint256 expiration) {
         expiration = _getEIP1271MessageSignerStorage()._messageHashExpirations[messageHash];
     }
 
@@ -72,7 +74,7 @@ abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271 {
     function signMessageHash(
         bytes32 messageHash,
         uint256 signatureExpiration
-    ) external onlySelf {
+    ) external virtual onlySelf {
         if (signatureExpiration < block.timestamp) {
             revert SignatureExpirationMustBeInFuture(signatureExpiration);
         }
@@ -81,4 +83,21 @@ abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271 {
         emit EIP1271MessageSigned(messageHash, signatureExpiration);
     }
 
+    /**
+     * Cancels a previously signed message hash by deleting the signature expiration for the message.
+     * @notice This function is self-authorized, meaning this contract must call it on itself to cancel a message.
+     * @param messageHash The signed message hash to cancel.
+     */
+    function cancelSignature(
+        bytes32 messageHash
+    ) external virtual onlySelf {
+        EIP1271MessageSignerStorage storage $ = _getEIP1271MessageSignerStorage();
+        uint256 expiration = $._messageHashExpirations[messageHash];
+        if (expiration == 0) {
+            revert SignatureDoesNotExist(messageHash);
+        }
+
+        delete _getEIP1271MessageSignerStorage()._messageHashExpirations[messageHash];
+        emit EIP1271MessageCanceled(messageHash);
+    }
 }
