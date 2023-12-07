@@ -20,7 +20,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ERC165Verifier} from "contracts/libraries/ERC165Verifier.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShareIds {
+abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     using SafeERC20 for IERC20;
     using ERC165Verifier for address;
     using Address for address;

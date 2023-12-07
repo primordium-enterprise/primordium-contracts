@@ -10,7 +10,7 @@ import {IERC5805} from "@openzeppelin/contracts/interfaces/IERC5805.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
-// import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 
@@ -30,8 +30,8 @@ import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable {
     using Checkpoints for Checkpoints.Trace208;
 
-    bytes32 public immutable DELEGATION_TYPEHASH =
-        keccak256("Delegation(address delegator,address delegatee,uint256 nonce,uint256 deadline)");
+    bytes32 private immutable DELEGATION_TYPEHASH =
+        keccak256("Delegation(address delegatee,uint256 nonce,uint256 expiry)");
 
     /// @custom:storage-location erc7201:ERC20Votes.Storage
     struct ERC20VotesStorage {
@@ -120,28 +120,45 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable
         _delegate(account, delegatee);
     }
 
+    function delegateBySig(
+        address delegatee,
+        uint256 nonce,
+        uint256 expiry,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external virtual override {
+        if (block.timestamp > expiry) {
+            revert VotesExpiredSignature(expiry);
+        }
+        address signer = ECDSA.recover(
+            _hashTypedDataV4(keccak256(abi.encode(DELEGATION_TYPEHASH, delegatee, nonce, expiry))),
+            v,
+            r,
+            s
+        );
+        _useCheckedNonce(signer, nonce);
+        _delegate(signer, delegatee);
+    }
+
     /**
      * @dev Delegates votes from `delegator` to `delegatee`. Supports ECDSA or EIP1271 signatures.
      *
      * @param signature The signature is a packed bytes encoding of the ECDSA r, s, and v signature values.
      */
     function delegateBySig(
-        address delegator,
         address delegatee,
-        uint256 deadline,
+        address signer,
+        uint256 expiry,
         bytes memory signature
     ) public virtual {
-        if (block.timestamp > deadline) {
-            revert VotesExpiredSignature(deadline);
+        if (block.timestamp > expiry) {
+            revert VotesExpiredSignature(expiry);
         }
 
         bool valid = SignatureChecker.isValidSignatureNow(
-            delegator,
-            _hashTypedDataV4(
-                keccak256(
-                    abi.encode(DELEGATION_TYPEHASH, delegator, delegatee, _useNonce(delegator), deadline)
-                )
-            ),
+            signer,
+            _hashTypedDataV4(keccak256(abi.encode(DELEGATION_TYPEHASH, delegatee, _useNonce(signer), expiry))),
             signature
         );
 
@@ -149,9 +166,8 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable
             revert VotesInvalidSignature();
         }
 
-        _delegate(delegator, delegatee);
+        _delegate(signer, delegatee);
     }
-
 
     /**
      * @dev Moves the delegation when tokens are transferred.

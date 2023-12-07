@@ -119,9 +119,6 @@ interface ISharesManager is IERC6372 {
 
     function isFundingActive() external view returns (bool fundingActive);
     function fundingPeriods() external view returns (uint256 fundingBeginsAt, uint256 fundingEndsAt);
-
-    function setFundingBeginsAt(uint256 fundingBeginsAt) external;
-    function setFundingEndsAt(uint256 fundingEndsAt) external;
     function setFundingPeriods(uint256 newFundingBeginsAt, uint256 newFundingEndsAt) external;
 
     /**
@@ -175,7 +172,7 @@ interface ISharesManager is IERC6372 {
      */
     function withdraw(uint256 amount, IERC20[] calldata tokens) external returns (uint256 totalSharesBurned);
 
-    function withdrawBySig(
+    function withdrawToBySig(
         address owner,
         address receiver,
         uint256 amount,

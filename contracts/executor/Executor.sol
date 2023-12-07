@@ -12,12 +12,8 @@ import {AuthorizeInitializer} from "contracts/utils/AuthorizeInitializer.sol";
  *
  * @author Ben Jett - @BCJdevelopment
  */
-abstract contract Executor is Initializable, AuthorizeInitializer, Treasurer {
+contract Executor is Treasurer {
 
-    function initializeExecutor(
-        bytes calldata params
-    ) external initializer authorizeInitializer {
-
-    }
+    function initializeExecutor(bytes calldata params) external initializer {}
 
 }

@@ -33,7 +33,7 @@ contract Distributor is
     using Address for address;
     using ERC165Verifier for address;
 
-    bytes32 public immutable CLAIM_DISTRIBUTION_TYPEHASH = keccak256(
+    bytes32 private immutable CLAIM_DISTRIBUTION_TYPEHASH = keccak256(
         "ClaimDistribution(uint256 distributionId,address holder,address receiver,uint256 nonce,uint256 deadline)"
     );
 

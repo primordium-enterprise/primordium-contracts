@@ -64,9 +64,9 @@ abstract contract GovernorBase is
 
     bytes32 private constant ALL_PROPOSAL_STATES_BITMAP = bytes32((2 ** (uint8(type(ProposalState).max) + 1)) - 1);
 
-    bytes32 public immutable BALLOT_TYPEHASH =
+    bytes32 private immutable BALLOT_TYPEHASH =
         keccak256("Ballot(uint256 proposalId,uint8 support,address voter,uint256 nonce)");
-    bytes32 public immutable EXTENDED_BALLOT_TYPEHASH =
+    bytes32 private immutable EXTENDED_BALLOT_TYPEHASH =
         keccak256(
             "ExtendedBallot(uint256 proposalId,uint8 support,address voter,uint256 nonce,string reason,bytes params)"
         );

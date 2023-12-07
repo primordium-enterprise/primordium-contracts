@@ -24,7 +24,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
         bytes32 balanceSumsStorageSlot;
     }
 
-    bytes32 public immutable WITHDRAW_TO_TYPEHASH = keccak256(
+    bytes32 private immutable WITHDRAW_TO_TYPEHASH = keccak256(
         "WithdrawTo(address client,uint256 balanceShareId,address account,address receiver,address[] assets,uint256 periodIndex,uint256 nonce,uint256 deadline)"
     );
 

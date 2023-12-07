@@ -32,14 +32,18 @@ import {ERC165Verifier} from "contracts/libraries/ERC165Verifier.sol";
  *
  * @author Ben Jett - @BCJdevelopment
  */
-abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownable1Or2StepUpgradeable {
+abstract contract SharesManager is
+    Ownable1Or2StepUpgradeable,
+    ERC20VotesUpgradeable,
+    ISharesManager
+{
     using Math for uint256;
     using SafeCast for *;
     using SafeERC20 for IERC20;
     using ERC165Verifier for address;
 
-    bytes32 public immutable WITHDRAW_TYPEHASH = keccak256(
-        "Withdraw(address owner,address receiver,uint256 amount,address[] tokens,uint256 nonce,uint256 deadline)"
+    bytes32 private immutable WITHDRAW_TO_TYPEHASH = keccak256(
+        "WithdrawTo(address owner,address receiver,uint256 amount,address[] tokens,uint256 nonce,uint256 deadline)"
     );
 
     struct SharePrice {
@@ -369,7 +373,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
      *
      * @param signature The signature is a packed bytes encoding of the ECDSA r, s, and v signature values.
      */
-    function withdrawBySig(
+    function withdrawToBySig(
         address owner,
         address receiver,
         uint256 amount,
@@ -403,7 +407,7 @@ abstract contract SharesManager is ERC20VotesUpgradeable, ISharesManager, Ownabl
             _hashTypedDataV4(
                 keccak256(
                     abi.encode(
-                        WITHDRAW_TYPEHASH,
+                        WITHDRAW_TO_TYPEHASH,
                         owner,
                         receiver,
                         amount,
