@@ -49,22 +49,37 @@ abstract contract TimelockAvatar is
     );
 
     function _getModuleExecutionStorage() private view returns (ModuleExecutionStorage storage $) {
-        bytes32 moduleExecutionStorageSlot = MODULE_EXECUTION_STORAGE;
+        bytes32 slot = MODULE_EXECUTION_STORAGE;
         assembly {
-            $.slot := moduleExecutionStorageSlot
+            $.slot := slot
+        }
+    }
+
+    /// @custom:storage-location erc7201:TimelockAvatar.Timelock.Storage
+    struct TimelockStorage {
+        mapping(address => address) _modules;
+
+        uint256 _minDelay;
+        uint256 _opNonce;
+        mapping(uint256 => Operation) _operations;
+    }
+
+    bytes32 private immutable TIMELOCK_STORAGE = keccak256(
+        abi.encode(uint256(keccak256("TimelockAvatar.Timelock.Storage")) - 1)) & ~bytes32(uint256(0xff)
+    );
+
+    function _getTimelockStorage() private view returns (TimelockStorage storage $) {
+        bytes32 slot = TIMELOCK_STORAGE;
+        assembly {
+            $.slot := slot
         }
     }
 
     address internal constant MODULES_HEAD = address(0x1);
-    mapping(address => address) internal _modules;
 
     uint256 public constant GRACE_PERIOD = 14 days;
     uint256 public constant MIN_DELAY = 2 days;
     uint256 public constant MAX_DELAY = 30 days;
-    uint256 private _minDelay;
-
-    uint256 internal _opNonce;
-    mapping(uint256 => Operation) _operations;
 
     /**
      * @dev Emitted when the minimum delay for future operations is modified.
@@ -111,7 +126,9 @@ abstract contract TimelockAvatar is
 
     /// @dev Only enabled modules to take the specified action.
     modifier onlyModule() {
-        if (!isModuleEnabled(msg.sender)) revert ModuleNotEnabled(msg.sender);
+        if (!isModuleEnabled(msg.sender)) {
+            revert ModuleNotEnabled(msg.sender);
+        }
         _;
     }
 
@@ -130,7 +147,9 @@ abstract contract TimelockAvatar is
 
     function _onlyDuringModuleExecution() internal view {
         address _executingModule = executingModule();
-        if (msg.sender != _executingModule) revert SenderMustBeExecutingModule(msg.sender, _executingModule);
+        if (msg.sender != _executingModule) {
+            revert SenderMustBeExecutingModule(msg.sender, _executingModule);
+        }
     }
 
     /// @dev Returns the module that is actively executing the operation.
@@ -162,24 +181,31 @@ abstract contract TimelockAvatar is
      * @param modules_ An array of initial module addresses to enable.
      */
     function _setUpModules(address[] memory modules_) internal {
-        if (_modules[MODULES_HEAD] != address(0)) {
+        TimelockStorage storage $ = _getTimelockStorage();
+
+        if ($._modules[MODULES_HEAD] != address(0)) {
             revert ModulesAlreadyInitialized();
         }
+
         if (modules_.length == 0) {
             revert ModuleInitializationNeedsMoreThanZeroModules();
         }
-        _modules[MODULES_HEAD] = MODULES_HEAD;
+
+        // Initialize modules head
+        $._modules[MODULES_HEAD] = MODULES_HEAD;
+
         // Enable the provided modules
         for (uint256 i = 0; i < modules_.length;) {
             _enableModule(modules_[i]);
             unchecked { ++i; }
         }
+
         emit ModulesInitialized(modules_);
     }
 
     /// @inheritdoc ITimelockAvatar
     function getMinDelay() public view returns (uint256 duration) {
-        return _minDelay;
+        duration = _getTimelockStorage()._minDelay;
     }
 
     /// @inheritdoc ITimelockAvatar
@@ -189,23 +215,29 @@ abstract contract TimelockAvatar is
 
     /// @dev Internal function to update the _minDelay.
     function _updateMinDelay(uint256 newMinDelay) internal {
+        TimelockStorage storage $ = _getTimelockStorage();
+
         if (
             newMinDelay < MIN_DELAY ||
             newMinDelay > MAX_DELAY
-        ) revert MinDelayOutOfRange(MIN_DELAY, MAX_DELAY);
+        ) {
+            revert MinDelayOutOfRange(MIN_DELAY, MAX_DELAY);
+        }
 
-        emit MinDelayUpdate(_minDelay, newMinDelay);
-        _minDelay = newMinDelay;
+        emit MinDelayUpdate($._minDelay, newMinDelay);
+        $._minDelay = newMinDelay;
     }
 
     /// @inheritdoc ITimelockAvatar
     function getNextOperationNonce() external view returns (uint256 opNonce) {
-        return _opNonce;
+        opNonce = _getTimelockStorage()._opNonce;
     }
 
     /// @inheritdoc ITimelockAvatar
     function getOperationStatus(uint256 opNonce) external view returns (OperationStatus opStatus) {
-        opStatus = _getOperationStatus(_operations[opNonce].executableAt);
+        opStatus = _getOperationStatus(
+            _getTimelockStorage()._operations[opNonce].executableAt
+        );
     }
 
     /// @dev Internal utility to return the OperationStatus enum value based on the operation eta
@@ -223,20 +255,23 @@ abstract contract TimelockAvatar is
 
     /// @inheritdoc ITimelockAvatar
     function getOperationModule(uint256 opNonce) external view returns (address module) {
-        _checkOpNonce(opNonce);
-        module = _operations[opNonce].module;
+        TimelockStorage storage $ = _getTimelockStorage();
+        _checkOpNonce($, opNonce);
+        module = $._operations[opNonce].module;
     }
 
     /// @inheritdoc ITimelockAvatar
     function getOperationHash(uint256 opNonce) external view returns (bytes32 opHash) {
-        _checkOpNonce(opNonce);
-        opHash = _operations[opNonce].opHash;
+        TimelockStorage storage $ = _getTimelockStorage();
+        _checkOpNonce($, opNonce);
+        opHash = $._operations[opNonce].opHash;
     }
 
     /// @inheritdoc ITimelockAvatar
     function getOperationExecutableAt(uint256 opNonce) external view returns (uint256 executableAt) {
-        _checkOpNonce(opNonce);
-        executableAt = _operations[opNonce].executableAt;
+        TimelockStorage storage $ = _getTimelockStorage();
+        _checkOpNonce($, opNonce);
+        executableAt = $._operations[opNonce].executableAt;
     }
 
     /// @inheritdoc ITimelockAvatar
@@ -248,19 +283,14 @@ abstract contract TimelockAvatar is
         uint256 createdAt,
         bytes32 opHash
     ) {
-        _checkOpNonce(opNonce);
-        Operation storage op = _operations[opNonce];
-        (
-            module,
-            executableAt,
-            createdAt,
-            opHash
-        ) = (
-            op.module,
-            op.executableAt,
-            op.createdAt,
-            op.opHash
-        );
+        TimelockStorage storage $ = _getTimelockStorage();
+        _checkOpNonce($, opNonce);
+        Operation storage _op = $._operations[opNonce];
+
+        module = _op.module;
+        executableAt = _op.executableAt;
+        createdAt = _op.createdAt;
+        opHash = _op.opHash;
     }
 
     /// @inheritdoc IAvatar
@@ -270,11 +300,19 @@ abstract contract TimelockAvatar is
 
     /// @dev Internal function to enable a new module. Emits EnabledModule(address)
     function _enableModule(address module) internal {
+        TimelockStorage storage $ = _getTimelockStorage();
+
         // Make sure the module is a valid address to enable.
-        if (module == address(0) || module == MODULES_HEAD) revert InvalidModuleAddress(module);
-        if (_modules[module] != address(0)) revert ModuleAlreadyEnabled(module);
-        _modules[module] = MODULES_HEAD;
-        _modules[MODULES_HEAD] = module;
+        if (module == address(0) || module == MODULES_HEAD) {
+            revert InvalidModuleAddress(module);
+        }
+
+        if ($._modules[module] != address(0)) {
+            revert ModuleAlreadyEnabled(module);
+        }
+
+        $._modules[module] = MODULES_HEAD;
+        $._modules[MODULES_HEAD] = module;
         emit EnabledModule(module);
     }
 
@@ -285,11 +323,19 @@ abstract contract TimelockAvatar is
 
     /// @dev Internal function to disable a new module. Emits DisabledModule(address)
     function _disableModule(address prevModule, address module) internal {
+        TimelockStorage storage $ = _getTimelockStorage();
+
         // Make sure the module is currently active
-        if (module == address(0) || module == MODULES_HEAD) revert InvalidModuleAddress(module);
-        if (_modules[prevModule] != module) revert InvalidPreviousModuleAddress(prevModule);
-        _modules[prevModule] = _modules[module];
-        _modules[module] = address(0);
+        if (module == address(0) || module == MODULES_HEAD) {
+            revert InvalidModuleAddress(module);
+        }
+
+        if ($._modules[prevModule] != module) {
+            revert InvalidPreviousModuleAddress(prevModule);
+        }
+
+        $._modules[prevModule] = $._modules[module];
+        $._modules[module] = address(0);
         emit DisabledModule(module);
     }
 
@@ -309,8 +355,10 @@ abstract contract TimelockAvatar is
         Enum.Operation operation
     ) external virtual onlyModule returns (bool success) {
         // Operations are CALL only for this timelock
-        if (operation != Enum.Operation.Call) revert ExecutorIsCallOnly();
-        (success,) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, _minDelay);
+        if (operation != Enum.Operation.Call) {
+            revert ExecutorIsCallOnly();
+        }
+        (success,) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, 0);
     }
 
     /**
@@ -330,8 +378,10 @@ abstract contract TimelockAvatar is
         Enum.Operation operation
     ) external virtual onlyModule returns (bool success, bytes memory returnData) {
         // Operations are CALL only for this timelock
-        if (operation != Enum.Operation.Call) revert ExecutorIsCallOnly();
-        (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, _minDelay);
+        if (operation != Enum.Operation.Call) {
+            revert ExecutorIsCallOnly();
+        }
+        (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, 0);
     }
 
     /// @inheritdoc ITimelockAvatar
@@ -343,9 +393,9 @@ abstract contract TimelockAvatar is
         uint256 delay
     ) external onlyModule returns (bool success, bytes memory returnData) {
         // Operations are CALL only for this timelock
-        if (operation != Enum.Operation.Call) revert ExecutorIsCallOnly();
-        // Delay must be greater than the minDelay
-        if (delay < _minDelay) revert InsufficientDelay();
+        if (operation != Enum.Operation.Call) {
+            revert ExecutorIsCallOnly();
+        }
         (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, delay);
     }
 
@@ -358,18 +408,27 @@ abstract contract TimelockAvatar is
         Enum.Operation operation,
         uint256 delay
     ) internal virtual returns (bool, bytes memory) {
+        TimelockStorage storage $ = _getTimelockStorage();
+
+        // Delay must be greater than the minDelay (if zero is passed, set it equal to min delay)
+        uint256 minDelay = $._minDelay;
+        if (delay == 0) {
+            delay = minDelay;
+        } else if (delay < minDelay) {
+            revert InsufficientDelay();
+        }
+
         // Set opNonce and increment
-        uint256 opNonce = _opNonce++;
+        uint256 opNonce = $._opNonce++;
 
         bytes32 opHash = hashOperation(to, value, data, operation);
         uint256 executableAt = block.timestamp + delay;
 
-        _operations[opNonce] = Operation({
-            module: module,
-            createdAt: SafeCast.toUint48(block.timestamp),
-            executableAt: SafeCast.toUint48(executableAt),
-            opHash: opHash
-        });
+        Operation storage _op = $._operations[opNonce];
+        _op.module = module;
+        _op.createdAt = uint48(block.timestamp);
+        _op.executableAt = uint48(executableAt);
+        _op.opHash = opHash;
 
         emit OperationScheduled(opNonce, module, to, value, data, operation, delay);
 
@@ -384,17 +443,24 @@ abstract contract TimelockAvatar is
         bytes calldata data,
         Enum.Operation operation
     ) external virtual {
+        TimelockStorage storage $ = _getTimelockStorage();
 
-        Operation storage op = _operations[opNonce];
-        (address module, uint256 executableAt) = (op.module, op.executableAt);
+        Operation storage _op = $._operations[opNonce];
+        (address module, uint256 executableAt) = (_op.module, _op.executableAt);
 
-        if (msg.sender != module) revert UnauthorizedModule();
+        if (msg.sender != module) {
+            revert UnauthorizedModule();
+        }
 
         OperationStatus opStatus = _getOperationStatus(executableAt);
-        if (opStatus != OperationStatus.Ready) revert InvalidOperationStatus(opStatus, OperationStatus.Ready);
+        if (opStatus != OperationStatus.Ready) {
+            revert InvalidOperationStatus(opStatus, OperationStatus.Ready);
+        }
 
         bytes32 opHash = hashOperation(to, value, data, operation);
-        if (opHash != op.opHash) revert InvalidCallParameters();
+        if (opHash != _op.opHash) {
+            revert InvalidCallParameters();
+        }
 
         // Check the guard before execution
         address guard = getGuard();
@@ -415,8 +481,11 @@ abstract contract TimelockAvatar is
 
         // Check that the operation status is still "ready" to protect against re-entrancy messing with the operation
         opStatus = _getOperationStatus(executableAt);
-        if (opStatus != OperationStatus.Ready) revert InvalidOperationStatus(opStatus, OperationStatus.Ready);
-        op.executableAt = uint48(OperationStatus.Done);
+        if (opStatus != OperationStatus.Ready) {
+            revert InvalidOperationStatus(opStatus, OperationStatus.Ready);
+        }
+
+        _op.executableAt = uint48(OperationStatus.Done);
 
         emit OperationExecuted(opNonce, module, to, value, data, operation);
     }
@@ -428,22 +497,27 @@ abstract contract TimelockAvatar is
 
     /// @inheritdoc ITimelockAvatar
     function cancelOperation(uint256 opNonce) external virtual {
-        Operation storage op = _operations[opNonce];
-        (address module, uint256 executableAt) = (op.module, op.executableAt);
+        TimelockStorage storage $ = _getTimelockStorage();
+        Operation storage _op = $._operations[opNonce];
+        (address module, uint256 executableAt) = (_op.module, _op.executableAt);
 
-        if (msg.sender != module) revert UnauthorizedModule();
+        if (msg.sender != module) {
+            revert UnauthorizedModule();
+        }
 
         OperationStatus opStatus = _getOperationStatus(executableAt);
-        if (opStatus != OperationStatus.Pending) revert InvalidOperationStatus(opStatus, OperationStatus.Pending);
+        if (opStatus != OperationStatus.Pending) {
+            revert InvalidOperationStatus(opStatus, OperationStatus.Pending);
+        }
 
-        op.executableAt = uint48(OperationStatus.Cancelled);
+        _op.executableAt = uint48(OperationStatus.Cancelled);
 
         emit OperationCancelled(opNonce, module);
     }
 
     /// @inheritdoc IAvatar
     function isModuleEnabled(address module) public view returns (bool enabled) {
-        return module != MODULES_HEAD && _modules[module] != address(0);
+        return module != MODULES_HEAD && _getTimelockStorage()._modules[module] != address(0);
     }
 
     /// @inheritdoc IAvatar
@@ -454,19 +528,26 @@ abstract contract TimelockAvatar is
         address[] memory array,
         address next
     ) {
+        TimelockStorage storage $ = _getTimelockStorage();
+
         // Check the start address and page size
-        if (start != MODULES_HEAD && !isModuleEnabled(start)) revert InvalidStartModule(start);
-        if (pageSize == 0) revert InvalidPageSize(pageSize);
+        if (start != MODULES_HEAD && !isModuleEnabled(start)) {
+            revert InvalidStartModule(start);
+        }
+
+        if (pageSize == 0) {
+            revert InvalidPageSize(pageSize);
+        }
 
         // Init array
         array = new address[](pageSize);
 
         // Init count and iterate through modules
         uint256 count = 0;
-        next = _modules[start];
+        next = $._modules[start];
         while(count < pageSize && next != MODULES_HEAD && next != address(0)) {
             array[count] = next;
-            next = _modules[next];
+            next = $._modules[next];
             count++;
         }
 
@@ -494,8 +575,10 @@ abstract contract TimelockAvatar is
     }
 
     /// @dev An internal utility function to revert if the provided operation nonce does not exist
-    function _checkOpNonce(uint256 opNonce) internal view virtual {
-        if (opNonce >= _opNonce) revert();
+    function _checkOpNonce(TimelockStorage storage $, uint256 opNonce) internal view virtual {
+        if (opNonce >= $._opNonce) {
+            revert();
+        }
     }
 
 }

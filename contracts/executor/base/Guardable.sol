@@ -22,18 +22,12 @@ abstract contract BaseGuard is IGuard, IERC165 {
 
 /**
  * @title Guardable - Zodiac implementation to make an Avatar guardable
- *
+ * @author Ben Jett - @BCJdevelopment
  * @notice Uses EIP-7201 namespacing to store the guard
- *
- * @author Ben Jett
  */
 contract Guardable is SelfAuthorized, IGuardable, ERC165Upgradeable {
 
-    /**
-     * @dev ERC-7201 storage of guard address.
-     *
-     * @custom:storage-location erc7201:Guardable.Guard
-     */
+    /// @custom:storage-location erc7201:Guardable.Guard
     struct Guard {
         address guard;
     }
@@ -56,11 +50,11 @@ contract Guardable is SelfAuthorized, IGuardable, ERC165Upgradeable {
      * Set a guard that checks transactions before execution.
      * @param guard The address of the guard to be used or the 0 address to disable the guard.
      */
-    function setGuard(address guard) external onlySelf {
+    function setGuard(address guard) external virtual onlySelf {
         _setGuard(guard);
     }
 
-    function _setGuard(address guard) internal {
+    function _setGuard(address guard) internal virtual {
         if (guard != address(0)) {
             ERC165Verifier.checkInterface(guard, type(IGuard).interfaceId);
         }
@@ -76,7 +70,7 @@ contract Guardable is SelfAuthorized, IGuardable, ERC165Upgradeable {
      * Returns the current address of the guard contract (if implemented).
      * @return guard The address of the guard contract.
      */
-    function getGuard() public view returns (address guard) {
+    function getGuard() public view virtual returns (address guard) {
         Guard storage $;
         assembly {
             $.slot := GUARD_STORAGE
