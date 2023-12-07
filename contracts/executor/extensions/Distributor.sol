@@ -3,15 +3,15 @@
 
 pragma solidity ^0.8.20;
 
-import {IDistributor} from "../../interfaces/IDistributor.sol";
+import {IDistributor} from "../interfaces/IDistributor.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {Treasurer} from "../../base/Treasurer.sol";
-import {SelfAuthorized} from "../../base/SelfAuthorized.sol";
+import {Treasurer} from "../base/Treasurer.sol";
+import {SelfAuthorized} from "../base/SelfAuthorized.sol";
 import {ERC165Verifier} from "contracts/libraries/ERC165Verifier.sol";
 import {IERC20Checkpoints} from "contracts/shares/interfaces/IERC20Checkpoints.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
@@ -33,10 +33,9 @@ contract Distributor is
     using Address for address;
     using ERC165Verifier for address;
 
-    bytes32 public immutable CLAIM_DISTRIBUTION_TYPEHASH =
-        keccak256(
-            "ClaimDistribution(uint256 distributionId,address holder,address receiver,uint256 nonce,uint256 deadline)"
-        );
+    bytes32 public immutable CLAIM_DISTRIBUTION_TYPEHASH = keccak256(
+        "ClaimDistribution(uint256 distributionId,address holder,address receiver,uint256 nonce,uint256 deadline)"
+    );
 
     struct Distribution {
         // Slot 0 (32 bytes)
