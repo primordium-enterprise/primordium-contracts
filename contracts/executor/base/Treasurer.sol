@@ -50,7 +50,8 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShare
     event BalanceSharesManagerUpdate(address oldBalanceSharesManager, address newBalanceSharesManager);
     event BalanceSharesInitialized(address balanceSharesManager, uint256 totalDeposits, uint256 depositsAllocated);
     event DepositRegistered(IERC20 quoteAsset, uint256 depositAmount);
-    event WithdrawalProcessed(address receiver, uint256 sharesBurned, uint256 totalSharesSupply, IERC20[] tokens);
+    event Withdrawal(address indexed receiver, IERC20 asset, uint256 payout, uint256 distributionShareAllocation);
+    event WithdrawalProcessed(address indexed receiver, uint256 sharesBurned, uint256 totalSharesSupply, IERC20[] assets);
     event BalanceShareAllocated(
         IBalanceSharesManager indexed manager,
         uint256 indexed balanceShareId,
@@ -296,43 +297,58 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, IERC6372, BalanceShare
         address receiver,
         uint256 sharesBurned,
         uint256 sharesTotalSupply,
-        IERC20[] calldata tokens
+        IERC20[] calldata assets
     ) external virtual override onlyToken {
-        _processWithdrawal(receiver, sharesBurned, sharesTotalSupply, tokens);
+        _processWithdrawal(receiver, sharesBurned, sharesTotalSupply, assets);
     }
 
     function _processWithdrawal(
         address receiver,
         uint256 sharesBurned,
         uint256 sharesTotalSupply,
-        IERC20[] calldata tokens
+        IERC20[] calldata assets
     ) internal virtual {
+        TreasurerStorage storage $ = _getTreasurerStorage();
+        IBalanceSharesManager manager = $._balanceShares._manager;
+
         if (sharesTotalSupply > 0 && sharesBurned > 0) {
             // Iterate through the token addresses, sending proportional payouts (using address(0) for ETH)
             // TODO: Need to add the PROFT/DISTRIBUTIONS Balance share allocation to this function
-            for (uint256 i = 0; i < tokens.length;) {
+            for (uint256 i = 0; i < assets.length;) {
                 uint256 tokenBalance;
-                if (address(tokens[i]) == address(0)) {
+                if (address(assets[i]) == address(0)) {
                     tokenBalance = address(this).balance;
                 } else {
-                    tokenBalance = tokens[i].balanceOf(address(this));
+                    tokenBalance = assets[i].balanceOf(address(this));
                 }
 
                 uint256 payout = Math.mulDiv(tokenBalance, sharesBurned, sharesTotalSupply);
 
                 if (payout > 0) {
-                    if (address(tokens[i]) == address(0)) {
+                    uint256 distributionShareAllocation = _allocateBalanceShare(
+                        manager,
+                        DISTRIBUTIONS_ID,
+                        assets[i],
+                        payout
+                    );
+
+                    payout -= distributionShareAllocation;
+
+                    if (address(assets[i]) == address(0)) {
                         (bool success,) = receiver.call{value: payout}("");
                         if (!success) revert ETHTransferFailed();
                     } else {
-                        tokens[i].safeTransfer(receiver, payout);
+                        assets[i].safeTransfer(receiver, payout);
                     }
+
+                    emit Withdrawal(receiver, assets[i], payout, distributionShareAllocation);
                 }
+
                 unchecked { ++i; }
             }
         }
 
-        emit WithdrawalProcessed(receiver, sharesBurned, sharesTotalSupply, tokens);
+        emit WithdrawalProcessed(receiver, sharesBurned, sharesTotalSupply, assets);
     }
 
     /**
