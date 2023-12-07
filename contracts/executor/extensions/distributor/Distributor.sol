@@ -40,11 +40,11 @@ contract Distributor is
 
     struct Distribution {
         // Slot 0 (32 bytes)
-        uint128 balance;
+        uint128 totalBalance;
         uint128 claimedBalance;
 
         // Slot 1 (32 bytes)
-        uint48 clockStartTime;
+        uint48 clockStart;
         uint208 cachedTotalSupply;
 
         // Slot 2 (27 bytes)
@@ -93,7 +93,7 @@ contract Distributor is
         uint256 indexed distributionId,
         address indexed asset,
         uint256 indexed balance,
-        uint256 clockStartTime,
+        uint256 clockStart,
         uint256 clockClosableAt
     );
     event DistributionClaimPeriodUpdate(uint256 oldClaimPeriod, uint256 newClaimPeriod);
@@ -117,10 +117,10 @@ contract Distributor is
     error OwnerAuthorizationRequired();
     error DistributionDoesNotExist();
     error DistributionIsClosed();
-    error DistributionClaimsNotYetActive(uint256 clockStartTime);
+    error DistributionClaimsNotYetActive(uint256 clockStart);
     error DistributionClaimsStillActive(uint256 closableAt);
     error DistributionAlreadyClaimed(address holder);
-    error TokenTotalSupplyIsZero(address token, uint256 clockStartTime);
+    error TokenTotalSupplyIsZero(address token, uint256 clockStart);
     error ClaimsExpiredSignature();
     error ClaimsInvalidSignature();
 
@@ -150,6 +150,13 @@ contract Distributor is
         $._token = IERC20Checkpoints(token_);
 
         _setDistributionClaimPeriod(claimPeriod_);
+    }
+
+    /**
+     * Returns the address of the token used for calculating each holder's distribution share.
+     */
+    function token() public view virtual returns (address _token) {
+        _token = address(_getDistributorStorage()._token);
     }
 
     /**
@@ -186,11 +193,98 @@ contract Distributor is
     }
 
     /**
+     * Returns true if the provided distribution ID is claimable by share holders.
+     */
+    function isDistributionClaimable(uint256 distributionId) public view virtual returns (bool isClaimable) {
+        DistributorStorage storage $ = _getDistributorStorage();
+        Distribution storage _distribution = $._distributions[distributionId];
+        uint256 clockStart = _checkDistributionExistence(_distribution);
+
+        isClaimable = clockStart <= $._token.clock() && !_distribution.isClosed;
+    }
+
+    /**
+     * Check the closable status for a distribution. Returns false for distributions that are already closed.
+     * @return isClosableByOwner Will be true if the owner can close the distribution. Only the owner can close a
+     * distribution that has not started yet.
+     * @return isClosable True if the owner or any approved address can close the distribution. This will be true once
+     * the distribution's minimum claim period has passed.
+     */
+    function isDistributionClosable(uint256 distributionId) public view virtual returns (
+        bool isClosableByOwner,
+        bool isClosable
+    ) {
+        DistributorStorage storage $ = _getDistributorStorage();
+        Distribution storage _distribution = $._distributions[distributionId];
+        uint256 clockStart = _checkDistributionExistence(_distribution);
+        uint256 clockClosableAt = _distribution.clockClosableAt;
+        uint256 currentClock = $._token.clock();
+
+        if (!_distribution.isClosed) {
+            if (currentClock < clockStart) {
+                isClosableByOwner = true;
+            } else if (currentClock >= clockClosableAt) {
+                isClosableByOwner = true;
+                isClosable = true;
+            }
+        }
+    }
+
+    /**
+     * Returns true if the distribution has been closed.
+     */
+    function isDistributionClosed(uint256 distributionId) public view virtual returns (bool isClosed) {
+        Distribution storage _distribution = _getDistributorStorage()._distributions[distributionId];
+        _checkDistributionExistence(_distribution);
+
+        isClosed = _distribution.isClosed;
+    }
+
+    /**
+     * Returns true if the specified account holder has claimed the distriution ID.
+     */
+    function accountHasClaimedDistribution(
+        uint256 distributionId,
+        address holder
+    ) public view virtual returns (bool hasClaimed) {
+        Distribution storage _distribution = _getDistributorStorage()._distributions[distributionId];
+        _checkDistributionExistence(_distribution);
+
+        hasClaimed = _distribution.hasClaimed[holder];
+    }
+
+    /**
+     * Returns the data for the given distribution ID.
+     * @return totalBalance The total balance of the asset for distribution to share holders.
+     * @return claimedBalance The total amount of balance claimed by share holders.
+     * @return asset The address of the ERC20 asset for the distribution (address(0) for ETH).
+     * @return clockStart The clock unit of the underlying share token when this distribution starts.
+     * @return clockClosableAt The clock unit when this distribution will be closable.
+     * @return isClosed A bool that is true if the distribution has been closed.
+     */
+    function getDistributionData(uint256 distributionId) public view virtual returns (
+        uint256 totalBalance,
+        uint256 claimedBalance,
+        address asset,
+        uint256 clockStart,
+        uint256 clockClosableAt,
+        bool isClosed
+    ) {
+        Distribution storage _distribution = _getDistributorStorage()._distributions[distributionId];
+        clockStart = _checkDistributionExistence(_distribution);
+        totalBalance = _distribution.totalBalance;
+        claimedBalance = _distribution.claimedBalance;
+        asset = _distribution.asset;
+        clockClosableAt = _distribution.clockClosableAt;
+        isClosed = _distribution.isClosed;
+    }
+
+    /**
      * Creates a new distribution for share holders.
      * @notice Only callable by the owner (see dev note about authorized operation).
-     * @param clockStartTime The timepoint (according to the share token clock) when claims will begin for this
+     * @param clockStart The timepoint (according to the share token clock) when claims will begin for this
      * distribution. If a value of zero is passed, then this will be set to the current clock value at execution.
-     * Otherwise, the clockStartTime CANNOT be in the past.
+     * Otherwise, the clockStart CANNOT be in the past.
      * @param asset The ERC20 asset to be used for the distribution (address(0) for ETH).
      * @param amount The amount of the ERC20 asset to be transferred to this contract as a total amount avaialable for
      * distribution. Cannot be greater than type(uint128).max for gas reasons.
@@ -201,15 +295,15 @@ contract Distributor is
      * through another function on the owner that specifically authorizes this contract for the operation.
      */
     function createDistribution(
-        uint256 clockStartTime,
+        uint256 clockStart,
         address asset,
         uint256 amount
     ) public payable virtual onlyOwner requireOwnerAuthorization returns (uint256 distributionId) {
-        distributionId = _createDistribution(clockStartTime, asset, amount);
+        distributionId = _createDistribution(clockStart, asset, amount);
     }
 
     function _createDistribution(
-        uint256 clockStartTime,
+        uint256 clockStart,
         address asset,
         uint256 amount
     ) internal virtual returns (uint256 distributionId) {
@@ -218,10 +312,10 @@ contract Distributor is
         uint256 currentClock = $._token.clock();
 
         // Set zero to current timestamp, otherwise check range
-        if (clockStartTime == 0) {
-            clockStartTime = currentClock;
+        if (clockStart == 0) {
+            clockStart = currentClock;
         } else if (
-            clockStartTime < currentClock
+            clockStart < currentClock
         ) {
             revert ClockStartTimeCannotBeInThePast();
         }
@@ -248,15 +342,15 @@ contract Distributor is
         // Increment the distributions count, prepare distribution parameters
         uint256 claimPeriod = $._claimPeriod;
         distributionId = ++$._distributionsCount;
-        uint256 clockClosableAt = clockStartTime + claimPeriod;
+        uint256 clockClosableAt = clockStart + claimPeriod;
 
         // Setup the new distribution
         Distribution storage _distribution = $._distributions[distributionId];
-        _distribution.clockStartTime = uint48(clockStartTime);
-        _distribution.balance = uint128(amount);
+        _distribution.clockStart = uint48(clockStart);
+        _distribution.totalBalance = uint128(amount);
         _distribution.clockClosableAt = SafeCast.toUint48(clockClosableAt);
 
-        emit DistributionCreated(distributionId, asset, amount, clockStartTime, clockClosableAt);
+        emit DistributionCreated(distributionId, asset, amount, clockStart, clockClosableAt);
     }
 
     /**
@@ -341,7 +435,7 @@ contract Distributor is
 
         // Check clock time
         uint256 currentClock = $._token.clock();
-        uint256 startTime = _distribution.clockStartTime;
+        uint256 startTime = _distribution.clockStart;
 
         if (startTime == 0) {
             revert DistributionDoesNotExist();
@@ -354,7 +448,7 @@ contract Distributor is
         // Close and reclaim remaining assets
         _distribution.isClosed = true;
 
-        uint256 reclaimAmount = _distribution.balance - _distribution.claimedBalance;
+        uint256 reclaimAmount = _distribution.totalBalance - _distribution.claimedBalance;
         _safeTransfer(asset, _owner, reclaimAmount);
 
         emit DistributionClosed(distributionId, asset, reclaimAmount);
@@ -537,7 +631,7 @@ contract Distributor is
         }
 
         // Single read
-        uint256 clockStartTime = _distribution.clockStartTime;
+        uint256 clockStart = _distribution.clockStart;
         uint256 totalSupply = _distribution.cachedTotalSupply;
 
         IERC20Checkpoints _token = $._token;
@@ -545,21 +639,21 @@ contract Distributor is
         // If the cached total supply is zero, then check that the distribution is active
         if (totalSupply == 0) {
             // Check if the distribution exists
-            if (clockStartTime == 0) {
+            if (clockStart == 0) {
                 revert DistributionDoesNotExist();
             } else {
                 uint256 currentClock = _token.clock();
-                if (currentClock < clockStartTime) {
-                    revert DistributionClaimsNotYetActive(clockStartTime);
+                if (currentClock < clockStart) {
+                    revert DistributionClaimsNotYetActive(clockStart);
                 }
             }
 
             // Get the total supply at the start time
-            totalSupply = _token.getPastTotalSupply(clockStartTime);
+            totalSupply = _token.getPastTotalSupply(clockStart);
 
             // If the total supply is still zero, throw an error
             if (totalSupply == 0) {
-                revert TokenTotalSupplyIsZero(address(_token), clockStartTime);
+                revert TokenTotalSupplyIsZero(address(_token), clockStart);
             }
 
             // Cache the result for future claims
@@ -567,12 +661,12 @@ contract Distributor is
         }
 
         // Single read
-        uint256 totalBalance = _distribution.balance;
+        uint256 totalBalance = _distribution.totalBalance;
         uint256 claimedBalance = _distribution.claimedBalance;
 
         // Calculate the claim amount
         claimAmount = Math.mulDiv(
-            _token.getPastBalanceOf(holder, clockStartTime),
+            _token.getPastBalanceOf(holder, clockStart),
             totalBalance,
             totalSupply
         );
@@ -608,4 +702,12 @@ contract Distributor is
         owner().functionCall(data);
     }
 
+    function _checkDistributionExistence(
+        Distribution storage _distribution
+    ) internal view returns (uint256 clockStart) {
+        clockStart = _distribution.clockStart;
+        if (clockStart == 0) {
+            revert DistributionDoesNotExist();
+        }
+    }
 }
