@@ -4,7 +4,7 @@
 pragma solidity ^0.8.20;
 
 import {Enum} from "contracts/common/Enum.sol";
-import {ExecutorBaseCallOnly} from "./ExecutorBaseCallOnly.sol";
+import {ExecutorBase} from "./ExecutorBase.sol";
 
 /**
  * @title Multi Send - Allows modules to batch multiple transactions into a single execution call.
@@ -14,7 +14,7 @@ import {ExecutorBaseCallOnly} from "./ExecutorBaseCallOnly.sol";
  *
  * @author Ben Jett - @BCJdevelopment
  */
-abstract contract MultiSend is ExecutorBaseCallOnly {
+abstract contract MultiSend is ExecutorBase {
 
     /**
      * @dev We override _execute to use the internal _multiSend directly. This saves gas on multiSend operations and

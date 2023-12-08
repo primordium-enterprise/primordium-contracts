@@ -98,7 +98,7 @@ interface ITimelockAvatar is IAvatar {
      * @param to The target for execution.
      * @param value The call value.
      * @param data The call data.
-     * @param operation For this timelock, must be Enum.Operation.Call (which is uint8(0))
+     * @param operation Operation type, call uint8(0) or delegatecall uint8(1).
      * @param delay The delay before the transaction can be executed.
      * @return success Returns true for successful scheduling
      * @return returnData Returns abi.encode(uint256 opNonce,bytes32 opHash,uint256 executableAt).
@@ -118,7 +118,7 @@ interface ITimelockAvatar is IAvatar {
      * @param to The target for execution.
      * @param value The call value.
      * @param data The call data.
-     * @param operation The operation type. Must be Enum.Operation.Call (which is uint8(0)).
+     * @param operation Operation type, call uint8(0) or delegatecall uint8(1).
      */
     function executeOperation(
         uint256 opNonce,
@@ -141,7 +141,7 @@ interface ITimelockAvatar is IAvatar {
      * @param to The operation target address.
      * @param value The oepration ETH value.
      * @param data The operation's calldata.
-     * @param operation The operation type.
+     * @param operation Operation type, call uint8(0) or delegatecall uint8(1).
      * @return opHash The keccak256 hash of the abi encoded to, value, data, and operation.
      */
     function hashOperation(

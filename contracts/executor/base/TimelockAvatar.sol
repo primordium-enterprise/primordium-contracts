@@ -4,7 +4,6 @@
 pragma solidity ^0.8.20;
 
 import {Enum} from "contracts/common/Enum.sol";
-import {ExecutorBaseCallOnly} from "./ExecutorBaseCallOnly.sol";
 import {MultiSend} from "./MultiSend.sol";
 import {Guardable} from "./Guardable.sol";
 import {IAvatar} from "../interfaces/IAvatar.sol";
@@ -345,7 +344,7 @@ abstract contract TimelockAvatar is
      * @param to The target for execution.
      * @param value The call value.
      * @param data The call data.
-     * @param operation For this timelock, must be Enum.Operation.Call (which is uint8(0)).
+     * @param operation Operation type, call uint8(0) or delegatecall uint8(1).
      * @return success Returns true for successful scheduling.
      */
     function execTransactionFromModule(
@@ -354,10 +353,6 @@ abstract contract TimelockAvatar is
         bytes calldata data,
         Enum.Operation operation
     ) external virtual onlyModule returns (bool success) {
-        // Operations are CALL only for this timelock
-        if (operation != Enum.Operation.Call) {
-            revert ExecutorIsCallOnly();
-        }
         (success,) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, 0);
     }
 
@@ -367,7 +362,7 @@ abstract contract TimelockAvatar is
      * @param to The target for execution.
      * @param value The call value.
      * @param data The call data.
-     * @param operation For this timelock, must be Enum.Operation.Call (which is uint8(0)).
+     * @param operation Operation type, call uint8(0) or delegatecall uint8(1).
      * @return success Returns true for successful scheduling
      * @return returnData Returns abi.encode(uint256 opNonce,bytes32 opHash,uint256 executableAt).
      */
@@ -377,10 +372,6 @@ abstract contract TimelockAvatar is
         bytes calldata data,
         Enum.Operation operation
     ) external virtual onlyModule returns (bool success, bytes memory returnData) {
-        // Operations are CALL only for this timelock
-        if (operation != Enum.Operation.Call) {
-            revert ExecutorIsCallOnly();
-        }
         (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, 0);
     }
 
@@ -392,10 +383,6 @@ abstract contract TimelockAvatar is
         Enum.Operation operation,
         uint256 delay
     ) external onlyModule returns (bool success, bytes memory returnData) {
-        // Operations are CALL only for this timelock
-        if (operation != Enum.Operation.Call) {
-            revert ExecutorIsCallOnly();
-        }
         (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, delay);
     }
 

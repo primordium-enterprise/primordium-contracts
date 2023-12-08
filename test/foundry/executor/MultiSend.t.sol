@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import {Enum} from "contracts/common/Enum.sol";
+import {ExecutorBase} from "contracts/executor/base/ExecutorBase.sol";
 import {MultiSend} from "contracts/executor/base/MultiSend.sol";
 import {MultiSendEncoder} from "contracts/libraries/MultiSendEncoder.sol";
 
@@ -280,7 +281,7 @@ contract MultiSendTest is Test, IMultiSenderEvents {
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].emitter == multiSender && logs[i].topics.length > 0) {
                 // Skip the "CallExecuted" events
-                if (logs[i].topics[0] == hex"7aa5ed2c76d4b9b3e8cbc2d86e798d468acf8cc22876dbfe0b62ea3180006c26") {
+                if (logs[i].topics[0] == ExecutorBase.CallExecuted.selector) {
                     continue;
                 }
                 if (x < expectedTopics.length) {
