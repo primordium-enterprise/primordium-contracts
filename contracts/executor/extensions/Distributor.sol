@@ -335,7 +335,7 @@ contract Distributor is
         }
 
         // Ensure this contract receives the funds
-        asset.safeReceive(msg.sender, amount);
+        asset.receiveFrom(msg.sender, amount);
 
         // Increment the distributions count, prepare distribution parameters
         uint256 claimPeriod = $._claimPeriod;
@@ -447,7 +447,7 @@ contract Distributor is
         _distribution.isClosed = true;
 
         uint256 reclaimAmount = _distribution.totalBalance - _distribution.claimedBalance;
-        asset.safeTransfer(_owner, reclaimAmount);
+        asset.transferTo(_owner, reclaimAmount);
 
         emit DistributionClosed(distributionId, asset, reclaimAmount);
     }
@@ -676,7 +676,7 @@ contract Distributor is
             assembly ("memory-safe") {
                 sstore(_distribution.slot, or(totalBalance, shl(128, claimedBalance)))
             }
-            asset.safeTransfer(receiver, claimAmount);
+            asset.transferTo(receiver, claimAmount);
         }
 
         emit DistributionClaimed(distributionId, holder, asset, claimAmount);

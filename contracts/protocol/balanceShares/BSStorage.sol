@@ -5,6 +5,7 @@ pragma solidity ^0.8.20;
 
 import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
 /**
  * @title Storage layout for BalanceSharesSingleton
@@ -117,7 +118,7 @@ mapping(address client => mapping(uint256 balanceShareId => BalanceShare)) inter
 
     function _getBalanceSum(
         BalanceSumCheckpoint storage _balanceSumCheckpoint,
-        address asset
+        IERC20 asset
     ) internal pure returns (BalanceSum storage $) {
         /// @solidity memory-safe-assembly
         assembly {

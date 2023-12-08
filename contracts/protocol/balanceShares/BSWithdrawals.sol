@@ -8,11 +8,12 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {ERC20Utils} from "contracts/libraries/ERC20Utils.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
-    using SafeERC20 for IERC20;
+    using ERC20Utils for IERC20;
 
     struct WithdrawalCheckpointCache {
         bytes32 packedValue;
@@ -32,7 +33,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
         address indexed client,
         uint256 indexed balanceShareId,
         address indexed account,
-        address asset,
+        IERC20 asset,
         uint256 withdrawAmount,
         address receiver,
         uint256 periodIndex
@@ -59,7 +60,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
         address client,
         uint256 balanceShareId,
         address account,
-        address[] memory assets,
+        IERC20[] memory assets,
         uint256 periodIndex
     ) public view returns (uint256[] memory withdrawableBalances, uint256 checkpointIterations) {
         (withdrawableBalances,,checkpointIterations) = _getAccountSharePeriodWithdrawableBalances(
@@ -73,7 +74,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
     function _getAccountSharePeriodWithdrawableBalances(
         BalanceShare storage _balanceShare,
         address account,
-        address[] memory assets,
+        IERC20[] memory assets,
         uint256 periodIndex
     ) internal view returns (
         uint256[] memory withdrawableBalances,
@@ -181,7 +182,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
         // Loop through assets again (ouch), total the withdrawable asset balance across each BalanceSumCheckpointCache
         unchecked {
             for (uint256 i = 0; i < assetCount;) {
-                address asset = assets[i];
+                IERC20 asset = assets[i];
                 uint256 assetWithdrawBalance;
 
                 // Unpack the withdrawal checkpoint cache
@@ -263,7 +264,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
         uint256 balanceShareId,
         address account,
         address receiver,
-        address[] memory assets,
+        IERC20[] memory assets,
         uint256 periodIndex
     ) public returns (uint256[] memory withdrawAmounts) {
         if (msg.sender != account) {
@@ -288,7 +289,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
         address client,
         uint256 balanceShareId,
         address account,
-        address[] memory assets,
+        IERC20[] memory assets,
         uint256 periodIndex
     ) external returns (uint256[] memory) {
         return withdrawAccountSharePeriodTo(client, balanceShareId, account, account, assets, periodIndex);
@@ -303,7 +304,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
         uint256 balanceShareId,
         address account,
         address receiver,
-        address[] memory assets,
+        IERC20[] memory assets,
         uint256 periodIndex,
         uint256 deadline,
         bytes memory signature
@@ -353,7 +354,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
         uint256 balanceShareId,
         address account,
         address receiver,
-        address[] memory assets,
+        IERC20[] memory assets,
         uint256 periodIndex
     ) internal returns (uint256[] memory withdrawAmounts) {
         // Get the withdrawable balances
@@ -380,14 +381,7 @@ abstract contract BSWithdrawals is BSAccountsManagement, EIP712, Nonces {
             if (withdrawableAmounts[i] > 0) {
 
                 // Transfer the asset
-                if (assets[i] == address(0)) {
-                    (bool success,) = receiver.call{value: withdrawableAmounts[i]}("");
-                    if (!success) {
-                        revert ETHTransferFailed();
-                    }
-                } else {
-                    IERC20(assets[i]).safeTransfer(receiver, withdrawableAmounts[i]);
-                }
+                assets[i].transferTo(receiver, withdrawableAmounts[i]);
 
                 // Emit withdrawal event
                 emit AccountSharePeriodAssetWithdrawal(

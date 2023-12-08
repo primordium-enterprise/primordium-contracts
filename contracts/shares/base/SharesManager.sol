@@ -14,6 +14,8 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC20Utils} from "contracts/libraries/ERC20Utils.sol";
+import {SafeTransferLib} from "contracts/libraries/SafeTransferLib.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {ERC165Verifier} from "contracts/libraries/ERC165Verifier.sol";
 
@@ -39,7 +41,6 @@ abstract contract SharesManager is
 {
     using Math for uint256;
     using SafeCast for *;
-    using SafeERC20 for IERC20;
     using ERC165Verifier for address;
 
     bytes32 private immutable WITHDRAW_TO_TYPEHASH = keccak256(
@@ -302,7 +303,7 @@ abstract contract SharesManager is
         uint256 depositAmount,
         address depositor
     ) internal virtual returns (uint256 totalSharesMinted) {
-        (bool fundingActive, ITreasury treasury_) = _isFundingActive();
+        (bool fundingActive, ITreasury _treasury) = _isFundingActive();
         if (!fundingActive) {
             revert FundingIsNotActive();
         }
@@ -329,9 +330,9 @@ abstract contract SharesManager is
             if (msg.value > 0) {
                 revert QuoteAssetIsNotNativeCurrency(address(_quoteAsset));
             }
-            _quoteAsset.safeTransferFrom(depositor, address(treasury_), depositAmount);
+            SafeTransferLib.safeTransferFrom(_quoteAsset, depositor, address(_treasury), depositAmount);
         }
-        treasury_.registerDeposit{value: msgValue}(_quoteAsset, depositAmount);
+        _treasury.registerDeposit{value: msgValue}(_quoteAsset, depositAmount);
 
         // Mint the vote shares to the receiver
         totalSharesMinted = depositAmount / quoteAmount * mintAmount;

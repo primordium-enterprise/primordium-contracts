@@ -17,7 +17,7 @@ library ERC20Utils {
 
     error InvalidMsgValue(uint256 expected, uint256 actual);
 
-    function safeTransfer(IERC20 token, address to, uint256 amount) internal {
+    function transferTo(IERC20 token, address to, uint256 amount) internal {
         if (address(token) == address(0)) {
             to.forceSafeTransferETH(amount);
         } else {
@@ -25,7 +25,7 @@ library ERC20Utils {
         }
     }
 
-    function safeReceive(IERC20 token, address from, uint256 amount) internal {
+    function receiveFrom(IERC20 token, address from, uint256 amount) internal {
         if (address(token) == address(0)) {
             if (msg.value != amount) {
                 revert InvalidMsgValue(amount, msg.value);
@@ -34,7 +34,17 @@ library ERC20Utils {
             if (msg.value > 0) {
                 revert InvalidMsgValue(0, msg.value);
             }
-            token.safeTransferFrom(from, address(this), amount);
+            if (amount > 0) {
+                token.safeTransferFrom(from, address(this), amount);
+            }
+        }
+    }
+
+    function getBalanceOf(IERC20 token, address account) internal view returns (uint256 amount) {
+        if (address(token) == address(0)) {
+            amount = account.balance;
+        } else {
+            amount = SafeTransferLib.balanceOf(token, account);
         }
     }
 

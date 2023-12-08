@@ -16,12 +16,13 @@ import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeTransferLib} from "contracts/libraries/SafeTransferLib.sol";
+import {ERC20Utils} from "contracts/libraries/ERC20Utils.sol";
 import {ERC165Verifier} from "contracts/libraries/ERC165Verifier.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
-    using SafeERC20 for IERC20;
+    using ERC20Utils for IERC20;
     using ERC165Verifier for address;
     using Address for address;
 
@@ -181,7 +182,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         if (address(asset) == address(0)) {
             msgValue = amount;
         } else {
-            asset.forceApprove(address(_distributor), amount);
+            SafeTransferLib.safeApproveWithRetry(asset, address(_distributor), amount);
         }
 
         _distributor.createDistribution{value: msgValue}(clockStartTime, asset, amount);
@@ -288,8 +289,13 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     }
 
     function _registerDeposit(IERC20 quoteAsset, uint256 depositAmount) internal virtual {
-        if (depositAmount == 0) revert InvalidDepositAmount();
-        if (address(quoteAsset) == address(0) && msg.value != depositAmount) revert InvalidDepositAmount();
+        if (depositAmount == 0) {
+            revert InvalidDepositAmount();
+        }
+
+        if (address(quoteAsset) == address(0) && msg.value != depositAmount) {
+            revert InvalidDepositAmount();
+        }
 
         BalanceShares storage $ = _getTreasurerStorage()._balanceShares;
         IBalanceSharesManager manager = $._manager;
@@ -329,12 +335,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
             // Iterate through the token addresses, sending proportional payouts (using address(0) for ETH)
             // TODO: Need to add the PROFT/DISTRIBUTIONS Balance share allocation to this function
             for (uint256 i = 0; i < assets.length;) {
-                uint256 tokenBalance;
-                if (address(assets[i]) == address(0)) {
-                    tokenBalance = address(this).balance;
-                } else {
-                    tokenBalance = assets[i].balanceOf(address(this));
-                }
+                uint256 tokenBalance = assets[i].getBalanceOf(address(this));
 
                 uint256 payout = Math.mulDiv(tokenBalance, sharesBurned, sharesTotalSupply);
 
@@ -348,12 +349,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
 
                     payout -= distributionShareAllocation;
 
-                    if (address(assets[i]) == address(0)) {
-                        (bool success,) = receiver.call{value: payout}("");
-                        if (!success) revert ETHTransferFailed();
-                    } else {
-                        assets[i].safeTransfer(receiver, payout);
-                    }
+                    assets[i].transferTo(receiver, payout);
 
                     emit Withdrawal(account, receiver, assets[i], payout, distributionShareAllocation);
                 }
@@ -379,7 +375,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
             // Get allocation amount
             (amountAllocated, remainderIncreased) = manager.getBalanceShareAllocationWithRemainder(
                 balanceShareId,
-                address(asset),
+                asset,
                 balanceIncreasedBy
             );
 
@@ -392,14 +388,14 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                     if (address(asset) == address(0)) {
                         msgValue = amountAllocated;
                     } else {
-                        asset.forceApprove(address(manager), amountAllocated);
+                        SafeTransferLib.safeApproveWithRetry(asset, address(manager), amountAllocated);
                     }
                 }
 
                 // Allocate to the balance share
                 manager.allocateToBalanceShareWithRemainder{value: msgValue}(
                     balanceShareId,
-                    address(asset),
+                    asset,
                     balanceIncreasedBy
                 );
 
