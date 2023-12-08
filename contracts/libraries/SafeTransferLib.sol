@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
+// Primordium Contracts
+// Slightly modified from Solady's SafeTransferLib, (https://github.com/vectorized/solady/blob/main/src/utils/SafeTransferLib.sol)
+
 pragma solidity ^0.8.20;
+
+import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
 /**
  * @notice Safe ETH and ERC20 transfer library that gracefully handles missing return values.
@@ -11,6 +16,7 @@ pragma solidity ^0.8.20;
  * @dev Note:
  * - For ETH transfers, please use `forceSafeTransferETH` for DoS protection.
  * - (MODIFIED - Ben Jett)
+ *   - All ERC20 functions take the token parameter as an IERC20 instead of an address (for consistency in this repo)
  *   - For ERC20s, all "safe" functions have been updated to revert if the token contract does not exist.
  *   - If desired behavior is to allow a contract to be non-existent, the non-safe function will not check existence,
  *     but will impelement the same checks as usual (succeeds if "true" or nothing returned)
@@ -131,7 +137,7 @@ library SafeTransferLib {
     ///
     /// The `from` account must have at least `amount` approved for
     /// the current contract to manage.
-    function transferFrom(address token, address from, address to, uint256 amount) internal {
+    function transferFrom(IERC20 token, address from, address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
             let m := mload(0x40) // Cache the free memory pointer.
@@ -159,7 +165,7 @@ library SafeTransferLib {
     ///
     /// The `from` account must have at least `amount` approved for
     /// the current contract to manage.
-    function safeTransferFrom(address token, address from, address to, uint256 amount) internal {
+    function safeTransferFrom(IERC20 token, address from, address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
             let m := mload(0x40) // Cache the free memory pointer.
@@ -187,7 +193,7 @@ library SafeTransferLib {
 
     /// @dev Sends `amount` of ERC20 `token` from the current contract to `to`.
     /// Reverts upon failure.
-    function transfer(address token, address to, uint256 amount) internal {
+    function transfer(IERC20 token, address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
             mstore(0x14, to) // Store the `to` argument.
@@ -209,7 +215,7 @@ library SafeTransferLib {
 
     /// @dev Sends `amount` of ERC20 `token` from the current contract to `to`.
     /// Reverts upon failure, or if the token contract does not exist.
-    function safeTransfer(address token, address to, uint256 amount) internal {
+    function safeTransfer(IERC20 token, address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
             mstore(0x14, to) // Store the `to` argument.
@@ -234,7 +240,7 @@ library SafeTransferLib {
 
     /// @dev Sets `amount` of ERC20 `token` for `to` to manage on behalf of the current contract.
     /// Reverts upon failure, or if the token contract does not exist
-    function safeApprove(address token, address to, uint256 amount) internal {
+    function safeApprove(IERC20 token, address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
             mstore(0x14, to) // Store the `to` argument.
@@ -261,7 +267,7 @@ library SafeTransferLib {
     /// If the initial attempt to approve fails, attempts to reset the approved amount to zero,
     /// then retries the approval again (some tokens, e.g. USDT, requires this).
     /// Reverts upon failure, or if the token contract does not exist.
-    function safeApproveWithRetry(address token, address to, uint256 amount) internal {
+    function safeApproveWithRetry(IERC20 token, address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
             mstore(0x14, to) // Store the `to` argument.
@@ -300,7 +306,7 @@ library SafeTransferLib {
 
     /// @dev Returns the amount of ERC20 `token` owned by `account`.
     /// Returns zero if the `token` does not exist.
-    function balanceOf(address token, address account) internal view returns (uint256 amount) {
+    function balanceOf(IERC20 token, address account) internal view returns (uint256 amount) {
         /// @solidity memory-safe-assembly
         assembly {
             mstore(0x14, account) // Store the `account` argument.

@@ -177,14 +177,14 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
             amount
         );
 
-        uint256 value = 0;
+        uint256 msgValue;
         if (address(asset) == address(0)) {
-            value = amount;
+            msgValue = amount;
         } else {
             asset.forceApprove(address(_distributor), amount);
         }
 
-        _distributor.createDistribution(clockStartTime, address(asset), amount);
+        _distributor.createDistribution{value: msgValue}(clockStartTime, asset, amount);
     }
 
     function authorizeDistributorImplementation(address newImplementation) public view virtual {
@@ -375,7 +375,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         uint256 balanceIncreasedBy
     ) internal returns (uint256 amountAllocated) {
         if (address(manager) != address(0)) {
-            uint256 value;
             bool remainderIncreased;
             // Get allocation amount
             (amountAllocated, remainderIncreased) = manager.getBalanceShareAllocationWithRemainder(
@@ -388,16 +387,17 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
             if (amountAllocated > 0 || remainderIncreased) {
 
                 // Approve transfer amount
-                if (amountAllocated > 0 && address(asset) != address(0)) {
-                    asset.forceApprove(address(manager), amountAllocated);
-                }
-
-                if (address(asset) == address(0)) {
-                    value = amountAllocated;
+                uint256 msgValue;
+                if (amountAllocated > 0) {
+                    if (address(asset) == address(0)) {
+                        msgValue = amountAllocated;
+                    } else {
+                        asset.forceApprove(address(manager), amountAllocated);
+                    }
                 }
 
                 // Allocate to the balance share
-                manager.allocateToBalanceShareWithRemainder{value: value}(
+                manager.allocateToBalanceShareWithRemainder{value: msgValue}(
                     balanceShareId,
                     address(asset),
                     balanceIncreasedBy

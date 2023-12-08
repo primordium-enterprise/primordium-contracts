@@ -17,6 +17,7 @@ import {IERC20Checkpoints} from "contracts/shares/interfaces/IERC20Checkpoints.s
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC20Utils} from "contracts/libraries/ERC20Utils.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
@@ -29,7 +30,7 @@ contract Distributor is
     NoncesUpgradeable,
     ERC165
 {
-    using SafeERC20 for IERC20;
+    using ERC20Utils for IERC20;
     using Address for address;
     using ERC165Verifier for address;
 
@@ -47,7 +48,7 @@ contract Distributor is
         uint208 cachedTotalSupply;
 
         // Slot 2 (27 bytes)
-        address asset;
+        IERC20 asset;
         uint48 clockClosableAt;
         bool isClosed;
 
@@ -90,19 +91,27 @@ contract Distributor is
 
     event DistributionCreated(
         uint256 indexed distributionId,
-        address indexed asset,
+        IERC20 indexed asset,
         uint256 indexed balance,
         uint256 clockStart,
         uint256 clockClosableAt
     );
     event DistributionClaimPeriodUpdate(uint256 oldClaimPeriod, uint256 newClaimPeriod);
     event CloseDistributionsApprovalUpdate(address indexed account, bool indexed isApproved);
-    event DistributionClosed(uint256 indexed distributionId, address asset, uint256 reclaimAmount);
-    event ClaimDistributionsApprovalUpdate(address indexed holder, address indexed account, bool indexed isApproved);
+    event DistributionClosed(
+        uint256 indexed distributionId,
+        IERC20 asset,
+        uint256 reclaimAmount
+    );
+    event ClaimDistributionsApprovalUpdate(
+        address indexed holder,
+        address indexed account,
+        bool indexed isApproved
+    );
     event DistributionClaimed(
         uint256 indexed distributionId,
         address indexed holder,
-        address asset,
+        IERC20 asset,
         uint256 amount
     );
 
@@ -264,7 +273,7 @@ contract Distributor is
     function getDistributionData(uint256 distributionId) public view virtual returns (
         uint256 totalBalance,
         uint256 claimedBalance,
-        address asset,
+        IERC20 asset,
         uint256 clockStart,
         uint256 clockClosableAt,
         bool isClosed
@@ -295,7 +304,7 @@ contract Distributor is
      */
     function createDistribution(
         uint256 clockStart,
-        address asset,
+        IERC20 asset,
         uint256 amount
     ) public payable virtual onlyOwner requireOwnerAuthorization returns (uint256 distributionId) {
         distributionId = _createDistribution(clockStart, asset, amount);
@@ -303,7 +312,7 @@ contract Distributor is
 
     function _createDistribution(
         uint256 clockStart,
-        address asset,
+        IERC20 asset,
         uint256 amount
     ) internal virtual returns (uint256 distributionId) {
         DistributorStorage storage $ = _getDistributorStorage();
@@ -325,18 +334,8 @@ contract Distributor is
             revert DistributionAmountTooHigh(MAX_DISTRIBUTION_AMOUNT);
         }
 
-        // Transfer the funds to this contract
-        if (asset == address(0)) {
-            if (msg.value != amount) {
-                revert InvalidMsgValue();
-            }
-        } else {
-            if (msg.value > 0) {
-                revert InvalidMsgValue();
-            }
-            IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-        }
-
+        // Ensure this contract receives the funds
+        asset.safeReceive(msg.sender, amount);
 
         // Increment the distributions count, prepare distribution parameters
         uint256 claimPeriod = $._claimPeriod;
@@ -424,7 +423,7 @@ contract Distributor is
         Distribution storage _distribution = $._distributions[distributionId];
 
         // Read together to save gas
-        address asset = _distribution.asset;
+        IERC20 asset = _distribution.asset;
         bool isClosed = _distribution.isClosed;
         uint256 closableAt = _distribution.clockClosableAt;
 
@@ -448,7 +447,7 @@ contract Distributor is
         _distribution.isClosed = true;
 
         uint256 reclaimAmount = _distribution.totalBalance - _distribution.claimedBalance;
-        _safeTransfer(asset, _owner, reclaimAmount);
+        asset.safeTransfer(_owner, reclaimAmount);
 
         emit DistributionClosed(distributionId, asset, reclaimAmount);
     }
@@ -607,7 +606,7 @@ contract Distributor is
         }
 
         // Single read
-        address asset = _distribution.asset;
+        IERC20 asset = _distribution.asset;
         bool isClosed = _distribution.isClosed;
 
         // Distribution must not be closed
@@ -677,21 +676,10 @@ contract Distributor is
             assembly ("memory-safe") {
                 sstore(_distribution.slot, or(totalBalance, shl(128, claimedBalance)))
             }
-            _safeTransfer(asset, receiver, claimAmount);
+            asset.safeTransfer(receiver, claimAmount);
         }
 
         emit DistributionClaimed(distributionId, holder, asset, claimAmount);
-    }
-
-    function _safeTransfer(address asset, address to, uint256 amount) internal {
-        if (asset == address(0)) {
-            (bool success,) = to.call{value: amount}("");
-            if (!success) {
-                revert ETHTransferFailed();
-            }
-        } else {
-            IERC20(asset).safeTransfer(to, amount);
-        }
     }
 
     function _authorizeUpgrade(
