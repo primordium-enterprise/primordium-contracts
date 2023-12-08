@@ -178,12 +178,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
             amount
         );
 
-        uint256 msgValue;
-        if (address(asset) == address(0)) {
-            msgValue = amount;
-        } else {
-            SafeTransferLib.safeApproveWithRetry(asset, address(_distributor), amount);
-        }
+        uint256 msgValue = asset.approveForExternalCall(address(_distributor), amount);
 
         _distributor.createDistribution{value: msgValue}(clockStartTime, asset, amount);
     }
@@ -383,14 +378,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
             if (amountAllocated > 0 || remainderIncreased) {
 
                 // Approve transfer amount
-                uint256 msgValue;
-                if (amountAllocated > 0) {
-                    if (address(asset) == address(0)) {
-                        msgValue = amountAllocated;
-                    } else {
-                        SafeTransferLib.safeApproveWithRetry(asset, address(manager), amountAllocated);
-                    }
-                }
+                uint256 msgValue = asset.approveForExternalCall(address(manager), amountAllocated);
 
                 // Allocate to the balance share
                 manager.allocateToBalanceShareWithRemainder{value: msgValue}(
@@ -400,7 +388,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                 );
 
                 emit BalanceShareAllocated(manager, balanceShareId, asset, balanceIncreasedBy);
-
             }
         }
     }

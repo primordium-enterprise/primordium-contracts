@@ -321,11 +321,14 @@ abstract contract SharesManager is
         // Transfer the deposit to the treasury
         IERC20 _quoteAsset = quoteAsset();
         uint256 msgValue;
+
+        // For ETH, just transfer via the treasury "registerDeposit" function, so set the msg.value
         if (address(_quoteAsset) == address(0)) {
             if (depositAmount != msg.value) {
                 revert ERC20Utils.InvalidMsgValue(depositAmount, msg.value);
             }
             msgValue = msg.value;
+        // For ERC20, safe transfer from the depositor to the treasury
         } else {
             if (msg.value > 0) {
                 revert ERC20Utils.InvalidMsgValue(0, msg.value);
