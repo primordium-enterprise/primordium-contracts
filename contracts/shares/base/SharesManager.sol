@@ -295,7 +295,7 @@ abstract contract SharesManager is
      * @dev Internal function for processing the deposit. Runs several checks before transferring the deposit to the
      * treasury and minting shares to the provided account address. Main checks:
      * - Funding is active (treasury is not zero address, and block.timestamp is in funding window)
-     * - depositAmount cannot be zero, and must be a multiple of the quoteAmount
+     * - depositAmount cannot be zero, and must be an exact multiple of the quoteAmount
      * - msg.value is proper based on the current quoteAsset
      */
     function _depositFor(
@@ -318,21 +318,37 @@ abstract contract SharesManager is
         // The "depositAmount" must be a multiple of the share price quoteAmount
         if (depositAmount % quoteAmount != 0) revert InvalidDepositAmountMultiple();
 
-        // Transfer the deposit to the treasury, and register the deposit on the treasury
+        // Transfer the deposit to the treasury
         IERC20 _quoteAsset = quoteAsset();
         uint256 msgValue;
         if (address(_quoteAsset) == address(0)) {
             if (depositAmount != msg.value) {
-                revert InvalidDepositAmount();
+                revert ERC20Utils.InvalidMsgValue(depositAmount, msg.value);
             }
             msgValue = msg.value;
         } else {
             if (msg.value > 0) {
-                revert QuoteAssetIsNotNativeCurrency(address(_quoteAsset));
+                revert ERC20Utils.InvalidMsgValue(0, msg.value);
             }
             SafeTransferLib.safeTransferFrom(_quoteAsset, depositor, address(_treasury), depositAmount);
         }
-        _treasury.registerDeposit{value: msgValue}(_quoteAsset, depositAmount);
+
+        // Register the deposit on the treasury
+        assembly ("memory-safe") {
+            // Call `registerDeposit{value: msgValue}(_quoteAsset, depositAmount)`
+            mstore(0x14, _quoteAsset)
+            mstore(0x34, depositAmount)
+            // `registerDeposit(address,uint256)`
+            mstore(0x00, 0x219dabeb000000000000000000000000)
+            let result := call(gas(), _treasury, msgValue, 0x10, 0x44, 0, 0x40)
+            // Restore free mem overwrite
+            mstore(0x34, 0)
+            if iszero(result) {
+                let m := mload(0x40)
+                returndatacopy(m, 0, returndatasize())
+                revert (m, returndatasize())
+            }
+        }
 
         // Mint the vote shares to the receiver
         totalSharesMinted = depositAmount / quoteAmount * mintAmount;

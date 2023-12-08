@@ -71,7 +71,6 @@ interface ISharesManager is IERC6372 {
     error FundingIsNotActive();
     error InvalidDepositAmount();
     error InvalidPermitSpender(address providedSpender, address correctSpender);
-    error QuoteAssetIsNotNativeCurrency(address quoteAsset);
     error TokenSalesNotAvailableYet(uint256 tokenSaleBeginsAt);
     error InvalidDepositAmountMultiple();
     error TokenPriceTooLow();
