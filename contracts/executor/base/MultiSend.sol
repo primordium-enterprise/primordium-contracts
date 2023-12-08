@@ -11,7 +11,6 @@ import {ExecutorBase} from "./ExecutorBase.sol";
  * @notice This contract follows the same packed multiSend encoding as Safe contracts (for compatibility),
  * https://github.com/safe-global/safe-contracts/blob/main/contracts/libraries/MultiSend.sol
  *
- *
  * @author Ben Jett - @BCJdevelopment
  */
 abstract contract MultiSend is ExecutorBase {
@@ -50,7 +49,7 @@ abstract contract MultiSend is ExecutorBase {
      * @dev Executes multiple transactions, reverting if any one fails. Only callable by the Executor itself.
      * @notice Follows the same encoding as the Safe protocol.
      * @param transactions Encoded transactions. Each transaction is encoded as a packed bytes of:
-     *                     "operation" as uint8(0) since this contract is call only (=> 1 byte),
+     *                     "operation" as uint8 (=> 1 byte),
      *                     "to" as an address (=> 20 bytes),
      *                     "value" as a uint256 (=> 32 bytes),
      *                     "data length" as a uint256 (=> 32 bytes),
