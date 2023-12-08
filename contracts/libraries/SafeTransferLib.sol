@@ -6,13 +6,14 @@ pragma solidity ^0.8.20;
  * @author Solady (https://github.com/vectorized/solady/blob/main/src/utils/SafeTransferLib.sol)
  * @author Modified from Solmate (https://github.com/transmissions11/solmate/blob/main/src/utils/SafeTransferLib.sol)
  *
- * @author Further modified by Ben Jett @BCJdevelopment to include checks for contract code in ERC20 operations
+ * @author Further modified by Ben Jett @BCJdevelopment to include checks for contract existence in ERC20 operations
  *
  * @dev Note:
  * - For ETH transfers, please use `forceSafeTransferETH` for DoS protection.
  * - (MODIFIED - Ben Jett)
- *   - For ERC20s, this includes both functions that do and don't check that the implementation contract exists.
- *   - Removed functions that are unused in this repository.
+ *   - For ERC20s, all "safe" functions have been updated to revert if the token contract does not exist.
+ *   - If desired behavior is to allow a contract to be non-existent, the non-safe function will not check existence,
+ *     but will impelement the same checks as usual (succeeds if "true" or nothing returned)
  */
 library SafeTransferLib {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -170,8 +171,8 @@ library SafeTransferLib {
             if iszero(
                 and( // The arguments of `and` are evaluated from right to left.
                     or(
-                        eq(mload(0x00), 1), // Returned 1 or nothing.
-                        and(gt(extcodesize(token), 0), iszero(returndatasize())) // Checks for contract existence
+                        eq(mload(0x00), 1), // Returned 1
+                        and(gt(extcodesize(token), 0), iszero(returndatasize())) // Returned nothing but it does exist
                     ),
                     call(gas(), token, 0, 0x1c, 0x64, 0x00, 0x20)
                 )
@@ -218,8 +219,8 @@ library SafeTransferLib {
             if iszero(
                 and( // The arguments of `and` are evaluated from right to left.
                     or(
-                        eq(mload(0x00), 1), // Returned 1 or nothing.
-                        and(gt(extcodesize(token), 0), iszero(returndatasize())) // Checks for contract existence
+                        eq(mload(0x00), 1), // Returned 1
+                        and(gt(extcodesize(token), 0), iszero(returndatasize())) // Returned nothing but it does exist
                     ),
                     call(gas(), token, 0, 0x10, 0x44, 0x00, 0x20)
                 )
@@ -243,8 +244,8 @@ library SafeTransferLib {
             if iszero(
                 and( // The arguments of `and` are evaluated from right to left.
                     or(
-                        eq(mload(0x00), 1), // Returned 1 or nothing.
-                        and(gt(extcodesize(token), 0), iszero(returndatasize())) // Checks for contract existence
+                        eq(mload(0x00), 1), // Returned 1
+                        and(gt(extcodesize(token), 0), iszero(returndatasize())) // Returned nothing but it does exist
                     ),
                     call(gas(), token, 0, 0x10, 0x44, 0x00, 0x20)
                 )
