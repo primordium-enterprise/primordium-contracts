@@ -10,7 +10,6 @@ import {IAvatar} from "../interfaces/IAvatar.sol";
 import {IGuard} from "../interfaces/IGuard.sol";
 import {ITimelockAvatar} from "../interfaces/ITimelockAvatar.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
@@ -26,7 +25,6 @@ abstract contract TimelockAvatar is
     IAvatar,
     ITimelockAvatar,
     Guardable,
-    ContextUpgradeable,
     ERC721Holder,
     ERC1155Holder
 {
