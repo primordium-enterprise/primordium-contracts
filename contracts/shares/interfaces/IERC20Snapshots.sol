@@ -18,6 +18,7 @@ interface IERC20Snapshots is IERC20, IERC6372 {
     );
 
     error ERC6372InconsistentClock();
+    error ERC20SnapshotAlreadyScheduled();
     error ERC20SnapshotIdDoesNotExist(uint256 lastSnapshotId, uint256 providedSnapshotId);
     error ERC20MaxSupplyOverflow(uint256 maxSupply, uint256 resultingSupply);
 

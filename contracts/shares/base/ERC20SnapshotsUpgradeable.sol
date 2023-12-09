@@ -24,8 +24,8 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
  * snapshot checkpoints to keep historical track of account balance's at the time of each created snapshot.
  *
  * @notice This contract only optimizes balance checkpoints between snapshots. The total supply checkpoints will still
- * write a new checkpoint on every mint/burn, for compatibility with the {ERC20VotesUpgradeable} that inherits from
- * this contract.
+ * write a new checkpoint on every mint/burn, regardless of snapshot status, to ensure compatibility with the
+ * {ERC20VotesUpgradeable} that inherits from this contract.
  *
  * Maintains EIP7201 storage namespacing for upgradeability.
  */
@@ -148,6 +148,40 @@ abstract contract ERC20SnapshotsUpgradeable is
     }
 
     /**
+     * @dev Internal method for creating a new snapshot. Inheriting contract should implement an external method as
+     * needed for creating new snapshots.
+     *
+     * Snapshots should NOT be created for future clock values, or else the gas optimizations of snapshots will be
+     * bypassed until the future snapshot clock value passes.
+     */
+    function _createSnapshot() internal virtual returns (uint256 newSnapshotId) {
+        ERC20SnapshotsStorage storage $ = _getERC20SnapshotsStorage();
+
+        uint256 currentClock = clock();
+
+        uint256 lastSnapshotClock = $._lastSnapshotClock;
+        uint256 lastSnapshotId = $._lastSnapshotId;
+
+        // A safety check, to ensure that no snapshot has already been scheduled in teh future (which should not happen)
+        if (lastSnapshotClock > currentClock) {
+            revert ERC20SnapshotAlreadyScheduled();
+        // If lastSnapshotClock is equal to currentClock, then just return the current ID.
+        } else if (lastSnapshotClock == currentClock) {
+            return lastSnapshotId;
+        }
+
+        // Increment the snapshotId
+        newSnapshotId = lastSnapshotId + 1;
+
+        // Set the clock value, and update the cache with the new ID and clock
+        $._snapshotClocks[newSnapshotId] = currentClock;
+        $._lastSnapshotClock = uint48(currentClock);
+        $._lastSnapshotId = SafeCast.toUint208(newSnapshotId);
+
+        emit SnapshotCreated(newSnapshotId, currentClock);
+    }
+
+    /**
      * @inheritdoc ERC20Upgradeable
      * @dev This function is modified to follow the exact same logic as the _update function in the original
      * ERC20Upgradeable contract, but using snapshot checkpoints for balances and total supply.
@@ -190,6 +224,10 @@ abstract contract ERC20SnapshotsUpgradeable is
         emit Transfer(from, to, value);
     }
 
+    /**
+     * @dev Checks the provided snapshot ID, reverts if it does not exist. Returns the lastSnapshotId and
+     * lastSnapshotClock read from the packed storage slot.
+     */
     function _checkSnapshotId(
         ERC20SnapshotsStorage storage $,
         uint256 snapshotId
