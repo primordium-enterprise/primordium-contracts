@@ -12,54 +12,46 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
-import {IERC20Checkpoints} from "../interfaces/IERC20Checkpoints.sol";
+import {IERC20Snapshots} from "../interfaces/IERC20Snapshots.sol";
 import {SnapshotCheckpoints} from "contracts/libraries/SnapshotCheckpoints.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /**
  * @title Allows for creating historical ERC20 balance snapshots with the IERC6372 clock mode.
+ * @author Ben Jett - @BCJdevelopment
  *
  * @dev Implementation of the OpenZeppelin {ERC20} module with {ERC20Permit} and the IERC6372 clock mode, but uses
  * snapshot checkpoints to keep historical track of account balance's at the time of each created snapshot.
  *
- * Maintains EIP7201 storage namespacing for upgradeability
- *
- * @author Ben Jett - @BCJdevelopment
+ * Maintains EIP7201 storage namespacing for upgradeability.
  */
-abstract contract ERC20BalanceSnapshotsUpgradeable is
+abstract contract ERC20SnapshotsUpgradeable is
     ContextUpgradeable,
     ERC20Upgradeable,
     ERC20PermitUpgradeable,
     ERC165Upgradeable,
-    IERC20Checkpoints
+    IERC20Snapshots
 {
     using SnapshotCheckpoints for SnapshotCheckpoints.Trace208;
 
-    /// @custom:storage-location erc7201:ERC20Checkpoints.Storage
-    struct ERC20CheckpointsStorage {
-        mapping(address => SnapshotCheckpoints.Trace208) _balanceCheckpoints;
+    /// @custom:storage-location erc7201:ERC20Snapshots.Storage
+    struct ERC20SnapshotsStorage {
+        uint48 _lastSnapshotClock;
+        uint208 _lastSnapshotId;
+        mapping(uint256 snapshotId => uint256 snapshotClock) _snapshotClocks;
+
         SnapshotCheckpoints.Trace208 _totalSupplyCheckpoints;
+        mapping(address => SnapshotCheckpoints.Trace208) _balanceCheckpoints;
     }
 
-    bytes32 private immutable ERC20_CHECKPOINTS_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("ERC20Checkpoints.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private immutable ERC20_SNAPSHOTS_STORAGE =
+        keccak256(abi.encode(uint256(keccak256("ERC20Snapshots.Storage")) - 1)) & ~bytes32(uint256(0xff));
 
-    function _getERC20CheckpointsStorage() private view returns (ERC20CheckpointsStorage storage $) {
-        bytes32 erc20CheckpointsStorageSlot = ERC20_CHECKPOINTS_STORAGE;
+    function _getERC20SnapshotsStorage() private view returns (ERC20SnapshotsStorage storage $) {
+        bytes32 slot = ERC20_SNAPSHOTS_STORAGE;
         assembly {
-            $.slot := erc20CheckpointsStorageSlot
+            $.slot := slot
         }
-    }
-
-    /**
-     * @dev The clock was incorrectly modified.
-     */
-    error ERC6372InconsistentClock();
-
-    modifier noFutureLookup(uint256 timepoint) {
-        uint256 currentClock = clock();
-        if (timepoint >= currentClock) revert ERC20CheckpointsFutureLookup(currentClock);
-        _;
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
@@ -67,7 +59,8 @@ abstract contract ERC20BalanceSnapshotsUpgradeable is
             interfaceId == type(IERC20).interfaceId ||
             interfaceId == type(IERC20Metadata).interfaceId ||
             interfaceId == type(IERC20Permit).interfaceId ||
-            interfaceId == type(IERC20Checkpoints).interfaceId ||
+            interfaceId == type(IERC20Snapshots).interfaceId ||
+            interfaceId == type(IERC6372).interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
@@ -90,46 +83,64 @@ abstract contract ERC20BalanceSnapshotsUpgradeable is
         return "mode=blocknumber&from=default";
     }
 
-    /**
-     * @dev See {IERC20-totalSupply}.
-     */
-    function totalSupply() public view virtual override(ERC20Upgradeable, IERC20) returns (uint256) {
-        ERC20CheckpointsStorage storage $ = _getERC20CheckpointsStorage();
+    /// @inheritdoc IERC20Snapshots
+    function getLastSnapshotId() public view virtual override returns (uint256 lastSnapshotId) {
+        lastSnapshotId = _getERC20SnapshotsStorage()._lastSnapshotId;
+    }
+
+    /// @inheritdoc IERC20Snapshots
+    function getSnapshotClock(uint256 snapshotId) public view virtual override returns (uint256 snapshotClock) {
+        ERC20SnapshotsStorage storage $ = _getERC20SnapshotsStorage();
+        _checkSnapshotId($, snapshotId);
+        snapshotClock = $._snapshotClocks[snapshotId];
+    }
+
+    /// @inheritdoc IERC20
+    function totalSupply() public view virtual override(IERC20, ERC20Upgradeable) returns (uint256) {
+        ERC20SnapshotsStorage storage $ = _getERC20SnapshotsStorage();
         return $._totalSupplyCheckpoints.latest();
     }
 
-     /**
-     * @inheritdoc IERC20Checkpoints
-     */
-    function getPastTotalSupply(uint256 timepoint) public view virtual noFutureLookup(timepoint) returns (uint256) {
-        ERC20CheckpointsStorage storage $ = _getERC20CheckpointsStorage();
-        return $._totalSupplyCheckpoints.upperLookupRecent(SafeCast.toUint32(timepoint));
+     /// @inheritdoc IERC20Snapshots
+    function getTotalSupplyAtSnapshot(
+        uint256 snapshotId
+    ) public view virtual override returns (uint256 totalSupplyAtSnapshot) {
+        ERC20SnapshotsStorage storage $ = _getERC20SnapshotsStorage();
+
+        // Optimize for most recent snapshot ID
+        (uint256 lastSnapshotId, uint256 snapshotClock) = _checkSnapshotId($, snapshotId);
+        if (snapshotId != lastSnapshotId) {
+            snapshotClock = $._snapshotClocks[snapshotId];
+        }
+
+        totalSupplyAtSnapshot = $._totalSupplyCheckpoints.upperLookupRecent(uint48(snapshotClock));
     }
 
-    /**
-     * @inheritdoc IERC20Checkpoints
-     */
+    /// @inheritdoc IERC20Snapshots
     function maxSupply() public view virtual override returns (uint256) {
         return type(uint208).max;
     }
 
-    /**
-     * @dev See {IERC20-balanceOf}.
-     */
-    function balanceOf(address account) public view virtual override(ERC20Upgradeable, IERC20) returns (uint256) {
-        ERC20CheckpointsStorage storage $ = _getERC20CheckpointsStorage();
+    /// @inheritdoc IERC20
+    function balanceOf(address account) public view virtual override(IERC20, ERC20Upgradeable) returns (uint256) {
+        ERC20SnapshotsStorage storage $ = _getERC20SnapshotsStorage();
         return uint256($._balanceCheckpoints[account].latest());
     }
 
-    /**
-     * @inheritdoc IERC20Checkpoints
-     */
-    function getPastBalanceOf(
+    /// @inheritdoc IERC20Snapshots
+    function getBalanceAtSnapshot(
         address account,
-        uint256 timepoint
-    ) public view virtual noFutureLookup(timepoint) returns (uint256) {
-        ERC20CheckpointsStorage storage $ = _getERC20CheckpointsStorage();
-        return $._balanceCheckpoints[account].upperLookupRecent(SafeCast.toUint32(timepoint));
+        uint256 snapshotId
+    ) public view virtual override returns (uint256 balanceAtSnapshot) {
+        ERC20SnapshotsStorage storage $ = _getERC20SnapshotsStorage();
+
+        // Optimize for most recent snapshot ID
+        (uint256 lastSnapshotId, uint256 snapshotClock) = _checkSnapshotId($, snapshotId);
+        if (snapshotId != lastSnapshotId) {
+            snapshotClock = $._snapshotClocks[snapshotId];
+        }
+
+        return $._balanceCheckpoints[account].upperLookupRecent(uint8(snapshotClock));
     }
 
     /**
@@ -138,13 +149,13 @@ abstract contract ERC20BalanceSnapshotsUpgradeable is
      * ERC20Upgradeable contract, but using checkpoints for balances and total supply.
      */
     function _update(address from, address to, uint256 value) internal virtual override {
-        ERC20CheckpointsStorage storage $ = _getERC20CheckpointsStorage();
+        ERC20SnapshotsStorage storage $ = _getERC20SnapshotsStorage();
         if (from == address(0)) {
             // Increase the total supply, but not past the maxSupply
             (,uint256 newTotalSupply) = _writeCheckpoint($._totalSupplyCheckpoints, _add, value);
             uint256 currentMaxSupply = maxSupply();
             if (newTotalSupply > currentMaxSupply) {
-                revert ERC20CheckpointsMaxSupplyOverflow(currentMaxSupply, newTotalSupply);
+                revert ERC20MaxSupplyOverflow(currentMaxSupply, newTotalSupply);
             }
         } else {
             uint256 fromBalance = uint256($._balanceCheckpoints[from].latest());
@@ -170,6 +181,21 @@ abstract contract ERC20BalanceSnapshotsUpgradeable is
         }
 
         emit Transfer(from, to, value);
+    }
+
+    function _checkSnapshotId(
+        ERC20SnapshotsStorage storage $,
+        uint256 snapshotId
+    ) internal view returns (
+        uint256 lastSnapshotId,
+        uint256 lastSnapshotClock
+    ) {
+        // Just read both values here as a gas optimization for some operations
+        lastSnapshotClock = $._lastSnapshotClock;
+        lastSnapshotId = $._lastSnapshotId;
+        if (snapshotId > lastSnapshotId) {
+            revert ERC20SnapshotIdDoesNotExist(lastSnapshotId, snapshotId);
+        }
     }
 
     function _writeCheckpoint(

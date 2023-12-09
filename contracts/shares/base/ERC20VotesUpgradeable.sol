@@ -54,7 +54,6 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         return
-            interfaceId == type(IERC5805).interfaceId ||
             interfaceId == type(IVotes).interfaceId ||
             super.supportsInterface(interfaceId);
     }
