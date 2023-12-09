@@ -156,20 +156,21 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
      * manager contract before initializing the distribution.
      */
     function createDistribution(
-        uint256 clockStartTime,
         IERC20 asset,
         uint256 amount
     ) external virtual onlySelf {
-        IDistributor _distributor = _getTreasurerStorage()._distributor;
-        _createDistribution(_distributor, clockStartTime, asset, amount);
+        _createDistribution(_getTreasurerStorage()._distributor, asset, amount);
     }
 
     function _createDistribution(
         IDistributor _distributor,
-        uint256 clockStartTime,
         IERC20 asset,
         uint256 amount
     ) internal virtual authorizeOperator(address(_distributor)) {
+        TreasurerStorage storage $ = _getTreasurerStorage();
+
+        uint256 snapshotId = $._token.createSnapshot();
+
         // Allocate to the balance share
         amount -= _allocateBalanceShare(
             _getTreasurerStorage()._balanceShares._manager,
@@ -180,7 +181,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
 
         uint256 msgValue = asset.approveForExternalCall(address(_distributor), amount);
 
-        _distributor.createDistribution{value: msgValue}(clockStartTime, asset, amount);
+        _distributor.createDistribution{value: msgValue}(snapshotId, asset, amount);
     }
 
     function authorizeDistributorImplementation(address newImplementation) public view virtual {

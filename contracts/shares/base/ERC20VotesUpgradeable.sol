@@ -5,30 +5,28 @@
 
 pragma solidity ^0.8.20;
 
-import {ERC20CheckpointsUpgradeable} from "./ERC20CheckpointsUpgradeable.sol";
+import {ERC20SnapshotsUpgradeable} from "./ERC20SnapshotsUpgradeable.sol";
 import {IERC5805} from "@openzeppelin/contracts/interfaces/IERC5805.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
-import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
+import {SnapshotCheckpoints} from "contracts/libraries/SnapshotCheckpoints.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 
 /**
- * @title ERC20VotesUpgradeable - ERC20 Votes implementation, using the ERC20CheckpointsUpgradeable as the base.
+ * @title ERC20VotesUpgradeable - ERC20 Votes implementation, using the ERC20SnapshotsUpgradeable as the base.
+ * @author Ben Jett - @BCJdevelopment
  *
  * This module is essentially a merge of OpenZeppelin's {Votes} and {ERC20Votes} contracts, but this inherits directly
- * from the customized {ERC20CheckpointsUpgradeable} in this repository (which already implements historical
+ * from the customized {ERC20SnapshotsUpgradeable} in this repository (which already implements historical
  * checkpoints for the ERC20 total supply).
  *
  * As in the OpenZeppelin modules (based on Compound), accounts MUST delegate (to themselves or another address) in
  * order for their votes to be counted.
- *
- * @author Ben Jett - @BCJdevelopment
- *
  */
-abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable {
-    using Checkpoints for Checkpoints.Trace208;
+abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
+    using SnapshotCheckpoints for SnapshotCheckpoints.Trace208;
 
     bytes32 private immutable DELEGATION_TYPEHASH =
         keccak256("Delegation(address delegatee,uint256 nonce,uint256 expiry)");
@@ -37,20 +35,26 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable
     struct ERC20VotesStorage {
         mapping(address account => address) _delegatee;
 
-        mapping(address delegatee => Checkpoints.Trace208) _delegateCheckpoints;
+        mapping(address delegatee => SnapshotCheckpoints.Trace208) _delegateCheckpoints;
     }
 
     bytes32 private immutable ERC20_VOTES_STORAGE =
         keccak256(abi.encode(uint256(keccak256("ERC20Votes.Storage")) - 1)) & ~bytes32(uint256(0xff));
 
-    function _getVotesStorage() private view returns (ERC20VotesStorage storage $) {
-        bytes32 erc20VotesStorageSlot = ERC20_VOTES_STORAGE;
+    function _getERC20VotesStorage() private view returns (ERC20VotesStorage storage $) {
+        bytes32 slot = ERC20_VOTES_STORAGE;
         assembly {
-            $.slot := erc20VotesStorageSlot
+            $.slot := slot
         }
     }
 
     error VotesInvalidSignature();
+
+    modifier noFutureLookup(uint256 timepoint) {
+        uint256 currentClock = clock();
+        if (timepoint >= currentClock) revert ERC20FutureLookup(currentClock);
+        _;
+    }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         return
@@ -61,32 +65,52 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable
     /**
      * @dev Get number of checkpoints for `account`.
      */
-    function numCheckpoints(address account) public view virtual returns (uint32) {
-        return _numCheckpoints(account);
+    function numVotesCheckpoints(address account) public view virtual returns (uint32) {
+        return _numVotesCheckpoints(account);
+    }
+
+    /**
+     * @dev Get number of checkpoints for `account`.
+     */
+    function _numVotesCheckpoints(address account) internal view virtual returns (uint32) {
+        ERC20VotesStorage storage $ = _getERC20VotesStorage();
+        return SafeCast.toUint32($._delegateCheckpoints[account].length());
     }
 
     /**
      * @dev Get the `pos`-th checkpoint for `account`.
      */
-    function checkpoints(address account, uint32 pos) public view virtual returns (Checkpoints.Checkpoint208 memory) {
-        return _checkpoints(account, pos);
+    function votesCheckpoints(
+        address account,
+        uint32 pos
+    ) public view virtual returns (SnapshotCheckpoints.Checkpoint208 memory) {
+        return _votesCheckpoints(account, pos);
     }
 
     /**
-     * @inheritdoc ERC20CheckpointsUpgradeable
+     * @dev Get the `pos`-th checkpoint for `account`.
      */
-    function getPastTotalSupply(uint256 timepoint) public view virtual override(
-        IVotes,
-        ERC20CheckpointsUpgradeable
-    ) returns (uint256) {
-        return ERC20CheckpointsUpgradeable.getPastTotalSupply(timepoint);
+    function _votesCheckpoints(
+        address account,
+        uint32 pos
+    ) internal view virtual returns (SnapshotCheckpoints.Checkpoint208 memory) {
+        ERC20VotesStorage storage $ = _getERC20VotesStorage();
+        return $._delegateCheckpoints[account].at(pos);
+    }
+
+    /// @inheritdoc IVotes
+    function getPastTotalSupply(
+        uint256 timepoint
+    ) public view virtual override noFutureLookup(timepoint) returns (uint256) {
+        ERC20SnapshotsStorage storage _snapshotsStorage = _getERC20SnapshotsStorage();
+        return _snapshotsStorage._totalSupplyCheckpoints.upperLookupRecent(uint48(timepoint));
     }
 
     /**
      * @dev Returns the current amount of votes that `account` has.
      */
     function getVotes(address account) public view virtual returns (uint256) {
-        ERC20VotesStorage storage $ = _getVotesStorage();
+        ERC20VotesStorage storage $ = _getERC20VotesStorage();
         return $._delegateCheckpoints[account].latest();
     }
 
@@ -98,8 +122,11 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable
      *
      * - `timepoint` must be in the past. If operating using block numbers, the block must be already mined.
      */
-    function getPastVotes(address account, uint256 timepoint) public view virtual noFutureLookup(timepoint) returns (uint256) {
-        ERC20VotesStorage storage $ = _getVotesStorage();
+    function getPastVotes(
+        address account,
+        uint256 timepoint
+    ) public view virtual noFutureLookup(timepoint) returns (uint256) {
+        ERC20VotesStorage storage $ = _getERC20VotesStorage();
         return $._delegateCheckpoints[account].upperLookupRecent(uint48(timepoint));
     }
 
@@ -107,7 +134,7 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable
      * @dev Returns the delegate that `account` has chosen.
      */
     function delegates(address account) public view virtual returns (address) {
-        ERC20VotesStorage storage $ = _getVotesStorage();
+        ERC20VotesStorage storage $ = _getERC20VotesStorage();
         return $._delegatee[account];
     }
 
@@ -182,7 +209,7 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable
      * Emits events {IVotes-DelegateChanged} and {IVotes-DelegateVotesChanged}.
      */
     function _delegate(address account, address delegatee) internal virtual {
-        ERC20VotesStorage storage $ = _getVotesStorage();
+        ERC20VotesStorage storage $ = _getERC20VotesStorage();
         address oldDelegate = delegates(account);
         $._delegatee[account] = delegatee;
 
@@ -191,10 +218,17 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable
     }
 
     /**
+     * @dev Must return the voting units held by an account.
+     */
+    function _getVotingUnits(address account) internal view virtual returns (uint256) {
+        return balanceOf(account);
+    }
+
+    /**
      * @dev Moves delegated votes from one delegate to another.
      */
     function _moveDelegateVotes(address from, address to, uint256 amount) private {
-        ERC20VotesStorage storage $ = _getVotesStorage();
+        ERC20VotesStorage storage $ = _getERC20VotesStorage();
         if (from != to && amount > 0) {
             if (from != address(0)) {
                 (uint256 oldValue, uint256 newValue) = _writeCheckpoint(
@@ -213,31 +247,5 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20CheckpointsUpgradeable
                 emit DelegateVotesChanged(to, oldValue, newValue);
             }
         }
-    }
-
-    /**
-     * @dev Get number of checkpoints for `account`.
-     */
-    function _numCheckpoints(address account) internal view virtual returns (uint32) {
-        ERC20VotesStorage storage $ = _getVotesStorage();
-        return SafeCast.toUint32($._delegateCheckpoints[account].length());
-    }
-
-    /**
-     * @dev Get the `pos`-th checkpoint for `account`.
-     */
-    function _checkpoints(
-        address account,
-        uint32 pos
-    ) internal view virtual returns (Checkpoints.Checkpoint208 memory) {
-        ERC20VotesStorage storage $ = _getVotesStorage();
-        return $._delegateCheckpoints[account].at(pos);
-    }
-
-    /**
-     * @dev Must return the voting units held by an account.
-     */
-    function _getVotingUnits(address account) internal view virtual returns (uint256) {
-        return balanceOf(account);
     }
 }

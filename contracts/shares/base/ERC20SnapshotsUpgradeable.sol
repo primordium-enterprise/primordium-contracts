@@ -51,7 +51,7 @@ abstract contract ERC20SnapshotsUpgradeable is
     bytes32 private immutable ERC20_SNAPSHOTS_STORAGE =
         keccak256(abi.encode(uint256(keccak256("ERC20Snapshots.Storage")) - 1)) & ~bytes32(uint256(0xff));
 
-    function _getERC20SnapshotsStorage() private view returns (ERC20SnapshotsStorage storage $) {
+    function _getERC20SnapshotsStorage() internal view returns (ERC20SnapshotsStorage storage $) {
         bytes32 slot = ERC20_SNAPSHOTS_STORAGE;
         assembly {
             $.slot := slot
