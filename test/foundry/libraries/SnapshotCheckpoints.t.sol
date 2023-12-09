@@ -93,24 +93,27 @@ contract SnapshotCheckpointsTest is Test {
         _assertLatestCheckpoint(false, 0, 0);
 
         uint256 duplicates = 0;
+        uint256 snapshotSkips = 0;
         uint256 sk = 0; // Current snapshotKey
         for (uint256 i = 0; i < keys.length; ++i) {
             uint48 key = keys[i];
             uint208 value = values[i % values.length];
             uint48 snapshotKey = snapshotKeys[sk];
 
-            if (i > 0 && (
-                key == keys[i - 1] ||
-                keys[i - 1] > snapshotKey // Increment duplicates if last key > snapshotKey
-            )) {
-                ++duplicates;
+            if (i > 0) {
+                uint48 lastKey = keys[i - 1];
+                if (key == lastKey) {
+                    ++duplicates;
+                } else if (lastKey > snapshotKey) {
+                    ++snapshotSkips;
+                }
             }
 
             // push with snapshot check
             _ckpts.push(key, value, snapshotKey);
 
             // check length & latest
-            assertEq(_ckpts.length(), i + 1 - duplicates, "Invalid checkpoints length");
+            assertEq(_ckpts.length(), i + 1 - duplicates - snapshotSkips, "Invalid checkpoints length");
             assertEq(_ckpts.latest(), value, "Invalid checkpoints latest value");
             _assertLatestCheckpoint(true, key, value);
 
