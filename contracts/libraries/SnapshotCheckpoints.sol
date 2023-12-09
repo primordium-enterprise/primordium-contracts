@@ -38,6 +38,8 @@ library SnapshotCheckpoints {
         uint208 _value;
     }
 
+    uint256 constant private MASK_UINT48 = 0xffffffffffff;
+
     /**
      * @dev Pushes a (`key`, `value`) pair into a Trace208 so that it is stored as the checkpoint.
      *
@@ -176,12 +178,24 @@ library SnapshotCheckpoints {
         uint256 low,
         uint256 high
     ) private view returns (uint256) {
-        while (low < high) {
-            uint256 mid = Math.average(low, high);
-            if (_unsafeAccess(self, mid)._key > key) {
-                high = mid;
-            } else {
-                low = mid + 1;
+        assembly ("memory-safe") {
+            // Store mapping slot in scratch space for repeated hashing
+            mstore(0x20, add(self.slot, 0x01))
+            for {} lt(low, high) {} {
+                // mstore mid in scratch space at byte 0 (for hashing)
+                // mid = avg(low, high), where avg = (low & high) + (low ^ high) / 2
+                mstore(0, add(and(low, high), div(xor(low, high), 2)))
+                // if (_checkpoints[mid]._key > key)
+                switch gt(
+                    and(sload(keccak256(0, 0x40)), MASK_UINT48),
+                    key
+                )
+                case 1 {
+                    high := mload(0) // high = mid
+                }
+                default {
+                    low := add(mload(0), 0x01) // low = mid + 1
+                }
             }
         }
         return high;
@@ -200,12 +214,24 @@ library SnapshotCheckpoints {
         uint256 low,
         uint256 high
     ) private view returns (uint256) {
-        while (low < high) {
-            uint256 mid = Math.average(low, high);
-            if (_unsafeAccess(self, mid)._key < key) {
-                low = mid + 1;
-            } else {
-                high = mid;
+        assembly ("memory-safe") {
+            // Store mapping slot in scratch space for repeated hashing
+            mstore(0x20, add(self.slot, 0x01))
+            for {} lt(low, high) {} {
+                // mstore mid in scratch space at byte 0 (for hashing)
+                // mid = avg(low, high), where avg = (low & high) + (low ^ high) / 2
+                mstore(0, add(and(low, high), div(xor(low, high), 2)))
+                // if (_checkpoints[mid]._key < key)
+                switch lt(
+                    and(sload(keccak256(0, 0x40)), MASK_UINT48),
+                    key
+                )
+                case 1 {
+                    low := add(mload(0), 0x01) // low = mid + 1
+                }
+                default {
+                    high := mload(0)
+                }
             }
         }
         return high;
