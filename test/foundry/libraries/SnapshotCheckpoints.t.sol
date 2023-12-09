@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {SnapshotCheckpoints} from "contracts/libraries/SnapshotCheckpoints.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
-
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract SnapshotCheckpointsTest is Test {
     using SnapshotCheckpoints for SnapshotCheckpoints.Trace208;
@@ -56,9 +56,71 @@ contract SnapshotCheckpointsTest is Test {
             _ckpts.push(key, value);
 
             // check length & latest
-            assertEq(_ckpts.length(), i + 1 - duplicates); // Length is i + 2, first push skips index 0
+            assertEq(_ckpts.length(), i + 1 - duplicates);
             assertEq(_ckpts.latest(), value);
             _assertLatestCheckpoint(true, key, value);
+        }
+
+        if (keys.length > 0) {
+            uint48 lastKey = keys[keys.length - 1];
+            if (lastKey > 0) {
+                pastKey = _boundUint48(pastKey, 0, lastKey - 1);
+
+                vm.expectRevert();
+                this.push(pastKey, values[keys.length % values.length]);
+            }
+        }
+    }
+
+    function testPushSnapshot(
+        uint48[] memory keys,
+        uint208[] memory values,
+        uint48[] memory snapshotKeys,
+        uint48 pastKey
+    ) public {
+        vm.assume(
+            values.length > 0 &&
+            values.length <= keys.length &&
+            snapshotKeys.length > 0 &&
+            snapshotKeys.length <= keys.length / 4
+        );
+        _prepareKeys(keys, _KEY_MAX_GAP);
+        _prepareKeys(snapshotKeys, _KEY_MAX_GAP);
+
+        // initial state
+        assertEq(_ckpts.length(), 0);
+        assertEq(_ckpts.latest(), 0);
+        _assertLatestCheckpoint(false, 0, 0);
+
+        uint256 duplicates = 0;
+        uint256 sk = 0; // Current snapshotKey
+        for (uint256 i = 0; i < keys.length; ++i) {
+            uint48 key = keys[i];
+            uint208 value = values[i % values.length];
+            uint48 snapshotKey = snapshotKeys[sk];
+
+            if (i > 0 && (
+                key == keys[i - 1] ||
+                keys[i - 1] > snapshotKey // Increment duplicates if last key > snapshotKey
+            )) {
+                ++duplicates;
+            }
+
+            // push with snapshot check
+            _ckpts.push(key, value, snapshotKey);
+
+            // check length & latest
+            assertEq(_ckpts.length(), i + 1 - duplicates, "Invalid checkpoints length");
+            assertEq(_ckpts.latest(), value, "Invalid checkpoints latest value");
+            _assertLatestCheckpoint(true, key, value);
+
+            // Update snapshot key every so often
+            if (
+                i > Math.mulDiv(keys.length, sk, snapshotKeys.length) &&
+                sk < snapshotKeys.length - 1
+            ) {
+                ++sk;
+            }
         }
 
         if (keys.length > 0) {

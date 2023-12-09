@@ -7,8 +7,8 @@ pragma solidity ^0.8.20;
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
- * @title A library to keep historical track of sequential checkpoints, with option for eliminating new checkpoint
- * writes between snapshots.
+ * @title A library to keep historical track of sequential checkpoints, with option to optimize gas between snapshots
+ * by avoiding pushing new checkpoints unnecessarily.
  * @author Ben Jett - @BCJdevelopment
  * @dev Modified from OpenZeppelin's procedurally generated {Checkpoints.sol} contract:
  * https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v5.0/contracts/utils/structs/Checkpoints.sol
@@ -41,7 +41,27 @@ library SnapshotCheckpoints {
     uint256 constant private MASK_UINT48 = 0xffffffffffff;
 
     /**
-     * @dev Pushes a (`key`, `value`) pair into a Trace208 so that it is stored as the checkpoint.
+     * @dev Updates the (`key`, `value`) pair into a Trace208 so that it is stored as a checkpoint. If the `snapshotKey`
+     * is less than the most recent checkpoint's key, then the recent checkpoint will be overwritten with the new key
+     * and value to optimize gas costs between snapshots.
+     *
+     * Returns previous value and new value.
+     *
+     * IMPORTANT: Never accept `key` as a user input, since an arbitrary `type(uint48).max` key set will disable the
+     * library.
+     */
+    function push(
+        Trace208 storage self,
+        uint48 key,
+        uint208 value,
+        uint48 snapshotKey
+    ) internal returns (uint208, uint208) {
+        return _insert(self, key, value, snapshotKey);
+    }
+
+    /**
+     * @dev Ignores any snapshots and pushes a (`key`, `value`) pair into a Trace208 so that it is stored as a new
+     * checkpoint.
      *
      * Returns previous value and new value.
      *
@@ -49,35 +69,7 @@ library SnapshotCheckpoints {
      * library.
      */
     function push(Trace208 storage self, uint48 key, uint208 value) internal returns (uint208, uint208) {
-        uint256 len = self._checkpointsLength;
-
-        if (len > 0) {
-            // Copying to memory is important here.
-            Checkpoint208 memory last = _unsafeAccess(self, len - 1);
-
-            // Checkpoint keys must be non-decreasing.
-            if (last._key > key) {
-                revert CheckpointUnorderedInsertion();
-            }
-
-            // Update or push new checkpoint
-            if (last._key == key) {
-                _unsafeAccess(self, len - 1)._value = value;
-            } else {
-                self._checkpointsLength = len + 1;
-                Checkpoint208 storage newCheckpoint = _unsafeAccess(self, len);
-                newCheckpoint._key = key;
-                newCheckpoint._value = value;
-            }
-            return (last._value, value);
-        } else {
-            // Initialize the first checkpoint
-            self._checkpointsLength = 1;
-            Checkpoint208 storage newCheckpoint = _unsafeAccess(self, 0);
-            newCheckpoint._key = key;
-            newCheckpoint._value = value;
-            return (0, value);
-        }
+        return _insert(self, key, value, type(uint48).max);
     }
 
     /**
@@ -237,6 +229,50 @@ library SnapshotCheckpoints {
         return high;
     }
 
+    function _insert(
+        Trace208 storage self,
+        uint48 key,
+        uint208 value,
+        uint48 snapshotKey
+    ) private returns (uint208, uint208) {
+        uint256 len = self._checkpointsLength;
+
+        if (len > 0) {
+            // Copying to memory is important here.
+            Checkpoint208 storage _last = _unsafeAccess(self, len - 1);
+            uint256 lastKey;
+            uint256 lastValue;
+            assembly ("memory-safe") {
+                mstore(0, sload(_last.slot))
+                lastKey := and(mload(0), MASK_UINT48)
+                lastValue := shr(48, mload(0))
+            }
+
+            // Checkpoint keys must be non-decreasing.
+            if (lastKey > key) {
+                revert CheckpointUnorderedInsertion();
+            }
+
+            // Update or push new checkpoint
+            if (lastKey == key || lastKey > snapshotKey) {
+                _last._key = key;
+                _last._value = value;
+            } else {
+                self._checkpointsLength = len + 1;
+                Checkpoint208 storage _next = _unsafeAccess(self, len);
+                _next._key = key;
+                _next._value = value;
+            }
+            return (uint208(lastValue), value);
+        } else {
+            // Initialize the first checkpoint
+            self._checkpointsLength = 1;
+            Checkpoint208 storage _next = _unsafeAccess(self, 0);
+            _next._key = key;
+            _next._value = value;
+            return (0, value);
+        }
+    }
 
     /**
      * @dev Access an element of the mapping without a bounds check. The position is assumed to be within bounds.
