@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "compile": "forge build",
-    "test": "forge test -vvv --no-match-path 'test/foundry/.*/*'",
+    "test": "forge test --no-match-path 'test/foundry/.*/*'",
     "lint": "solhint 'contracts/**/*.sol'",
     "selector-order": "node scripts/selectorOrder.js"
   },

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
+// Based on OpenZeppelin Contracts (last updated v5.0.0) (utils/structs/Checkpoints.sol)
 
 pragma solidity ^0.8.20;
 
@@ -8,6 +9,13 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 /**
  * @title A library to keep historical track of sequential checkpoints, with option for eliminating new checkpoint
  * writes between snapshots.
+ * @author Ben Jett - @BCJdevelopment
+ * @dev Modified from OpenZeppelin's procedurally generated {Checkpoints.sol} contract:
+ * https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v5.0/contracts/utils/structs/Checkpoints.sol
+ *
+ * Modifications:
+ * - Uses mapping instead of array for storing checkpoints
+ * - Some assembly optimizations here and there
  */
 library SnapshotCheckpoints {
     /**
@@ -61,9 +69,9 @@ library SnapshotCheckpoints {
             }
             return (last._value, value);
         } else {
-            // Skip the first checkpoint, leaving it as an actual zero
-            self._checkpointsLength = 2;
-            Checkpoint208 storage newCheckpoint = _unsafeAccess(self, 1);
+            // Initialize the first checkpoint
+            self._checkpointsLength = 1;
+            Checkpoint208 storage newCheckpoint = _unsafeAccess(self, 0);
             newCheckpoint._key = key;
             newCheckpoint._value = value;
             return (0, value);
@@ -74,24 +82,20 @@ library SnapshotCheckpoints {
      * @dev Returns the value in the first (oldest) checkpoint with key greater or equal than the search key, or zero if
      * there is none.
      */
-    function lowerLookup(Trace208 storage self, uint48 key) internal view returns (uint208 value) {
+    function lowerLookup(Trace208 storage self, uint48 key) internal view returns (uint208) {
         uint256 len = self._checkpointsLength;
-        if (len > 0) {
-            uint256 pos = _lowerBinaryLookup(self, key, 0, len);
-            value = _unsafeAccess(self, pos)._value;
-        }
+        uint256 pos = _lowerBinaryLookup(self, key, 0, len);
+        return pos == len ? 0 : _unsafeAccess(self, pos)._value;
     }
 
     /**
      * @dev Returns the value in the last (most recent) checkpoint with key lower or equal than the search key, or zero
      * if there is none.
      */
-    function upperLookup(Trace208 storage self, uint48 key) internal view returns (uint208 value) {
+    function upperLookup(Trace208 storage self, uint48 key) internal view returns (uint208) {
         uint256 len = self._checkpointsLength;
-        if (len > 0) {
-            uint256 pos = _upperBinaryLookup(self, key, 0, len);
-            value = _unsafeAccess(self, pos)._value;
-        }
+        uint256 pos = _upperBinaryLookup(self, key, 0, len);
+        return pos == 0 ? 0 : _unsafeAccess(self, pos - 1)._value;
     }
 
     /**
@@ -101,25 +105,23 @@ library SnapshotCheckpoints {
      * NOTE: This is a variant of {upperLookup} that is optimised to find "recent" checkpoint (checkpoints with high
      * keys).
      */
-    function upperLookupRecent(Trace208 storage self, uint48 key) internal view returns (uint208 value) {
+    function upperLookupRecent(Trace208 storage self, uint48 key) internal view returns (uint208) {
         uint256 len = self._checkpointsLength;
 
-        if (len > 0) {
-            uint256 low = 0;
-            uint256 high = len;
+        uint256 low = 0;
+        uint256 high = len;
 
-            if (len > 5) {
-                uint256 mid = len - Math.sqrt(len);
-                if (key < _unsafeAccess(self, mid)._key) {
-                    high = mid;
-                } else {
-                    low = mid + 1;
-                }
+        if (len > 5) {
+            uint256 mid = len - Math.sqrt(len);
+            if (key < _unsafeAccess(self, mid)._key) {
+                high = mid;
+            } else {
+                low = mid + 1;
             }
-
-            uint256 pos = _upperBinaryLookup(self, key, low, high);
-            value = _unsafeAccess(self, pos)._value;
         }
+
+        uint256 pos = _upperBinaryLookup(self, key, low, high);
+        return pos == 0 ? 0 : _unsafeAccess(self, pos - 1)._value;
     }
 
     /**
@@ -154,7 +156,7 @@ library SnapshotCheckpoints {
     /**
      * @dev Returns checkpoint at given position.
      */
-    function at(Trace208 storage self, uint32 pos) internal view returns (Checkpoint208 memory) {
+    function at(Trace208 storage self, uint48 pos) internal view returns (Checkpoint208 memory) {
         if (pos >= self._checkpointsLength) {
             revert CheckpointOutOfBounds();
         }
@@ -166,7 +168,7 @@ library SnapshotCheckpoints {
      * if there is none. `low` and `high` define a section where to do the search, with inclusive `low` and exclusive
      * `high`.
      *
-     * WARNING: `high` should not be greater than the array's length, and should never be zero.
+     * WARNING: `high` should not be greater than the array's length.
      */
     function _upperBinaryLookup(
         Trace208 storage self,
@@ -182,7 +184,7 @@ library SnapshotCheckpoints {
                 low = mid + 1;
             }
         }
-        return high - 1;
+        return high;
     }
 
     /**
@@ -208,6 +210,7 @@ library SnapshotCheckpoints {
         }
         return high;
     }
+
 
     /**
      * @dev Access an element of the mapping without a bounds check. The position is assumed to be within bounds.
