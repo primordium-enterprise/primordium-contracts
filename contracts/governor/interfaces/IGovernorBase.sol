@@ -354,10 +354,14 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
      *
      * Emits a {ProposalCanceled} event.
      *
-     * Accounts with the CANCELER_ROLE can cancel the proposal anytime before execution.
+     * Accounts with the CANCELER_ROLE can cancel the proposal anytime before execution (as long as one of the proposal
+     * actions is not to revoke any roles).
      */
     function cancel(
-        uint256 proposalId
+        uint256 proposalId,
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
     ) external returns (uint256 proposalId_);
 
     /**

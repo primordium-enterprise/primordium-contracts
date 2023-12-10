@@ -27,6 +27,7 @@ contract Roles is ContextUpgradeable {
 
     error MismatchingBatchLengths();
     error UnauthorizedRole(bytes32 role, address account);
+    error Unauthorized();
 
     /**
      * @dev Modifier to revert if the msg.sender does not have the specified role.
@@ -34,6 +35,15 @@ contract Roles is ContextUpgradeable {
     modifier onlyRole(bytes32 role) {
         _checkRole(role);
         _;
+    }
+
+    /**
+     * @dev An internal utility to check the role of the specified account, reverts if the role is not granted.
+     */
+    function _checkRole(bytes32 role, address account) internal view virtual {
+        if (!_hasRole(role, account)) {
+            revert UnauthorizedRole(role, account);
+        }
     }
 
     /**
@@ -69,15 +79,6 @@ contract Roles is ContextUpgradeable {
     }
 
     /**
-     * @dev An internal utility to check the role of the specified account, reverts if the role is not granted.
-     */
-    function _checkRole(bytes32 role, address account) internal view virtual {
-        if (!_hasRole(role, account)) {
-            revert UnauthorizedRole(role, account);
-        }
-    }
-
-    /**
      * @dev Internal utility to grant a role to an account indefinitely.
      */
     function _grantRole(bytes32 role, address account) internal virtual {
@@ -95,7 +96,7 @@ contract Roles is ContextUpgradeable {
     /**
      * @dev Batch method for granting roles.
      */
-    function _grantRolesBatch(
+    function _grantRoles(
         bytes32[] calldata roles,
         address[] calldata accounts,
         uint256[] calldata expiresAts
@@ -104,7 +105,10 @@ contract Roles is ContextUpgradeable {
             roles.length == 0 ||
             roles.length != accounts.length ||
             roles.length != expiresAts.length
-        ) revert MismatchingBatchLengths();
+        ) {
+            revert MismatchingBatchLengths();
+        }
+
         for (uint256 i = 0; i < roles.length;) {
             _grantRole(roles[i], accounts[i], expiresAts[i]);
             unchecked { ++i; }
@@ -112,10 +116,21 @@ contract Roles is ContextUpgradeable {
     }
 
     /**
+     * Allows a role holder to renounce their own role.
+     */
+    function renounceRole(bytes32 role, address callerConfirmation) public virtual {
+        if (callerConfirmation != msg.sender) {
+            revert Unauthorized();
+        }
+
+        _revokeRole(role, callerConfirmation);
+    }
+
+    /**
      * @dev Internal utility to revoke the role for the specified account.
      */
     function _revokeRole(bytes32 role, address account) internal virtual {
-        if (hasRole(role, account)) {
+        if (_hasRole(role, account)) {
             delete _getRolesStorage()._roleMembers[role][account];
             emit RoleRevoked(role, account);
         }
@@ -124,14 +139,17 @@ contract Roles is ContextUpgradeable {
     /**
      * @dev Batch method for revoking roles.
      */
-    function _revokeRolesBatch(
+    function _revokeRoles(
         bytes32[] calldata roles,
         address[] calldata accounts
     ) internal virtual {
         if (
             roles.length == 0 ||
             roles.length != accounts.length
-        ) revert MismatchingBatchLengths();
+        ) {
+            revert MismatchingBatchLengths();
+        }
+
         for (uint256 i = 0; i < roles.length;) {
             _revokeRole(roles[i], accounts[i]);
             unchecked { ++i; }

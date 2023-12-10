@@ -503,9 +503,9 @@ abstract contract GovernorBase is
 
         _validateStateBitmap(proposalId, _encodeStateBitmap(ProposalState.Succeeded));
 
-        if(
-            $._proposalActionsHashes[proposalId] != hashProposalActions(targets, values, calldatas)
-        ) revert InvalidActionsForProposal();
+        if($._proposalActionsHashes[proposalId] != hashProposalActions(targets, values, calldatas)) {
+            revert InvalidActionsForProposal();
+        }
 
         ITimelockAvatar _executor = executor();
         (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSendCalldata(
@@ -589,10 +589,31 @@ abstract contract GovernorBase is
     }
 
     function cancel(
-        uint256 proposalId
+        uint256 proposalId,
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
     ) public virtual override returns (uint256) {
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        if($._proposalActionsHashes[proposalId] != hashProposalActions(targets, values, calldatas)) {
+            revert InvalidActionsForProposal();
+        }
+
         // Only allow cancellation if the sender is CANCELER_ROLE, or if the proposer cancels before voting starts
-        if (!_hasRole(CANCELER_ROLE, msg.sender)) {
+        if (_hasRole(CANCELER_ROLE, msg.sender)) {
+            // Only allow cancellation if none of the actions are to revoke roles. Role management governance ONLY.
+            for (uint256 i = 0; i < targets.length; ++i) {
+                if (targets[i] == address(this)) {
+                    bytes4 selector = bytes4(calldatas[i]);
+                    if (
+                        selector == this.grantRoles.selector ||
+                        selector == this.revokeRoles.selector
+                    ) {
+                        revert UnauthorizedToCancelProposal();
+                    }
+                }
+            }
+        } else {
             if (msg.sender != proposalProposer(proposalId)) {
                 revert UnauthorizedToCancelProposal();
             }
@@ -815,45 +836,24 @@ abstract contract GovernorBase is
     function quorum(uint256 timepoint) public view virtual returns (uint256);
 
     /**
-     * @dev Governance-only function to add a role to the specified account.
-     */
-    function grantRole(bytes32 role, address account) public virtual onlyGovernance {
-        _grantRole(role, account);
-    }
-
-    /**
-     * @dev Governance-only function to add a role to the specified account that expires at the specified timestamp.
-     */
-    function grantRole(bytes32 role, address account, uint256 expiresAt) public virtual onlyGovernance {
-        _grantRole(role, account, expiresAt);
-    }
-
-    /**
      * @dev Batch method for granting roles.
      */
-    function grantRolesBatch(
+    function grantRoles(
         bytes32[] calldata roles,
         address[] calldata accounts,
         uint256[] calldata expiresAts
     ) public virtual onlyGovernance {
-        _grantRolesBatch(roles, accounts, expiresAts);
-    }
-
-    /**
-     * @dev Governance-only function to revoke a role from the specified account.
-     */
-    function revokeRole(bytes32 role, address account) public virtual onlyGovernance {
-        _revokeRole(role, account);
+        _grantRoles(roles, accounts, expiresAts);
     }
 
     /**
      * @dev Batch method for revoking roles.
      */
-    function revokeRolesBatch(
+    function revokeRoles(
         bytes32[] calldata roles,
         address[] calldata accounts
     ) public virtual onlyGovernance {
-        _revokeRolesBatch(roles, accounts);
+        _revokeRoles(roles, accounts);
     }
 
     /// @dev Get both values at once to optimize gas where applicable
