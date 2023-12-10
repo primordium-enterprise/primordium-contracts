@@ -822,24 +822,20 @@ abstract contract GovernorBase is
     /// @inheritdoc IGovernorBase
     function quorum(uint256 timepoint) public view virtual returns (uint256);
 
-    /**
-     * @dev Batch method for granting roles.
-     */
+    /// @inheritdoc IGovernorBase
     function grantRoles(
         bytes32[] memory roles,
         address[] memory accounts,
         uint256[] memory expiresAts
-    ) public virtual onlyGovernance {
+    ) public virtual override onlyGovernance {
         _grantRoles(roles, accounts, expiresAts);
     }
 
-    /**
-     * @dev Batch method for revoking roles.
-     */
+    /// @inheritdoc IGovernorBase
     function revokeRoles(
         bytes32[] memory roles,
         address[] memory accounts
-    ) public virtual onlyGovernance {
+    ) public virtual override onlyGovernance {
         _revokeRoles(roles, accounts);
     }
 

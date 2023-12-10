@@ -424,4 +424,27 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
         bytes memory signature
     ) external returns (uint256 balance);
 
+    /**
+     * @dev Batch method for granting roles. Only governance.
+     * @param roles The bytes32 role hashes to grant.
+     * @param accounts The accounts to grant each role to.
+     * @param expiresAts The expiration timestamp for each role. Can be set to type(uint256).max for infinite. After
+     * this timestamp, an account will not be able to fulfill the access of this role anymore.
+     */
+    function grantRoles(
+        bytes32[] memory roles,
+        address[] memory accounts,
+        uint256[] memory expiresAts
+    ) external;
+
+    /**
+     * @dev Batch method for revoking roles. Only governance.
+     * @param roles The bytes32 roles to revoke.
+     * @param accounts The accounts to revoke each role from.
+     */
+    function revokeRoles(
+        bytes32[] memory roles,
+        address[] memory accounts
+    ) external;
+
 }
