@@ -33,6 +33,9 @@ import {ERC165Verifier} from "contracts/libraries/ERC165Verifier.sol";
  * Anyone can mint vote tokens in exchange for the DAO's quote asset as long as funding is active. Any member can
  * withdraw (rage quit) pro rata at any time.
  *
+ * ERC2771 Context is not used in the deposit/withdrawal functions of this contract. The initial assumption is that each
+ * depositor or withdrawer should pay their own gas fees, or optionally they can use the signed operations.
+ *
  * @author Ben Jett - @BCJdevelopment
  */
 abstract contract SharesManager is
@@ -258,7 +261,7 @@ abstract contract SharesManager is
         address account,
         uint256 depositAmount
     ) public payable virtual returns (uint256 totalSharesMinted) {
-        totalSharesMinted = _depositFor(account, depositAmount, _msgSender());
+        totalSharesMinted = _depositFor(account, depositAmount, msg.sender);
     }
 
     /**
@@ -266,7 +269,7 @@ abstract contract SharesManager is
      * shares.
      */
     function deposit(uint256 depositAmount) public payable virtual returns (uint256 totalSharesMinted) {
-        address account = _msgSender();
+        address account = msg.sender;
         totalSharesMinted = _depositFor(account, depositAmount, account);
     }
 
@@ -380,7 +383,7 @@ abstract contract SharesManager is
         uint256 amount,
         IERC20[] calldata tokens
     ) public virtual override returns (uint256 totalSharesBurned) {
-        totalSharesBurned = _withdraw(_msgSender(), receiver, amount, tokens);
+        totalSharesBurned = _withdraw(msg.sender, receiver, amount, tokens);
     }
 
     /**
@@ -390,7 +393,7 @@ abstract contract SharesManager is
         uint256 amount,
         IERC20[] calldata tokens
     ) public virtual override returns (uint256 totalSharesBurned) {
-        address account = _msgSender();
+        address account = msg.sender;
         totalSharesBurned = _withdraw(account, account, amount, tokens);
     }
 
