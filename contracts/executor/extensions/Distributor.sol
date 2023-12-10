@@ -4,8 +4,9 @@
 pragma solidity ^0.8.20;
 
 import {IDistributor} from "../interfaces/IDistributor.sol";
+import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable1Or2StepUpgradeable} from "contracts/utils/Ownable1Or2StepUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
@@ -23,12 +24,13 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 contract Distributor is
-    IDistributor,
+    ContextUpgradeable,
     UUPSUpgradeable,
-    OwnableUpgradeable,
+    Ownable1Or2StepUpgradeable,
     EIP712Upgradeable,
     NoncesUpgradeable,
-    ERC165
+    ERC165,
+    IDistributor
 {
     using ERC20Utils for IERC20;
     using Address for address;

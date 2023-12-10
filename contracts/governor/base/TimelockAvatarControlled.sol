@@ -108,8 +108,10 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
         _updateExecutor(newExecutor);
     }
 
-    /// @dev Internal function to update the Executor to a new address. Does not allow setting to itself. Checks that
-    /// the exectur interface follows the IAvatar and ITimelockAvatar interfaces.
+    /**
+     * @dev Internal function to update the Executor to a new address. Does not allow setting to itself. Checks that
+     * the exectur interface follows the IAvatar and ITimelockAvatar interfaces.
+     */
     function _updateExecutor(address newExecutor) internal virtual {
         if (
             newExecutor == address(0) || newExecutor == address(this)
