@@ -36,6 +36,7 @@ abstract contract ERC20SnapshotsUpgradeable is
     ERC165Upgradeable,
     IERC20Snapshots
 {
+    using SafeCast for uint256;
     using SnapshotCheckpoints for SnapshotCheckpoints.Trace208;
 
     /// @custom:storage-location erc7201:ERC20Snapshots.Storage
@@ -73,7 +74,7 @@ abstract contract ERC20SnapshotsUpgradeable is
      * based checkpoints.
      */
     function clock() public view virtual override returns (uint48) {
-        return SafeCast.toUint48(block.number);
+        return uint48(block.number);
     }
 
     /**
@@ -162,7 +163,7 @@ abstract contract ERC20SnapshotsUpgradeable is
         uint256 lastSnapshotClock = $._lastSnapshotClock;
         uint256 lastSnapshotId = $._lastSnapshotId;
 
-        // A safety check, to ensure that no snapshot has already been scheduled in teh future (which should not happen)
+        // A safety check, to ensure that no snapshot has already been scheduled in the future (which should not happen)
         if (lastSnapshotClock > currentClock) {
             revert ERC20SnapshotAlreadyScheduled();
         // If lastSnapshotClock is equal to currentClock, then just return the current ID.
@@ -190,12 +191,14 @@ abstract contract ERC20SnapshotsUpgradeable is
         ERC20SnapshotsStorage storage $ = _getERC20SnapshotsStorage();
 
         // Cache the last snapshot clock value
-        uint256 lastSnapshotClock = $._lastSnapshotClock;
+        uint48 currentClock = clock();
+        uint48 lastSnapshotClock = $._lastSnapshotClock;
 
         if (from == address(0)) {
             // For mint, increase the total supply, but not past the maxSupply
             // Must check for overflow on total supply update to protect the rest of the unchecked math
-            (,uint256 newTotalSupply) = _writeCheckpoint($._totalSupplyCheckpoints, _add, value);
+            // No snapshot optimization for totalSupply (for ERC20Votes)
+            (,uint256 newTotalSupply) = $._totalSupplyCheckpoints.push(currentClock, _add, value);
 
             // Check that the totalSupply has not exceeded the max supply
             uint256 currentMaxSupply = maxSupply();
@@ -209,16 +212,19 @@ abstract contract ERC20SnapshotsUpgradeable is
             }
 
             // Overflow not possible: value <= fromBalance <= totalSupply <= maxSupply
-            _writeSnapshotCheckpoint($._balanceCheckpoints[from], _subtractUnchecked, value, lastSnapshotClock);
+            // Use snapshot for balance
+            $._balanceCheckpoints[from].push(lastSnapshotClock, currentClock, _subtractUnchecked, lastSnapshotClock);
         }
 
         if (to == address(0)) {
             // For burn, decrease the total supply
             // Overflow not possible: value <= totalSupply or value <= fromBalance <= totalSupply
-            _writeCheckpoint($._totalSupplyCheckpoints, _subtractUnchecked, value);
+            // No snapshot optimization for totalSupply (for ERC20Votes)
+            $._totalSupplyCheckpoints.push(currentClock, _subtractUnchecked, value);
         } else {
             // Overflow not possible: balance + value is at most totalSupply
-            _writeSnapshotCheckpoint($._balanceCheckpoints[to], _addUnchecked, value, lastSnapshotClock);
+            // Use snapshot for balance
+            $._balanceCheckpoints[to].push(lastSnapshotClock, currentClock, _addUnchecked, value);
         }
 
         emit Transfer(from, to, value);
@@ -241,30 +247,6 @@ abstract contract ERC20SnapshotsUpgradeable is
         if (snapshotId > lastSnapshotId) {
             revert ERC20SnapshotIdDoesNotExist(lastSnapshotId, snapshotId);
         }
-    }
-
-    /**
-     * @dev Writes a new checkpoint, regardless of snapshot status.
-     */
-    function _writeCheckpoint(
-        SnapshotCheckpoints.Trace208 storage store,
-        function(uint256, uint256) view returns (uint256) op,
-        uint256 delta
-    ) internal virtual returns (uint256 oldValue, uint256 newValue) {
-        return store.push(clock(), SafeCast.toUint208(op(store.latest(), delta)));
-    }
-
-    /**
-     * @dev Gas optimized to only push a new checkpoint if the previous checkpoint was before the provided snapshotClock
-     * value.
-     */
-    function _writeSnapshotCheckpoint(
-        SnapshotCheckpoints.Trace208 storage store,
-        function(uint256, uint256) view returns (uint256) op,
-        uint256 delta,
-        uint256 snapshotClock
-    ) internal virtual returns (uint256 oldBalance, uint256 newBalance) {
-        return store.push(clock(), SafeCast.toUint208(op(store.latest(), delta)), uint48(snapshotClock));
     }
 
     function _add(uint256 a, uint256 b) internal pure returns (uint256 result) {

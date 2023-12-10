@@ -229,22 +229,26 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
      */
     function _moveDelegateVotes(address from, address to, uint256 amount) private {
         ERC20VotesStorage storage $ = _getERC20VotesStorage();
+        uint48 currentClock = clock();
+
         if (from != to && amount > 0) {
+            // Modifications can be unchecked, because votes never exceed the checked balances
             if (from != address(0)) {
-                (uint256 oldValue, uint256 newValue) = _writeCheckpoint(
-                    $._delegateCheckpoints[from],
-                    _subtract,
-                    SafeCast.toUint208(amount)
+                // No snapshot used here
+                (uint256 oldWeight, uint256 newWeight) = $._delegateCheckpoints[from].push(
+                    currentClock,
+                    _subtractUnchecked,
+                    amount
                 );
-                emit DelegateVotesChanged(from, oldValue, newValue);
+                emit DelegateVotesChanged(from, oldWeight, newWeight);
             }
             if (to != address(0)) {
-                (uint256 oldValue, uint256 newValue) = _writeCheckpoint(
-                    $._delegateCheckpoints[to],
-                    _add,
-                    SafeCast.toUint208(amount)
+                (uint256 oldWeight, uint256 newWeight) = $._delegateCheckpoints[to].push(
+                    currentClock,
+                    _addUnchecked,
+                    amount
                 );
-                emit DelegateVotesChanged(to, oldValue, newValue);
+                emit DelegateVotesChanged(to, oldWeight, newWeight);
             }
         }
     }

@@ -72,6 +72,46 @@ contract SnapshotCheckpointsTest is Test {
         }
     }
 
+    function testPushWithOp(uint48[] memory keys, uint208[] memory values, uint48 pastKey) public {
+        vm.assume(values.length > 0 && values.length <= keys.length);
+        _prepareKeys(keys, _KEY_MAX_GAP);
+
+        // initial state
+        assertEq(_ckpts.length(), 0);
+        assertEq(_ckpts.latest(), 0);
+        _assertLatestCheckpoint(false, 0, 0);
+
+        uint256 duplicates = 0;
+        for (uint256 i = 0; i < keys.length; ++i) {
+            uint48 key = keys[i];
+            uint208 value = values[i % values.length];
+            if (i > 0 && key == keys[i - 1]) ++duplicates;
+
+            // push with op
+            uint208 prevValue = _ckpts.latest();
+            if (prevValue < value) {
+                _ckpts.push(key, _add, value - prevValue);
+            } else {
+                _ckpts.push(key, _subtract, prevValue - value);
+            }
+
+            // check length & latest
+            assertEq(_ckpts.length(), i + 1 - duplicates);
+            assertEq(_ckpts.latest(), value);
+            _assertLatestCheckpoint(true, key, value);
+        }
+
+        if (keys.length > 0) {
+            uint48 lastKey = keys[keys.length - 1];
+            if (lastKey > 0) {
+                pastKey = _boundUint48(pastKey, 0, lastKey - 1);
+
+                vm.expectRevert();
+                this.push(pastKey, values[keys.length % values.length]);
+            }
+        }
+    }
+
     function testPushSnapshot(
         uint48[] memory keys,
         uint208[] memory values,
@@ -110,7 +150,77 @@ contract SnapshotCheckpointsTest is Test {
             }
 
             // push with snapshot check
-            _ckpts.push(key, value, snapshotKey);
+            _ckpts.push(snapshotKey, key, value);
+
+            // check length & latest
+            assertEq(_ckpts.length(), i + 1 - duplicates - snapshotSkips, "Invalid checkpoints length");
+            assertEq(_ckpts.latest(), value, "Invalid checkpoints latest value");
+            _assertLatestCheckpoint(true, key, value);
+
+            // Update snapshot key every so often
+            if (
+                i > Math.mulDiv(keys.length, sk, snapshotKeys.length) &&
+                sk < snapshotKeys.length - 1
+            ) {
+                ++sk;
+            }
+        }
+
+        if (keys.length > 0) {
+            uint48 lastKey = keys[keys.length - 1];
+            if (lastKey > 0) {
+                pastKey = _boundUint48(pastKey, 0, lastKey - 1);
+
+                vm.expectRevert();
+                this.push(pastKey, values[keys.length % values.length]);
+            }
+        }
+    }
+
+    function testPushSnapshotWithOp(
+        uint48[] memory keys,
+        uint208[] memory values,
+        uint48[] memory snapshotKeys,
+        uint48 pastKey
+    ) public {
+        vm.assume(
+            values.length > 0 &&
+            values.length <= keys.length &&
+            snapshotKeys.length > 0 &&
+            snapshotKeys.length <= keys.length / 4
+        );
+        _prepareKeys(keys, _KEY_MAX_GAP);
+        _prepareKeys(snapshotKeys, _KEY_MAX_GAP);
+
+        // initial state
+        assertEq(_ckpts.length(), 0);
+        assertEq(_ckpts.latest(), 0);
+        _assertLatestCheckpoint(false, 0, 0);
+
+        uint256 duplicates = 0;
+        uint256 snapshotSkips = 0;
+        uint256 sk = 0; // Current snapshotKey
+        for (uint256 i = 0; i < keys.length; ++i) {
+            uint48 key = keys[i];
+            uint208 value = values[i % values.length];
+            uint48 snapshotKey = snapshotKeys[sk];
+
+            if (i > 0) {
+                uint48 lastKey = keys[i - 1];
+                if (key == lastKey) {
+                    ++duplicates;
+                } else if (lastKey > snapshotKey) {
+                    ++snapshotSkips;
+                }
+            }
+
+            // push op with snapshot check
+            uint208 prevValue = _ckpts.latest();
+            if (prevValue < value) {
+                _ckpts.push(snapshotKey, key, _add, value - prevValue);
+            } else {
+                _ckpts.push(snapshotKey, key, _subtract, prevValue - value);
+            }
 
             // check length & latest
             assertEq(_ckpts.length(), i + 1 - duplicates - snapshotSkips, "Invalid checkpoints length");
@@ -176,5 +286,13 @@ contract SnapshotCheckpointsTest is Test {
         assertEq(_ckpts.lowerLookup(lookup), lower, "Lower lookup failed");
         assertEq(_ckpts.upperLookup(lookup), upper, "Upper lookup failed");
         assertEq(_ckpts.upperLookupRecent(lookup), upper, "Upper lookup recent failed");
+    }
+
+    function _add(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a + b;
+    }
+
+    function _subtract(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a - b;
     }
 }

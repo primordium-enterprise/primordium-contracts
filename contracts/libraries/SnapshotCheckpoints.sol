@@ -5,6 +5,7 @@
 pragma solidity ^0.8.20;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /**
  * @title A library to keep historical track of sequential checkpoints, with option to optimize gas between snapshots
@@ -15,9 +16,12 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  *
  * Modifications:
  * - Uses mapping instead of array for storing checkpoints
+ * - Push functions with function ops as arguments, for gas optimized storage reads and writes when updating values
  * - Some assembly optimizations here and there
  */
 library SnapshotCheckpoints {
+    using SafeCast for uint256;
+
     /**
      * @dev A value was attempted to be inserted on a past checkpoint.
      */
@@ -38,6 +42,8 @@ library SnapshotCheckpoints {
         uint208 _value;
     }
 
+    uint48 constant private MAX_KEY = type(uint48).max;
+
     uint256 constant private MASK_UINT48 = 0xffffffffffff;
 
     /**
@@ -52,11 +58,27 @@ library SnapshotCheckpoints {
      */
     function push(
         Trace208 storage self,
+        uint48 snapshotKey,
         uint48 key,
-        uint208 value,
-        uint48 snapshotKey
+        uint208 value
     ) internal returns (uint208, uint208) {
-        return _insert(self, key, value, snapshotKey);
+        (uint256 len, Checkpoint208 memory lastCkpt) = _latestCheckpoint(self);
+        return _insert(self, snapshotKey, key, value, len, lastCkpt);
+    }
+
+    /**
+     * @dev Same as above (gas optimized snapshot overwrite), but performs the provided op function to calculate the new
+     * value. The op takes the last checkpoint value and the delta as arguments to return the updated value.
+     */
+    function push(
+        Trace208 storage self,
+        uint48 snapshotKey,
+        uint48 key,
+        function(uint256, uint256) view returns (uint256) op,
+        uint256 delta
+    ) internal returns (uint208, uint208) {
+        (uint256 len, Checkpoint208 memory lastCkpt) = _latestCheckpoint(self);
+        return _insert(self, snapshotKey, key, op(lastCkpt._value, delta).toUint208(), len, lastCkpt);
     }
 
     /**
@@ -68,8 +90,25 @@ library SnapshotCheckpoints {
      * IMPORTANT: Never accept `key` as a user input, since an arbitrary `type(uint48).max` key set will disable the
      * library.
      */
-    function push(Trace208 storage self, uint48 key, uint208 value) internal returns (uint208, uint208) {
-        return _insert(self, key, value, type(uint48).max);
+    function push(
+        Trace208 storage self,
+        uint48 key,
+        uint208 value
+    ) internal returns (uint208, uint208) {
+        return push(self, MAX_KEY, key, value);
+    }
+
+    /**
+     * @dev Same as above (ignores snapshots, pushes a new pair), but performs the provided op function to calculate the
+     * new value. The op takes the last checkpoint value and the delta as arguments to return the updated value.
+     */
+    function push(
+        Trace208 storage self,
+        uint48 key,
+        function(uint256, uint256) view returns (uint256) op,
+        uint256 delta
+    ) internal returns (uint208, uint208) {
+        return push(self, MAX_KEY, key, op, delta);
     }
 
     /**
@@ -131,13 +170,9 @@ library SnapshotCheckpoints {
      * in the most recent checkpoint.
      */
     function latestCheckpoint(Trace208 storage self) internal view returns (bool exists, uint48 _key, uint208 _value) {
-        uint256 pos = self._checkpointsLength;
-        if (pos == 0) {
-            return (false, 0, 0);
-        } else {
-            Checkpoint208 memory ckpt = _unsafeAccess(self, pos - 1);
-            return (true, ckpt._key, ckpt._value);
-        }
+        (uint256 len, Checkpoint208 memory ckpt) = _latestCheckpoint(self);
+        exists = len > 0;
+        return (exists, ckpt._key, ckpt._value);
     }
 
     /**
@@ -229,32 +264,34 @@ library SnapshotCheckpoints {
         return high;
     }
 
+    function _latestCheckpoint(Trace208 storage self) private view returns (uint256 len, Checkpoint208 memory ckpt) {
+        len = self._checkpointsLength;
+        if (len > 0) {
+            ckpt = _unsafeAccess(self, len - 1);
+        }
+    }
+
+    /**
+     * @dev IMPORTANT: This function assumes the "len" and "lastCkpt" refer to the checkpoints length, and the most
+     * recent checkpoint cached in memory, respectively.
+     */
     function _insert(
         Trace208 storage self,
+        uint48 snapshotKey,
         uint48 key,
         uint208 value,
-        uint48 snapshotKey
+        uint256 len,
+        Checkpoint208 memory lastCkpt
     ) private returns (uint208, uint208) {
-        uint256 len = self._checkpointsLength;
-
         if (len > 0) {
-            // Copying to memory is important here.
-            Checkpoint208 storage _last = _unsafeAccess(self, len - 1);
-            uint256 lastKey;
-            uint256 lastValue;
-            assembly ("memory-safe") {
-                mstore(0, sload(_last.slot))
-                lastKey := and(mload(0), MASK_UINT48)
-                lastValue := shr(48, mload(0))
-            }
-
             // Checkpoint keys must be non-decreasing.
-            if (lastKey > key) {
+            if (lastCkpt._key > key) {
                 revert CheckpointUnorderedInsertion();
             }
 
-            // Update or push new checkpoint
-            if (lastKey == key || lastKey > snapshotKey) {
+            // Update or push new checkpoint (can update if last key is greater than the provided snapshot key)
+            if (lastCkpt._key == key || lastCkpt._key > snapshotKey) {
+                Checkpoint208 storage _last = _unsafeAccess(self, len - 1);
                 _last._key = key;
                 _last._value = value;
             } else {
@@ -263,7 +300,7 @@ library SnapshotCheckpoints {
                 _next._key = key;
                 _next._value = value;
             }
-            return (uint208(lastValue), value);
+            return (lastCkpt._value, value);
         } else {
             // Initialize the first checkpoint
             self._checkpointsLength = 1;
