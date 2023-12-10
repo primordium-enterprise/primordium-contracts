@@ -106,7 +106,8 @@ abstract contract GovernorBase is
         address executor_,
         address token_,
         uint256 governanceCanBeginAt_,
-        uint256 governanceThresholdBps_
+        uint256 governanceThresholdBps_,
+        bytes memory initGrantRoles
     ) internal virtual onlyInitializing {
         if (governanceThresholdBps_ > BasisPoints.MAX_BPS) {
             revert BasisPoints.BPSValueTooLarge(governanceThresholdBps_);
@@ -121,6 +122,13 @@ abstract contract GovernorBase is
         $._votesManagement._governanceCanBeginAt = governanceCanBeginAt_.toUint40();
         // If it is less than the MAX_BPS (10_000), it fits into uint16 without SafeCast
         $._votesManagement._governanceThresholdBps = uint16(governanceThresholdBps_);
+
+        (bytes32[] memory roles, address[] memory accounts, uint256[] memory expiresAts) = abi.decode(initGrantRoles, (
+            bytes32[],
+            address[],
+            uint256[]
+        ));
+        _grantRoles(roles, accounts, expiresAts);
 
         emit GovernorBaseInitialized(
             name_,
