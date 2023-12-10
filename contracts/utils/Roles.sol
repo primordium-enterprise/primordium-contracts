@@ -97,9 +97,9 @@ contract Roles is ContextUpgradeable {
      * @dev Batch method for granting roles.
      */
     function _grantRoles(
-        bytes32[] calldata roles,
-        address[] calldata accounts,
-        uint256[] calldata expiresAts
+        bytes32[] memory roles,
+        address[] memory accounts,
+        uint256[] memory expiresAts
     ) internal virtual {
         if (
             roles.length == 0 ||
@@ -140,8 +140,8 @@ contract Roles is ContextUpgradeable {
      * @dev Batch method for revoking roles.
      */
     function _revokeRoles(
-        bytes32[] calldata roles,
-        address[] calldata accounts
+        bytes32[] memory roles,
+        address[] memory accounts
     ) internal virtual {
         if (
             roles.length == 0 ||

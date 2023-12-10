@@ -600,20 +600,7 @@ abstract contract GovernorBase is
         }
 
         // Only allow cancellation if the sender is CANCELER_ROLE, or if the proposer cancels before voting starts
-        if (_hasRole(CANCELER_ROLE, msg.sender)) {
-            // Only allow cancellation if none of the actions are to revoke roles. Role management governance ONLY.
-            for (uint256 i = 0; i < targets.length; ++i) {
-                if (targets[i] == address(this)) {
-                    bytes4 selector = bytes4(calldatas[i]);
-                    if (
-                        selector == this.grantRoles.selector ||
-                        selector == this.revokeRoles.selector
-                    ) {
-                        revert UnauthorizedToCancelProposal();
-                    }
-                }
-            }
-        } else {
+        if (!_hasRole(CANCELER_ROLE, msg.sender)) {
             if (msg.sender != proposalProposer(proposalId)) {
                 revert UnauthorizedToCancelProposal();
             }
@@ -839,9 +826,9 @@ abstract contract GovernorBase is
      * @dev Batch method for granting roles.
      */
     function grantRoles(
-        bytes32[] calldata roles,
-        address[] calldata accounts,
-        uint256[] calldata expiresAts
+        bytes32[] memory roles,
+        address[] memory accounts,
+        uint256[] memory expiresAts
     ) public virtual onlyGovernance {
         _grantRoles(roles, accounts, expiresAts);
     }
@@ -850,8 +837,8 @@ abstract contract GovernorBase is
      * @dev Batch method for revoking roles.
      */
     function revokeRoles(
-        bytes32[] calldata roles,
-        address[] calldata accounts
+        bytes32[] memory roles,
+        address[] memory accounts
     ) public virtual onlyGovernance {
         _revokeRoles(roles, accounts);
     }
