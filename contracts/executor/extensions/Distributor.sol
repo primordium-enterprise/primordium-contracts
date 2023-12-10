@@ -389,6 +389,15 @@ contract Distributor is
             }
         }
 
+        _closeDistribution(distributionId, _owner);
+    }
+
+    function _closeDistribution(
+        uint256 distributionId,
+        address reclaimReceiver
+    ) internal virtual {
+        DistributorStorage storage $ = _getDistributorStorage();
+
         Distribution storage _distribution = $._distributions[distributionId];
 
         // Revert if distribution does not exist
@@ -411,7 +420,7 @@ contract Distributor is
         _distribution.isClosed = true;
 
         uint256 reclaimAmount = totalBalance - claimedBalance;
-        asset.transferTo(_owner, reclaimAmount);
+        asset.transferTo(reclaimReceiver, reclaimAmount);
 
         emit DistributionClosed(distributionId, asset, reclaimAmount);
     }
