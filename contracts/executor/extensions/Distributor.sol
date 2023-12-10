@@ -289,7 +289,6 @@ contract Distributor is
     ) internal virtual returns (uint256 distributionId) {
         DistributorStorage storage $ = _getDistributorStorage();
 
-
         // Verify the snapshot ID is current
         IERC20Snapshots _token = $._token;
         uint256 currentClock = _token.clock();
@@ -314,7 +313,7 @@ contract Distributor is
 
         // Setup the new distribution
         Distribution storage _distribution = $._distributions[distributionId];
-        _distribution.snapshotId = SafeCast.toUint48(snapshotId);
+        _distribution.snapshotId = SafeCast.toUint48(snapshotId); // Assumes snapshot ID will never exceed uint48
         _distribution.totalBalance = uint128(amount);
         _distribution.closableAt = uint48(closableAt);
 
@@ -570,7 +569,7 @@ contract Distributor is
             _distribution.slot := keccak256(0, 0x40)
         }
 
-        // Single read, revert if it does not exist
+        // Single read, reverts if it does not exist
         (uint256 totalBalance, uint256 claimedBalance) = _checkDistributionExistence(_distribution);
 
         // Single read
@@ -583,12 +582,14 @@ contract Distributor is
         }
 
         // Must not have claimed already
+        bytes32 hasClaimedSlot;
         {
             bool hasClaimed;
             assembly ("memory-safe") {
                 mstore(0, holder)
                 mstore(0x20, add(_distribution.slot, 0x03))
-                hasClaimed := sload(keccak256(0, 0x40))
+                hasClaimedSlot := keccak256(0, 0x40)
+                hasClaimed := sload(hasClaimedSlot)
             }
 
             if (hasClaimed) {
@@ -624,9 +625,11 @@ contract Distributor is
         );
 
         // Set the distribution as claimed for the holder, update claimed balance, and transfer the assets
-        _distribution.hasClaimed[holder] = true;
-        claimedBalance += claimAmount;
+        assembly ("memory-safe") {
+            sstore(hasClaimedSlot, 0x01)
+        }
         if (claimAmount > 0) {
+            claimedBalance += claimAmount;
             assembly ("memory-safe") {
                 sstore(_distribution.slot, or(totalBalance, shl(128, claimedBalance)))
             }

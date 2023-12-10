@@ -173,7 +173,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
 
         // Allocate to the balance share
         amount -= _allocateBalanceShare(
-            _getTreasurerStorage()._balanceShares._manager,
+            $._balanceShares._manager,
             DISTRIBUTIONS_ID,
             asset,
             amount
