@@ -35,13 +35,13 @@ abstract contract VoteCounting is GovernorBase {
         mapping(uint256 => ProposalVote) _proposalVotes;
     }
 
-    bytes32 private immutable VOTE_COUNTING_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("VoteCounting.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("VoteCounting.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant VOTE_COUNTING_STORAGE =
+        0x16fd3682d81d1f1c054ac6f115d03ff34fa3ca070ab82bd2207eb8c3ae407200;
 
-    function _getVoteCountingStorage() private view returns (VoteCountingStorage storage $) {
-        bytes32 slot = VOTE_COUNTING_STORAGE;
+    function _getVoteCountingStorage() private pure returns (VoteCountingStorage storage $) {
         assembly {
-            $.slot := slot
+            $.slot := VOTE_COUNTING_STORAGE
         }
     }
 

@@ -33,13 +33,13 @@ abstract contract ProposalSettings is GovernorBase {
         uint48 _gracePeriod;
     }
 
-    bytes32 private immutable PROPOSAL_BASE_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("ProposalSettings.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("ProposalSettings.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant PROPOSAL_BASE_STORAGE =
+        0x886170c74db156f102a26882ea120c8a2a8352444c7ba2b962b9c75d7a2ed900;
 
-    function _getProposalSettingsStorage() private view returns (ProposalSettingsStorage storage $) {
-        bytes32 governorBaseStorageSlot = PROPOSAL_BASE_STORAGE;
+    function _getProposalSettingsStorage() private pure returns (ProposalSettingsStorage storage $) {
         assembly {
-            $.slot := governorBaseStorageSlot
+            $.slot := PROPOSAL_BASE_STORAGE
         }
     }
 

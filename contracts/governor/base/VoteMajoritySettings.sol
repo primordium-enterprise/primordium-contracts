@@ -28,13 +28,13 @@ abstract contract VoteMajoritySettings is VoteCounting {
         Checkpoints.Trace208 _percentMajorityCheckpoints;
     }
 
-    bytes32 private immutable PERCENT_MAJORITY_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("VoteMajoritySettings.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("VoteMajoritySettings.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant PERCENT_MAJORITY_STORAGE =
+        0xb7c1dad2dc8e8f06222822b8d50dce99f1da452848de37321ffb7278388b7b00;
 
-    function _getVoteMajoritySettingsStorage() private view returns (VoteMajoritySettingsStorage storage $) {
-        bytes32 slot = PERCENT_MAJORITY_STORAGE;
+    function _getVoteMajoritySettingsStorage() private pure returns (VoteMajoritySettingsStorage storage $) {
         assembly {
-            $.slot := slot
+            $.slot := PERCENT_MAJORITY_STORAGE
         }
     }
 

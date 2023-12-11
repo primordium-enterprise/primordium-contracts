@@ -91,13 +91,13 @@ abstract contract GovernorBase is
         VotesManagement _votesManagement;
     }
 
-    bytes32 private immutable GOVERNOR_BASE_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("GovernorBase.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("GovernorBase.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant GOVERNOR_BASE_STORAGE =
+        0xb6d7ebdb5e1a4269d709811afd6c2af6a6e2a583a4e8c954ef3e8b8a20527500;
 
-    function _getGovernorBaseStorage() private view returns (GovernorBaseStorage storage $) {
-        bytes32 governorBaseStorageSlot = GOVERNOR_BASE_STORAGE;
+    function _getGovernorBaseStorage() private pure returns (GovernorBaseStorage storage $) {
         assembly {
-            $.slot := governorBaseStorageSlot
+            $.slot := GOVERNOR_BASE_STORAGE
         }
     }
 

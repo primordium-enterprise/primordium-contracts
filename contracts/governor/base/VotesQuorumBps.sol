@@ -30,13 +30,13 @@ abstract contract VotesQuorumBps is GovernorBase {
         Checkpoints.Trace208 _quorumBpsCheckpoints;
     }
 
-    bytes32 private immutable VOTES_QUORUM_BPS_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("VotesQuorumBps.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("VotesQuorumBps.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant VOTES_QUORUM_BPS_STORAGE =
+        0x44f981f2e6dc2201bf999234c8f85a5c52aeb039449465991964c131ffa5b300;
 
-    function _getVotesQuorumBpsStorage() private view returns (VotesQuorumBpsStorage storage $) {
-        bytes32 slot = VOTES_QUORUM_BPS_STORAGE;
+    function _getVotesQuorumBpsStorage() private pure returns (VotesQuorumBpsStorage storage $) {
         assembly {
-            $.slot := slot
+            $.slot := VOTES_QUORUM_BPS_STORAGE
         }
     }
 

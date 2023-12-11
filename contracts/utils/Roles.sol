@@ -12,13 +12,12 @@ contract Roles is ContextUpgradeable {
         mapping(bytes32 => mapping(address => uint256)) _roleMembers;
     }
 
-    bytes32 private immutable ROLES_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("Roles.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("Roles.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant ROLES_STORAGE = 0x178df759d714130ff191f7d05a0c43c12b5f4a8bdb6035ff61b650fdfd384b00;
 
-    function _getRolesStorage() private view returns (RolesStorage storage $) {
-        bytes32 slot = ROLES_STORAGE;
+    function _getRolesStorage() private pure returns (RolesStorage storage $) {
         assembly {
-            $.slot := slot
+            $.slot := ROLES_STORAGE
         }
     }
 

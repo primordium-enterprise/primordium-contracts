@@ -35,13 +35,12 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
         ITimelockAvatar _executor;
     }
 
-    bytes32 private immutable TIMELOCK_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("TimelockAvatarControlled.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("TimelockAvatarControlled.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant TIMELOCK_STORAGE = 0x2e6a88421fd5b6bdd8d6aa95e9c0d6f027f1b87d2bbff78a36739479c4c99d00;
 
-    function _getTimelockStorage() private view returns (TimelockAvatarControlledStorage storage $) {
-        bytes32 timelockStorageSlot = TIMELOCK_STORAGE;
+    function _getTimelockStorage() private pure returns (TimelockAvatarControlledStorage storage $) {
         assembly {
-            $.slot := timelockStorageSlot
+            $.slot := TIMELOCK_STORAGE
         }
     }
 

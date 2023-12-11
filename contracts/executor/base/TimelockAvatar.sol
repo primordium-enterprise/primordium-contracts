@@ -41,14 +41,14 @@ abstract contract TimelockAvatar is
         address _executingModule;
     }
 
-    bytes32 private immutable MODULE_EXECUTION_STORAGE = keccak256(
-        abi.encode(uint256(keccak256("TimelockAvatar.ModuleExecution.Storage")) - 1)) & ~bytes32(uint256(0xff)
-    );
+    // keccak256(abi.encode(uint256(keccak256("TimelockAvatar.ModuleExecution.Storage")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant MODULE_EXECUTION_STORAGE =
+        0x187b3319aee90b3dcdeaff1cd5a8a4928da859256a71970ab2234f7a33675000;
 
-    function _getModuleExecutionStorage() private view returns (ModuleExecutionStorage storage $) {
-        bytes32 slot = MODULE_EXECUTION_STORAGE;
+
+    function _getModuleExecutionStorage() private pure returns (ModuleExecutionStorage storage $) {
         assembly {
-            $.slot := slot
+            $.slot := MODULE_EXECUTION_STORAGE
         }
     }
 
@@ -61,14 +61,12 @@ abstract contract TimelockAvatar is
         mapping(uint256 => Operation) _operations;
     }
 
-    bytes32 private immutable TIMELOCK_STORAGE = keccak256(
-        abi.encode(uint256(keccak256("TimelockAvatar.Timelock.Storage")) - 1)) & ~bytes32(uint256(0xff)
-    );
+    // keccak256(abi.encode(uint256(keccak256("TimelockAvatar.Timelock.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant TIMELOCK_STORAGE = 0xe3d06a233aa923f58de00d797b123dd84cbe935dd1c4435b576382ab881fee00;
 
-    function _getTimelockStorage() private view returns (TimelockStorage storage $) {
-        bytes32 slot = TIMELOCK_STORAGE;
+    function _getTimelockStorage() private pure returns (TimelockStorage storage $) {
         assembly {
-            $.slot := slot
+            $.slot := TIMELOCK_STORAGE
         }
     }
 

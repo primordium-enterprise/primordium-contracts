@@ -49,13 +49,13 @@ abstract contract ERC20SnapshotsUpgradeable is
         mapping(address => SnapshotCheckpoints.Trace208) _balanceCheckpoints;
     }
 
-    bytes32 private immutable ERC20_SNAPSHOTS_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("ERC20Snapshots.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("ERC20Snapshots.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant ERC20_SNAPSHOTS_STORAGE =
+        0xac0354bdfec706b9f3243185c771be0bbab9060bdc22e417fc7fbc764fd8c200;
 
-    function _getERC20SnapshotsStorage() internal view returns (ERC20SnapshotsStorage storage $) {
-        bytes32 slot = ERC20_SNAPSHOTS_STORAGE;
+    function _getERC20SnapshotsStorage() internal pure returns (ERC20SnapshotsStorage storage $) {
         assembly {
-            $.slot := slot
+            $.slot := ERC20_SNAPSHOTS_STORAGE
         }
     }
 

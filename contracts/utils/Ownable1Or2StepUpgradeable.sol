@@ -18,13 +18,12 @@ abstract contract Ownable1Or2StepUpgradeable is Initializable {
         address _pendingOwner;
     }
 
-    bytes32 private immutable OWNABLE_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("Ownable1Or2Step.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("Ownable1Or2Step.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant OWNABLE_STORAGE = 0xc0d8e577dffd500c91d0736494fcbe84a5c8c573ecb51bd61d6753653ce53500;
 
-    function _getOwnableStorage() private view returns (Ownable1Or2StepStorage storage $) {
-        bytes32 slot = OWNABLE_STORAGE;
+    function _getOwnableStorage() private pure returns (Ownable1Or2StepStorage storage $) {
         assembly {
-            $.slot := slot
+            $.slot := OWNABLE_STORAGE
         }
     }
 

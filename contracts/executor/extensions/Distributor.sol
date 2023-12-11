@@ -77,13 +77,12 @@ contract Distributor is
         mapping(address holder => mapping(address account => bool isApprovedToClaim)) _claimDistributionsApproval;
     }
 
-    bytes32 private immutable DISTRIBUTOR_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("Distributor.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("Distributor.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant DISTRIBUTOR_STORAGE = 0x62b10fc09c55e175618e56747e3614a6f67f4f2e694c3dd05aa5dc47edf79c00;
 
-    function _getDistributorStorage() private view returns (DistributorStorage storage $) {
-        bytes32 slot = DISTRIBUTOR_STORAGE;
+    function _getDistributorStorage() private pure returns (DistributorStorage storage $) {
         assembly {
-            $.slot := slot
+            $.slot := DISTRIBUTOR_STORAGE
         }
     }
 

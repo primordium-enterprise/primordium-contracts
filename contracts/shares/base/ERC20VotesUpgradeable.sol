@@ -38,13 +38,12 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
         mapping(address delegatee => SnapshotCheckpoints.Trace208) _delegateCheckpoints;
     }
 
-    bytes32 private immutable ERC20_VOTES_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("ERC20Votes.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("ERC20Votes.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant ERC20_VOTES_STORAGE = 0x109684a1287cc407d745bb820bf93a681ef38b14304190d1e8fea2ca0f881500;
 
-    function _getERC20VotesStorage() private view returns (ERC20VotesStorage storage $) {
-        bytes32 slot = ERC20_VOTES_STORAGE;
+    function _getERC20VotesStorage() private pure returns (ERC20VotesStorage storage $) {
         assembly {
-            $.slot := slot
+            $.slot := ERC20_VOTES_STORAGE
         }
     }
 

@@ -69,15 +69,15 @@ abstract contract ProposalDeadlineExtensions is GovernorBase {
         mapping(uint256 => DeadlineData) _deadlineDatas;
     }
 
-    bytes32 private immutable PROPOSAL_DEADLINE_EXTENSIONS_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("ProposalDeadlineExtensions.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("ProposalDeadlineExtensions.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant PROPOSAL_DEADLINE_EXTENSIONS_STORAGE =
+        0xae976891f3433ecd54a96b3f554eee56d31b6f881a11bab3b6460b6c2f3ce200;
 
-    function _getProposalDeadlineExtensionsStorage() private view returns (
+    function _getProposalDeadlineExtensionsStorage() private pure returns (
         ProposalDeadlineExtensionsStorage storage $
     ) {
-        bytes32 slot = PROPOSAL_DEADLINE_EXTENSIONS_STORAGE;
         assembly {
-            $.slot := slot
+            $.slot := PROPOSAL_DEADLINE_EXTENSIONS_STORAGE
         }
     }
 

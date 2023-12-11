@@ -71,13 +71,13 @@ abstract contract SharesManager is
         IERC20 _quoteAsset; // (address(0) for ETH)
     }
 
-    bytes32 private immutable SHARES_MANAGER_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("SharesManager.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("SharesManager.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant SHARES_MANAGER_STORAGE =
+        0x215673db40ee2d172c8a31c3afde8d42c5c2dd6c697826d8d8447d186545ea00;
 
-    function _getSharesManagerStorage() private view returns (SharesManagerStorage storage $) {
-        bytes32 sharesManagerStorageSlot = SHARES_MANAGER_STORAGE;
+    function _getSharesManagerStorage() private pure returns (SharesManagerStorage storage $) {
         assembly {
-            $.slot := sharesManagerStorageSlot
+            $.slot := SHARES_MANAGER_STORAGE
         }
     }
 
