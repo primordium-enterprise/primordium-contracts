@@ -15,7 +15,7 @@ function getERC7201Hash(str) {
 }
 
 if (process.argv[1].indexOf(path.basename(__filename)) > -1) {
-    console.log(getERC7201Hash(process.argv[2]));
+    console.log(getERC7201Hash(process.argv[2].trim()));
 }
 
 module.exports = getERC7201Hash;

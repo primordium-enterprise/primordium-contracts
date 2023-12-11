@@ -22,13 +22,14 @@ abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271 {
         mapping(bytes32 messageHash => uint256 expiration) _messageHashExpirations;
     }
 
-    bytes32 private immutable EIP1271_MESSAGE_SIGNER_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("EIP1271MessageSigner.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("EIP1271MessageSigner.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant EIP1271_MESSAGE_SIGNER_STORAGE =
+        0x7ccf98f2f5d3183631b86b3245f7a533ff61e2dc6625ffef314ca5cf5b9d9900;
 
-    function _getEIP1271MessageSignerStorage() private view returns (EIP1271MessageSignerStorage storage $) {
-        bytes32 slot = EIP1271_MESSAGE_SIGNER_STORAGE;
+
+    function _getEIP1271MessageSignerStorage() private pure returns (EIP1271MessageSignerStorage storage $) {
         assembly {
-            $.slot := slot
+            $.slot := EIP1271_MESSAGE_SIGNER_STORAGE
         }
     }
 

@@ -12,13 +12,14 @@ abstract contract SelfAuthorized is Initializable {
         address _authorizedOperator;
     }
 
-    bytes32 private immutable SELF_AUTHORIZED_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("SelfAuthorized.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("SelfAuthorized.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant SELF_AUTHORIZED_STORAGE =
+        0x4b2fd3e76f3db6be1ddf6915fab5beab18a597f23ff7042b1e3087eec7ce7100;
 
-    function _getSelfAuthorizedStorage() private view returns (SelfAuthorizedStorage storage $) {
-        bytes32 slot = SELF_AUTHORIZED_STORAGE;
+
+    function _getSelfAuthorizedStorage() private pure returns (SelfAuthorizedStorage storage $) {
         assembly {
-            $.slot := slot
+            $.slot := SELF_AUTHORIZED_STORAGE
         }
     }
 

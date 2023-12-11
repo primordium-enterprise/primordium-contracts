@@ -38,13 +38,12 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         IDistributor _distributor;
     }
 
-    bytes32 private immutable TREASURER_STORAGE =
-        keccak256(abi.encode(uint256(keccak256("Treasurer.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("Treasurer.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant TREASURER_STORAGE = 0xb7ebf66fda01b54c58bbaa55f43c4ef3c56b215b2c961fe59d12adfff8f8fb00;
 
-    function _getTreasurerStorage() private view returns (TreasurerStorage storage $) {
-        bytes32 slot = TREASURER_STORAGE;
+    function _getTreasurerStorage() private pure returns (TreasurerStorage storage $) {
         assembly {
-            $.slot := slot
+            $.slot := TREASURER_STORAGE
         }
     }
 
