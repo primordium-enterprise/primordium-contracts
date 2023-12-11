@@ -41,12 +41,14 @@ const run = async () => {
                         hhm = hardcodedHashMatch[0]
                         const hardcodedHash = hhm.substring(hhm.length - 67, hhm.length - 1);
 
-                        let isValid = getERC7201Hash(match[0]).normalize() === hardcodedHash.normalize();
-                        if (isValid) {
-                            console.log(chalk.green(contract), match[0]);
+                        let expectedHash = getERC7201Hash(match[0]);
+                        if (expectedHash.normalize() == hardcodedHash.normalize()) {
+                            // console.log(chalk.green(contract), match[0]);
                         } else {
                             errorCount++;
-                            console.log(chalk.red(contract), finalHashTo32Multiple);
+                            console.log(chalk.red(contract));
+                            console.log("\tExpected:", expectedHash);
+                            console.log("\tActual:  ", hardcodedHash);
                         }
 
                     }
@@ -63,7 +65,7 @@ const run = async () => {
         "\n",
         "Found", erc7201Count, "erc:7201 contracts,",
         errorCount > 0 ? chalk.red(errorCount) : chalk.green(errorCount),
-        "of which had errors."
+        `of which had errors${errorCount > 0 ? " (listed above)" : ""}.`
     );
 
     return;
