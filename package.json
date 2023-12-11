@@ -7,7 +7,9 @@
     "compile": "forge build",
     "test": "forge test --no-match-path 'test/foundry/.*/*'",
     "lint": "solhint 'contracts/**/*.sol'",
-    "selector-order": "node scripts/selectorOrder.js"
+    "selector-order": "node scripts/selectorOrder.js",
+    "check:erc7201": "node scripts/checkERC7201.js",
+    "get:erc7201": "node scripts/getERC7201Hash.js"
   },
   "repository": {
     "type": "git",
@@ -28,6 +30,7 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^3.0.5",
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "chalk": "^4.1.2",
     "ethers": "^6.9.0",
     "hardhat": "^2.19.2",
     "solhint": "^3.6.2"

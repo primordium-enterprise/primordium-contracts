@@ -4,15 +4,9 @@ const glob = require("glob");
 const fs = require("fs/promises");
 const path = require("path");
 const chalk = require("chalk");
-const {
-    id,
-    keccak256
-} = require("ethers");
+const getERC7201Hash = require("./getERC7201Hash");
 
 const contracts = glob.sync('contracts/**/*.sol');
-
-// Matches two groups: group 1 is the string to hash, group two is the hardcodedHash
-// const regex = new RegExp(/@custom:storage-location\s+erc7201:(\S*)(?:.|\s)*?bytes32\s.*constant(?:.|\s)*?=\s*(0x[0-9a-fA-F]{64});/gm);
 
 const run = async () => {
 
@@ -22,35 +16,38 @@ const run = async () => {
         ops.push(
             fs.readFile(path.join(process.cwd(), contract), 'utf-8')
             .then((contents) => {
+                // Match each instance of "@custom:storage-location erc7201:HASHED_STRING"
                 const matches = Array.from(contents.matchAll(/(?<=@custom:storage-location\serc7201:)\S*/gm));
                 for (let j = 0; j < matches.length; j++) {
                     let match = matches[j];
-                    let hardcodedHashMatch = match.input.substring(match.index)
+
+                    // Search the contract, starting from the match index, for the first occurrence of bytes32 constant
+                    let hardcodedHashMatch = match.input
+                        .substring(match.index)
                         .match(/bytes32\s.*constant(?:.|\s)*?(0x[0-9a-fA-F]{64});/gm);
-                    if (hardcodedHashMatch != null) {
-                        hhm = hardcodedHashMatch[0]
-                        const hardcodedHash = hhm.substring(hhm.length - 67, hhm.length - 1);
-                        console.log(hardcodedHash);
 
-                        console.log(match[0]);
-                        let wordHash = id(match[0]);
-                        let wordHashAsInt = BigInt(wordHash) - BigInt(1);
-                        let finalHash = keccak256(`0x${wordHashAsInt.toString(16)}`);
-                        console.log(finalHash);
-                        console.log(`${finalHash.slice(0, finalHash.length - 2)}00`);
+                    if (hardcodedHashMatch == null) {
+                        console.log(chalk.red(contract), "(storage hash not found)");
+                        return;
+                    }
 
-                        if (`${finalHash.slice(0, finalHash.length - 2)}00` == hardcodedHash) {
-                            chalk.green(contract)
-                        } else {
-                            chalk.red(contract);
-                        }
+                    // Extract the hash hex value from the match
+                    hhm = hardcodedHashMatch[0]
+                    const hardcodedHash = hhm.substring(hhm.length - 67, hhm.length - 1);
+
+                    let isValid = getERC7201Hash(match[0]).normalize() === hardcodedHash.normalize();
+                    if (isValid) {
+                        console.log(chalk.green(contract));
+                    } else {
+                        console.log(chalk.red(contract), finalHashTo32Multiple);
                     }
                 }
             })
+            .catch(console.error)
         )
     });
 
-    await Promise.allSettled(ops);
+    await Promise.all(ops);
 
     return;
 }
