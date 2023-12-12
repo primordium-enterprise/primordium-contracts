@@ -19,6 +19,7 @@ import {ERC20Utils} from "contracts/libraries/ERC20Utils.sol";
 import {SafeTransferLib} from "contracts/libraries/SafeTransferLib.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {ERC165Verifier} from "contracts/libraries/ERC165Verifier.sol";
+import {BatchLengthChecker} from "contracts/utils/BatchLengthChecker.sol";
 
 /**
  * @title SharesManager - Contract responsible for managing permissionless deposits and withdrawals (rage quit).
@@ -69,6 +70,8 @@ abstract contract SharesManager is
         SharePrice _sharePrice;
 
         IERC20 _quoteAsset; // (address(0) for ETH)
+
+        mapping(address admin => uint256 expiresAt) _admins;
     }
 
     // keccak256(abi.encode(uint256(keccak256("SharesManager.Storage")) - 1)) & ~bytes32(uint256(0xff));
@@ -159,6 +162,29 @@ abstract contract SharesManager is
         SharesManagerStorage storage $ = _getSharesManagerStorage();
         emit MaxSupplyChange($._maxSupply, newMaxSupply);
         $._maxSupply = newMaxSupply;
+    }
+
+    /// @inheritdoc ISharesManager
+    function adminStatus(address account) public view virtual override returns (bool isAdmin, uint256 expiresAt) {
+        expiresAt = _getSharesManagerStorage()._admins[account];
+        isAdmin = block.timestamp > expiresAt;
+    }
+
+    /// @inheritdoc ISharesManager
+    function setAdminExpirations(
+        address[] memory accounts,
+        uint256[] memory expiresAts
+    ) external virtual override onlyOwner {
+        BatchLengthChecker.checkBatchArrays(accounts.length, expiresAts.length);
+
+        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        for (uint256 i = 0; i < accounts.length; ++i) {
+            address account = accounts[i];
+            uint256 expiresAt = expiresAts[i];
+
+            emit AdminStatusChange(accounts[i], $._admins[account], expiresAt);
+            $._admins[account] = expiresAt;
+        }
     }
 
     function quoteAsset() public view virtual override returns (IERC20 _quoteAsset) {

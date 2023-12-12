@@ -63,6 +63,8 @@ interface ISharesManager is IERC6372 {
         IERC20[] tokens
     );
 
+    event AdminStatusChange(address indexed account, uint256 oldExpiresAt, uint256 newExpiresAt);
+
     error InvalidTreasuryAddress(address treasury);
     error TreasuryInterfaceNotSupported(address treasury);
     error QuoteAssetInterfaceNotSupported(address quoteAsset);
@@ -111,6 +113,26 @@ interface ISharesManager is IERC6372 {
      * @param newMaxSupply The new max supply. Must be no greater than type(uint224).max.
      */
     function setMaxSupply(uint256 newMaxSupply) external;
+
+    /**
+     * Gets the admin status for the account. The owning contract can approve "admin" accounts that will have the
+     * ability to increase the share price or shorten/expire the funding period for deposits. This can help enable
+     * faster protectionary measures against a DAO's permissionless funding in the case that the owner is a timelock
+     * contract or DAO Executor that does not have the ability to take immediate protectionary actions.
+     * @param account The address of the account to check.
+     * @return isAdmin True if the account is currently a valid admin.
+     * @return expiresAt The timestamp at which this account's admin status expires.
+     */
+    function adminStatus(address account) external view returns (bool isAdmin, uint256 expiresAt);
+
+    /**
+     * Sets the admin expirations for the provided accounts. To disable an account's admin status, simply set the
+     * expiresAt timestamp to 0.
+     * @notice This is an owner-only operation.
+     * @param accounts The list of accounts to update
+     * @param expiresAts The respective list of timestamps for each account's admin-status to expire.
+     */
+    function setAdminExpirations(address[] memory accounts, uint256[] memory expiresAts) external;
 
     function quoteAsset() external view returns (IERC20 _quoteAsset);
     function setQuoteAsset(address newQuoteAsset) external;
