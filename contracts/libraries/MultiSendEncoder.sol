@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.20;
 
-import {IArrayLengthErrors} from "../interfaces/IArrayLengthErrors.sol";
+import {BatchArrayChecker} from "contracts/utils/BatchArrayChecker.sol";
 
 /**
  * @title Multi Send Encoder - A library to encode a multiSend transaction to the executor
@@ -27,11 +27,7 @@ library MultiSendEncoder {
         uint256 value,
         bytes memory data
     ) {
-
-        if (targets.length == 0) revert IArrayLengthErrors.MissingArrayItems();
-        if (
-            targets.length != values.length || targets.length != calldatas.length
-        ) revert IArrayLengthErrors.MismatchingArrayLengths();
+        BatchArrayChecker.checkArrayLengths(targets.length, values.length, calldatas.length);
 
         if (targets.length > 1) {
             to = executor;
@@ -144,11 +140,7 @@ library MultiSendEncoder {
         uint256 value,
         bytes memory data
     ) {
-
-        if (targets.length == 0) revert IArrayLengthErrors.MissingArrayItems();
-        if (
-            targets.length != values.length || targets.length != calldatas.length
-        ) revert IArrayLengthErrors.MismatchingArrayLengths();
+        BatchArrayChecker.checkArrayLengths(targets.length, values.length, calldatas.length);
 
         if (targets.length > 1) {
             to = executor;

@@ -19,7 +19,7 @@ import {ERC20Utils} from "contracts/libraries/ERC20Utils.sol";
 import {SafeTransferLib} from "contracts/libraries/SafeTransferLib.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {ERC165Verifier} from "contracts/libraries/ERC165Verifier.sol";
-import {BatchLengthChecker} from "contracts/utils/BatchLengthChecker.sol";
+import {BatchArrayChecker} from "contracts/utils/BatchArrayChecker.sol";
 
 /**
  * @title SharesManager - Contract responsible for managing permissionless deposits and withdrawals (rage quit).
@@ -175,7 +175,7 @@ abstract contract SharesManager is
         address[] memory accounts,
         uint256[] memory expiresAts
     ) external virtual override onlyOwner {
-        BatchLengthChecker.checkBatchArrays(accounts.length, expiresAts.length);
+        BatchArrayChecker.checkArrayLengths(accounts.length, expiresAts.length);
 
         SharesManagerStorage storage $ = _getSharesManagerStorage();
         for (uint256 i = 0; i < accounts.length; ++i) {

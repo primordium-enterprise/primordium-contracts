@@ -4,7 +4,6 @@
 
 pragma solidity ^0.8.20;
 
-import {IArrayLengthErrors} from "contracts/interfaces/IArrayLengthErrors.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {IGovernorToken} from "contracts/governor/interfaces/IGovernorToken.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
@@ -12,7 +11,7 @@ import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 /**
  * @dev Interface of the {GovernorBase} core.
  */
-interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
+interface IGovernorBase is IERC165, IERC6372 {
 
     enum ProposalState {
         Pending,

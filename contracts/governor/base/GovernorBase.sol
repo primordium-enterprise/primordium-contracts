@@ -23,6 +23,7 @@ import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {SelectorChecker} from "contracts/libraries/SelectorChecker.sol";
 import {MultiSendEncoder} from "contracts/libraries/MultiSendEncoder.sol";
 import {BasisPoints} from "contracts/libraries/BasisPoints.sol";
+import {BatchArrayChecker} from "contracts/utils/BatchArrayChecker.sol";
 
 /**
  * @title GovernorBase
@@ -504,12 +505,7 @@ abstract contract GovernorBase is
     ) internal virtual returns (uint256 proposalId) {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
 
-        if (targets.length == 0) revert MissingArrayItems();
-        if (
-            targets.length != values.length ||
-            targets.length != calldatas.length ||
-            targets.length != signatures.length
-        ) revert MismatchingArrayLengths();
+        BatchArrayChecker.checkArrayLengths(targets.length, values.length, calldatas.length, signatures.length);
 
         // Verify the human-readable function signatures
         SelectorChecker.verifySelectors(calldatas, signatures);

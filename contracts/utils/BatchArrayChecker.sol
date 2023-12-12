@@ -6,10 +6,10 @@ pragma solidity ^0.8.20;
 /**
  * @title A utility library to make it easier to check that the array lengths for a batch method are all equal.
  *
- * @dev Simply provide the array lengths as arguments to the "checkBatchArrays" method, and it will throw an error if
+ * @dev Simply provide the array lengths as arguments to the "checkArrayLengths" method, and it will throw an error if
  * the length is zero, or if the lengths do not match.
  */
-library BatchLengthChecker {
+library BatchArrayChecker {
 
     error MissingArrayItems();
     error MismatchingArrayLengths();
@@ -21,13 +21,13 @@ library BatchLengthChecker {
         _;
     }
 
-    function checkBatchArrays(uint256 aLength, uint256 bLength) internal pure noZeroLength(aLength) {
+    function checkArrayLengths(uint256 aLength, uint256 bLength) internal pure noZeroLength(aLength) {
         if (aLength != bLength) {
             revert MismatchingArrayLengths();
         }
     }
 
-    function checkBatchArrays(
+    function checkArrayLengths(
         uint256 aLength,
         uint256 bLength,
         uint256 cLength
@@ -40,7 +40,7 @@ library BatchLengthChecker {
         }
     }
 
-    function checkBatchArrays(
+    function checkArrayLengths(
         uint256 aLength,
         uint256 bLength,
         uint256 cLength,

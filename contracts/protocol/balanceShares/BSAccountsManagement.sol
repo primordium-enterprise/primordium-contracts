@@ -4,8 +4,8 @@
 pragma solidity ^0.8.20;
 
 import {BSStorage} from "./BSStorage.sol";
-import {IArrayLengthErrors} from "contracts/interfaces/IArrayLengthErrors.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {BatchArrayChecker} from "contracts/utils/BatchArrayChecker.sol";
 
 /**
  * @title Account management for each balance share.
@@ -164,12 +164,7 @@ contract BSAccountsManagement is BSStorage {
         uint256[] memory basisPoints,
         uint256[] memory removableAts
     ) external returns (uint256 totalBps) {
-        if (
-            accounts.length != basisPoints.length ||
-            accounts.length != removableAts.length
-        ) {
-            revert IArrayLengthErrors.MismatchingArrayLengths();
-        }
+        BatchArrayChecker.checkArrayLengths(accounts.length, basisPoints.length, removableAts.length);
 
         totalBps = _updateAccountShares(msg.sender, balanceShareId, accounts, basisPoints, removableAts);
     }
@@ -187,9 +182,7 @@ contract BSAccountsManagement is BSStorage {
         address[] memory accounts,
         uint256[] memory basisPoints
     ) external returns (uint256 totalBps) {
-        if (accounts.length != basisPoints.length) {
-            revert IArrayLengthErrors.MismatchingArrayLengths();
-        }
+        BatchArrayChecker.checkArrayLengths(accounts.length, basisPoints.length);
 
         totalBps = _updateAccountShares(msg.sender, balanceShareId, accounts, basisPoints, new uint256[](0));
     }
@@ -207,9 +200,8 @@ contract BSAccountsManagement is BSStorage {
         address[] memory accounts,
         uint256[] memory removableAts
     ) external {
-        if (accounts.length != removableAts.length) {
-            revert IArrayLengthErrors.MismatchingArrayLengths();
-        }
+        BatchArrayChecker.checkArrayLengths(accounts.length, removableAts.length);
+
 
         _updateAccountShares(msg.sender, balanceShareId, accounts, new uint256[](0), removableAts);
     }
@@ -246,9 +238,8 @@ contract BSAccountsManagement is BSStorage {
         uint256[] memory basisPoints,
         uint256[] memory removableAts
     ) internal returns (uint256 newTotalBps) {
-        if (accounts.length == 0) {
-            revert IArrayLengthErrors.MissingArrayItems();
-        }
+        BatchArrayChecker.checkArrayLengths(accounts.length, basisPoints.length, removableAts.length);
+
 
         BalanceShare storage _balanceShare = _getBalanceShare(client, balanceShareId);
 
