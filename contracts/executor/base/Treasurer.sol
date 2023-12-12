@@ -367,12 +367,36 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     ) internal returns (uint256 amountAllocated) {
         if (address(manager) != address(0)) {
             bool remainderIncreased;
+
             // Get allocation amount
-            (amountAllocated, remainderIncreased) = manager.getBalanceShareAllocationWithRemainder(
-                balanceShareId,
-                asset,
-                balanceIncreasedBy
-            );
+            // Call manager.getBalanceShareAllocationWithRemainder(balanceShareId, asset, balanceIncreasedBy)
+            bytes32 dataStart;
+            bytes4 selector = manager.getBalanceShareAllocationWithRemainder.selector;
+            assembly ("memory-safe") {
+                dataStart := mload(0x40) // Cache the data to be used in the following call as well
+                mstore(0x40, add(dataStart, 0x64)) // Need 100 bytes for calldata
+                mstore(dataStart, selector)
+                mstore(add(dataStart, 0x04), balanceShareId)
+                mstore(add(dataStart, 0x24), asset)
+                mstore(add(dataStart, 0x44), balanceIncreasedBy)
+                // First call also checks that returndatasize is not zero, indicating the contract has code
+                if iszero(
+                    and( // The arguments of `and` are evaluated from right to left.
+                        gt(returndatasize(), 0),
+                        call(gas(), manager, 0, dataStart, 0x64, 0, 0x40)
+                    )
+                 ) {
+                    returndatacopy(0, 0, returndatasize())
+                    revert(0, returndatasize())
+                }
+                amountAllocated := mload(0)
+                remainderIncreased := mload(0x20)
+            }
+            // (amountAllocated, remainderIncreased) = manager.getBalanceShareAllocationWithRemainder(
+            //     balanceShareId,
+            //     asset,
+            //     balanceIncreasedBy
+            // );
 
             // Only need to continue if balance actually increased, meaning balance share total BPS > 0
             if (amountAllocated > 0 || remainderIncreased) {
@@ -381,11 +405,22 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                 uint256 msgValue = asset.approveForExternalCall(address(manager), amountAllocated);
 
                 // Allocate to the balance share
-                manager.allocateToBalanceShareWithRemainder{value: msgValue}(
-                    balanceShareId,
-                    asset,
-                    balanceIncreasedBy
-                );
+                // manager.allocateToBalanceShareWithRemainder{value: msgValue}(balanceShareId, asset, balanceIncreasedBy)
+                selector = manager.allocateToBalanceShareWithRemainder.selector;
+                assembly ("memory-safe") {
+                    // Update the selector
+                    let c := mload(dataStart)
+                    mstore(dataStart, or(selector, and(c, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff)))
+                    if iszero(call(gas(), manager, msgValue, dataStart, 0x64, 0, 0)) {
+                        returndatacopy(0, 0, returndatasize())
+                        revert(0, returndatasize())
+                    }
+                }
+                // manager.allocateToBalanceShareWithRemainder{value: msgValue}(
+                //     balanceShareId,
+                //     asset,
+                //     balanceIncreasedBy
+                // );
 
                 emit BalanceShareAllocated(manager, balanceShareId, asset, balanceIncreasedBy);
             }
