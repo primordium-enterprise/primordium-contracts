@@ -200,19 +200,44 @@ abstract contract GovernorBase is
     }
 
     /// @inheritdoc IGovernorBase
-    function governanceThresholdBps() public view returns (uint256 _governanceThresholdBps) {
-        _governanceThresholdBps = _getGovernorBaseStorage()._votesManagement._governanceThresholdBps;
+    function governanceThreshold() public view returns (uint256 threshold) {
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        IGovernorToken _token = $._votesManagement._token;
+        bool isFounded = $._votesManagement._isFounded;
+        uint256 bps = $._votesManagement._governanceThresholdBps;
+        if (isFounded) {
+            return threshold;
+        }
+        threshold = _token.maxSupply().bpsUnchecked(bps);
     }
 
     /// @inheritdoc IGovernorBase
-    function initializeGovernance() external virtual onlyGovernance {
-        _initializeGovernance();
+    function initializeGovernance(uint256 proposalId) external virtual onlyGovernance {
+        _initializeGovernance(proposalId);
     }
 
-    function _initializeGovernance() internal virtual {
+    /// @dev The proposalId is verified when the proposal is created.
+    function _initializeGovernance(uint256 proposalId) internal virtual {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+
+        IGovernorToken _token = $._votesManagement._token;
+        bool active = $._votesManagement._isFounded;
+        uint256 bps = $._votesManagement._governanceThresholdBps;
+
+        // Revert if already initialized
+        if (active) {
+            revert GovernanceAlreadyInitialized();
+        }
+
+        // Check that the total supply at the vote end is still above the threshold
+        uint256 voteEndedSupply = _token.getPastTotalSupply(proposalDeadline(proposalId));
+        uint256 threshold = _token.maxSupply().bpsUnchecked(bps);
+        if (voteEndedSupply < threshold) {
+            revert GovernanceThresholdIsNotMet(threshold, voteEndedSupply);
+        }
+
         $._votesManagement._isFounded = true;
-        emit GovernanceInitialized();
+        emit GovernanceInitialized(proposalId);
     }
 
     /// @inheritdoc IGovernorBase
@@ -399,7 +424,8 @@ abstract contract GovernorBase is
         }
 
         // check founded status
-        VotesManagement storage _votesManagement = _getGovernorBaseStorage()._votesManagement;
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        VotesManagement storage _votesManagement = $._votesManagement;
         bytes32 packedVotesManagement;
         bool isFounded;
         assembly {
@@ -414,6 +440,7 @@ abstract contract GovernorBase is
         // Check if the Governor has been founded yet
         if (!isFounded) {
 
+            // Check if goverance can begin yet
             uint256 _governanceCanBeginAt;
             assembly {
                 // Shift right by 20 address bytes + 1 bool byte = 21 bytes * 8 = 168 bits
@@ -423,24 +450,38 @@ abstract contract GovernorBase is
                 revert GovernanceCannotInitializeYet(_governanceCanBeginAt);
             }
 
+            // Check the governance threshold
             uint256 _governanceThresholdBps;
             assembly {
                 // Shift right by 20 address bytes + 1 bool byte + 5 uint40 bytes = 26 bytes * 8 = 208 bits
                 _governanceThresholdBps := and(shr(0xd0, packedVotesManagement), 0xffff)
             }
-            uint256 currentVoteSupply = _token.getPastTotalSupply(currentClock - 1);
-            uint256 requiredVoteSupply = _token.maxSupply().bpsUnchecked(_governanceThresholdBps);
-            if (requiredVoteSupply > currentVoteSupply) {
-                revert GovernanceThresholdIsNotMet(_governanceThresholdBps, currentVoteSupply, requiredVoteSupply);
+            uint256 currentSupply = _token.totalSupply();
+            uint256 threshold = _token.maxSupply().bpsUnchecked(_governanceThresholdBps);
+            if (currentSupply < threshold) {
+                revert GovernanceThresholdIsNotMet(threshold, currentSupply);
             }
 
-            // Ensure that the proposal action is to initializeGovernance() on this Governor
+            // Ensure that the only proposal action is to initializeGovernance() on this Governor
+            bytes calldata initData = calldatas[0];
             if (
                 targets.length != 1 ||
                 targets[0] != address(this) ||
-                bytes4(calldatas[0]) != this.initializeGovernance.selector
+                bytes4(initData) != this.initializeGovernance.selector ||
+                initData.length != 36 // 4 selector bytes + 32 proposalId bytes
             ) {
                 revert GovernanceInitializationActionRequired();
+            }
+
+            // Check that the provided proposalId is the expected proposalId
+            uint256 expectedProposalId = $._proposalCount + 1;
+            uint256 providedProposalId;
+            assembly ("memory-safe") {
+                // Offset by 4 bytes for the function selector
+                providedProposalId := calldataload(add(initData.offset, 0x04))
+            }
+            if (providedProposalId != expectedProposalId) {
+                revert InvalidProposalIdForInitialization(expectedProposalId, providedProposalId);
             }
         }
 
@@ -449,7 +490,6 @@ abstract contract GovernorBase is
             _getVotes(_token, proposer, currentClock - 1, _defaultParams()) < proposalThreshold() &&
             !_hasRole(PROPOSER_ROLE, proposer)
         ) revert UnauthorizedToSubmitProposal(proposer);
-
     }
 
     function _propose(

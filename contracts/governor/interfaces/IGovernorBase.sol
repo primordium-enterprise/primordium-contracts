@@ -38,7 +38,7 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     /**
      * @dev Emitted when governance is initialized.
      */
-    event GovernanceInitialized();
+    event GovernanceInitialized(uint256 proposalId);
 
     /**
      * @dev Emitted when a proposal is created.
@@ -110,12 +110,10 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
      */
     error GovernorUnexpectedProposalState(uint256 proposalId, ProposalState current, bytes32 expectedStates);
     error GovernanceCannotInitializeYet(uint256 governanceCanBeginAt);
-    error GovernanceThresholdIsNotMet(
-        uint256 governanceThresholdBps,
-        uint256 currentVoteSupply,
-        uint256 currentRequiredVoteSupply
-    );
+    error GovernanceThresholdIsNotMet(uint256 governanceThreshold, uint256 voteSupply);
     error GovernanceInitializationActionRequired();
+    error InvalidProposalIdForInitialization(uint256 expectedProposalId, uint256 providedProposalId);
+    error GovernanceAlreadyInitialized();
     error UnknownProposalId(uint256 proposalId);
     error GovernorClockMustMatchTokenClock();
     error GovernorRestrictedProposer(address proposer);
@@ -271,16 +269,21 @@ interface IGovernorBase is IArrayLengthErrors, IERC165, IERC6372 {
     function governanceCanBeginAt() external view returns (uint256 _governanceCanBeginAt);
 
     /**
-     * Returns the basis points amount of the governance token's max supply that needs to be in circulation before
-     * governance can be initiated.
+     * Returns the amount of the vote token's initial max supply that needs to be in circulation (via deposits) before
+     * governance can be initiated. Returns zero if governance is already active.
      */
-    function governanceThresholdBps() external view returns (uint256 _governanceThresholdBps);
+    function governanceThreshold() external view returns (uint256 _governanceThreshold);
 
     /**
-     * @dev Initializes governance. This function is the only allowable proposal action for the Governor until it has
+     * @dev Initializes governance. This function is the only allowable proposal action on the Governor until it has
      * been successfully executed through the proposal process.
+     * @notice The governance threshold of tokens must be allocated before a proposal can be submitted. Additionally,
+     * the governance threshold of tokens must still be met at the end of the proposal's voting period to successfully
+     * execute this action, or else the action will revert on execution (even if the proposal vote succeeded).
+     * @param proposalId This MUST be equal to the proposalId of the proposal creating the action, or creating the
+     * proposal will not work. The proposalId can be predicted by taking the current proposalCount() and adding one.
      */
-    function initializeGovernance() external;
+    function initializeGovernance(uint256 proposalId) external;
 
     /**
      * @dev Returns true if the Governor has been initialized, meaning any proposal actions are available for
