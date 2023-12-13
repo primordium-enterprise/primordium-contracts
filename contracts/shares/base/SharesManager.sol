@@ -84,6 +84,16 @@ abstract contract SharesManager is
         }
     }
 
+    modifier onlyOwnerOrAdmin() {
+        if (!_senderIsOwner()) {
+            (bool isAdmin,) = adminStatus(msg.sender);
+            if (isAdmin) {
+                revert OwnableUnauthorizedAccount(msg.sender);
+            }
+        }
+        _;
+    }
+
     function __SharesManager_init(
         address owner_,
         address treasury_,
@@ -210,6 +220,7 @@ abstract contract SharesManager is
         $._quoteAsset = IERC20(newQuoteAsset);
     }
 
+    /// @inheritdoc ISharesManager
     function isFundingActive() public view virtual override returns (bool fundingActive) {
         (fundingActive,) = _isFundingActive();
     }
@@ -225,11 +236,13 @@ abstract contract SharesManager is
             block.timestamp < fundingEndsAt_;
     }
 
+    /// @inheritdoc ISharesManager
     function fundingPeriods() public view virtual override returns (uint256 fundingBeginsAt, uint256 fundingEndsAt) {
         SharesManagerStorage storage $ = _getSharesManagerStorage();
         (fundingBeginsAt, fundingEndsAt) = ($._fundingBeginsAt, $._fundingEndsAt);
     }
 
+    /// @inheritdoc ISharesManager
     function setFundingPeriods(
         uint256 newFundingBeginsAt,
         uint256 newFundingEndsAt
@@ -237,18 +250,35 @@ abstract contract SharesManager is
         _setFundingPeriods(newFundingBeginsAt, newFundingEndsAt);
     }
 
+    /// @inheritdoc ISharesManager
+    function pauseFunding() external virtual override onlyOwnerOrAdmin {
+        // Using zero value leaves the fundingBeginsAt unchanged
+        _setFundingPeriods(0, block.timestamp - 1);
+    }
+
+    /// @dev Internal method to set funding period timestamps. Passing value of zero leaves that timestamp unchanged.
     function _setFundingPeriods(uint256 newFundingBeginsAt, uint256 newFundingEndsAt) internal virtual {
-        // Cast to uint48, which will revert on overflow
-        uint48 castedFundingBeginsAt = newFundingBeginsAt.toUint48();
-        uint48 castedFundingEndsAt = newFundingEndsAt.toUint48();
-
         SharesManagerStorage storage $ = _getSharesManagerStorage();
-        uint256 currentFundingBeginsAt = $._fundingBeginsAt;
-        uint256 currentFundingEndsAt = $._fundingEndsAt;
+        uint256 fundingBeginsAt = $._fundingBeginsAt;
+        uint256 fundingEndsAt = $._fundingEndsAt;
 
-        emit FundingPeriodChange(currentFundingBeginsAt, newFundingBeginsAt, currentFundingEndsAt, newFundingEndsAt);
+        // Zero value signals to leave the current value unchanged.
+        uint48 castedFundingBeginsAt = newFundingBeginsAt > 0 ?
+            uint48(Math.min(newFundingBeginsAt, type(uint48).max)) :
+            uint48(fundingBeginsAt);
+        uint48 castedFundingEndsAt = newFundingEndsAt > 0 ?
+            uint48(Math.min(newFundingEndsAt, type(uint48).max)) :
+            uint48(fundingEndsAt);
+
+        // Update in storage
         $._fundingBeginsAt = castedFundingBeginsAt;
         $._fundingEndsAt = castedFundingEndsAt;
+        emit FundingPeriodChange(
+            fundingBeginsAt,
+            castedFundingBeginsAt,
+            fundingEndsAt,
+            castedFundingEndsAt
+        );
     }
 
     /// @inheritdoc ISharesManager

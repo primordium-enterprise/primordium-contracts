@@ -87,6 +87,13 @@ abstract contract Ownable1Or2StepUpgradeable is Initializable {
     }
 
     /**
+     * @dev Returns true if the msg.sender is the owner.
+     */
+    function _senderIsOwner() internal view virtual returns (bool isOwner) {
+        isOwner = msg.sender == owner();
+    }
+
+    /**
      * @dev Starts the ownership transfer of the contract to a new account. Replaces the pending transfer if there is
      * one. Can only be called by the current owner.
      */

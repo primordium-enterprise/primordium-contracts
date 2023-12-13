@@ -116,7 +116,7 @@ interface ISharesManager is IERC6372 {
 
     /**
      * Gets the admin status for the account. The owning contract can approve "admin" accounts that will have the
-     * ability to increase the share price or shorten/expire the funding period for deposits. This can help enable
+     * ability to increase the share price or pause deposit funding by expiring the funding period. This can enable
      * faster protectionary measures against a DAO's permissionless funding in the case that the owner is a timelock
      * contract or DAO Executor that does not have the ability to take immediate protectionary actions.
      * @param account The address of the account to check.
@@ -138,9 +138,35 @@ interface ISharesManager is IERC6372 {
     function setQuoteAsset(address newQuoteAsset) external;
     function setQuoteAssetAndCheckInterfaceSupport(address newQuoteAsset) external;
 
+    /**
+     * Returns true if deposits are currently allowed.
+     * @notice Shares can only be minted up to the maxSupply(), so if the max supply is already in circulation, shares
+     * may not be mintable even though funding is active.
+     */
     function isFundingActive() external view returns (bool fundingActive);
+
+    /**
+     * Returns the current funding period timestamps.
+     * @return fundingBeginsAt The timestamp when funding opens. Max timestamp is
+     * @return fundingEndsAt The timestamp when funding closes.
+     */
     function fundingPeriods() external view returns (uint256 fundingBeginsAt, uint256 fundingEndsAt);
+
+    /**
+     * An owner-only operation to update the funding periods.
+     * @notice For either timestamp parameter, passing a value of zero in the function call will leave the current
+     * timestamp value unchanged. This is for convenience when updating a single value. Therefore, neither value can be
+     * explicitly set to a value of zero.
+     * @param newFundingBeginsAt The updated timestamp for funding to be opened. Max is type(uint48).max.
+     * @param newFundingEndsAt The new timestamp for funding to be closed. Max is type(uint48).max.
+     */
     function setFundingPeriods(uint256 newFundingBeginsAt, uint256 newFundingEndsAt) external;
+
+    /**
+     * Pauses funding by setting the funding ends at timestamp to the current block timestamp minus 1.
+     * @notice Only the owner or admins can pause funding.
+     */
+    function pauseFunding() external;
 
     /**
      * Returns the quote amount and the mint amount of the share price.
