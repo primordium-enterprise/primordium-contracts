@@ -65,6 +65,8 @@ interface ISharesManager is IERC6372 {
 
     event AdminStatusChange(address indexed account, uint256 oldExpiresAt, uint256 newExpiresAt);
 
+    event AdminPausedFunding(address indexed admin);
+
     error InvalidTreasuryAddress(address treasury);
     error TreasuryInterfaceNotSupported(address treasury);
     error QuoteAssetInterfaceNotSupported(address quoteAsset);
@@ -116,9 +118,9 @@ interface ISharesManager is IERC6372 {
 
     /**
      * Gets the admin status for the account. The owning contract can approve "admin" accounts that will have the
-     * ability to increase the share price or pause deposit funding by expiring the funding period. This can enable
-     * faster protectionary measures against a DAO's permissionless funding in the case that the owner is a timelock
-     * contract or DAO Executor that does not have the ability to take immediate protectionary actions.
+     * ability to pause deposits by expiring the funding period. This can enable faster protectionary measures against a
+     * DAO's permissionless funding in the case that the owner is a DAO executor that does not have the ability to take
+     * immediate protectionary actions.
      * @param account The address of the account to check.
      * @return isAdmin True if the account is currently a valid admin.
      * @return expiresAt The timestamp at which this account's admin status expires.

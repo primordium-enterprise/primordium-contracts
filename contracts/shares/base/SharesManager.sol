@@ -87,7 +87,7 @@ abstract contract SharesManager is
     modifier onlyOwnerOrAdmin() {
         if (!_senderIsOwner()) {
             (bool isAdmin,) = adminStatus(msg.sender);
-            if (isAdmin) {
+            if (!isAdmin) {
                 revert OwnableUnauthorizedAccount(msg.sender);
             }
         }
@@ -254,6 +254,7 @@ abstract contract SharesManager is
     function pauseFunding() external virtual override onlyOwnerOrAdmin {
         // Using zero value leaves the fundingBeginsAt unchanged
         _setFundingPeriods(0, block.timestamp - 1);
+        emit AdminPausedFunding(msg.sender);
     }
 
     /// @dev Internal method to set funding period timestamps. Passing value of zero leaves that timestamp unchanged.
