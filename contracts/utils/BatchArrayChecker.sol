@@ -11,19 +11,19 @@ pragma solidity ^0.8.20;
  */
 library BatchArrayChecker {
 
-    error MissingArrayItems();
-    error MismatchingArrayLengths();
+    error BatchArrayMissingItems();
+    error BatchArrayLengthMismatch();
 
     modifier noZeroLength(uint256 aLength) {
         if (aLength == 0) {
-            revert MissingArrayItems();
+            revert BatchArrayMissingItems();
         }
         _;
     }
 
     function checkArrayLengths(uint256 aLength, uint256 bLength) internal pure noZeroLength(aLength) {
         if (aLength != bLength) {
-            revert MismatchingArrayLengths();
+            revert BatchArrayLengthMismatch();
         }
     }
 
@@ -36,7 +36,7 @@ library BatchArrayChecker {
             aLength != bLength ||
             aLength != cLength
         ) {
-            revert MismatchingArrayLengths();
+            revert BatchArrayLengthMismatch();
         }
     }
 
@@ -51,7 +51,7 @@ library BatchArrayChecker {
             aLength != cLength ||
             aLength != dLength
         ) {
-            revert MismatchingArrayLengths();
+            revert BatchArrayLengthMismatch();
         }
     }
 
