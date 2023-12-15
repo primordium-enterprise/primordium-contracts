@@ -40,6 +40,7 @@ contract BSAccountsManagement is BSStorage {
     error BalanceSumCheckpointIndexOverflow(uint256 maxIndex);
     error InvalidAddress(address account);
     error AccountShareNoUpdate(address account);
+    error AccountShareInvalidBps(address account, uint256 bps, uint256 maxBps);
     error UnauthorizedToEditAccountShares(address client, address msgSender);
     error AccountShareDoesNotExist(address account);
     error AccountShareIsCurrentlyLocked(address account, uint256 removableAt);
@@ -264,7 +265,8 @@ contract BSAccountsManagement is BSStorage {
             totalBps = _balanceSumCheckpoint.totalBps;
             bool hasBalances = _balanceSumCheckpoint.hasBalances;
 
-            // If hasBalanceSums, increment to a new balance sum checkpoint if updating BPS and current totalBps > 0
+            // If hasBalances, increment to a new balance sum checkpoint if updating BPS and current totalBps > 0
+            // Otherwise, just overwrite the BPS for the current BalanceSumCheckpoint
             if (hasBalances && basisPoints.length > 0 && totalBps > 0) {
                 // Increment checkpoint index in memory and store the update
                 unchecked {
@@ -297,13 +299,18 @@ contract BSAccountsManagement is BSStorage {
             uint256 currentBps = _accountSharePeriod.bps;
             uint256 currentRemovableAt = _accountSharePeriod.removableAt;
 
-            // New bps cannot exceed MAX_BPS, because math below uses unchecked for underflows
-            // Which then requires sending (2**256 - 1) / 10_000 basisPoints array items to overflow, exceeds max tx gas
-            uint256 newBps = basisPoints.length == 0 ? currentBps : Math.min(basisPoints[i], MAX_BPS);
+            // New bps cannot exceed MAX_BPS, because math below uses unchecked to track totalBps changes
+            // If a client did attempt to overflow the unchecked math, this check ensures that they would need to send
+            // (2**256 - 1) / 10_000 basisPoints array items to overflow, which would exceed the max block gas
+            uint256 newBps = basisPoints.length == 0 ? currentBps : basisPoints[i];
+            if (newBps > MAX_BPS) {
+                revert AccountShareInvalidBps(account, newBps, MAX_BPS);
+            }
+
             // Fit removableAt into uint48 (inconsequential if provided value was greater than type(uint48).max)
             uint256 newRemovableAt = Math.min(
-                type(uint48).max,
-                removableAts.length == 0 ? currentRemovableAt : removableAts[i]
+                removableAts.length == 0 ? currentRemovableAt : removableAts[i],
+                type(uint48).max
             );
 
             // Revert if no update
@@ -337,11 +344,11 @@ contract BSAccountsManagement is BSStorage {
                 if (currentBps > 0) {
                     // Set end index for current period, then increment period index and update the storage reference
                     _accountSharePeriod.endBalanceSumIndex = uint48(balanceSumCheckpointIndex);
-                    periodIndex = ++_accountShare.periodIndex;
+                    _accountShare.periodIndex = ++periodIndex;
                     _accountSharePeriod = _accountShare.periods[periodIndex];
                 }
 
-                // Track totalBps changes (allow temporary underflows)
+                // Track totalBps changes (allow temporary underflows - total balances out after each account update)
                 unchecked {
                     newTotalBps += newBps - currentBps;
                 }
@@ -366,7 +373,7 @@ contract BSAccountsManagement is BSStorage {
                 );
             } else {
                 // No bps change, only updating removableAt
-                // Revert if account share does not already exist
+                // Revert if account share does not exist (account bps is zero)
                 if (currentBps == 0) {
                     revert AccountShareDoesNotExist(account);
                 }
