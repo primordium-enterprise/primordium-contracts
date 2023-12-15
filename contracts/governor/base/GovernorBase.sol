@@ -432,8 +432,8 @@ abstract contract GovernorBase is
         assembly {
             packedVotesManagement := sload(_votesManagement.slot)
             _token := packedVotesManagement
-            // The _isFounded bool is at byte index 20 (after the 20 address bytes)
-            isFounded := byte(0x14, packedVotesManagement)
+            // The _isFounded bool is at byte index 20 (after the 20 address bytes), so shift right 20 * 8 = 160 bits
+            isFounded := and(shr(160, packedVotesManagement), 0xff)
         }
 
         currentClock = _clock(_token);

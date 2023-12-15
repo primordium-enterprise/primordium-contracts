@@ -35,7 +35,8 @@ mapping(address client => mapping(uint256 balanceShareId => BalanceShare)) inter
      * functions at the bottom of the file.
      */
     struct BalanceSumCheckpoint {
-        uint256 totalBps; // Tracks the totalBps among all account shares for this balance sum checkpoint
+        uint16 totalBps; // Tracks the totalBps among all account shares for this balance sum checkpoint
+        bool hasBalances; // Will be flipped to "true" if an asset BalanceSum has been recorded in this checkpoint
         mapping(address asset => BalanceSum) balanceSums;
     }
 

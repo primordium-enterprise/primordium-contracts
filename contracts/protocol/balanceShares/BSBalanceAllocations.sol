@@ -283,17 +283,30 @@ contract BSBalanceAllocations is BSStorage, IBalanceSharesManager {
             uint256 maxBalanceSum = MAX_BALANCE_SUM_BALANCE;
             uint256 maxBps = MAX_BPS;
             assembly ("memory-safe") {
-                // Cache current packed BalanceSum slot
+                // Cache the packed BalanceSumCheckpoint
+                let balanceSumCheckpointPacked := sload(_balanceSumCheckpoint.slot)
+
+                // Check that "hasBalances" is true, or else mark it as true
+                if iszero(and(shr(16, balanceSumCheckpointPacked), 0xff)) {
+                    // We don't need to mask the current value, because we already know the 1 bool byte is zero
+                    balanceSumCheckpointPacked := or(balanceSumCheckpointPacked, shl(16, 0x01))
+                    sstore(_balanceSumCheckpoint.slot, balanceSumCheckpointPacked)
+                }
+
+                // Cache packed BalanceSum slot
                 let balanceSumPacked := sload(_currentBalanceSum.slot)
+
                 // Load current remainder (first 48 bits)
                 let assetRemainder := and(balanceSumPacked, MASK_UINT48)
                 // Update to new remainder if the new one is less than MAX_BPS
                 if lt(newAssetRemainder, maxBps) {
                     assetRemainder := newAssetRemainder
                 }
-                // Load current balance (shift BalanceSum slot right by 48 bits)
-                let assetBalance := shr(0x30, balanceSumPacked)
 
+                // Load current balance (shift BalanceSum slot right by 48 bits)
+                let assetBalance := shr(48, balanceSumPacked)
+
+                // Add to the balance sum, looping to avoid overflow as needed
                 for { } true { } {
                     // Set the balance increase amount (do not allow overflow of BalanceSum.balance)
                     let balanceIncrease := sub(maxBalanceSum, assetBalance)
@@ -305,26 +318,26 @@ contract BSBalanceAllocations is BSStorage, IBalanceSharesManager {
                     assetBalance := add(assetBalance, balanceIncrease)
 
                     // Update the slot cache, then store
-                    balanceSumPacked := or(assetRemainder, shl(0x30, assetBalance))
+                    balanceSumPacked := or(assetRemainder, shl(48, assetBalance))
                     sstore(_currentBalanceSum.slot, balanceSumPacked)
 
                     // Finished once the allocation reaches zero
                     amountToAllocate := sub(amountToAllocate, balanceIncrease)
-                    if eq(amountToAllocate, 0) {
+                    if iszero(amountToAllocate) {
                         break
                     }
 
-                    // If more to allocate, increment the balance sum checkpoint index (copy the totalBps)
-                    let totalBps := sload(_balanceSumCheckpoint.slot)
-                    // Store incremented checkpoint index in scratch space and update in storage
-                    mstore(0, add(sload(_balanceShare.slot), 0x01))
-                    sstore(_balanceShare.slot, mload(0))
-                    // Set the new storage reference for the BalanceSumCheckpoint
+                    // If more to allocate, start a new balance sum checkpoint (and copy the totalBps)
+                    mstore(0, add(sload(_balanceShare.slot), 0x01)) // Store incremented checkpoint index in scratch
+                    sstore(_balanceShare.slot, mload(0)) // Update the checkpoint index in storage
+
+                    // Update the storage reference to the new BalanceSumCheckpoint
                     // keccak256(_balanceShare.balanceSumCheckpointIndex . _balanceShare.balanceSumCheckpoints.slot))
                     mstore(0x20, add(_balanceShare.slot, 0x01))
                     _balanceSumCheckpoint.slot := keccak256(0, 0x40)
-                    // Copy over the totalBps
-                    sstore(_balanceSumCheckpoint.slot, totalBps)
+
+                    // Copy over the previous packed checkpoint
+                    sstore(_balanceSumCheckpoint.slot, balanceSumCheckpointPacked)
 
                     // Reset the current balance to zero
                     assetBalance := 0

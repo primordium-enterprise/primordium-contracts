@@ -229,7 +229,7 @@ contract BSAccountsManagement is BSStorage {
      * @notice This helper assumes that array length equality checks are performed in the calling function. This
      * function will only check that the accounts array length is not zero.
      *
-     * To only update basis points, pass removableAts array length of zero. Vice versa for only updating removableAts.
+     * To only update basis points, pass removableAts array length of zero. Vice versa to only update removableAts.
      */
     function _updateAccountShares(
         address client,
@@ -238,24 +238,43 @@ contract BSAccountsManagement is BSStorage {
         uint256[] memory basisPoints,
         uint256[] memory removableAts
     ) internal returns (uint256 newTotalBps) {
-        BatchArrayChecker.checkArrayLengths(accounts.length, basisPoints.length, removableAts.length);
+        {
+            uint256 len = accounts.length;
+             if (len == 0) {
+                revert BatchArrayChecker.BatchArrayMissingItems();
+            }
 
+            if (
+                (len != basisPoints.length && (removableAts.length > 0 && len != removableAts.length)) ||
+                (len != removableAts.length && (basisPoints.length > 0 && len != basisPoints.length))
+            ) {
+                revert BatchArrayChecker.BatchArrayLengthMismatch();
+            }
+        }
 
         BalanceShare storage _balanceShare = _getBalanceShare(client, balanceShareId);
 
         uint256 balanceSumCheckpointIndex = _balanceShare.balanceSumCheckpointIndex;
-        uint256 totalBps = _balanceShare.balanceSumCheckpoints[balanceSumCheckpointIndex].totalBps;
+        uint256 totalBps;
 
-        // Increment to a new balance sum checkpoint if we are updating basis points and the current totalBps > 0
-        if (basisPoints.length > 0 && totalBps > 0) {
-            // Increment checkpoint index in memory and store the update
-            unchecked {
-                _balanceShare.balanceSumCheckpointIndex = ++balanceSumCheckpointIndex;
-            }
+        // Block scope to unpack the current balanceSumCheckpoint "totalBps" and "hasBalances" values
+        {
+            BalanceSumCheckpoint storage _balanceSumCheckpoint =
+                _balanceShare.balanceSumCheckpoints[balanceSumCheckpointIndex];
+            totalBps = _balanceSumCheckpoint.totalBps;
+            bool hasBalances = _balanceSumCheckpoint.hasBalances;
 
-            // Don't allow the index to reach MAX_INDEX (end indices are non-inclusive)
-            if (balanceSumCheckpointIndex >= MAX_INDEX) {
-                revert BalanceSumCheckpointIndexOverflow(MAX_INDEX);
+            // If hasBalanceSums, increment to a new balance sum checkpoint if updating BPS and current totalBps > 0
+            if (hasBalances && basisPoints.length > 0 && totalBps > 0) {
+                // Increment checkpoint index in memory and store the update
+                unchecked {
+                    _balanceShare.balanceSumCheckpointIndex = ++balanceSumCheckpointIndex;
+                }
+
+                // Don't allow the index to reach MAX_INDEX (end indices are non-inclusive)
+                if (balanceSumCheckpointIndex >= MAX_INDEX) {
+                    revert BalanceSumCheckpointIndexOverflow(MAX_INDEX);
+                }
             }
         }
 
@@ -278,8 +297,9 @@ contract BSAccountsManagement is BSStorage {
             uint256 currentBps = _accountSharePeriod.bps;
             uint256 currentRemovableAt = _accountSharePeriod.removableAt;
 
-            // No uint16 check on bps because when updating total, it will revert if the total is greater than 10_000
-            uint256 newBps = basisPoints.length == 0 ? currentBps : basisPoints[i];
+            // New bps cannot exceed MAX_BPS, because math below uses unchecked for underflows
+            // Which then requires sending (2**256 - 1) / 10_000 basisPoints array items to overflow, exceeds max tx gas
+            uint256 newBps = basisPoints.length == 0 ? currentBps : Math.min(basisPoints[i], MAX_BPS);
             // Fit removableAt into uint48 (inconsequential if provided value was greater than type(uint48).max)
             uint256 newRemovableAt = Math.min(
                 type(uint48).max,
@@ -371,7 +391,7 @@ contract BSAccountsManagement is BSStorage {
         }
 
         // Update the storage value (even if no change) because it might be a new balance sum checkpoint
-        _balanceShare.balanceSumCheckpoints[balanceSumCheckpointIndex].totalBps = newTotalBps;
+        _balanceShare.balanceSumCheckpoints[balanceSumCheckpointIndex].totalBps = uint16(newTotalBps);
 
         if (newTotalBps != totalBps) {
             emit BalanceShareTotalBPSUpdate(client, balanceShareId, totalBps, newTotalBps);
