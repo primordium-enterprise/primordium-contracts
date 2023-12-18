@@ -1033,7 +1033,7 @@ abstract contract GovernorBase is
         }
     }
 
-    error GovernorRelayFailed();
+    error RelayFailed();
 
     /**
      * @dev Relays a transaction or function call to an arbitrary target. In cases where the governance _executor
@@ -1048,7 +1048,7 @@ abstract contract GovernorBase is
                     returndatacopy(0, 0, returndatasize())
                     revert(0, returndatasize())
                 }
-                mstore(0, 0xbe73bd9d) // bytes4(keccak256(GovernorRelayFailed()))
+                mstore(0, 0xdb6a42ee) // bytes4(keccak256(RelayFailed()))
                 revert(0x1c, 0x04)
             }
         }

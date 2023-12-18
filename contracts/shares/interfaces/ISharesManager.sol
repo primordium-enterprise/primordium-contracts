@@ -81,7 +81,8 @@ interface ISharesManager is IERC6372 {
     error WithdrawFromZeroAddress();
     error WithdrawToZeroAddress();
     error WithdrawAmountInvalid();
-    error RelayDataToExecutorNotAllowed(bytes data);
+    // error RelayDataToExecutorNotAllowed();
+    // error RelayTransferFromNotAllowed();
 
     /**
      * Returns the address for the treasury that processes deposits and withdrawals (usually the DAO executor contract).

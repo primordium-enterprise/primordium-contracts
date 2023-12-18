@@ -541,22 +541,32 @@ abstract contract SharesManager is
         emit Withdrawal(account, receiver, totalSharesBurned, tokens);
     }
 
-    /**
-     * @dev Relays a transaction or function call to an arbitrary target, only callable by the executor. If the relay
-     * target is the executor, only allows sending ETH via the value (as the calldata length is required to be zero in
-     * this case). This is to protect against relay functions calling token-only functions on the executor.
-     */
-    function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyOwner {
-        if (
-            target == owner() && data.length > 0
-        ) revert RelayDataToExecutorNotAllowed(data);
-        (bool success, bytes memory returndata) = target.call{value: value}(data);
-        // Revert with return data on unsuccessful calls
-        if (!success) {
-            assembly {
-                revert(add(32, returndata), mload(returndata))
-            }
-        }
-    }
+    // error RelayFailed();
 
+    // /**
+    //  * @dev Relays a transaction or function call to an arbitrary target, only callable by the owner. If the relay
+    //  * target is the owner, then no calldata is allowed, only ETH transfers. If the data is an ERC20 function selector
+    //  * for transferFrom(address,address,uint256), the call reverts (to protect against the owner spending token
+    //  * approvals from the deposit process).
+    //  */
+    // function relay(address target, uint256 value, bytes memory data) external payable virtual onlyOwner {
+    //     if (target == owner() && data.length > 0) {
+    //         revert RelayDataToExecutorNotAllowed();
+    //     }
+
+    //     if (bytes4(data) == IERC20.transferFrom.selector) {
+    //         revert RelayTransferFromNotAllowed();
+    //     }
+
+    //     assembly ("memory-safe") {
+    //         if iszero(call(gas(), target, value, add(data, 0x20), mload(data), 0, 0)) {
+    //             if gt(returndatasize(), 0) {
+    //                 returndatacopy(0, 0, returndatasize())
+    //                 revert(0, returndatasize())
+    //             }
+    //             mstore(0, 0xdb6a42ee) // bytes4(keccak256(RelayFailed()))
+    //             revert(0x1c, 0x04)
+    //         }
+    //     }
+    // }
 }
