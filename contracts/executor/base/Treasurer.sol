@@ -369,7 +369,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
             bool remainderIncreased;
 
             // Get allocation amount
-            // manager.getBalanceShareAllocationWithRemainder(address(this), balanceShareId, asset, balanceIncreasedBy)
+            // manager.getBalanceShareAllocationWithRemainder(balanceShareId, asset, balanceIncreasedBy)
             bytes32 dataStart;
             bytes4 selector = manager.getBalanceShareAllocationWithRemainder.selector;
             assembly ("memory-safe") {
