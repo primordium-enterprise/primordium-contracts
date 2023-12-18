@@ -1033,15 +1033,25 @@ abstract contract GovernorBase is
         }
     }
 
+    error GovernorRelayFailed();
+
     /**
      * @dev Relays a transaction or function call to an arbitrary target. In cases where the governance _executor
      * is some contract other than the governor itself, like when using a timelock, this function can be invoked
      * in a governance proposal to recover tokens or Ether that was sent to the governor contract by mistake.
      * Note that if the _executor is simply the governor itself, use of `relay` is redundant.
      */
-    function relay(address target, uint256 value, bytes calldata data) external payable virtual onlyGovernance {
-        (bool success, bytes memory returndata) = target.call{value: value}(data);
-        Address.verifyCallResult(success, returndata);
+    function relay(address target, uint256 value, bytes memory data) external payable virtual onlyGovernance {
+        assembly ("memory-safe") {
+            if iszero(call(gas(), target, value, add(data, 0x20), mload(data), 0, 0)) {
+                if gt(returndatasize(), 0) {
+                    returndatacopy(0, 0, returndatasize())
+                    revert(0, returndatasize())
+                }
+                mstore(0, 0xbe73bd9d) // bytes4(keccak256(GovernorRelayFailed()))
+                revert(0x1c, 0x04)
+            }
+        }
     }
 
 }
