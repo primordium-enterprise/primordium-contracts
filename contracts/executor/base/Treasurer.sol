@@ -392,11 +392,11 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                 amountAllocated := mload(0)
                 remainderIncreased := mload(0x20)
             }
-            (amountAllocated, remainderIncreased) = manager.getBalanceShareAllocationWithRemainder(
-                balanceShareId,
-                address(asset),
-                balanceIncreasedBy
-            );
+            // (amountAllocated, remainderIncreased) = manager.getBalanceShareAllocationWithRemainder(
+            //     balanceShareId,
+            //     address(asset),
+            //     balanceIncreasedBy
+            // );
 
             // Only need to continue if balance actually increased, meaning balance share total BPS > 0
             if (amountAllocated > 0 || remainderIncreased) {
@@ -416,11 +416,11 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                         revert(0, returndatasize())
                     }
                 }
-                manager.allocateToBalanceShareWithRemainder{value: msgValue}(
-                    balanceShareId,
-                    address(asset),
-                    balanceIncreasedBy
-                );
+                // manager.allocateToBalanceShareWithRemainder{value: msgValue}(
+                //     balanceShareId,
+                //     address(asset),
+                //     balanceIncreasedBy
+                // );
 
                 emit BalanceShareAllocated(manager, balanceShareId, asset, balanceIncreasedBy);
             }
