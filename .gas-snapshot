@@ -1,2 +1,0 @@
-ConstantsTest:testAverageEq(uint256,uint256) (runs: 256, μ: 825, ~: 825)
-ConstantsTest:testAverageGas(uint256,uint256) (runs: 256, μ: 401, ~: 401)
