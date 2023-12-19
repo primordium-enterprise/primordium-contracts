@@ -16,4 +16,8 @@ optimizer_runs = 2000
 via_ir = true
 ignored_error_codes = ['unused-param']
 
+[fmt]
+bracket_spacing = true
+multiline_func_header = params_first
+
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
