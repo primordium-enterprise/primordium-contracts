@@ -116,7 +116,7 @@ artifacts
 # Foundry
 forge-cache
 out
-test/foundry/.*
+test/.*/**
 .test
 
 # VS Code

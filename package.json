@@ -4,12 +4,12 @@
   "description": "The Primordium on-chain governance framework.",
   "main": "index.js",
   "scripts": {
-    "compile": "forge build",
-    "test": "forge test --no-match-path 'test/foundry/.*/*'",
+    "build": "forge build",
+    "test": "forge test --no-match-path 'test/.*/*'",
     "lint": "solhint 'contracts/**/*.sol'",
-    "selector-order": "node scripts/selectorOrder.js",
-    "check:erc7201": "node scripts/checkERC7201.js",
-    "get:erc7201": "node scripts/getERC7201Hash.js"
+    "selector-order": "node utils/selectorOrder.js",
+    "check:erc7201": "node utils/checkERC7201.js",
+    "get:erc7201": "node utils/getERC7201Hash.js"
   },
   "repository": {
     "type": "git",
@@ -21,23 +21,19 @@
     "ethereum",
     "governance"
   ],
-  "author": "Ben Jett @BCJdevelopment",
-  "license": "GPL-3.0-or-later",
+  "author": "Ben Jett - @BCJdevelopment",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/BCJdevelopment/primordium-contracts/issues"
   },
   "homepage": "https://github.com/BCJdevelopment/primordium-contracts#readme",
   "devDependencies": {
-    "@nomicfoundation/hardhat-ethers": "^3.0.5",
-    "@nomicfoundation/hardhat-foundry": "^1.1.1",
-    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "chalk": "^4.1.2",
     "ethers": "^6.9.0",
-    "hardhat": "^2.19.2",
     "solhint": "^3.6.2"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.0.0",
-    "@openzeppelin/contracts-upgradeable": "^5.0.0"
+    "@openzeppelin/contracts": "^5.0.1",
+    "@openzeppelin/contracts-upgradeable": "^5.0.1"
   }
 }
