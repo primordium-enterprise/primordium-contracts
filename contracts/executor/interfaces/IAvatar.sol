@@ -9,7 +9,6 @@ import {Enum} from "contracts/common/Enum.sol";
  * @title Avatar interface, based on EIP-5005 for Zodiac Modular Accounts
  */
 interface IAvatar {
-
     event EnabledModule(address indexed module);
     event DisabledModule(address indexed module);
     event ExecutionFromModuleSuccess(address indexed module);
@@ -45,7 +44,9 @@ interface IAvatar {
         uint256 value,
         bytes memory data,
         Enum.Operation operation
-    ) external returns (bool success);
+    )
+        external
+        returns (bool success);
 
     /// @dev Allows a Module to execute a transaction and return data
     /// @notice Can only be called by an enabled module.
@@ -60,7 +61,9 @@ interface IAvatar {
         uint256 value,
         bytes memory data,
         Enum.Operation operation
-    ) external returns (bool success, bytes memory returnData);
+    )
+        external
+        returns (bool success, bytes memory returnData);
 
     /**
      * Returns true if the specified module is enabled.
@@ -76,9 +79,11 @@ interface IAvatar {
      * @return array The array of module addresses.
      * @return next Use as the start parameter to retrieve the next page of modules. Will be 0x1 at end of modules.
      */
-    function getModulesPaginated(address start, uint256 pageSize)
+    function getModulesPaginated(
+        address start,
+        uint256 pageSize
+    )
         external
         view
         returns (address[] memory array, address next);
-
 }

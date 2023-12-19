@@ -30,7 +30,6 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
         // by the {onlyGovernance} modifier and eventually reset after {_executeOperations} is complete. This ensures
         // that the execution of {onlyGovernance} protected calls can only be achieved through successful proposals.
         DoubleEndedQueue.Bytes32Deque _governanceCall;
-
         // The executor serves as the timelock and treasury
         ITimelockAvatar _executor;
     }
@@ -83,9 +82,12 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
     /**
      * @dev Get the governance call dequeuer for governance operations.
      */
-    function _getGovernanceCallQueue() internal view virtual returns (
-        DoubleEndedQueue.Bytes32Deque storage governanceCall
-    ) {
+    function _getGovernanceCallQueue()
+        internal
+        view
+        virtual
+        returns (DoubleEndedQueue.Bytes32Deque storage governanceCall)
+    {
         governanceCall = _getTimelockStorage()._governanceCall;
     }
 
@@ -112,18 +114,14 @@ abstract contract TimelockAvatarControlled is Initializable, ContextUpgradeable 
      * the exectur interface follows the IAvatar and ITimelockAvatar interfaces.
      */
     function _updateExecutor(address newExecutor) internal virtual {
-        if (
-            newExecutor == address(0) || newExecutor == address(this)
-        ) revert InvalidTimelockAvatarAddress(newExecutor);
+        if (newExecutor == address(0) || newExecutor == address(this)) {
+            revert InvalidTimelockAvatarAddress(newExecutor);
+        }
 
-        newExecutor.checkInterfaces([
-            type(IAvatar).interfaceId,
-            type(ITimelockAvatar).interfaceId
-        ]);
+        newExecutor.checkInterfaces([type(IAvatar).interfaceId, type(ITimelockAvatar).interfaceId]);
 
         TimelockAvatarControlledStorage storage $ = _getTimelockStorage();
         emit TimelockAvatarChange(address($._executor), newExecutor);
         $._executor = ITimelockAvatar(payable(newExecutor));
     }
-
 }

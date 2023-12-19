@@ -12,7 +12,6 @@ import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
  * @dev Interface of the {GovernorBase} core.
  */
 interface IGovernorBase is IERC165, IERC6372 {
-
     enum ProposalState {
         Pending,
         Active,
@@ -74,13 +73,7 @@ interface IGovernorBase is IERC165, IERC6372 {
      *
      * Note: `support` values should be seen as buckets. Their interpretation depends on the voting module used.
      */
-    event VoteCast(
-        address indexed voter,
-        uint256 indexed proposalId,
-        uint8 support,
-        uint256 weight,
-        string reason
-    );
+    event VoteCast(address indexed voter, uint256 indexed proposalId, uint8 support, uint256 weight, string reason);
 
     /**
      * @dev Emitted when a vote is cast with params.
@@ -89,12 +82,7 @@ interface IGovernorBase is IERC165, IERC6372 {
      * `params` are additional encoded parameters. Their interpepretation also depends on the voting module used.
      */
     event VoteCastWithParams(
-        address indexed voter,
-        uint256 indexed proposalId,
-        uint8 support,
-        uint256 weight,
-        string reason,
-        bytes params
+        address indexed voter, uint256 indexed proposalId, uint8 support, uint256 weight, string reason, bytes params
     );
 
     /**
@@ -255,7 +243,10 @@ interface IGovernorBase is IERC165, IERC6372 {
         address account,
         uint256 timepoint,
         bytes memory params
-    ) external view returns (uint256);
+    )
+        external
+        view
+        returns (uint256);
 
     /**
      * @dev Returns whether `account` has cast a vote on `proposalId`.
@@ -297,7 +288,10 @@ interface IGovernorBase is IERC165, IERC6372 {
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
-    ) external pure returns (bytes32);
+    )
+        external
+        pure
+        returns (bytes32);
 
     /**
      * Create a new proposal. Emits a {ProposalCreated} event.
@@ -321,7 +315,9 @@ interface IGovernorBase is IERC165, IERC6372 {
         bytes[] calldata calldatas,
         string[] calldata signatures,
         string calldata description
-    ) external returns (uint256 proposalId);
+    )
+        external
+        returns (uint256 proposalId);
 
     /**
      * @dev Queue a proposal in the Executor for execution.
@@ -333,7 +329,9 @@ interface IGovernorBase is IERC165, IERC6372 {
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
-    ) external returns (uint256 proposalId_);
+    )
+        external
+        returns (uint256 proposalId_);
 
     /**
      * @dev Execute a successful proposal. This requires the quorum to be reached, the vote to be successful, and the
@@ -348,7 +346,9 @@ interface IGovernorBase is IERC165, IERC6372 {
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
-    ) external returns (uint256 proposalId_);
+    )
+        external
+        returns (uint256 proposalId_);
 
     /**
      * @dev Cancel a proposal. A proposal is cancellable by the proposer, but only while it is Pending state, i.e.
@@ -364,7 +364,9 @@ interface IGovernorBase is IERC165, IERC6372 {
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
-    ) external returns (uint256 proposalId_);
+    )
+        external
+        returns (uint256 proposalId_);
 
     /**
      * @dev Cast a vote
@@ -382,7 +384,9 @@ interface IGovernorBase is IERC165, IERC6372 {
         uint256 proposalId,
         uint8 support,
         string calldata reason
-    ) external returns (uint256 balance);
+    )
+        external
+        returns (uint256 balance);
 
     /**
      * @dev Cast a vote with a reason and additional encoded parameters
@@ -394,7 +398,9 @@ interface IGovernorBase is IERC165, IERC6372 {
         uint8 support,
         string calldata reason,
         bytes memory params
-    ) external returns (uint256 balance);
+    )
+        external
+        returns (uint256 balance);
 
     /**
      * Cast a vote using the user's cryptographic signature.
@@ -408,7 +414,9 @@ interface IGovernorBase is IERC165, IERC6372 {
         uint8 support,
         address voter,
         bytes memory signature
-    ) external returns (uint256 balance);
+    )
+        external
+        returns (uint256 balance);
 
     /**
      * @dev Cast a vote with a reason and additional encoded parameters using the user's cryptographic signature.
@@ -424,7 +432,9 @@ interface IGovernorBase is IERC165, IERC6372 {
         string calldata reason,
         bytes memory params,
         bytes memory signature
-    ) external returns (uint256 balance);
+    )
+        external
+        returns (uint256 balance);
 
     /**
      * @dev Batch method for granting roles. Only governance.
@@ -433,20 +443,12 @@ interface IGovernorBase is IERC165, IERC6372 {
      * @param expiresAts The expiration timestamp for each role. Can be set to type(uint256).max for infinite. After
      * this timestamp, an account will not be able to fulfill the access of this role anymore.
      */
-    function grantRoles(
-        bytes32[] memory roles,
-        address[] memory accounts,
-        uint256[] memory expiresAts
-    ) external;
+    function grantRoles(bytes32[] memory roles, address[] memory accounts, uint256[] memory expiresAts) external;
 
     /**
      * @dev Batch method for revoking roles. Only governance.
      * @param roles The bytes32 roles to revoke.
      * @param accounts The accounts to revoke each role from.
      */
-    function revokeRoles(
-        bytes32[] memory roles,
-        address[] memory accounts
-    ) external;
-
+    function revokeRoles(bytes32[] memory roles, address[] memory accounts) external;
 }

@@ -11,7 +11,6 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
  * @author Ben Jett - @BCJdevelopment
  */
 interface ITreasury {
-
     /**
      * @dev Registers a deposit on the Treasury. Should only be callable by the shares contract.
      * @param quoteAsset The ERC20 asset that is being deposited. address(0) for native currency (such as ETH).
@@ -34,6 +33,6 @@ interface ITreasury {
         uint256 sharesBurned,
         uint256 sharesTotalSupply,
         IERC20[] calldata tokens
-    ) external;
-
+    )
+        external;
 }

@@ -44,16 +44,13 @@ contract Distributor is
         // Slot 0 (32 bytes)
         uint128 totalBalance;
         uint128 claimedBalance;
-
         // Slot 1 (32 bytes)
         uint48 snapshotId;
         uint208 cachedTotalSupply;
-
         // Slot 2 (27 bytes)
         IERC20 asset;
         uint48 closableAt;
         bool isClosed;
-
         // Slot 3
         mapping(address => bool) hasClaimed;
     }
@@ -63,16 +60,12 @@ contract Distributor is
         // Slot 0 (32 bytes)
         uint48 _claimPeriod;
         uint208 _distributionsCount;
-
         // Slot 1 (20 bytes)
         IERC20Snapshots _token;
-
         // Slot 2
         mapping(uint256 distributionId => Distribution) _distributions;
-
         // Slot 3
         mapping(address account => bool isApprovedToClose) _closeDistributionsApproval;
-
         // Slot 4
         mapping(address holder => mapping(address account => bool isApprovedToClaim)) _claimDistributionsApproval;
     }
@@ -99,22 +92,9 @@ contract Distributor is
     );
     event DistributionClaimPeriodUpdate(uint256 oldClaimPeriod, uint256 newClaimPeriod);
     event CloseDistributionsApprovalUpdate(address indexed account, bool indexed isApproved);
-    event DistributionClosed(
-        uint256 indexed distributionId,
-        IERC20 asset,
-        uint256 reclaimAmount
-    );
-    event ClaimDistributionsApprovalUpdate(
-        address indexed holder,
-        address indexed account,
-        bool indexed isApproved
-    );
-    event DistributionClaimed(
-        uint256 indexed distributionId,
-        address indexed holder,
-        IERC20 asset,
-        uint256 amount
-    );
+    event DistributionClosed(uint256 indexed distributionId, IERC20 asset, uint256 reclaimAmount);
+    event ClaimDistributionsApprovalUpdate(address indexed holder, address indexed account, bool indexed isApproved);
+    event DistributionClaimed(uint256 indexed distributionId, address indexed holder, IERC20 asset, uint256 amount);
 
     error Unauthorized();
     error InvalidERC165InterfaceSupport(address _contract);
@@ -142,19 +122,13 @@ contract Distributor is
     /**
      * By default, initializes to the msg.sender being the owner.
      */
-    function initialize(
-        address token_,
-        uint256 claimPeriod_
-    ) external initializer {
+    function initialize(address token_, uint256 claimPeriod_) external initializer {
         DistributorStorage storage $ = _getDistributorStorage();
 
         __Ownable_init(msg.sender);
         __EIP712_init("Distributor", "1");
 
-        token_.checkInterfaces([
-            type(IERC20Snapshots).interfaceId,
-            type(IERC6372).interfaceId
-        ]);
+        token_.checkInterfaces([type(IERC20Snapshots).interfaceId, type(IERC6372).interfaceId]);
         $._token = IERC20Snapshots(token_);
 
         _setDistributionClaimPeriod(claimPeriod_);
@@ -230,7 +204,12 @@ contract Distributor is
     function accountHasClaimedDistribution(
         uint256 distributionId,
         address holder
-    ) public view virtual returns (bool hasClaimed) {
+    )
+        public
+        view
+        virtual
+        returns (bool hasClaimed)
+    {
         Distribution storage _distribution = _getDistributorStorage()._distributions[distributionId];
         _checkDistributionExistence(_distribution);
 
@@ -246,14 +225,19 @@ contract Distributor is
      * @return closableAt The clock unit when this distribution will be closable.
      * @return isClosed A bool that is true if the distribution has been closed.
      */
-    function getDistributionData(uint256 distributionId) public view virtual returns (
-        uint256 totalBalance,
-        uint256 claimedBalance,
-        IERC20 asset,
-        uint256 snapshotId,
-        uint256 closableAt,
-        bool isClosed
-    ) {
+    function getDistributionData(uint256 distributionId)
+        public
+        view
+        virtual
+        returns (
+            uint256 totalBalance,
+            uint256 claimedBalance,
+            IERC20 asset,
+            uint256 snapshotId,
+            uint256 closableAt,
+            bool isClosed
+        )
+    {
         Distribution storage _distribution = _getDistributorStorage()._distributions[distributionId];
         (totalBalance, claimedBalance) = _checkDistributionExistence(_distribution);
         asset = _distribution.asset;
@@ -279,7 +263,14 @@ contract Distributor is
         uint256 snapshotId,
         IERC20 asset,
         uint256 amount
-    ) public payable virtual onlyOwner requireOwnerAuthorization returns (uint256 distributionId) {
+    )
+        public
+        payable
+        virtual
+        onlyOwner
+        requireOwnerAuthorization
+        returns (uint256 distributionId)
+    {
         distributionId = _createDistribution(snapshotId, asset, amount);
     }
 
@@ -287,7 +278,11 @@ contract Distributor is
         uint256 snapshotId,
         IERC20 asset,
         uint256 amount
-    ) internal virtual returns (uint256 distributionId) {
+    )
+        internal
+        virtual
+        returns (uint256 distributionId)
+    {
         DistributorStorage storage $ = _getDistributorStorage();
 
         // Verify the snapshot ID is current
@@ -336,13 +331,13 @@ contract Distributor is
      * address(0) to allow anyone to close a distribution.
      * @param accounts A list of addresses to approve.
      */
-    function approveForClosingDistributions(
-        address[] calldata accounts
-    ) external virtual onlyOwner {
+    function approveForClosingDistributions(address[] calldata accounts) external virtual onlyOwner {
         DistributorStorage storage $ = _getDistributorStorage();
         for (uint256 i = 0; i < accounts.length;) {
             _setApprovalForClosingDistributions($, accounts[i], true);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -350,13 +345,13 @@ contract Distributor is
      * A timelock-only function to unapprove addresses for closing distributions.
      * @param accounts A list of addresses to unapprove.
      */
-    function unapproveForClosingDistributions(
-        address[] calldata accounts
-    ) external virtual onlyOwner {
+    function unapproveForClosingDistributions(address[] calldata accounts) external virtual onlyOwner {
         DistributorStorage storage $ = _getDistributorStorage();
         for (uint256 i = 0; i < accounts.length;) {
             _setApprovalForClosingDistributions($, accounts[i], false);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -364,7 +359,10 @@ contract Distributor is
         DistributorStorage storage $,
         address account,
         bool isApproved
-    ) internal virtual {
+    )
+        internal
+        virtual
+    {
         $._closeDistributionsApproval[account] = isApproved;
         emit CloseDistributionsApprovalUpdate(account, isApproved);
     }
@@ -382,10 +380,7 @@ contract Distributor is
         // Authorize the caller
         address _owner = owner();
         if (msg.sender != _owner) {
-            if (
-                !$._closeDistributionsApproval[address(0)] &&
-                !$._closeDistributionsApproval[_msgSender()]
-            ) {
+            if (!$._closeDistributionsApproval[address(0)] && !$._closeDistributionsApproval[_msgSender()]) {
                 revert Unauthorized();
             }
         }
@@ -393,10 +388,7 @@ contract Distributor is
         _closeDistribution(distributionId, _owner);
     }
 
-    function _closeDistribution(
-        uint256 distributionId,
-        address reclaimReceiver
-    ) internal virtual {
+    function _closeDistribution(uint256 distributionId, address reclaimReceiver) internal virtual {
         DistributorStorage storage $ = _getDistributorStorage();
 
         Distribution storage _distribution = $._distributions[distributionId];
@@ -435,7 +427,12 @@ contract Distributor is
     function isApprovedForClaimingDistributions(
         address holder,
         address account
-    ) public view virtual returns (bool isApproved) {
+    )
+        public
+        view
+        virtual
+        returns (bool isApproved)
+    {
         isApproved = _getDistributorStorage()._claimDistributionsApproval[holder][account];
     }
 
@@ -444,9 +441,7 @@ contract Distributor is
      * @notice Claimed distribution funds are still sent to the token holder, not the approved account.
      * @param accounts A list of addresses to approve.
      */
-    function approveForClaimingDistributions(
-        address[] calldata accounts
-    ) external virtual {
+    function approveForClaimingDistributions(address[] calldata accounts) external virtual {
         DistributorStorage storage $ = _getDistributorStorage();
         for (uint256 i = 0; i < accounts.length; ++i) {
             _setApprovalForClaimingDistributions($, msg.sender, accounts[i], true);
@@ -459,9 +454,7 @@ contract Distributor is
      * @notice Claimed distribution funds are still sent to the token holder, not the approved account.
      * @param accounts A list of addresses to approve.
      */
-    function unapproveForClaimingDistributions(
-        address[] calldata accounts
-    ) external virtual {
+    function unapproveForClaimingDistributions(address[] calldata accounts) external virtual {
         DistributorStorage storage $ = _getDistributorStorage();
         for (uint256 i = 0; i < accounts.length; ++i) {
             _setApprovalForClaimingDistributions($, msg.sender, accounts[i], false);
@@ -473,7 +466,9 @@ contract Distributor is
         address holder,
         address account,
         bool isApproved
-    ) internal {
+    )
+        internal
+    {
         $._claimDistributionsApproval[holder][account] = isApproved;
         emit ClaimDistributionsApprovalUpdate(holder, account, isApproved);
     }
@@ -492,7 +487,11 @@ contract Distributor is
         uint256 distributionId,
         address holder,
         address receiver
-    ) public virtual returns (uint256 claimAmount) {
+    )
+        public
+        virtual
+        returns (uint256 claimAmount)
+    {
         DistributorStorage storage $ = _getDistributorStorage();
 
         // Authorize the sender
@@ -504,10 +503,7 @@ contract Distributor is
             }
 
             // Sender must be authorized to send to the holder
-            if (
-                !$._claimDistributionsApproval[holder][address(0)] &&
-                !$._claimDistributionsApproval[holder][sender]
-            ) {
+            if (!$._claimDistributionsApproval[holder][address(0)] && !$._claimDistributionsApproval[holder][sender]) {
                 revert Unauthorized();
             }
         }
@@ -518,9 +514,7 @@ contract Distributor is
     /**
      * Same as above, but uses the msg.sender as the holder and the receiver address.
      */
-    function claimDistribution(
-        uint256 distributionId
-    ) public virtual returns (uint256 claimAmount) {
+    function claimDistribution(uint256 distributionId) public virtual returns (uint256 claimAmount) {
         address sender = _msgSender();
         claimAmount = _claimDistribution(_getDistributorStorage(), distributionId, sender, sender);
     }
@@ -536,7 +530,11 @@ contract Distributor is
         address receiver,
         uint256 deadline,
         bytes memory signature
-    ) public virtual returns (uint256 claimAmount) {
+    )
+        public
+        virtual
+        returns (uint256 claimAmount)
+    {
         if (block.timestamp > deadline) {
             revert ClaimsExpiredSignature();
         }
@@ -546,12 +544,7 @@ contract Distributor is
             _hashTypedDataV4(
                 keccak256(
                     abi.encode(
-                        CLAIM_DISTRIBUTION_TYPEHASH,
-                        distributionId,
-                        holder,
-                        receiver,
-                        _useNonce(holder),
-                        deadline
+                        CLAIM_DISTRIBUTION_TYPEHASH, distributionId, holder, receiver, _useNonce(holder), deadline
                     )
                 )
             ),
@@ -570,7 +563,11 @@ contract Distributor is
         uint256 distributionId,
         address holder,
         address receiver
-    ) internal virtual returns (uint256 claimAmount) {
+    )
+        internal
+        virtual
+        returns (uint256 claimAmount)
+    {
         // Set the distribution reference
         Distribution storage _distribution;
         assembly ("memory-safe") {
@@ -628,11 +625,7 @@ contract Distributor is
         }
 
         // Calculate the claim amount
-        claimAmount = Math.mulDiv(
-            _token.getBalanceAtSnapshot(holder, snapshotId),
-            totalBalance,
-            totalSupply
-        );
+        claimAmount = Math.mulDiv(_token.getBalanceAtSnapshot(holder, snapshotId), totalBalance, totalSupply);
 
         // Set the distribution as claimed for the holder, update claimed balance, and transfer the assets
         assembly ("memory-safe") {
@@ -649,9 +642,7 @@ contract Distributor is
         emit DistributionClaimed(distributionId, holder, asset, claimAmount);
     }
 
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal virtual override onlyOwner {
+    function _authorizeUpgrade(address newImplementation) internal virtual override onlyOwner {
         bytes memory data = abi.encodeCall(Treasurer.authorizeDistributorImplementation, (newImplementation));
         owner().functionCall(data);
     }
@@ -659,9 +650,11 @@ contract Distributor is
     /**
      * @dev Distribution considered to exist if totalBalance is greater than zero
      */
-    function _checkDistributionExistence(
-        Distribution storage _distribution
-    ) internal view returns (uint256 totalBalance, uint256 claimedBalance) {
+    function _checkDistributionExistence(Distribution storage _distribution)
+        internal
+        view
+        returns (uint256 totalBalance, uint256 claimedBalance)
+    {
         totalBalance = _distribution.totalBalance;
         claimedBalance = _distribution.claimedBalance;
         if (totalBalance == 0) {

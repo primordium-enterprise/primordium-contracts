@@ -10,7 +10,6 @@ pragma solidity ^0.8.20;
  * @author Ben Jett = @BCJdevelopment
  */
 library SelectorChecker {
-
     error InvalidActionSignature(uint256 index);
 
     /**
@@ -20,11 +19,7 @@ library SelectorChecker {
      * @param calldatas The provided calldatas.
      * @param signatures The provided human-readable function signatures. (Example: "transfer(address,uint256)")
      */
-    function verifySelectors(
-        bytes[] calldata calldatas,
-        string[] calldata signatures
-    ) internal pure {
-
+    function verifySelectors(bytes[] calldata calldatas, string[] calldata signatures) internal pure {
         bytes4 selector;
         bytes4 signatureHash;
 
@@ -33,10 +28,13 @@ library SelectorChecker {
             if (calldatas[i].length > 0) {
                 assembly {
                     // Load the function selector from the current calldatas array item
-                    selector := calldataload(
-                        add(0x20, // Add an additional 32 bytes offset for the length of the item
-                            add(calldatas.offset, calldataload(add(calldatas.offset, mul(i, 0x20)))))
-                    )
+                    selector :=
+                        calldataload(
+                            add(
+                                0x20, // Add an additional 32 bytes offset for the length of the item
+                                add(calldatas.offset, calldataload(add(calldatas.offset, mul(i, 0x20))))
+                            )
+                        )
 
                     // Store the offset to the signature item in scratch space
                     mstore(0, add(signatures.offset, calldataload(add(signatures.offset, mul(i, 0x20)))))
@@ -60,9 +58,9 @@ library SelectorChecker {
             } else {
                 if (bytes(signatures[i]).length > 0) revert InvalidActionSignature(i);
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
-
     }
-
 }

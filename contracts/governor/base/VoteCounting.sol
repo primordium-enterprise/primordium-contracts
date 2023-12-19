@@ -36,8 +36,7 @@ abstract contract VoteCounting is GovernorBase {
     }
 
     // keccak256(abi.encode(uint256(keccak256("VoteCounting.Storage")) - 1)) & ~bytes32(uint256(0xff));
-    bytes32 private constant VOTE_COUNTING_STORAGE =
-        0x16fd3682d81d1f1c054ac6f115d03ff34fa3ca070ab82bd2207eb8c3ae407200;
+    bytes32 private constant VOTE_COUNTING_STORAGE = 0x16fd3682d81d1f1c054ac6f115d03ff34fa3ca070ab82bd2207eb8c3ae407200;
 
     function _getVoteCountingStorage() private pure returns (VoteCountingStorage storage $) {
         assembly {
@@ -66,9 +65,12 @@ abstract contract VoteCounting is GovernorBase {
     /**
      * @dev Accessor to the internal vote counts.
      */
-    function proposalVotes(
-        uint256 proposalId
-    ) public view virtual returns (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes) {
+    function proposalVotes(uint256 proposalId)
+        public
+        view
+        virtual
+        returns (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes)
+    {
         ProposalVote storage proposalVote = _getVoteCountingStorage()._proposalVotes[proposalId];
         return (proposalVote.againstVotes, proposalVote.forVotes, proposalVote.abstainVotes);
     }
@@ -107,7 +109,8 @@ abstract contract VoteCounting is GovernorBase {
     }
 
     /**
-     * @dev See {GovernorBase-_countVote}. In this module, the support follows the `VoteType` enum (from GovernorBase Bravo).
+     * @dev See {GovernorBase-_countVote}. In this module, the support follows the `VoteType` enum (from GovernorBase
+     * Bravo).
      */
     function _countVote(
         uint256 proposalId,
@@ -115,7 +118,11 @@ abstract contract VoteCounting is GovernorBase {
         uint8 support,
         uint256 weight,
         bytes memory // params
-    ) internal virtual override {
+    )
+        internal
+        virtual
+        override
+    {
         ProposalVote storage proposalVote = _getVoteCountingStorage()._proposalVotes[proposalId];
 
         if (proposalVote.hasVoted[account]) revert VoteAlreadyCast();

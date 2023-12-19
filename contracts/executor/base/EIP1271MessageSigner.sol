@@ -16,7 +16,6 @@ import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
  * the expiration, and the provided signature is a 32 byte representation of the uint256 expiration in seconds.
  */
 abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271 {
-
     /// @custom:storage-location erc7201:EIP1271MessageSigner.Storage
     struct EIP1271MessageSignerStorage {
         mapping(bytes32 messageHash => uint256 expiration) _messageHashExpirations;
@@ -25,7 +24,6 @@ abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271 {
     // keccak256(abi.encode(uint256(keccak256("EIP1271MessageSigner.Storage")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 private constant EIP1271_MESSAGE_SIGNER_STORAGE =
         0x7ccf98f2f5d3183631b86b3245f7a533ff61e2dc6625ffef314ca5cf5b9d9900;
-
 
     function _getEIP1271MessageSignerStorage() private pure returns (EIP1271MessageSignerStorage storage $) {
         assembly {
@@ -47,7 +45,13 @@ abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271 {
     function isValidSignature(
         bytes32 hash,
         bytes memory signature
-    ) external view virtual override returns (bytes4 magicValue) {
+    )
+        external
+        view
+        virtual
+        override
+        returns (bytes4 magicValue)
+    {
         // Default to failure
         magicValue = 0xffffffff;
         if (signature.length == 0) {
@@ -72,10 +76,7 @@ abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271 {
      * @param messageHash The message hash to be "signed".
      * @param signatureExpiration The timestamp in seconds when the message signature should expire.
      */
-    function signMessageHash(
-        bytes32 messageHash,
-        uint256 signatureExpiration
-    ) external virtual onlySelf {
+    function signMessageHash(bytes32 messageHash, uint256 signatureExpiration) external virtual onlySelf {
         _signMessageHash(messageHash, signatureExpiration);
     }
 
@@ -93,9 +94,7 @@ abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271 {
      * @notice This function is self-authorized, meaning this contract must call it on itself to cancel a message.
      * @param messageHash The signed message hash to cancel.
      */
-    function cancelSignature(
-        bytes32 messageHash
-    ) external virtual onlySelf {
+    function cancelSignature(bytes32 messageHash) external virtual onlySelf {
         _cancelSignature(messageHash);
     }
 

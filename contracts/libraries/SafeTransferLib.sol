@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
-// Slightly modified from Solady's SafeTransferLib, (https://github.com/vectorized/solady/blob/main/src/utils/SafeTransferLib.sol)
+// Slightly modified from Solady's SafeTransferLib,
+// (https://github.com/vectorized/solady/blob/main/src/utils/SafeTransferLib.sol)
 
 pragma solidity ^0.8.20;
 
@@ -118,10 +119,7 @@ library SafeTransferLib {
     }
 
     /// @dev Sends `amount` (in wei) ETH to `to`, with a `gasStipend`.
-    function trySafeTransferETH(address to, uint256 amount, uint256 gasStipend)
-        internal
-        returns (bool success)
-    {
+    function trySafeTransferETH(address to, uint256 amount, uint256 gasStipend) internal returns (bool success) {
         /// @solidity memory-safe-assembly
         assembly {
             success := call(gasStipend, to, amount, codesize(), 0x00, codesize(), 0x00)

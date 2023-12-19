@@ -19,7 +19,7 @@ abstract contract VoteMajoritySettings is VoteCounting {
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace208;
 
-    uint256 constant private MAX_PERCENT = 100;
+    uint256 private constant MAX_PERCENT = 100;
     uint256 public constant MIN_PERCENT_MAJORITY = 50;
     uint256 public constant MAX_PERCENT_MAJORITY = 66;
 
@@ -42,9 +42,7 @@ abstract contract VoteMajoritySettings is VoteCounting {
 
     error PercentMajorityOutOfRange(uint256 minRange, uint256 maxRange);
 
-    function __VoteMajoritySettings_init(
-        uint256 percentMajority_
-    ) internal virtual onlyInitializing {
+    function __VoteMajoritySettings_init(uint256 percentMajority_) internal virtual onlyInitializing {
         _setPercentMajority(percentMajority_);
     }
 
@@ -90,10 +88,9 @@ abstract contract VoteMajoritySettings is VoteCounting {
      * @dev Helper method to create a new percent majority checkpoint.
      */
     function _setPercentMajority(uint256 newPercentMajority) internal virtual {
-        if (
-            newPercentMajority < MIN_PERCENT_MAJORITY ||
-            newPercentMajority > MAX_PERCENT_MAJORITY
-        ) revert PercentMajorityOutOfRange(MIN_PERCENT_MAJORITY, MAX_PERCENT_MAJORITY);
+        if (newPercentMajority < MIN_PERCENT_MAJORITY || newPercentMajority > MAX_PERCENT_MAJORITY) {
+            revert PercentMajorityOutOfRange(MIN_PERCENT_MAJORITY, MAX_PERCENT_MAJORITY);
+        }
 
         uint256 oldPercentMajority = percentMajority();
 
@@ -109,11 +106,7 @@ abstract contract VoteMajoritySettings is VoteCounting {
      * percentMajority value at the proposal snapshot.
      */
     function _voteSucceeded(uint256 proposalId) internal view virtual override returns (bool) {
-        (
-            uint256 percentToSucceed,
-            uint256 againstVotes,
-            uint256 forVotes
-        ) = _getVoteCalculationParams(proposalId);
+        (uint256 percentToSucceed, uint256 againstVotes, uint256 forVotes) = _getVoteCalculationParams(proposalId);
 
         /**
          * (percentToSucceed / 100) < forVotes / (forVotes + againstVotes)
@@ -143,11 +136,7 @@ abstract contract VoteMajoritySettings is VoteCounting {
      * number of forVotes based on the percentMajority value at the proposal snapshot.
      */
     function _voteMargin(uint256 proposalId) internal view virtual override returns (uint256) {
-        (
-            uint256 percentToSucceed,
-            uint256 againstVotes,
-            uint256 forVotes
-        ) = _getVoteCalculationParams(proposalId);
+        (uint256 percentToSucceed, uint256 againstVotes, uint256 forVotes) = _getVoteCalculationParams(proposalId);
 
         /**
          * forVotesToSucceed / (forVotesToSucceed + againstVotes) = percentToSucceed / 100
@@ -176,11 +165,12 @@ abstract contract VoteMajoritySettings is VoteCounting {
      * @return againstVotes The number of votes against the proposal
      * @return forVotes The number of votes for the proposal
      */
-    function _getVoteCalculationParams(uint256 proposalId) internal view virtual returns (
-        uint256 percentToSucceed,
-        uint256 againstVotes,
-        uint256 forVotes
-    ) {
+    function _getVoteCalculationParams(uint256 proposalId)
+        internal
+        view
+        virtual
+        returns (uint256 percentToSucceed, uint256 againstVotes, uint256 forVotes)
+    {
         percentToSucceed = _percentMajority(proposalSnapshot(proposalId));
         VoteCounting.ProposalVote storage proposalVote = _proposalVote(proposalId);
         againstVotes = proposalVote.againstVotes;

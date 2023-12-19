@@ -42,9 +42,9 @@ library SnapshotCheckpoints {
         uint208 _value;
     }
 
-    uint48 constant private MAX_KEY = type(uint48).max;
+    uint48 private constant MAX_KEY = type(uint48).max;
 
-    uint256 constant private MASK_UINT48 = 0xffffffffffff;
+    uint256 private constant MASK_UINT48 = 0xffffffffffff;
 
     /**
      * @dev Updates the (`key`, `value`) pair into a Trace208 so that it is stored as a checkpoint. If the `snapshotKey`
@@ -61,7 +61,10 @@ library SnapshotCheckpoints {
         uint48 snapshotKey,
         uint48 key,
         uint208 value
-    ) internal returns (uint208, uint208) {
+    )
+        internal
+        returns (uint208, uint208)
+    {
         (uint256 len, Checkpoint208 memory lastCkpt) = _latestCheckpoint(self);
         return _insert(self, snapshotKey, key, value, len, lastCkpt);
     }
@@ -76,7 +79,10 @@ library SnapshotCheckpoints {
         uint48 key,
         function(uint256, uint256) view returns (uint256) op,
         uint256 delta
-    ) internal returns (uint208, uint208) {
+    )
+        internal
+        returns (uint208, uint208)
+    {
         (uint256 len, Checkpoint208 memory lastCkpt) = _latestCheckpoint(self);
         return _insert(self, snapshotKey, key, op(lastCkpt._value, delta).toUint208(), len, lastCkpt);
     }
@@ -90,11 +96,7 @@ library SnapshotCheckpoints {
      * IMPORTANT: Never accept `key` as a user input, since an arbitrary `type(uint48).max` key set will disable the
      * library.
      */
-    function push(
-        Trace208 storage self,
-        uint48 key,
-        uint208 value
-    ) internal returns (uint208, uint208) {
+    function push(Trace208 storage self, uint48 key, uint208 value) internal returns (uint208, uint208) {
         return push(self, MAX_KEY, key, value);
     }
 
@@ -107,7 +109,10 @@ library SnapshotCheckpoints {
         uint48 key,
         function(uint256, uint256) view returns (uint256) op,
         uint256 delta
-    ) internal returns (uint208, uint208) {
+    )
+        internal
+        returns (uint208, uint208)
+    {
         return push(self, MAX_KEY, key, op, delta);
     }
 
@@ -204,7 +209,11 @@ library SnapshotCheckpoints {
         uint48 key,
         uint256 low,
         uint256 high
-    ) private view returns (uint256) {
+    )
+        private
+        view
+        returns (uint256)
+    {
         assembly ("memory-safe") {
             // Store mapping slot in scratch space for repeated hashing
             mstore(0x20, add(self.slot, 0x01))
@@ -213,16 +222,10 @@ library SnapshotCheckpoints {
                 // mid = avg(low, high), where avg = (low & high) + (low ^ high) / 2
                 mstore(0, add(and(low, high), div(xor(low, high), 2)))
                 // if (_checkpoints[mid]._key > key)
-                switch gt(
-                    and(sload(keccak256(0, 0x40)), MASK_UINT48),
-                    key
-                )
-                case 1 {
-                    high := mload(0) // high = mid
-                }
-                default {
-                    low := add(mload(0), 0x01) // low = mid + 1
-                }
+                switch gt(and(sload(keccak256(0, 0x40)), MASK_UINT48), key)
+                case 1 { high := mload(0) }
+                // high = mid
+                default { low := add(mload(0), 0x01) } // low = mid + 1
             }
         }
         return high;
@@ -240,7 +243,11 @@ library SnapshotCheckpoints {
         uint48 key,
         uint256 low,
         uint256 high
-    ) private view returns (uint256) {
+    )
+        private
+        view
+        returns (uint256)
+    {
         assembly ("memory-safe") {
             // Store mapping slot in scratch space for repeated hashing
             mstore(0x20, add(self.slot, 0x01))
@@ -249,16 +256,10 @@ library SnapshotCheckpoints {
                 // mid = avg(low, high), where avg = (low & high) + (low ^ high) / 2
                 mstore(0, add(and(low, high), div(xor(low, high), 2)))
                 // if (_checkpoints[mid]._key < key)
-                switch lt(
-                    and(sload(keccak256(0, 0x40)), MASK_UINT48),
-                    key
-                )
-                case 1 {
-                    low := add(mload(0), 0x01) // low = mid + 1
-                }
-                default {
-                    high := mload(0)
-                }
+                switch lt(and(sload(keccak256(0, 0x40)), MASK_UINT48), key)
+                case 1 { low := add(mload(0), 0x01) }
+                // low = mid + 1
+                default { high := mload(0) }
             }
         }
         return high;
@@ -282,7 +283,10 @@ library SnapshotCheckpoints {
         uint208 value,
         uint256 len,
         Checkpoint208 memory lastCkpt
-    ) private returns (uint208, uint208) {
+    )
+        private
+        returns (uint208, uint208)
+    {
         if (len > 0) {
             // Checkpoint keys must be non-decreasing.
             if (lastCkpt._key > key) {
@@ -314,10 +318,7 @@ library SnapshotCheckpoints {
     /**
      * @dev Access an element of the mapping without a bounds check. The position is assumed to be within bounds.
      */
-    function _unsafeAccess(
-        Trace208 storage self,
-        uint256 pos
-    ) private pure returns (Checkpoint208 storage result) {
+    function _unsafeAccess(Trace208 storage self, uint256 pos) private pure returns (Checkpoint208 storage result) {
         assembly {
             mstore(0, pos)
             mstore(0x20, add(self.slot, 0x01))

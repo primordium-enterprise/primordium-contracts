@@ -7,7 +7,6 @@ import {Enum} from "contracts/common/Enum.sol";
 import {IAvatar} from "./IAvatar.sol";
 
 interface ITimelockAvatar is IAvatar {
-
     enum OperationStatus {
         NoOp, // NoOp when executableAt == 0
         Cancelled, // Cancelled when executableAt == 1
@@ -83,14 +82,10 @@ interface ITimelockAvatar is IAvatar {
      * @return createdAt Timestamp when this operation was created.
      * @return opHash The hash of the operation's target, value, and calldata.
      */
-    function getOperationDetails(
-        uint256 opNonce
-    ) external view returns (
-        address module,
-        uint256 executableAt,
-        uint256 createdAt,
-        bytes32 opHash
-    );
+    function getOperationDetails(uint256 opNonce)
+        external
+        view
+        returns (address module, uint256 executableAt, uint256 createdAt, bytes32 opHash);
 
     /**
      * Schedules a transaction for execution (with return data).
@@ -109,7 +104,9 @@ interface ITimelockAvatar is IAvatar {
         bytes calldata data,
         Enum.Operation operation,
         uint256 delay
-    ) external returns (bool success, bytes memory returnData);
+    )
+        external
+        returns (bool success, bytes memory returnData);
 
     /**
      * Executes a scheduled operation.
@@ -126,7 +123,8 @@ interface ITimelockAvatar is IAvatar {
         uint256 value,
         bytes calldata data,
         Enum.Operation operation
-    ) external;
+    )
+        external;
 
     /**
      * Cancels a scheduled operation.
@@ -149,6 +147,8 @@ interface ITimelockAvatar is IAvatar {
         uint256 value,
         bytes calldata data,
         Enum.Operation operation
-    ) external pure returns (bytes32 opHash);
-
+    )
+        external
+        pure
+        returns (bytes32 opHash);
 }

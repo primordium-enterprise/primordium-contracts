@@ -5,52 +5,39 @@ import "forge-std/Test.sol";
 import {SelectorChecker} from "contracts/libraries/SelectorChecker.sol";
 
 interface IVerifySignaturesTest {
-
     function add(uint256) external;
 
     function subtract(uint256) external;
 
     function veryLongFunctionSignature(uint256, address, uint256) external;
-
 }
 
 contract Verifier {
-
-    function verifySolidity(
-        bytes[] calldata calldatas,
-        string[] calldata signatures
-    ) external pure returns (bool) {
-
+    function verifySolidity(bytes[] calldata calldatas, string[] calldata signatures) external pure returns (bool) {
         for (uint256 i = 0; i < signatures.length;) {
             if (calldatas[i].length > 0) {
-                if (
-                    bytes4(calldatas[i]) != bytes4(keccak256(bytes(signatures[i])))
-                ) revert();
+                if (bytes4(calldatas[i]) != bytes4(keccak256(bytes(signatures[i])))) revert();
             } else {
                 // Revert if signature is provided with no calldata
                 if (bytes(signatures[i]).length > 0) {
                     revert();
                 }
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         return true;
-
     }
 
-    function verifyYul(
-        bytes[] calldata calldatas,
-        string[] calldata signatures
-    ) external pure returns (bool) {
+    function verifyYul(bytes[] calldata calldatas, string[] calldata signatures) external pure returns (bool) {
         SelectorChecker.verifySelectors(calldatas, signatures);
         return true;
     }
-
 }
 
 contract SelectorCheckerTest is Test {
-
     Verifier verifier = new Verifier();
 
     function _createTestData() internal view returns (bytes[] memory calldatas, string[] memory signatures) {
@@ -108,5 +95,4 @@ contract SelectorCheckerTest is Test {
         vm.expectRevert(abi.encodeWithSelector(SelectorChecker.InvalidActionSignature.selector, 0));
         verifier.verifyYul(calldatas, signatures);
     }
-
 }

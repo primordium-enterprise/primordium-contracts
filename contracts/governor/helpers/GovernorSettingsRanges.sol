@@ -7,29 +7,33 @@ import {GovernorBase} from "../base/GovernorBase.sol";
 import {ProposalSettings} from "../base/ProposalSettings.sol";
 import {ProposalDeadlineExtensions} from "../base/ProposalDeadlineExtensions.sol";
 
-abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions, ProposalSettings  {
-
+abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions, ProposalSettings {
     function _castVote(
         uint256 proposalId,
         address account,
         uint8 support,
         string memory reason,
         bytes memory params
-    ) internal virtual override(GovernorBase, ProposalDeadlineExtensions) returns(uint256) {
+    )
+        internal
+        virtual
+        override(GovernorBase, ProposalDeadlineExtensions)
+        returns (uint256)
+    {
         return super._castVote(proposalId, account, support, reason, params);
     }
 
-    function proposalDeadline(uint256 proposalId) public view virtual override(
-        GovernorBase,
-        ProposalDeadlineExtensions
-    ) returns (uint256) {
+    function proposalDeadline(uint256 proposalId)
+        public
+        view
+        virtual
+        override(GovernorBase, ProposalDeadlineExtensions)
+        returns (uint256)
+    {
         return super.proposalDeadline(proposalId);
     }
 
-    function proposalThreshold() public view virtual override(
-        GovernorBase,
-        ProposalSettings
-    ) returns (uint256) {
+    function proposalThreshold() public view virtual override(GovernorBase, ProposalSettings) returns (uint256) {
         return super.proposalThreshold();
     }
 
@@ -43,7 +47,7 @@ abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions, Proposal
     error ProposalGracePeriodOutOfRange(uint256 min, uint256 max);
 
     /// @notice The maximum proposal threshold BPS value
-    uint256 public immutable MAX_PROPOSAL_THRESHOLD_BPS = 1_000;
+    uint256 public immutable MAX_PROPOSAL_THRESHOLD_BPS = 1000;
 
     /// @notice The minimum setable voting delay
     uint256 public immutable MIN_VOTING_DELAY = 1;
@@ -64,35 +68,30 @@ abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions, Proposal
     uint256 public immutable MAX_PROPOSAL_GRACE_PERIOD = 12 weeks / 12;
 
     function _setProposalThresholdBps(uint256 newProposalThresholdBps) internal virtual override {
-        if (
-            newProposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS
-        ) {
+        if (newProposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS) {
             revert ProposalThresholdBpsTooLarge(newProposalThresholdBps, MAX_PROPOSAL_THRESHOLD_BPS);
         }
         super._setProposalThresholdBps(newProposalThresholdBps);
     }
 
     function _setVotingDelay(uint256 newVotingDelay) internal virtual override {
-        if (
-            newVotingDelay < MIN_VOTING_DELAY ||
-            newVotingDelay > MAX_VOTING_DELAY
-        ) revert VotingDelayOutOfRange(MIN_VOTING_DELAY, MAX_VOTING_DELAY);
+        if (newVotingDelay < MIN_VOTING_DELAY || newVotingDelay > MAX_VOTING_DELAY) {
+            revert VotingDelayOutOfRange(MIN_VOTING_DELAY, MAX_VOTING_DELAY);
+        }
         super._setVotingDelay(newVotingDelay);
     }
 
     function _setVotingPeriod(uint256 newVotingPeriod) internal virtual override {
-        if (
-            newVotingPeriod < MIN_VOTING_PERIOD ||
-            newVotingPeriod > MAX_VOTING_PERIOD
-        ) revert VotingPeriodOutOfRange(MIN_VOTING_PERIOD, MAX_VOTING_PERIOD);
+        if (newVotingPeriod < MIN_VOTING_PERIOD || newVotingPeriod > MAX_VOTING_PERIOD) {
+            revert VotingPeriodOutOfRange(MIN_VOTING_PERIOD, MAX_VOTING_PERIOD);
+        }
         super._setVotingPeriod(newVotingPeriod);
     }
 
     function _setProposalGracePeriod(uint256 newGracePeriod) internal virtual override {
-        if (
-            newGracePeriod < MIN_PROPOSAL_GRACE_PERIOD ||
-            newGracePeriod > MAX_PROPOSAL_GRACE_PERIOD
-        ) revert ProposalGracePeriodOutOfRange(MIN_PROPOSAL_GRACE_PERIOD, MAX_PROPOSAL_GRACE_PERIOD);
+        if (newGracePeriod < MIN_PROPOSAL_GRACE_PERIOD || newGracePeriod > MAX_PROPOSAL_GRACE_PERIOD) {
+            revert ProposalGracePeriodOutOfRange(MIN_PROPOSAL_GRACE_PERIOD, MAX_PROPOSAL_GRACE_PERIOD);
+        }
         super._setProposalGracePeriod(newGracePeriod);
     }
 
@@ -120,26 +119,27 @@ abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions, Proposal
     uint256 public immutable MAX_EXTENSION_DECAY_PERIOD = 1 days / 12;
 
     function _setMaxDeadlineExtension(uint256 newMaxDeadlineExtension) internal virtual override {
-        if (
-            newMaxDeadlineExtension > ABSOLUTE_MAX_DEADLINE_EXTENSION
-        ) revert MaxDeadlineExtensionTooLarge(ABSOLUTE_MAX_DEADLINE_EXTENSION);
+        if (newMaxDeadlineExtension > ABSOLUTE_MAX_DEADLINE_EXTENSION) {
+            revert MaxDeadlineExtensionTooLarge(ABSOLUTE_MAX_DEADLINE_EXTENSION);
+        }
         super._setMaxDeadlineExtension(newMaxDeadlineExtension);
     }
 
     function _setBaseDeadlineExtension(uint256 newBaseDeadlineExtension) internal virtual override {
+        // forgefmt: disable-next-item
         if (
             newBaseDeadlineExtension < MIN_BASE_DEADLINE_EXTENSION ||
             newBaseDeadlineExtension > MAX_BASE_DEADLINE_EXTENSION
-        ) revert BaseDeadlineExtensionOutOfRange(MIN_BASE_DEADLINE_EXTENSION, MAX_BASE_DEADLINE_EXTENSION);
+        ) {
+            revert BaseDeadlineExtensionOutOfRange(MIN_BASE_DEADLINE_EXTENSION, MAX_BASE_DEADLINE_EXTENSION);
+        }
         super._setBaseDeadlineExtension(newBaseDeadlineExtension);
     }
 
     function _setExtensionDecayPeriod(uint256 newDecayPeriod) internal virtual override {
-        if (
-            newDecayPeriod < MIN_EXTENSION_DECAY_PERIOD ||
-            newDecayPeriod > MAX_EXTENSION_DECAY_PERIOD
-        ) revert ExtensionDecayPeriodOutOfRange(MIN_EXTENSION_DECAY_PERIOD, MAX_EXTENSION_DECAY_PERIOD);
+        if (newDecayPeriod < MIN_EXTENSION_DECAY_PERIOD || newDecayPeriod > MAX_EXTENSION_DECAY_PERIOD) {
+            revert ExtensionDecayPeriodOutOfRange(MIN_EXTENSION_DECAY_PERIOD, MAX_EXTENSION_DECAY_PERIOD);
+        }
         super._setExtensionDecayPeriod(newDecayPeriod);
     }
-
 }

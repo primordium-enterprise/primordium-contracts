@@ -10,16 +10,14 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
  * @author Ben Jett - @BCJdevelopment
  */
 interface IDistributor {
-
-    function initialize(
-        address token_,
-        uint256 claimPeriod_
-    ) external;
+    function initialize(address token_, uint256 claimPeriod_) external;
 
     function createDistribution(
         uint256 clockStartTime,
         IERC20 asset,
         uint256 amount
-    ) external payable returns (uint256 distributionId);
-
+    )
+        external
+        payable
+        returns (uint256 distributionId);
 }

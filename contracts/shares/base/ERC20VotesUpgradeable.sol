@@ -34,7 +34,6 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
     /// @custom:storage-location erc7201:ERC20Votes.Storage
     struct ERC20VotesStorage {
         mapping(address account => address) _delegatee;
-
         mapping(address delegatee => SnapshotCheckpoints.Trace208) _delegateCheckpoints;
     }
 
@@ -56,6 +55,7 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+        // forgefmt: disable-next-item
         return
             interfaceId == type(IVotes).interfaceId ||
             super.supportsInterface(interfaceId);
@@ -82,7 +82,12 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
     function votesCheckpoints(
         address account,
         uint32 pos
-    ) public view virtual returns (SnapshotCheckpoints.Checkpoint208 memory) {
+    )
+        public
+        view
+        virtual
+        returns (SnapshotCheckpoints.Checkpoint208 memory)
+    {
         return _votesCheckpoints(account, pos);
     }
 
@@ -92,15 +97,25 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
     function _votesCheckpoints(
         address account,
         uint32 pos
-    ) internal view virtual returns (SnapshotCheckpoints.Checkpoint208 memory) {
+    )
+        internal
+        view
+        virtual
+        returns (SnapshotCheckpoints.Checkpoint208 memory)
+    {
         ERC20VotesStorage storage $ = _getERC20VotesStorage();
         return $._delegateCheckpoints[account].at(pos);
     }
 
     /// @inheritdoc IVotes
-    function getPastTotalSupply(
-        uint256 timepoint
-    ) public view virtual override noFutureLookup(timepoint) returns (uint256) {
+    function getPastTotalSupply(uint256 timepoint)
+        public
+        view
+        virtual
+        override
+        noFutureLookup(timepoint)
+        returns (uint256)
+    {
         ERC20SnapshotsStorage storage _snapshotsStorage = _getERC20SnapshotsStorage();
         return _snapshotsStorage._totalSupplyCheckpoints.upperLookupRecent(uint48(timepoint));
     }
@@ -124,7 +139,13 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
     function getPastVotes(
         address account,
         uint256 timepoint
-    ) public view virtual noFutureLookup(timepoint) returns (uint256) {
+    )
+        public
+        view
+        virtual
+        noFutureLookup(timepoint)
+        returns (uint256)
+    {
         ERC20VotesStorage storage $ = _getERC20VotesStorage();
         return $._delegateCheckpoints[account].upperLookupRecent(uint48(timepoint));
     }
@@ -152,15 +173,16 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) external virtual override {
+    )
+        external
+        virtual
+        override
+    {
         if (block.timestamp > expiry) {
             revert VotesExpiredSignature(expiry);
         }
         address signer = ECDSA.recover(
-            _hashTypedDataV4(keccak256(abi.encode(DELEGATION_TYPEHASH, delegatee, nonce, expiry))),
-            v,
-            r,
-            s
+            _hashTypedDataV4(keccak256(abi.encode(DELEGATION_TYPEHASH, delegatee, nonce, expiry))), v, r, s
         );
         _useCheckedNonce(signer, nonce);
         _delegate(signer, delegatee);
@@ -171,12 +193,7 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
      *
      * @param signature The signature is a packed bytes encoding of the ECDSA r, s, and v signature values.
      */
-    function delegateBySig(
-        address delegatee,
-        address signer,
-        uint256 expiry,
-        bytes memory signature
-    ) public virtual {
+    function delegateBySig(address delegatee, address signer, uint256 expiry, bytes memory signature) public virtual {
         if (block.timestamp > expiry) {
             revert VotesExpiredSignature(expiry);
         }
@@ -234,19 +251,13 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
             // Modifications can be unchecked, because votes never exceed the checked balances
             if (from != address(0)) {
                 // No snapshot used here
-                (uint256 oldWeight, uint256 newWeight) = $._delegateCheckpoints[from].push(
-                    currentClock,
-                    _subtractUnchecked,
-                    amount
-                );
+                (uint256 oldWeight, uint256 newWeight) =
+                    $._delegateCheckpoints[from].push(currentClock, _subtractUnchecked, amount);
                 emit DelegateVotesChanged(from, oldWeight, newWeight);
             }
             if (to != address(0)) {
-                (uint256 oldWeight, uint256 newWeight) = $._delegateCheckpoints[to].push(
-                    currentClock,
-                    _addUnchecked,
-                    amount
-                );
+                (uint256 oldWeight, uint256 newWeight) =
+                    $._delegateCheckpoints[to].push(currentClock, _addUnchecked, amount);
                 emit DelegateVotesChanged(to, oldWeight, newWeight);
             }
         }

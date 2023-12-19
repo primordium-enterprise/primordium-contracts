@@ -62,5 +62,4 @@ library ERC165Verifier {
             revert InvalidERC165InterfaceSupport(_contract, type(IERC165).interfaceId);
         }
     }
-
 }

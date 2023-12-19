@@ -14,7 +14,6 @@ import {ExecutorBase} from "./ExecutorBase.sol";
  * @author Ben Jett - @BCJdevelopment
  */
 abstract contract MultiSend is ExecutorBase {
-
     /**
      * @dev We override _execute to use the internal _multiSend directly. This saves gas on multiSend operations and
      * avoids emitting redundant CallExecuted events for a multisend.
@@ -24,7 +23,11 @@ abstract contract MultiSend is ExecutorBase {
         uint256 value,
         bytes calldata data,
         Enum.Operation operation
-    ) internal virtual override {
+    )
+        internal
+        virtual
+        override
+    {
         if (to == address(this) && value == 0) {
             bytes4 selector;
             assembly {

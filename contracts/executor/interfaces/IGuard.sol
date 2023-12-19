@@ -9,7 +9,6 @@ import {Enum} from "contracts/common/Enum.sol";
  * @title Guard interface to be used with a guarded Avatar, based on the EIP-5005 Zodiac Modular Accounts
  */
 interface IGuard {
-
     function checkTransactionFromModule(
         address to,
         uint256 value,
@@ -17,8 +16,9 @@ interface IGuard {
         Enum.Operation operation,
         address module,
         uint256 opNonce
-    ) external returns (bytes32 guardHash);
+    )
+        external
+        returns (bytes32 guardHash);
 
     function checkAfterExecution(bytes32 txHash, bool success) external;
-
 }

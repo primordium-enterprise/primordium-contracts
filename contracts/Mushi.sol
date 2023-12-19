@@ -7,7 +7,6 @@ pragma solidity ^0.8.20;
 // import "./shares/extensions/provisioners/VotesProvisionerETH.sol";
 // import "./executor/Executor.sol";
 
-
 // string constant TOKEN_NAME = "Primordium";
 // string constant TOKEN_SYMBOL = "MUSHI";
 

@@ -6,7 +6,6 @@ pragma solidity ^0.8.20;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 abstract contract SelfAuthorized is Initializable {
-
     /// @custom:storage-location erc7201:SelfAuthorized.Storage
     struct SelfAuthorizedStorage {
         address _authorizedOperator;
@@ -15,7 +14,6 @@ abstract contract SelfAuthorized is Initializable {
     // keccak256(abi.encode(uint256(keccak256("SelfAuthorized.Storage")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 private constant SELF_AUTHORIZED_STORAGE =
         0x4b2fd3e76f3db6be1ddf6915fab5beab18a597f23ff7042b1e3087eec7ce7100;
-
 
     function _getSelfAuthorizedStorage() private pure returns (SelfAuthorizedStorage storage $) {
         assembly {
@@ -30,7 +28,7 @@ abstract contract SelfAuthorized is Initializable {
     /**
      * @dev Modifier to make a function callable only by this contract itself.
      */
-    modifier onlySelf {
+    modifier onlySelf() {
         _onlySelf();
         _;
     }
@@ -71,5 +69,4 @@ abstract contract SelfAuthorized is Initializable {
     function __SelfAuthorized_init() internal onlyInitializing {
         _getSelfAuthorizedStorage()._authorizedOperator = DEFAULT_OPERATOR_ADDRESS;
     }
-
 }

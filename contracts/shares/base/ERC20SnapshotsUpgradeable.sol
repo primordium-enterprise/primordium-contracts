@@ -6,7 +6,8 @@ pragma solidity ^0.8.20;
 
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import {ERC20PermitUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
@@ -44,7 +45,6 @@ abstract contract ERC20SnapshotsUpgradeable is
         uint48 _lastSnapshotClock;
         uint208 _lastSnapshotId;
         mapping(uint256 snapshotId => uint256 snapshotClock) _snapshotClocks;
-
         SnapshotCheckpoints.Trace208 _totalSupplyCheckpoints;
         mapping(address => SnapshotCheckpoints.Trace208) _balanceCheckpoints;
     }
@@ -60,6 +60,7 @@ abstract contract ERC20SnapshotsUpgradeable is
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+        // forgefmt: disable-next-item
         return
             interfaceId == type(IERC20).interfaceId ||
             interfaceId == type(IERC20Metadata).interfaceId ||
@@ -106,10 +107,14 @@ abstract contract ERC20SnapshotsUpgradeable is
         return $._totalSupplyCheckpoints.latest();
     }
 
-     /// @inheritdoc IERC20Snapshots
-    function getTotalSupplyAtSnapshot(
-        uint256 snapshotId
-    ) public view virtual override returns (uint256 totalSupplyAtSnapshot) {
+    /// @inheritdoc IERC20Snapshots
+    function getTotalSupplyAtSnapshot(uint256 snapshotId)
+        public
+        view
+        virtual
+        override
+        returns (uint256 totalSupplyAtSnapshot)
+    {
         ERC20SnapshotsStorage storage $ = _getERC20SnapshotsStorage();
 
         // Optimize for most recent snapshot ID
@@ -136,7 +141,13 @@ abstract contract ERC20SnapshotsUpgradeable is
     function getBalanceAtSnapshot(
         address account,
         uint256 snapshotId
-    ) public view virtual override returns (uint256 balanceAtSnapshot) {
+    )
+        public
+        view
+        virtual
+        override
+        returns (uint256 balanceAtSnapshot)
+    {
         ERC20SnapshotsStorage storage $ = _getERC20SnapshotsStorage();
 
         // Optimize for most recent snapshot ID
@@ -166,7 +177,7 @@ abstract contract ERC20SnapshotsUpgradeable is
         // A safety check, to ensure that no snapshot has already been scheduled in the future (which should not happen)
         if (lastSnapshotClock > currentClock) {
             revert ERC20SnapshotAlreadyScheduled();
-        // If lastSnapshotClock is equal to currentClock, then just return the current ID.
+            // If lastSnapshotClock is equal to currentClock, then just return the current ID.
         } else if (lastSnapshotClock == currentClock) {
             return lastSnapshotId;
         }
@@ -198,7 +209,7 @@ abstract contract ERC20SnapshotsUpgradeable is
             // For mint, increase the total supply, but not past the maxSupply
             // Must check for overflow on total supply update to protect the rest of the unchecked math
             // No snapshot optimization for totalSupply (for ERC20Votes)
-            (,uint256 newTotalSupply) = $._totalSupplyCheckpoints.push(currentClock, _add, value);
+            (, uint256 newTotalSupply) = $._totalSupplyCheckpoints.push(currentClock, _add, value);
 
             // Check that the totalSupply has not exceeded the max supply
             uint256 currentMaxSupply = maxSupply();
@@ -237,10 +248,11 @@ abstract contract ERC20SnapshotsUpgradeable is
     function _checkSnapshotId(
         ERC20SnapshotsStorage storage $,
         uint256 snapshotId
-    ) internal view returns (
-        uint256 lastSnapshotId,
-        uint256 lastSnapshotClock
-    ) {
+    )
+        internal
+        view
+        returns (uint256 lastSnapshotId, uint256 lastSnapshotClock)
+    {
         // Just read both values here as a gas optimization for some operations
         lastSnapshotClock = $._lastSnapshotClock;
         lastSnapshotId = $._lastSnapshotId;
@@ -268,5 +280,4 @@ abstract contract ERC20SnapshotsUpgradeable is
             result = a - b;
         }
     }
-
 }

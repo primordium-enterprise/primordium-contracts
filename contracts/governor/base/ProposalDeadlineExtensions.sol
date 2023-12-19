@@ -42,7 +42,6 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  * @author Ben Jett - @BCJdevelopment
  */
 abstract contract ProposalDeadlineExtensions is GovernorBase {
-
     struct DeadlineData {
         uint64 originalDeadline;
         uint64 extendedBy;
@@ -64,7 +63,6 @@ abstract contract ProposalDeadlineExtensions is GovernorBase {
         uint64 _decayPeriod;
         // Store inverted (100% - percentDecay), saves a subtract op
         uint64 _percentDecay;
-
         // Tracking the deadlines for a proposal
         mapping(uint256 => DeadlineData) _deadlineDatas;
     }
@@ -73,9 +71,11 @@ abstract contract ProposalDeadlineExtensions is GovernorBase {
     bytes32 private constant PROPOSAL_DEADLINE_EXTENSIONS_STORAGE =
         0xae976891f3433ecd54a96b3f554eee56d31b6f881a11bab3b6460b6c2f3ce200;
 
-    function _getProposalDeadlineExtensionsStorage() private pure returns (
-        ProposalDeadlineExtensionsStorage storage $
-    ) {
+    function _getProposalDeadlineExtensionsStorage()
+        private
+        pure
+        returns (ProposalDeadlineExtensionsStorage storage $)
+    {
         assembly {
             $.slot := PROPOSAL_DEADLINE_EXTENSIONS_STORAGE
         }
@@ -99,7 +99,11 @@ abstract contract ProposalDeadlineExtensions is GovernorBase {
         uint256 baseDeadlineExtension_,
         uint256 decayPeriod_,
         uint256 percentDecay_
-    ) internal virtual onlyInitializing {
+    )
+        internal
+        virtual
+        onlyInitializing
+    {
         _setMaxDeadlineExtension(maxDeadlineExtension_);
         _setBaseDeadlineExtension(baseDeadlineExtension_);
         _setExtensionDecayPeriod(decayPeriod_);
@@ -195,10 +199,9 @@ abstract contract ProposalDeadlineExtensions is GovernorBase {
     }
 
     function _setExtensionPercentDecay(uint256 newPercentDecay) internal virtual {
-        if (
-            newPercentDecay < MIN_PERCENT_DECAY ||
-            newPercentDecay > MAX_PERCENT_DECAY
-        ) revert ExtensionPercentDecayOutOfRange(MIN_PERCENT_DECAY, MAX_PERCENT_DECAY);
+        if (newPercentDecay < MIN_PERCENT_DECAY || newPercentDecay > MAX_PERCENT_DECAY) {
+            revert ExtensionPercentDecayOutOfRange(MIN_PERCENT_DECAY, MAX_PERCENT_DECAY);
+        }
 
         ProposalDeadlineExtensionsStorage storage $ = _getProposalDeadlineExtensionsStorage();
         emit ExtensionPercentDecaySet($._percentDecay, newPercentDecay);
@@ -212,7 +215,12 @@ abstract contract ProposalDeadlineExtensions is GovernorBase {
         uint8 support,
         string memory reason,
         bytes memory params
-    ) internal virtual override returns(uint256) {
+    )
+        internal
+        virtual
+        override
+        returns (uint256)
+    {
         uint256 voteWeight = super._castVote(proposalId, account, support, reason, params);
 
         ProposalDeadlineExtensionsStorage storage $ = _getProposalDeadlineExtensionsStorage();
@@ -240,7 +248,7 @@ abstract contract ProposalDeadlineExtensions is GovernorBase {
 
         // Initialize the rest of the struct if it hasn't been initialized yet
         if (dd.originalDeadline == 0) {
-             // Assumes safe conversion, uint64 should be large enough for either block numbers or timestamps in seconds
+            // Assumes safe conversion, uint64 should be large enough for either block numbers or timestamps in seconds
             dd.originalDeadline = uint64(GovernorBase.proposalDeadline(proposalId));
             dd.currentDeadline = dd.originalDeadline;
         }
@@ -259,7 +267,6 @@ abstract contract ProposalDeadlineExtensions is GovernorBase {
          * Additionally, this block scopes the storage variables to avoid "stack too deep" errors
          */
         unchecked {
-
             // Read all three at once to reduce storage reads
             uint256 baseDeadlineExtension_ = $._baseDeadlineExtension;
             uint256 decayPeriod_ = $._decayPeriod;
@@ -274,28 +281,25 @@ abstract contract ProposalDeadlineExtensions is GovernorBase {
             // Extend amount decays past the original deadline
             if (currentTimepoint > dd.originalDeadline) {
                 uint256 periodsElapsed = (currentTimepoint - dd.originalDeadline) / decayPeriod_;
-                uint256 extend =
-                    (baseDeadlineExtension_ * (MAX_PERCENT_DECAY - percentDecay_)**periodsElapsed) / (100**periodsElapsed);
+                uint256 extend = (baseDeadlineExtension_ * (MAX_PERCENT_DECAY - percentDecay_) ** periodsElapsed)
+                    / (100 ** periodsElapsed);
                 // Check again for distance from the deadline. If extend is too small, just return.
                 if (extend < distanceFromDeadline) return voteWeight;
                 extendMultiple = extend - distanceFromDeadline;
             } else {
                 extendMultiple = baseDeadlineExtension_ - distanceFromDeadline;
             }
-
         }
 
         // We include a FRACTION_MULTIPLE that we later divide back out to circumvent integer division issues
-        uint256 deadlineExtension = extendMultiple * Math.min(
-            FRACTION_MULTIPLE_MAX,
-            (
-                voteWeight * FRACTION_MULTIPLE / ( _voteMargin(proposalId) + 1 ) // Add 1 to avoid divide by zero error
-            )
-        ) / FRACTION_MULTIPLE;
+        uint256 deadlineExtension = extendMultiple
+            * Math.min(
+                FRACTION_MULTIPLE_MAX,
+                (voteWeight * FRACTION_MULTIPLE / (_voteMargin(proposalId) + 1)) // Add 1 to avoid divide by zero error
+            ) / FRACTION_MULTIPLE;
 
         // Only need to extend and emit if the extension is greater than 0
         if (deadlineExtension > 0) {
-
             // Update extended by with the extension value, maxing out at the max deadline extension
             dd.extendedBy += SafeCast.toUint64(Math.max(deadlineExtension, maxDeadlineExtension_));
             // Update the new deadline
@@ -306,10 +310,8 @@ abstract contract ProposalDeadlineExtensions is GovernorBase {
 
             // Emit the event
             emit ProposalDeadlineExtended(proposalId, dd.currentDeadline);
-
         }
 
         return voteWeight;
-
     }
 }

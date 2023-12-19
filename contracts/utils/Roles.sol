@@ -6,7 +6,6 @@ import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 pragma solidity ^0.8.20;
 
 contract Roles is ContextUpgradeable {
-
     /// @custom:storage-location erc7201:Roles.Storage
     struct RolesStorage {
         mapping(bytes32 => mapping(address => uint256)) _roleMembers;
@@ -99,7 +98,11 @@ contract Roles is ContextUpgradeable {
         bytes32[] memory roles,
         address[] memory accounts,
         uint256[] memory expiresAts
-    ) internal virtual {
+    )
+        internal
+        virtual
+    {
+        // forgefmt: disable-next-item
         if (
             roles.length == 0 ||
             roles.length != accounts.length ||
@@ -110,7 +113,9 @@ contract Roles is ContextUpgradeable {
 
         for (uint256 i = 0; i < roles.length;) {
             _grantRole(roles[i], accounts[i], expiresAts[i]);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -138,21 +143,16 @@ contract Roles is ContextUpgradeable {
     /**
      * @dev Batch method for revoking roles.
      */
-    function _revokeRoles(
-        bytes32[] memory roles,
-        address[] memory accounts
-    ) internal virtual {
-        if (
-            roles.length == 0 ||
-            roles.length != accounts.length
-        ) {
+    function _revokeRoles(bytes32[] memory roles, address[] memory accounts) internal virtual {
+        if (roles.length == 0 || roles.length != accounts.length) {
             revert MismatchingBatchLengths();
         }
 
         for (uint256 i = 0; i < roles.length;) {
             _revokeRole(roles[i], accounts[i]);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
-
 }

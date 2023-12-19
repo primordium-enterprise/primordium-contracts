@@ -8,16 +8,12 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 
 interface ISharesManager is IERC6372 {
-
     event QuoteAssetChange(address oldQuoteAsset, address newQuoteAsset);
 
     event TreasuryChange(address oldTreasury, address newTreasury);
 
     event FundingPeriodChange(
-        uint256 oldFundingBeginsAt,
-        uint256 newFundingBeginsAt,
-        uint256 oldFundingEndsAt,
-        uint256 newFundingEndsAt
+        uint256 oldFundingBeginsAt, uint256 newFundingBeginsAt, uint256 oldFundingEndsAt, uint256 newFundingEndsAt
     );
 
     /**
@@ -28,10 +24,7 @@ interface ISharesManager is IERC6372 {
      * @param newMintAmount The new number of votes that can be minted per {numerator} count of base asset.
      */
     event SharePriceChange(
-        uint256 oldQuoteAmount,
-        uint256 newQuoteAmount,
-        uint256 oldMintAmount,
-        uint256 newMintAmount
+        uint256 oldQuoteAmount, uint256 newQuoteAmount, uint256 oldMintAmount, uint256 newMintAmount
     );
 
     /**
@@ -56,12 +49,7 @@ interface ISharesManager is IERC6372 {
      * @param totalSharesBurned The amount of vote tokens burned from the account.
      * @param tokens The tokens withdrawn.
      */
-    event Withdrawal(
-        address indexed account,
-        address receiver,
-        uint256 totalSharesBurned,
-        IERC20[] tokens
-    );
+    event Withdrawal(address indexed account, address receiver, uint256 totalSharesBurned, IERC20[] tokens);
 
     event AdminStatusChange(address indexed account, uint256 oldExpiresAt, uint256 newExpiresAt);
 
@@ -204,7 +192,9 @@ interface ISharesManager is IERC6372 {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) external returns (uint256 totalMintAmount);
+    )
+        external
+        returns (uint256 totalMintAmount);
 
     /**
      * Withdraw the supplied amount of tokens, with the pro-rata amount of the base asset sent from the treasury to the
@@ -214,7 +204,9 @@ interface ISharesManager is IERC6372 {
         address receiver,
         uint256 amount,
         IERC20[] calldata tokens
-    ) external returns (uint256 totalSharesBurned);
+    )
+        external
+        returns (uint256 totalSharesBurned);
 
     /**
      * Withdraw the supplied amount of tokens, with the pro-rata amount of the base asset sent from the treasury to the
@@ -229,6 +221,7 @@ interface ISharesManager is IERC6372 {
         IERC20[] calldata tokens,
         uint256 deadline,
         bytes memory signature
-    ) external returns (uint256 totalSharesBurned);
-
+    )
+        external
+        returns (uint256 totalSharesBurned);
 }

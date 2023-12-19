@@ -67,10 +67,9 @@ abstract contract GovernorBase is
 
     bytes32 private immutable BALLOT_TYPEHASH =
         keccak256("Ballot(uint256 proposalId,uint8 support,address voter,uint256 nonce)");
-    bytes32 private immutable EXTENDED_BALLOT_TYPEHASH =
-        keccak256(
-            "ExtendedBallot(uint256 proposalId,uint8 support,address voter,uint256 nonce,string reason,bytes params)"
-        );
+    bytes32 private immutable EXTENDED_BALLOT_TYPEHASH = keccak256(
+        "ExtendedBallot(uint256 proposalId,uint8 support,address voter,uint256 nonce,string reason,bytes params)"
+    );
 
     bytes32 public immutable PROPOSER_ROLE = keccak256("PROPOSER");
     bytes32 public immutable CANCELER_ROLE = keccak256("CANCELER");
@@ -78,23 +77,18 @@ abstract contract GovernorBase is
     /// @custom:storage-location erc7201:GovernorBase.Storage
     struct GovernorBaseStorage {
         uint256 _proposalCount;
-
         // Tracking core proposal data
         mapping(uint256 => ProposalCore) _proposals;
-
         // Tracking hashes of each proposal's actions
         mapping(uint256 => bytes32) _proposalActionsHashes;
-
         // Tracking queued operations on the TimelockAvatar
         mapping(uint256 => uint256) _proposalOpNonces;
-
         // Track the token address and other voting management
         VotesManagement _votesManagement;
     }
 
     // keccak256(abi.encode(uint256(keccak256("GovernorBase.Storage")) - 1)) & ~bytes32(uint256(0xff));
-    bytes32 private constant GOVERNOR_BASE_STORAGE =
-        0xb6d7ebdb5e1a4269d709811afd6c2af6a6e2a583a4e8c954ef3e8b8a20527500;
+    bytes32 private constant GOVERNOR_BASE_STORAGE = 0xb6d7ebdb5e1a4269d709811afd6c2af6a6e2a583a4e8c954ef3e8b8a20527500;
 
     function _getGovernorBaseStorage() private pure returns (GovernorBaseStorage storage $) {
         assembly {
@@ -109,7 +103,11 @@ abstract contract GovernorBase is
         uint256 governanceCanBeginAt_,
         uint256 governanceThresholdBps_,
         bytes memory initGrantRoles
-    ) internal virtual onlyInitializing {
+    )
+        internal
+        virtual
+        onlyInitializing
+    {
         if (governanceThresholdBps_ > BasisPoints.MAX_BPS) {
             revert BasisPoints.BPSValueTooLarge(governanceThresholdBps_);
         }
@@ -124,11 +122,8 @@ abstract contract GovernorBase is
         // If it is less than the MAX_BPS (10_000), it fits into uint16 without SafeCast
         $._votesManagement._governanceThresholdBps = uint16(governanceThresholdBps_);
 
-        (bytes32[] memory roles, address[] memory accounts, uint256[] memory expiresAts) = abi.decode(initGrantRoles, (
-            bytes32[],
-            address[],
-            uint256[]
-        ));
+        (bytes32[] memory roles, address[] memory accounts, uint256[] memory expiresAts) =
+            abi.decode(initGrantRoles, (bytes32[], address[], uint256[]));
         _grantRoles(roles, accounts, expiresAts);
 
         emit GovernorBaseInitialized(
@@ -146,16 +141,12 @@ abstract contract GovernorBase is
      * @dev See {IERC165-supportsInterface}.
      */
     function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, ERC165) returns (bool) {
-        // In addition to the current interfaceId, also support previous version of the interfaceId that did not
-        // include the castVoteWithReasonAndParams() function as standard
+        // forgefmt: disable-next-item
         return
             interfaceId == type(IGovernorBase).interfaceId ||
-            // Previous interface for backwards compatibility
-            interfaceId == (type(IGovernorBase).interfaceId ^ type(IERC6372).interfaceId ^ this.cancel.selector) ||
             super.supportsInterface(interfaceId);
     }
 
-    // TODO: This must be turned into a state variable to ensure upgradeability
     /// @inheritdoc IGovernorBase
     function name() public view virtual override returns (string memory) {
         return _EIP712Name();
@@ -167,7 +158,7 @@ abstract contract GovernorBase is
     }
 
     /// @inheritdoc IGovernorBase
-    function token() public view returns (IGovernorToken _token) {
+    function token() public view override returns (IGovernorToken _token) {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
         _token = $._votesManagement._token;
     }
@@ -369,7 +360,13 @@ abstract contract GovernorBase is
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
-    ) public pure virtual override returns (bytes32) {
+    )
+        public
+        pure
+        virtual
+        override
+        returns (bytes32)
+    {
         return keccak256(abi.encode(targets, values, calldatas));
     }
 
@@ -380,8 +377,12 @@ abstract contract GovernorBase is
         bytes[] calldata calldatas,
         string[] calldata signatures,
         string calldata description
-    ) public virtual override returns (uint256) {
-
+    )
+        public
+        virtual
+        override
+        returns (uint256)
+    {
         address proposer = _msgSender();
 
         (, uint256 currentClock) = _authorizeProposal(proposer, targets, values, calldatas, description);
@@ -389,16 +390,8 @@ abstract contract GovernorBase is
         (uint256 _votingDelay, uint256 duration) = _getVotingDelayAndPeriod();
 
         return _propose(
-            proposer,
-            currentClock + _votingDelay,
-            duration,
-            targets,
-            values,
-            calldatas,
-            signatures,
-            description
+            proposer, currentClock + _votingDelay, duration, targets, values, calldatas, signatures, description
         );
-
     }
 
     /**
@@ -414,11 +407,15 @@ abstract contract GovernorBase is
     function _authorizeProposal(
         address proposer,
         address[] calldata targets,
-        uint256[] calldata /*values*/,
+        uint256[] calldata, /*values*/
         bytes[] calldata calldatas,
         string calldata description
-    ) internal view virtual returns (IGovernorToken _token, uint256 currentClock) {
-
+    )
+        internal
+        view
+        virtual
+        returns (IGovernorToken _token, uint256 currentClock)
+    {
         // check description restriction
         if (!_isValidDescriptionForProposer(proposer, description)) {
             revert GovernorRestrictedProposer(proposer);
@@ -440,7 +437,6 @@ abstract contract GovernorBase is
 
         // Check if the Governor has been founded yet
         if (!isFounded) {
-
             // Check if goverance can begin yet
             uint256 _governanceCanBeginAt;
             assembly {
@@ -465,6 +461,7 @@ abstract contract GovernorBase is
 
             // Ensure that the only proposal action is to initializeGovernance() on this Governor
             bytes calldata initData = calldatas[0];
+            // forgefmt: disable-next-item
             if (
                 targets.length != 1 ||
                 targets[0] != address(this) ||
@@ -487,6 +484,7 @@ abstract contract GovernorBase is
         }
 
         // Check the proposer's votes against the proposalThreshold(), also check the proposer's role
+        // forgefmt: disable-next-item
         if (
             _getVotes(_token, proposer, currentClock - 1, _defaultParams()) < proposalThreshold() &&
             !_hasRole(PROPOSER_ROLE, proposer)
@@ -502,7 +500,11 @@ abstract contract GovernorBase is
         bytes[] calldata calldatas,
         string[] calldata signatures,
         string calldata description
-    ) internal virtual returns (uint256 proposalId) {
+    )
+        internal
+        virtual
+        returns (uint256 proposalId)
+    {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
 
         BatchArrayChecker.checkArrayLengths(targets.length, values.length, calldatas.length, signatures.length);
@@ -520,15 +522,7 @@ abstract contract GovernorBase is
         proposal.voteDuration = duration.toUint32();
 
         emit ProposalCreated(
-            newProposalId,
-            proposer,
-            targets,
-            values,
-            signatures,
-            calldatas,
-            snapshot,
-            snapshot + duration,
-            description
+            newProposalId, proposer, targets, values, signatures, calldatas, snapshot, snapshot + duration, description
         );
 
         return newProposalId;
@@ -542,38 +536,34 @@ abstract contract GovernorBase is
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
-    ) public virtual override returns (uint256) {
+    )
+        public
+        virtual
+        override
+        returns (uint256)
+    {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
 
         _validateStateBitmap(proposalId, _encodeStateBitmap(ProposalState.Succeeded));
 
-        if($._proposalActionsHashes[proposalId] != hashProposalActions(targets, values, calldatas)) {
+        if ($._proposalActionsHashes[proposalId] != hashProposalActions(targets, values, calldatas)) {
             revert InvalidActionsForProposal();
         }
 
         ITimelockAvatar _executor = executor();
-        (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSendCalldata(
-            address(_executor),
-            targets,
-            values,
-            calldatas
-        );
+        (address to, uint256 value, bytes memory data) =
+            MultiSendEncoder.encodeMultiSendCalldata(address(_executor), targets, values, calldatas);
 
-        (,bytes memory returnData) = _executor.execTransactionFromModuleReturnData(
-            to,
-            value,
-            data,
-            Enum.Operation.Call
-        );
+        (, bytes memory returnData) =
+            _executor.execTransactionFromModuleReturnData(to, value, data, Enum.Operation.Call);
 
-        (uint256 opNonce,,uint256 eta) = abi.decode(returnData, (uint256, bytes32, uint256));
+        (uint256 opNonce,, uint256 eta) = abi.decode(returnData, (uint256, bytes32, uint256));
         $._proposalOpNonces[proposalId] = opNonce;
 
         emit ProposalQueued(proposalId, eta);
 
         return proposalId;
     }
-
 
     /**
      * @dev See {IGovernor-execute}.
@@ -583,7 +573,12 @@ abstract contract GovernorBase is
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
-    ) public virtual override returns (uint256) {
+    )
+        public
+        virtual
+        override
+        returns (uint256)
+    {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
 
         _validateStateBitmap(proposalId, _encodeStateBitmap(ProposalState.Queued));
@@ -619,14 +614,13 @@ abstract contract GovernorBase is
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
-    ) internal virtual {
+    )
+        internal
+        virtual
+    {
         ITimelockAvatar _executor = executor();
-        (address to, uint256 value, bytes memory data) = MultiSendEncoder.encodeMultiSendCalldata(
-            address(_executor),
-            targets,
-            values,
-            calldatas
-        );
+        (address to, uint256 value, bytes memory data) =
+            MultiSendEncoder.encodeMultiSendCalldata(address(_executor), targets, values, calldatas);
 
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
         _executor.executeOperation($._proposalOpNonces[proposalId], to, value, data, Enum.Operation.Call);
@@ -637,9 +631,14 @@ abstract contract GovernorBase is
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
-    ) public virtual override returns (uint256) {
+    )
+        public
+        virtual
+        override
+        returns (uint256)
+    {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
-        if($._proposalActionsHashes[proposalId] != hashProposalActions(targets, values, calldatas)) {
+        if ($._proposalActionsHashes[proposalId] != hashProposalActions(targets, values, calldatas)) {
             revert InvalidActionsForProposal();
         }
 
@@ -660,17 +659,12 @@ abstract contract GovernorBase is
      *
      * Emits a {IGovernor-ProposalCanceled} event.
      */
-    function _cancel(
-        uint256 proposalId
-    ) internal virtual returns (uint256) {
-
+    function _cancel(uint256 proposalId) internal virtual returns (uint256) {
         // Can cancel in any state other than Canceled, Expired, or Executed.
         _validateStateBitmap(
             proposalId,
-            ALL_PROPOSAL_STATES_BITMAP ^
-                _encodeStateBitmap(ProposalState.Canceled) ^
-                _encodeStateBitmap(ProposalState.Expired) ^
-                _encodeStateBitmap(ProposalState.Executed)
+            ALL_PROPOSAL_STATES_BITMAP ^ _encodeStateBitmap(ProposalState.Canceled)
+                ^ _encodeStateBitmap(ProposalState.Expired) ^ _encodeStateBitmap(ProposalState.Executed)
         );
 
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
@@ -697,7 +691,13 @@ abstract contract GovernorBase is
         address account,
         uint256 timepoint,
         bytes memory params
-    ) public view virtual override returns (uint256) {
+    )
+        public
+        view
+        virtual
+        override
+        returns (uint256)
+    {
         return _getVotes(account, timepoint, params);
     }
 
@@ -708,7 +708,12 @@ abstract contract GovernorBase is
         address account,
         uint256 timepoint,
         bytes memory params
-    ) internal view virtual returns (uint256 voteWeight) {
+    )
+        internal
+        view
+        virtual
+        returns (uint256 voteWeight)
+    {
         voteWeight = _getVotes(token(), account, timepoint, params);
     }
 
@@ -717,7 +722,12 @@ abstract contract GovernorBase is
         address account,
         uint256 timepoint,
         bytes memory /*params*/
-    ) internal view virtual returns (uint256 voteWeight) {
+    )
+        internal
+        view
+        virtual
+        returns (uint256 voteWeight)
+    {
         voteWeight = _token.getPastVotes(account, timepoint);
     }
 
@@ -732,7 +742,12 @@ abstract contract GovernorBase is
         uint256 proposalId,
         uint8 support,
         string calldata reason
-    ) public virtual override returns (uint256) {
+    )
+        public
+        virtual
+        override
+        returns (uint256)
+    {
         address voter = _msgSender();
         return _castVote(proposalId, voter, support, reason);
     }
@@ -743,7 +758,12 @@ abstract contract GovernorBase is
         uint8 support,
         string calldata reason,
         bytes memory params
-    ) public virtual override returns (uint256) {
+    )
+        public
+        virtual
+        override
+        returns (uint256)
+    {
         address voter = _msgSender();
         return _castVote(proposalId, voter, support, reason, params);
     }
@@ -754,7 +774,12 @@ abstract contract GovernorBase is
         uint8 support,
         address voter,
         bytes memory signature
-    ) public virtual override returns (uint256) {
+    )
+        public
+        virtual
+        override
+        returns (uint256)
+    {
         bool valid = SignatureChecker.isValidSignatureNow(
             voter,
             _hashTypedDataV4(keccak256(abi.encode(BALLOT_TYPEHASH, proposalId, support, voter, _useNonce(voter)))),
@@ -776,7 +801,12 @@ abstract contract GovernorBase is
         string calldata reason,
         bytes memory params,
         bytes memory signature
-    ) public virtual override returns (uint256) {
+    )
+        public
+        virtual
+        override
+        returns (uint256)
+    {
         bool valid = SignatureChecker.isValidSignatureNow(
             voter,
             _hashTypedDataV4(
@@ -813,7 +843,11 @@ abstract contract GovernorBase is
         address account,
         uint8 support,
         string memory reason
-    ) internal virtual returns (uint256) {
+    )
+        internal
+        virtual
+        returns (uint256)
+    {
         return _castVote(proposalId, account, support, reason, _defaultParams());
     }
 
@@ -829,7 +863,11 @@ abstract contract GovernorBase is
         uint8 support,
         string memory reason,
         bytes memory params
-    ) internal virtual returns (uint256 weight) {
+    )
+        internal
+        virtual
+        returns (uint256 weight)
+    {
         _validateStateBitmap(proposalId, _encodeStateBitmap(ProposalState.Active));
 
         ProposalCore storage proposal = _getGovernorBaseStorage()._proposals[proposalId];
@@ -871,15 +909,17 @@ abstract contract GovernorBase is
         bytes32[] memory roles,
         address[] memory accounts,
         uint256[] memory expiresAts
-    ) public virtual override onlyGovernance {
+    )
+        public
+        virtual
+        override
+        onlyGovernance
+    {
         _grantRoles(roles, accounts, expiresAts);
     }
 
     /// @inheritdoc IGovernorBase
-    function revokeRoles(
-        bytes32[] memory roles,
-        address[] memory accounts
-    ) public virtual override onlyGovernance {
+    function revokeRoles(bytes32[] memory roles, address[] memory accounts) public virtual override onlyGovernance {
         _revokeRoles(roles, accounts);
     }
 
@@ -912,7 +952,9 @@ abstract contract GovernorBase is
         uint8 support,
         uint256 weight,
         bytes memory params
-    ) internal virtual;
+    )
+        internal
+        virtual;
 
     /**
      * @dev Encodes a `ProposalState` into a `bytes32` representation where each bit enabled corresponds to
@@ -964,7 +1006,12 @@ abstract contract GovernorBase is
     function _isValidDescriptionForProposer(
         address proposer,
         string calldata description
-    ) internal view virtual returns (bool) {
+    )
+        internal
+        view
+        virtual
+        returns (bool)
+    {
         uint256 len;
         assembly {
             len := description.length
@@ -1001,7 +1048,9 @@ abstract contract GovernorBase is
                 return true;
             }
             recovered = (recovered << 4) | value;
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         return recovered == uint160(proposer);
@@ -1053,5 +1102,4 @@ abstract contract GovernorBase is
             }
         }
     }
-
 }

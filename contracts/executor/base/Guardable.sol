@@ -11,13 +11,12 @@ import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {ERC165Verifier} from "contracts/libraries/ERC165Verifier.sol";
 
 abstract contract BaseGuard is IGuard, IERC165 {
-
     function supportsInterface(bytes4 interfaceId) external view virtual override returns (bool) {
+        // forgefmt: disable-next-item
         return
             interfaceId == type(IGuard).interfaceId ||
             interfaceId == type(IERC165).interfaceId;
     }
-
 }
 
 /**
@@ -26,7 +25,6 @@ abstract contract BaseGuard is IGuard, IERC165 {
  * @notice Uses EIP-7201 namespacing to store the guard
  */
 contract Guardable is SelfAuthorized, IGuardable, ERC165Upgradeable {
-
     /// @custom:storage-location erc7201:Guardable.Guard
     struct Guard {
         address guard;
@@ -41,6 +39,7 @@ contract Guardable is SelfAuthorized, IGuardable, ERC165Upgradeable {
     error NotIERC165Compliant(address guard);
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+        // forgefmt: disable-next-item
         return
             interfaceId == type(IGuardable).interfaceId ||
             super.supportsInterface(interfaceId);
@@ -77,5 +76,4 @@ contract Guardable is SelfAuthorized, IGuardable, ERC165Upgradeable {
         }
         guard = $.guard;
     }
-
 }

@@ -11,11 +11,7 @@ import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
  * @dev Additional interface methods for {ERC20BalanceSnapshots}.
  */
 interface IERC20Snapshots is IERC20, IERC6372 {
-
-    event SnapshotCreated(
-        uint256 indexed snapshotId,
-        uint256 indexed snapshotClock
-    );
+    event SnapshotCreated(uint256 indexed snapshotId, uint256 indexed snapshotClock);
 
     error ERC6372InconsistentClock();
     error ERC20SnapshotAlreadyScheduled();
@@ -54,5 +50,4 @@ interface IERC20Snapshots is IERC20, IERC6372 {
      * configured to use block numbers, this will return the value the end of the block that the snapshot was created.
      */
     function getTotalSupplyAtSnapshot(uint256 snapshotId) external view returns (uint256);
-
 }

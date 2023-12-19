@@ -12,8 +12,8 @@ import {SelfAuthorized} from "./SelfAuthorized.sol";
  * @author Ben Jett @BCJdevelopment
  */
 abstract contract ExecutorBase is SelfAuthorized {
-
     event CallExecuted(address indexed target, uint256 value, bytes data, Enum.Operation operation);
+
     bytes32 private immutable CALL_EXECUTED_EVENT_SELECTOR = CallExecuted.selector;
 
     error CallReverted(bytes reason);
@@ -28,12 +28,7 @@ abstract contract ExecutorBase is SelfAuthorized {
     /**
      * @dev Execute an operation's call.
      */
-    function _execute(
-        address target,
-        uint256 value,
-        bytes calldata data,
-        Enum.Operation operation
-    ) internal virtual {
+    function _execute(address target, uint256 value, bytes calldata data, Enum.Operation operation) internal virtual {
         // Copy data to memory (preparing extra space for ABI encoded event)
         bytes32 eventDataStart;
         bytes memory dataMemCopy;
@@ -60,7 +55,7 @@ abstract contract ExecutorBase is SelfAuthorized {
                     mstore(add(m, 0x04), 0x20) // bytes header
                     mstore(add(m, 0x24), returndatasize()) // bytes length
                     returndatacopy(add(m, 0x44), 0, returndatasize()) // copy return data
-                    revert (
+                    revert(
                         m,
                         add(0x44, mul(0x20, div(add(returndatasize(), 0x1f), 0x20))) // pad returndatasize to 32 bytes
                     )
@@ -75,7 +70,7 @@ abstract contract ExecutorBase is SelfAuthorized {
                     mstore(add(m, 0x04), 0x20) // bytes header
                     mstore(add(m, 0x24), returndatasize()) // bytes length
                     returndatacopy(add(m, 0x44), 0, returndatasize()) // copy return data
-                    revert (
+                    revert(
                         m,
                         add(0x44, mul(0x20, div(add(returndatasize(), 0x1f), 0x20))) // pad returndatasize to 32 bytes
                     )
@@ -100,5 +95,4 @@ abstract contract ExecutorBase is SelfAuthorized {
         // if (!success) revert CallReverted(target, value, data, operation);
         // emit CallExecuted(target, value, data, operation);
     }
-
 }

@@ -50,9 +50,7 @@ abstract contract VotesQuorumBps is GovernorBase {
      * The fraction is specified as `bps / 10_000`. So, the quorum is specified as a percent: a bps of 1_000 corresponds
      * to quorum being 10% of total supply.
      */
-    function __VotesQuorumBps_init(
-        uint256 quorumBps_
-    ) internal virtual onlyInitializing {
+    function __VotesQuorumBps_init(uint256 quorumBps_) internal virtual onlyInitializing {
         _setQuorumBps(quorumBps_);
     }
 

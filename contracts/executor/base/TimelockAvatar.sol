@@ -20,15 +20,7 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
  *
  * @author Ben Jett @BCJdevelopment
  */
-abstract contract TimelockAvatar is
-    MultiSend,
-    IAvatar,
-    ITimelockAvatar,
-    Guardable,
-    ERC721Holder,
-    ERC1155Holder
-{
-
+abstract contract TimelockAvatar is MultiSend, IAvatar, ITimelockAvatar, Guardable, ERC721Holder, ERC1155Holder {
     struct Operation {
         address module;
         uint48 executableAt;
@@ -45,7 +37,6 @@ abstract contract TimelockAvatar is
     bytes32 private constant MODULE_EXECUTION_STORAGE =
         0x187b3319aee90b3dcdeaff1cd5a8a4928da859256a71970ab2234f7a33675000;
 
-
     function _getModuleExecutionStorage() private pure returns (ModuleExecutionStorage storage $) {
         assembly {
             $.slot := MODULE_EXECUTION_STORAGE
@@ -55,7 +46,6 @@ abstract contract TimelockAvatar is
     /// @custom:storage-location erc7201:TimelockAvatar.Timelock.Storage
     struct TimelockStorage {
         mapping(address => address) _modules;
-
         uint256 _minDelay;
         uint256 _opNonce;
         mapping(uint256 => Operation) _operations;
@@ -94,12 +84,7 @@ abstract contract TimelockAvatar is
     );
 
     event OperationExecuted(
-        uint256 indexed opNonce,
-        address indexed module,
-        address to,
-        uint256 value,
-        bytes data,
-        Enum.Operation operation
+        uint256 indexed opNonce, address indexed module, address to, uint256 value, bytes data, Enum.Operation operation
     );
 
     event OperationCancelled(uint256 indexed opNonce, address indexed module);
@@ -152,10 +137,7 @@ abstract contract TimelockAvatar is
         return _getModuleExecutionStorage()._executingModule;
     }
 
-    function __ModuleTimelockAdmin_init(
-        uint256 minDelay_,
-        address[] memory modules_
-    ) internal onlyInitializing {
+    function __ModuleTimelockAdmin_init(uint256 minDelay_, address[] memory modules_) internal onlyInitializing {
         __SelfAuthorized_init();
         // Initialize the module execution to address(0x01) for cheaper gas updates
         _setModuleExecution(MODULES_HEAD);
@@ -163,7 +145,14 @@ abstract contract TimelockAvatar is
         _setUpModules(modules_);
     }
 
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC1155Holder, Guardable) returns (bool) {
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(ERC1155Holder, Guardable)
+        returns (bool)
+    {
+        // forgefmt: disable-next-item
         return
             interfaceId == type(IAvatar).interfaceId ||
             interfaceId == type(ITimelockAvatar).interfaceId ||
@@ -192,7 +181,9 @@ abstract contract TimelockAvatar is
         // Enable the provided modules
         for (uint256 i = 0; i < modules_.length;) {
             _enableModule(modules_[i]);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         emit ModulesInitialized(modules_);
@@ -212,10 +203,7 @@ abstract contract TimelockAvatar is
     function _updateMinDelay(uint256 newMinDelay) internal {
         TimelockStorage storage $ = _getTimelockStorage();
 
-        if (
-            newMinDelay < MIN_DELAY ||
-            newMinDelay > MAX_DELAY
-        ) {
+        if (newMinDelay < MIN_DELAY || newMinDelay > MAX_DELAY) {
             revert MinDelayOutOfRange(MIN_DELAY, MAX_DELAY);
         }
 
@@ -230,9 +218,7 @@ abstract contract TimelockAvatar is
 
     /// @inheritdoc ITimelockAvatar
     function getOperationStatus(uint256 opNonce) external view returns (OperationStatus opStatus) {
-        opStatus = _getOperationStatus(
-            _getTimelockStorage()._operations[opNonce].executableAt
-        );
+        opStatus = _getOperationStatus(_getTimelockStorage()._operations[opNonce].executableAt);
     }
 
     /// @dev Internal utility to return the OperationStatus enum value based on the operation eta
@@ -270,14 +256,11 @@ abstract contract TimelockAvatar is
     }
 
     /// @inheritdoc ITimelockAvatar
-    function getOperationDetails(
-        uint256 opNonce
-    ) external view returns (
-        address module,
-        uint256 executableAt,
-        uint256 createdAt,
-        bytes32 opHash
-    ) {
+    function getOperationDetails(uint256 opNonce)
+        external
+        view
+        returns (address module, uint256 executableAt, uint256 createdAt, bytes32 opHash)
+    {
         TimelockStorage storage $ = _getTimelockStorage();
         _checkOpNonce($, opNonce);
         Operation storage _op = $._operations[opNonce];
@@ -348,7 +331,12 @@ abstract contract TimelockAvatar is
         uint256 value,
         bytes calldata data,
         Enum.Operation operation
-    ) external virtual onlyModule returns (bool success) {
+    )
+        external
+        virtual
+        onlyModule
+        returns (bool success)
+    {
         (success,) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, 0);
     }
 
@@ -367,7 +355,12 @@ abstract contract TimelockAvatar is
         uint256 value,
         bytes calldata data,
         Enum.Operation operation
-    ) external virtual onlyModule returns (bool success, bytes memory returnData) {
+    )
+        external
+        virtual
+        onlyModule
+        returns (bool success, bytes memory returnData)
+    {
         (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, 0);
     }
 
@@ -378,7 +371,11 @@ abstract contract TimelockAvatar is
         bytes calldata data,
         Enum.Operation operation,
         uint256 delay
-    ) external onlyModule returns (bool success, bytes memory returnData) {
+    )
+        external
+        onlyModule
+        returns (bool success, bytes memory returnData)
+    {
         (success, returnData) = _scheduleTransactionFromModule(msg.sender, to, value, data, operation, delay);
     }
 
@@ -390,7 +387,11 @@ abstract contract TimelockAvatar is
         bytes calldata data,
         Enum.Operation operation,
         uint256 delay
-    ) internal virtual returns (bool, bytes memory) {
+    )
+        internal
+        virtual
+        returns (bool, bytes memory)
+    {
         TimelockStorage storage $ = _getTimelockStorage();
 
         // Delay must be greater than the minDelay (if zero is passed, set it equal to min delay)
@@ -425,7 +426,10 @@ abstract contract TimelockAvatar is
         uint256 value,
         bytes calldata data,
         Enum.Operation operation
-    ) external virtual {
+    )
+        external
+        virtual
+    {
         TimelockStorage storage $ = _getTimelockStorage();
 
         Operation storage _op = $._operations[opNonce];
@@ -507,10 +511,11 @@ abstract contract TimelockAvatar is
     function getModulesPaginated(
         address start,
         uint256 pageSize
-    ) external view returns (
-        address[] memory array,
-        address next
-    ) {
+    )
+        external
+        view
+        returns (address[] memory array, address next)
+    {
         TimelockStorage storage $ = _getTimelockStorage();
 
         // Check the start address and page size
@@ -528,7 +533,7 @@ abstract contract TimelockAvatar is
         // Init count and iterate through modules
         uint256 count = 0;
         next = $._modules[start];
-        while(count < pageSize && next != MODULES_HEAD && next != address(0)) {
+        while (count < pageSize && next != MODULES_HEAD && next != address(0)) {
             array[count] = next;
             next = $._modules[next];
             count++;
@@ -544,7 +549,6 @@ abstract contract TimelockAvatar is
         assembly {
             mstore(array, count)
         }
-
     }
 
     /// @inheritdoc ITimelockAvatar
@@ -553,7 +557,12 @@ abstract contract TimelockAvatar is
         uint256 value,
         bytes calldata data,
         Enum.Operation operation
-    ) public pure virtual returns (bytes32 opHash) {
+    )
+        public
+        pure
+        virtual
+        returns (bytes32 opHash)
+    {
         opHash = keccak256(abi.encode(to, value, data, operation));
     }
 
@@ -563,5 +572,4 @@ abstract contract TimelockAvatar is
             revert();
         }
     }
-
 }

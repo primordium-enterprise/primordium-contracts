@@ -48,11 +48,7 @@ library ERC20Utils {
         }
     }
 
-    function approveForExternalCall(
-        IERC20 token,
-        address target,
-        uint256 amount
-    ) internal returns (uint256 msgValue) {
+    function approveForExternalCall(IERC20 token, address target, uint256 amount) internal returns (uint256 msgValue) {
         if (amount > 0) {
             if (address(token) == address(0)) {
                 msgValue = amount;
@@ -61,5 +57,4 @@ library ERC20Utils {
             }
         }
     }
-
 }

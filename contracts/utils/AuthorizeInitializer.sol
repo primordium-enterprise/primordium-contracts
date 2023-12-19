@@ -17,7 +17,6 @@ pragma solidity ^0.8.20;
  * @author Ben Jett - @BCJdevelopment
  */
 abstract contract AuthorizeInitializer {
-
     /**
      * @dev ERC-7201 storage of the initializer's address. Uses namespaced storage to avoid collisions.
      *
@@ -31,6 +30,7 @@ abstract contract AuthorizeInitializer {
     bytes32 private constant INITIALIZER_STORAGE = 0x719278b5ce276eca957676c0e70eaee0aebe937c970dc4c35234416ee5d07700;
 
     event InitializerAuthorized(address authorizedInitializer);
+
     error UnauthorizedInitializer(address sender, address authorizedInitializer);
 
     constructor(address initializer) {
@@ -53,11 +53,11 @@ abstract contract AuthorizeInitializer {
         }
         address initializer = $.initializer;
         // Require authorized initialization (address(0) means anyone can initialize)
-        if (msg.sender != initializer && initializer != address(0))
+        if (msg.sender != initializer && initializer != address(0)) {
             revert UnauthorizedInitializer(msg.sender, initializer);
+        }
         _;
         // Clear the initializer for a refund (only used on initialization)
         delete $.initializer;
     }
-
 }

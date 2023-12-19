@@ -117,7 +117,10 @@ contract SnapshotCheckpointsTest is Test {
         uint208[] memory values,
         uint48[] memory snapshotKeys,
         uint48 pastKey
-    ) public {
+    )
+        public
+    {
+        // forgefmt: disable-next-item
         vm.assume(
             values.length > 0 &&
             values.length <= keys.length &&
@@ -158,10 +161,7 @@ contract SnapshotCheckpointsTest is Test {
             _assertLatestCheckpoint(true, key, value);
 
             // Update snapshot key every so often
-            if (
-                i > Math.mulDiv(keys.length, sk, snapshotKeys.length) &&
-                sk < snapshotKeys.length - 1
-            ) {
+            if (i > Math.mulDiv(keys.length, sk, snapshotKeys.length) && sk < snapshotKeys.length - 1) {
                 ++sk;
             }
         }
@@ -182,7 +182,10 @@ contract SnapshotCheckpointsTest is Test {
         uint208[] memory values,
         uint48[] memory snapshotKeys,
         uint48 pastKey
-    ) public {
+    )
+        public
+    {
+        // forgefmt: disable-next-item
         vm.assume(
             values.length > 0 &&
             values.length <= keys.length &&
@@ -228,10 +231,7 @@ contract SnapshotCheckpointsTest is Test {
             _assertLatestCheckpoint(true, key, value);
 
             // Update snapshot key every so often
-            if (
-                i > Math.mulDiv(keys.length, sk, snapshotKeys.length) &&
-                sk < snapshotKeys.length - 1
-            ) {
+            if (i > Math.mulDiv(keys.length, sk, snapshotKeys.length) && sk < snapshotKeys.length - 1) {
                 ++sk;
             }
         }

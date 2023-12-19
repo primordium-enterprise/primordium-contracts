@@ -34,8 +34,7 @@ abstract contract ProposalSettings is GovernorBase {
     }
 
     // keccak256(abi.encode(uint256(keccak256("ProposalSettings.Storage")) - 1)) & ~bytes32(uint256(0xff));
-    bytes32 private constant PROPOSAL_BASE_STORAGE =
-        0x886170c74db156f102a26882ea120c8a2a8352444c7ba2b962b9c75d7a2ed900;
+    bytes32 private constant PROPOSAL_BASE_STORAGE = 0x886170c74db156f102a26882ea120c8a2a8352444c7ba2b962b9c75d7a2ed900;
 
     function _getProposalSettingsStorage() private pure returns (ProposalSettingsStorage storage $) {
         assembly {
@@ -53,7 +52,11 @@ abstract contract ProposalSettings is GovernorBase {
         uint256 votingDelay_,
         uint256 votingPeriod_,
         uint256 gracePeriod_
-    ) internal virtual onlyInitializing {
+    )
+        internal
+        virtual
+        onlyInitializing
+    {
         _setProposalThresholdBps(proposalThresholdBps_);
         _setVotingDelay(votingDelay_);
         _setVotingPeriod(votingPeriod_);
@@ -64,8 +67,9 @@ abstract contract ProposalSettings is GovernorBase {
     function proposalThreshold() public view virtual override returns (uint256 votesThreshold) {
         // Overflow not a problem as long as the token's max supply <= type(uint224).max
         IGovernorToken _token = token();
-        votesThreshold = uint256(_getProposalSettingsStorage()._proposalThresholdBps)
-            .bpsUnchecked(_token.getPastTotalSupply(_clock(_token)) - 1);
+        votesThreshold = uint256(_getProposalSettingsStorage()._proposalThresholdBps).bpsUnchecked(
+            _token.getPastTotalSupply(_clock(_token)) - 1
+        );
     }
 
     /**
@@ -112,7 +116,7 @@ abstract contract ProposalSettings is GovernorBase {
 
     /// @inheritdoc IGovernorBase
     function votingPeriod() public view virtual override returns (uint256 _votingPeriod) {
-        _votingPeriod =  _getProposalSettingsStorage()._votingPeriod;
+        _votingPeriod = _getProposalSettingsStorage()._votingPeriod;
     }
 
     /**
@@ -130,10 +134,13 @@ abstract contract ProposalSettings is GovernorBase {
         $._votingPeriod = SafeCast.toUint24(newVotingPeriod);
     }
 
-    function _getVotingDelayAndPeriod() internal view virtual override returns (
-        uint256 _votingDelay,
-        uint256 _votingPeriod
-    ) {
+    function _getVotingDelayAndPeriod()
+        internal
+        view
+        virtual
+        override
+        returns (uint256 _votingDelay, uint256 _votingPeriod)
+    {
         ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
         _votingDelay = $._votingDelay;
         _votingPeriod = $._votingPeriod;
@@ -163,5 +170,4 @@ abstract contract ProposalSettings is GovernorBase {
         emit ProposalGracePeriodSet($._gracePeriod, newGracePeriod);
         $._gracePeriod = uint48(newGracePeriod);
     }
-
 }

@@ -6,7 +6,6 @@ pragma solidity ^0.8.20;
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 library BasisPoints {
-
     uint256 internal constant MAX_BPS = 10_000;
 
     error BPSValueTooLarge(uint256 bpsValue);
@@ -21,8 +20,8 @@ library BasisPoints {
     }
 
     /**
-     * @dev Calculates the basis using the provided bpsValue and baseValue, but in an unchecked block to save gas. Therefore,
-     * be sure that no overflow is expected to occur if you use this function!
+     * @dev Calculates the basis using the provided bpsValue and baseValue, but in an unchecked block to save gas.
+     * Therefore, be sure that no overflow is expected to occur if you use this function!
      */
     function bpsUnchecked(uint256 baseValue, uint256 bpsValue) internal pure returns (uint256 basis) {
         unchecked {
@@ -36,5 +35,4 @@ library BasisPoints {
     function bpsMulmod(uint256 baseValue, uint256 bpsValue) internal pure returns (uint256 result) {
         result = mulmod(baseValue, bpsValue, MAX_BPS);
     }
-
 }

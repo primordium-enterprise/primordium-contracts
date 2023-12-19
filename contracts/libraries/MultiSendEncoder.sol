@@ -11,7 +11,6 @@ import {BatchArrayChecker} from "contracts/utils/BatchArrayChecker.sol";
  * @author Ben Jett - @BCJdevelopment
  */
 library MultiSendEncoder {
-
     /**
      * @dev Encodes the provided targets, values, and calldatas to be executed by the multiSend(bytes) logic.
      *
@@ -22,11 +21,11 @@ library MultiSendEncoder {
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas
-    ) internal pure returns (
-        address to,
-        uint256 value,
-        bytes memory data
-    ) {
+    )
+        internal
+        pure
+        returns (address to, uint256 value, bytes memory data)
+    {
         BatchArrayChecker.checkArrayLengths(targets.length, values.length, calldatas.length);
 
         if (targets.length > 1) {
@@ -67,7 +66,7 @@ library MultiSendEncoder {
                 }
                 // Store the function selector
                 mstore(add(data, 0x20), hex"8d80ff0a")
-                 // Store the abi encoded param offset (function is multiSend(bytes), so offset is 0x20)
+                // Store the abi encoded param offset (function is multiSend(bytes), so offset is 0x20)
                 mstore(add(data, 0x24), 0x20)
                 // Store the bytes data length
                 mstore(add(data, 0x44), dataLength)
@@ -121,7 +120,6 @@ library MultiSendEncoder {
             value = values[0];
             data = calldatas[0];
         }
-
     }
 
     /**
@@ -135,11 +133,11 @@ library MultiSendEncoder {
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
-    ) internal pure returns (
-        address to,
-        uint256 value,
-        bytes memory data
-    ) {
+    )
+        internal
+        pure
+        returns (address to, uint256 value, bytes memory data)
+    {
         BatchArrayChecker.checkArrayLengths(targets.length, values.length, calldatas.length);
 
         if (targets.length > 1) {
@@ -180,7 +178,7 @@ library MultiSendEncoder {
                 }
                 // Store the function selector
                 mstore(add(data, 0x20), hex"8d80ff0a")
-                 // Store the abi encoded param offset (function is multiSend(bytes), so offset is 0x20)
+                // Store the abi encoded param offset (function is multiSend(bytes), so offset is 0x20)
                 mstore(add(data, 0x24), 0x20)
                 // Store the bytes data length
                 mstore(add(data, 0x44), dataLength)
@@ -234,7 +232,5 @@ library MultiSendEncoder {
             value = values[0];
             data = calldatas[0];
         }
-
     }
-
 }

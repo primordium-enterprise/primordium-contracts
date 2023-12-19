@@ -51,18 +51,10 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     event BalanceSharesInitialized(address balanceSharesManager, uint256 totalDeposits, uint256 depositsAllocated);
     event DepositRegistered(IERC20 quoteAsset, uint256 depositAmount);
     event Withdrawal(
-        address indexed account,
-        address receiver,
-        IERC20 asset,
-        uint256 payout,
-        uint256 distributionShareAllocation
+        address indexed account, address receiver, IERC20 asset, uint256 payout, uint256 distributionShareAllocation
     );
     event WithdrawalProcessed(
-        address indexed account,
-        uint256 sharesBurned,
-        uint256 totalSharesSupply,
-        address receiver,
-        IERC20[] assets
+        address indexed account, uint256 sharesBurned, uint256 totalSharesSupply, address receiver, IERC20[] assets
     );
     event BalanceShareAllocated(
         IBalanceShareAllocations indexed balanceSharesManager,
@@ -98,14 +90,14 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         bytes[] memory balanceShareInitCalldatas,
         address distributorImplementation,
         uint256 distributionClaimPeriod
-    ) internal onlyInitializing {
+    )
+        internal
+        onlyInitializing
+    {
         TreasurerStorage storage $ = _getTreasurerStorage();
 
         // Token cannot be reset later, must be correct token on initialization
-        token_.checkInterfaces([
-            type(ISharesManager).interfaceId,
-            type(IERC20).interfaceId
-        ]);
+        token_.checkInterfaces([type(ISharesManager).interfaceId, type(IERC20).interfaceId]);
         $._token = SharesManager(token_);
 
         // Set the balance shares manager, and call any initialization functions
@@ -126,10 +118,10 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                 )
             )
         );
-
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+        // forgefmt: disable-next-item
         return
             interfaceId == type(ITreasury).interfaceId ||
             super.supportsInterface(interfaceId);
@@ -154,10 +146,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
      * accounts for distributions, the BPS share will be subtracted from the amount and allocated to the balance share
      * balanceSharesManager contract before initializing the distribution.
      */
-    function createDistribution(
-        IERC20 asset,
-        uint256 amount
-    ) external virtual onlySelf {
+    function createDistribution(IERC20 asset, uint256 amount) external virtual onlySelf {
         _createDistribution(_getTreasurerStorage()._distributor, asset, amount);
     }
 
@@ -165,18 +154,17 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         IDistributor _distributor,
         IERC20 asset,
         uint256 amount
-    ) internal virtual authorizeOperator(address(_distributor)) {
+    )
+        internal
+        virtual
+        authorizeOperator(address(_distributor))
+    {
         TreasurerStorage storage $ = _getTreasurerStorage();
 
         uint256 snapshotId = $._token.createSnapshot();
 
         // Allocate to the balance share
-        amount -= _allocateBalanceShare(
-            $._balanceShares._balanceSharesManager,
-            DISTRIBUTIONS_ID,
-            asset,
-            amount
-        );
+        amount -= _allocateBalanceShare($._balanceShares._balanceSharesManager, DISTRIBUTIONS_ID, asset, amount);
 
         uint256 msgValue = asset.approveForExternalCall(address(_distributor), amount);
 
@@ -231,9 +219,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
      * @param applyDepositSharesRetroactively If set to true, this will retroactively apply deposit share accounting to
      * the total amount of deposits registered so far.
      */
-    function enableBalanceShares(
-        bool applyDepositSharesRetroactively
-    ) external onlySelfOrDuringModuleExecution {
+    function enableBalanceShares(bool applyDepositSharesRetroactively) external onlySelfOrDuringModuleExecution {
         _enableBalanceShares(applyDepositSharesRetroactively);
     }
 
@@ -261,12 +247,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
 
             // Allocate the deposit shares to the balance shares manager
             IERC20 quoteAsset = _token.quoteAsset();
-            depositsAllocated = _allocateBalanceShare(
-                manager,
-                DEPOSITS_ID,
-                quoteAsset,
-                totalDeposits
-            );
+            depositsAllocated = _allocateBalanceShare(manager, DEPOSITS_ID, quoteAsset, totalDeposits);
         }
 
         // Enable balance shares going forward
@@ -312,7 +293,12 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         uint256 sharesBurned,
         uint256 sharesTotalSupply,
         IERC20[] calldata assets
-    ) external virtual override onlyToken {
+    )
+        external
+        virtual
+        override
+        onlyToken
+    {
         _processWithdrawal(account, receiver, sharesBurned, sharesTotalSupply, assets);
     }
 
@@ -322,7 +308,10 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         uint256 sharesBurned,
         uint256 sharesTotalSupply,
         IERC20[] calldata assets
-    ) internal virtual {
+    )
+        internal
+        virtual
+    {
         TreasurerStorage storage $ = _getTreasurerStorage();
         IBalanceShareAllocations manager = $._balanceShares._balanceSharesManager;
 
@@ -335,12 +324,8 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                 uint256 payout = Math.mulDiv(tokenBalance, sharesBurned, sharesTotalSupply);
 
                 if (payout > 0) {
-                    uint256 distributionShareAllocation = _allocateBalanceShare(
-                        manager,
-                        DISTRIBUTIONS_ID,
-                        assets[i],
-                        payout
-                    );
+                    uint256 distributionShareAllocation =
+                        _allocateBalanceShare(manager, DISTRIBUTIONS_ID, assets[i], payout);
 
                     payout -= distributionShareAllocation;
 
@@ -349,7 +334,9 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                     emit Withdrawal(account, receiver, assets[i], payout, distributionShareAllocation);
                 }
 
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
             }
         }
 
@@ -364,7 +351,10 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         uint256 balanceShareId,
         IERC20 asset,
         uint256 balanceIncreasedBy
-    ) internal returns (uint256 amountAllocated) {
+    )
+        internal
+        returns (uint256 amountAllocated)
+    {
         if (address(manager) != address(0)) {
             bool remainderIncreased;
 
@@ -382,10 +372,8 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                 // First call also checks that returndatasize is not zero, indicating the contract has code
                 if iszero(
                     and( // The arguments of `and` are evaluated from right to left.
-                        gt(returndatasize(), 0),
-                        call(gas(), manager, 0, dataStart, 0x64, 0, 0x40)
-                    )
-                 ) {
+                    gt(returndatasize(), 0), call(gas(), manager, 0, dataStart, 0x64, 0, 0x40))
+                ) {
                     returndatacopy(0, 0, returndatasize())
                     revert(0, returndatasize())
                 }
@@ -400,12 +388,12 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
 
             // Only need to continue if balance actually increased, meaning balance share total BPS > 0
             if (amountAllocated > 0 || remainderIncreased) {
-
                 // Approve transfer amount
                 uint256 msgValue = asset.approveForExternalCall(address(manager), amountAllocated);
 
                 // Allocate to the balance share
-                // manager.allocateToBalanceShareWithRemainder{value: msgValue}(balanceShareId, asset, balanceIncreasedBy)
+                // manager.allocateToBalanceShareWithRemainder{value: msgValue}(balanceShareId, asset,
+                // balanceIncreasedBy)
                 selector = manager.allocateToBalanceShareWithRemainder.selector;
                 assembly ("memory-safe") {
                     // Update the selector
