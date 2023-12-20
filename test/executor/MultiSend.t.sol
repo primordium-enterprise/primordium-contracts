@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "forge-std/Test.sol";
-import "forge-std/Vm.sol";
+import {PRBTest} from "@prb/test/PRBTest.sol";
+import {VmSafe} from "@prb/test/Vm.sol";
 import {Enum} from "src/common/Enum.sol";
 import {ExecutorBase} from "src/executor/base/ExecutorBase.sol";
 import {MultiSend} from "src/executor/base/MultiSend.sol";
@@ -86,7 +86,7 @@ contract PaymentReceiver {
     }
 }
 
-contract MultiSendTest is Test, IMultiSenderEvents {
+contract MultiSendTest is PRBTest, IMultiSenderEvents {
     address externalEncoder = address(new ExternalEncoder());
     address payable multiSender = payable(address(new MultiSender()));
     address paymentReceiver = address(new PaymentReceiver());

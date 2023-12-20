@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "forge-std/Test.sol";
+import {PRBTest} from "@prb/test/PRBTest.sol";
 import {Enum} from "src/common/Enum.sol";
 import {ExecutorBase} from "src/executor/base/ExecutorBase.sol";
 
@@ -11,7 +11,7 @@ contract ExecutorBaseTester is ExecutorBase {
     }
 }
 
-contract ExecutorBaseTest is Test {
+contract ExecutorBaseTest is PRBTest {
     ExecutorBaseTester tester = new ExecutorBaseTester();
 
     uint256 public a;

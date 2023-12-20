@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "forge-std/Test.sol";
+import {PRBTest} from "@prb/test/PRBTest.sol";
+import {StdUtils} from "forge-std/StdUtils.sol";
 import {SnapshotCheckpoints} from "src/libraries/SnapshotCheckpoints.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-contract SnapshotCheckpointsTest is Test {
+contract SnapshotCheckpointsTest is PRBTest, StdUtils {
     using SnapshotCheckpoints for SnapshotCheckpoints.Trace208;
 
     // Maximum gap between keys used during the fuzzing tests: the `_prepareKeys` function with make sure that

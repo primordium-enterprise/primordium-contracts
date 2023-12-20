@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "forge-std/Test.sol";
+import {PRBTest} from "@prb/test/PRBTest.sol";
 import {SelectorChecker} from "src/libraries/SelectorChecker.sol";
 
 interface IVerifySignaturesTest {
@@ -37,7 +37,7 @@ contract Verifier {
     }
 }
 
-contract SelectorCheckerTest is Test {
+contract SelectorCheckerTest is PRBTest {
     Verifier verifier = new Verifier();
 
     function _createTestData() internal view returns (bytes[] memory calldatas, string[] memory signatures) {

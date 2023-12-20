@@ -2,3 +2,4 @@
 ds-test/=lib/forge-std/lib/ds-test/src/
 forge-std/=lib/forge-std/src/
 balance-shares-protocol/=lib/balance-shares-protocol/src/
+@prb/test/=node_modules/@prb/test/src/
