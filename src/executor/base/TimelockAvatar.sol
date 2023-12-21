@@ -6,6 +6,7 @@ pragma solidity ^0.8.20;
 import {Enum} from "src/common/Enum.sol";
 import {MultiSend} from "./MultiSend.sol";
 import {Guardable} from "./Guardable.sol";
+import {EIP1271MessageSigner} from "./EIP1271MessageSigner.sol";
 import {IAvatar} from "../interfaces/IAvatar.sol";
 import {IGuard} from "../interfaces/IGuard.sol";
 import {ITimelockAvatar} from "../interfaces/ITimelockAvatar.sol";
@@ -20,7 +21,15 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
  *
  * @author Ben Jett @BCJdevelopment
  */
-abstract contract TimelockAvatar is MultiSend, IAvatar, ITimelockAvatar, Guardable, ERC721Holder, ERC1155Holder {
+abstract contract TimelockAvatar is
+    MultiSend,
+    IAvatar,
+    ITimelockAvatar,
+    Guardable,
+    EIP1271MessageSigner,
+    ERC721Holder,
+    ERC1155Holder
+{
     struct Operation {
         address module;
         uint48 executableAt;
@@ -149,7 +158,7 @@ abstract contract TimelockAvatar is MultiSend, IAvatar, ITimelockAvatar, Guardab
         public
         view
         virtual
-        override(ERC1155Holder, Guardable)
+        override(Guardable, EIP1271MessageSigner, ERC1155Holder)
         returns (bool)
     {
         // forgefmt: disable-next-item

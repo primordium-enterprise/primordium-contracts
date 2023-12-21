@@ -5,17 +5,18 @@ pragma solidity ^0.8.20;
 
 import {SelfAuthorized} from "./SelfAuthorized.sol";
 import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
+import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 
 /**
  * @title EIP1271MessageSigner
  * @author Ben Jett - @BCJdevelopment
- * @notice A utility contract for signing messages and exposing the EIP1271 "isValidSignature" function for validating
- * these signatures.
+ * @notice A utility contract for signing messages and exposing the EIP1271 "isValidSignature" function for contract
+ * validation of these signatures.
  * @dev Allows this contract to sign a message by setting an expiration for the provided message hash that is sometime
  * in the future. This message hash will be considered a valid signature as long as the block.timestamp is still behind
- * the expiration, and the provided signature is a 32 byte representation of the uint256 expiration in seconds.
+ * the expiration.
  */
-abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271 {
+abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271, ERC165Upgradeable {
     /// @custom:storage-location erc7201:EIP1271MessageSigner.Storage
     struct EIP1271MessageSignerStorage {
         mapping(bytes32 messageHash => uint256 expiration) _messageHashExpirations;
@@ -36,6 +37,13 @@ abstract contract EIP1271MessageSigner is SelfAuthorized, IERC1271 {
 
     error SignatureExpirationMustBeInFuture(uint256 signatureExpiration);
     error SignatureDoesNotExist(bytes32 messageHash);
+
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+        // forgefmt: disable-next-item
+        return
+            interfaceId == type(IERC1271).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
 
     /**
      * Allows other contracts to verify that this contract signed the provided message hash, according to EIP1271.
