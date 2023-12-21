@@ -5,12 +5,13 @@
 pragma solidity ^0.8.20;
 
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
-import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
 import {IGovernorBase} from "../interfaces/IGovernorBase.sol";
 import {IGovernorToken} from "../interfaces/IGovernorToken.sol";
+import {Treasurer} from "src/executor/base/Treasurer.sol";
 import {Roles} from "src/utils/Roles.sol";
 import {TimelockAvatarControlled} from "./TimelockAvatarControlled.sol";
 import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
@@ -38,7 +39,7 @@ import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
  */
 abstract contract GovernorBase is
     TimelockAvatarControlled,
-    ERC165,
+    ERC165Upgradeable,
     EIP712Upgradeable,
     NoncesUpgradeable,
     IGovernorBase,
@@ -140,7 +141,13 @@ abstract contract GovernorBase is
     /**
      * @dev See {IERC165-supportsInterface}.
      */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, ERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(IERC165, ERC165Upgradeable)
+        returns (bool)
+    {
         // forgefmt: disable-next-item
         return
             interfaceId == type(IGovernorBase).interfaceId ||
@@ -226,6 +233,16 @@ abstract contract GovernorBase is
         uint256 threshold = _token.maxSupply().bpsUnchecked(bps);
         if (voteEndedSupply < threshold) {
             revert GovernanceThresholdIsNotMet(threshold, voteEndedSupply);
+        }
+
+        // Try enabling balance shares on the executor (continue if already enabled, revert otherwise)
+        try Treasurer(payable(address(executor()))).enableBalanceShares(true) {}
+        catch (bytes memory errData) {
+            if (bytes4(errData) != Treasurer.DepositSharesAlreadyInitialized.selector) {
+                assembly ("memory-safe") {
+                    revert(add(errData, 0x20), mload(errData))
+                }
+            }
         }
 
         $._votesManagement._isFounded = true;
