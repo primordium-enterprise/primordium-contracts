@@ -11,6 +11,9 @@ import {ExecutorBase} from "./ExecutorBase.sol";
  * @notice This contract follows the same packed multiSend encoding as Safe contracts (for compatibility),
  * https://github.com/safe-global/safe-contracts/blob/main/contracts/libraries/MultiSend.sol
  *
+ * @dev This contract inherits from {ExecutorBase}, and uses the internal {_execute} method to call each of the packed
+ * multi-send methods. This is to ensure the expected execution events are used properly.
+ *
  * @author Ben Jett - @BCJdevelopment
  */
 abstract contract MultiSend is ExecutorBase {

@@ -6,7 +6,7 @@
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "build": "forge build",
-    "test": "forge test --no-match-path 'test/.*/*'",
+    "test": "forge test --no-match-path 'test/.*/*' -vvv",
     "lint": "solhint 'contracts/**/*.sol'",
     "selector-order": "node utils/selectorOrder.js",
     "check:erc7201": "node utils/checkERC7201.js",
