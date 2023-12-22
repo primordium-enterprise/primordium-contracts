@@ -11,7 +11,7 @@ import {IGovernorToken} from "../interfaces/IGovernorToken.sol";
 import {Enum} from "src/common/Enum.sol";
 import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
 import {MultiSendEncoder} from "src/libraries/MultiSendEncoder.sol";
-import {SelectorChecker} from "src/libraries/SelectorChecker.sol";
+// import {SelectorChecker} from "src/libraries/SelectorChecker.sol";
 import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {BasisPoints} from "src/libraries/BasisPoints.sol";
@@ -367,7 +367,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas,
-        string[] calldata signatures,
+        string[] memory signatures,
         string calldata description
     )
         public
@@ -388,31 +388,8 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
             duration = _votingPeriod;
         }
 
-        // proposalId = _propose(
-        //     proposer, snapshot, duration, targets, values, calldatas, signatures, description
-        // );
-
-        ProposalsStorage storage $ = _getProposalsStorage();
-
-        BatchArrayChecker.checkArrayLengths(targets.length, values.length, calldatas.length, signatures.length);
-
-        // Verify the human-readable function signatures
-        SelectorChecker.verifySelectors(calldatas, signatures);
-
-        // Increment proposal counter
-        {
-            bytes32 actionsHash = hashProposalActions(targets, values, calldatas);
-            proposalId = ++$._proposalCount;
-            $._proposalActionsHashes[proposalId] = actionsHash;
-        }
-
-        ProposalCore storage proposal = $._proposals[proposalId];
-        proposal.proposer = proposer;
-        proposal.voteStart = snapshot.toUint48();
-        proposal.voteDuration = duration.toUint32();
-
-        emit ProposalCreated(
-            proposalId, proposer, targets, values, signatures, calldatas, snapshot, snapshot + duration, description
+        proposalId = _propose(
+            proposer, snapshot, duration, targets, values, calldatas, signatures, description
         );
     }
 
@@ -511,41 +488,43 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         ) revert GovernorUnauthorized(proposer);
     }
 
-    // function _propose(
-    //     address proposer,
-    //     address[] calldata targets,
-    //     uint256[] calldata values,
-    //     bytes[] calldata calldatas,
-    //     string[] calldata signatures,
-    //     string calldata description
-    // )
-    //     internal
-    //     virtual
-    //     returns (uint256 proposalId)
-    // {
-    //     ProposalsStorage storage $ = _getProposalsStorage();
+    function _propose(
+        address proposer,
+        uint256 snapshot,
+        uint256 duration,
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas,
+        string[] memory signatures,
+        string calldata description
+    )
+        internal
+        virtual
+        returns (uint256 proposalId)
+    {
+        BatchArrayChecker.checkArrayLengths(targets.length, values.length, calldatas.length, signatures.length);
 
-    //     BatchArrayChecker.checkArrayLengths(targets.length, values.length, calldatas.length, signatures.length);
+        // Verify the human-readable function signatures
+        // SelectorChecker.verifySelectors(calldatas, signatures);
+        _validateCalldataSignatures(calldatas, signatures);
 
-    //     // Verify the human-readable function signatures
-    //     SelectorChecker.verifySelectors(calldatas, signatures);
+        // Increment proposal counter
+        ProposalsStorage storage $ = _getProposalsStorage();
+        {
+            bytes32 actionsHash = hashProposalActions(targets, values, calldatas);
+            proposalId = ++$._proposalCount;
+            $._proposalActionsHashes[proposalId] = actionsHash;
+        }
 
-    //     // Increment proposal counter
-    //     {
-    //         bytes32 actionsHash = hashProposalActions(targets, values, calldatas);
-    //         proposalId = ++$._proposalCount;
-    //         $._proposalActionsHashes[proposalId] = actionsHash;
-    //     }
+        ProposalCore storage proposal = $._proposals[proposalId];
+        proposal.proposer = proposer;
+        proposal.voteStart = snapshot.toUint48();
+        proposal.voteDuration = duration.toUint32();
 
-    //     ProposalCore storage proposal = $._proposals[proposalId];
-    //     proposal.proposer = proposer;
-    //     proposal.voteStart = snapshot.toUint48();
-    //     proposal.voteDuration = duration.toUint32();
-
-    //     emit ProposalCreated(
-    //         proposalId, proposer, targets, values, signatures, calldatas, snapshot, snapshot + duration, description
-    //     );
-    // }
+        emit ProposalCreated(
+            proposalId, proposer, targets, values, calldatas, signatures, snapshot, snapshot + duration, description
+        );
+    }
 
     /// @inheritdoc IProposals
     function queue(
@@ -777,6 +756,34 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
             revert GovernorUnexpectedProposalState(proposalId, currentState, allowedStates);
         }
         return currentState;
+    }
+
+    /**
+     * @dev Gas-optimized validation. Assumes that the array lengths have already been checked
+     */
+    function _validateCalldataSignatures(bytes[] calldata calldatas, string[] memory signatures) internal pure {
+        assembly ("memory-safe") {
+            let i := 0
+            for {} lt(i, calldatas.length) { i := add(i, 0x01) } {
+                // If the calldata item byte length is greater than zero, check the signature
+                let calldataItemOffset := add(calldatas.offset, calldataload(add(calldatas.offset, mul(i, 0x20))))
+                if gt(calldataload(calldataItemOffset), 0) {
+                    // Load the function selector from the currnet calldata item (shift right 28 * 8 = 224 bits)
+                    let selector := shr(224, calldataload(add(0x20, calldataItemOffset)))
+
+                    let signature := mload(add(0x20, add(signatures, mul(i, 0x20))))
+                    let signatureLength := mload(signature)
+                    let signatureHash := keccak256(add(signature, 0x20), signatureLength)
+
+                    if iszero(eq(selector, shr(224, signatureHash))) {
+                        // `GovernorInvalidActionSignature(uint256)`
+                        mstore(0, 0xb8e4a11400000000000000000000000000000000000000000000000000000000)
+                        mstore(0x04, i) // index
+                        revert(0, 0x24)
+                    }
+                }
+            }
+        }
     }
 
     /**

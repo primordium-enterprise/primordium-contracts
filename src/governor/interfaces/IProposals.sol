@@ -43,8 +43,8 @@ interface IProposals {
         address indexed proposer,
         address[] targets,
         uint256[] values,
-        string[] signatures,
         bytes[] calldatas,
+        string[] signatures,
         uint256 voteStart,
         uint256 voteEnd,
         string description
@@ -100,6 +100,12 @@ interface IProposals {
      * @dev Thrown when the actions hash of the targets, values, and calldatas do not match the proposal's actions hash.
      */
     error GovernorInvalidProposalActions(uint256 proposalId);
+
+    /**
+     * @dev Thrown when a calldata signature does not match the actual calldata selector. Provides the index where the
+     * mismatch occurs.
+     */
+    error GovernorInvalidActionSignature(uint256 index);
 
     /**
      * @notice Returns the total number of submitted proposals.
