@@ -138,7 +138,7 @@ abstract contract Proposals is
         uint256 snapshot = proposalSnapshot(proposalId);
 
         if (snapshot == 0) {
-            revert UnknownProposalId(proposalId);
+            revert GovernorUnknownProposalId(proposalId);
         }
 
         uint256 currentTimepoint = clock();
@@ -265,7 +265,7 @@ abstract contract Proposals is
                 _governanceCanBeginAt := and(shr(0xa8, packedGovernorBaseStorage), 0xffffffffff)
             }
             if (block.timestamp < _governanceCanBeginAt) {
-                revert GovernanceCannotInitializeYet(_governanceCanBeginAt);
+                revert GovernorCannotBeFoundedYet(_governanceCanBeginAt);
             }
 
             // Check the governance threshold
@@ -277,16 +277,16 @@ abstract contract Proposals is
             uint256 currentSupply = _token.totalSupply();
             uint256 threshold = _token.maxSupply().bpsUnchecked(_governanceThresholdBps);
             if (currentSupply < threshold) {
-                revert GovernanceThresholdIsNotMet(threshold, currentSupply);
+                revert GovernorFoundingVoteThresholdNotMet(threshold, currentSupply);
             }
 
-            // Ensure that the only proposal action is to initializeGovernance() on this Governor
+            // Ensure that the only proposal action is to foundGovernor() on this Governor
             bytes calldata initData = calldatas[0];
             // forgefmt: disable-next-item
             if (
                 targets.length != 1 ||
                 targets[0] != address(this) ||
-                bytes4(initData) != this.initializeGovernance.selector ||
+                bytes4(initData) != this.foundGovernor.selector ||
                 initData.length != 36 // 4 selector bytes + 32 proposalId bytes
             ) {
                 revert GovernanceInitializationActionRequired();
@@ -300,7 +300,7 @@ abstract contract Proposals is
                 providedProposalId := calldataload(add(initData.offset, 0x04))
             }
             if (providedProposalId != expectedProposalId) {
-                revert InvalidProposalIdForInitialization(expectedProposalId, providedProposalId);
+                revert GovernorInvalidFoundingProposalID(expectedProposalId, providedProposalId);
             }
         }
 
@@ -309,7 +309,7 @@ abstract contract Proposals is
         if (
             _getVotes(_token, proposer, currentClock - 1, _defaultParams()) < proposalThreshold() &&
             !_hasRole(PROPOSER_ROLE, proposer)
-        ) revert UnauthorizedToSubmitProposal(proposer);
+        ) revert GovernorUnauthorized(proposer);
     }
 
     function _propose(
@@ -364,7 +364,7 @@ abstract contract Proposals is
         _validateStateBitmap(proposalId, _encodeStateBitmap(ProposalState.Succeeded));
 
         if ($._proposalActionsHashes[proposalId] != hashProposalActions(targets, values, calldatas)) {
-            revert InvalidActionsForProposal();
+            revert GovernorInvalidProposalActions(proposalId);
         }
 
         ITimelockAvatar _executor = executor();
@@ -455,13 +455,13 @@ abstract contract Proposals is
     {
         ProposalsStorage storage $ = _getProposalsStorage();
         if ($._proposalActionsHashes[proposalId] != hashProposalActions(targets, values, calldatas)) {
-            revert InvalidActionsForProposal();
+            revert GovernorInvalidProposalActions(proposalId);
         }
 
         // Only allow cancellation if the sender is CANCELER_ROLE, or if the proposer cancels before voting starts
         if (!_hasRole(CANCELER_ROLE, msg.sender)) {
             if (msg.sender != proposalProposer(proposalId)) {
-                revert UnauthorizedToCancelProposal();
+                revert GovernorUnauthorized(msg.sender);
             }
             _validateStateBitmap(proposalId, _encodeStateBitmap(ProposalState.Pending));
         }

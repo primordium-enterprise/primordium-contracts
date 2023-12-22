@@ -147,29 +147,29 @@ abstract contract GovernorBase is
     }
 
     /// @inheritdoc IGovernorBase
-    function governanceCanBeginAt() public view returns (uint256 _governanceCanBeginAt) {
+    function governanceCanBeginAt() public view override returns (uint256 _governanceCanBeginAt) {
         _governanceCanBeginAt = _getGovernorBaseStorage()._governanceCanBeginAt;
     }
 
     /// @inheritdoc IGovernorBase
-    function governanceThreshold() public view returns (uint256 threshold) {
+    function governanceFoundingVoteThreshold() public view override returns (uint256 threshold) {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
         IGovernorToken _token = $._token;
-        bool isFounded = $._isFounded;
+        bool _isFounded = $._isFounded;
         uint256 bps = $._governanceThresholdBps;
-        if (isFounded) {
+        if (_isFounded) {
             return threshold;
         }
         threshold = _token.maxSupply().bpsUnchecked(bps);
     }
 
     /// @inheritdoc IGovernorBase
-    function initializeGovernance(uint256 proposalId) external virtual onlyGovernance {
-        _initializeGovernance(proposalId);
+    function foundGovernor(uint256 proposalId) external virtual onlyGovernance {
+        _foundGovernor(proposalId);
     }
 
     /// @dev The proposalId is verified when the proposal is created.
-    function _initializeGovernance(uint256 proposalId) internal virtual {
+    function _foundGovernor(uint256 proposalId) internal virtual {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
 
         IGovernorToken _token = $._token;
@@ -178,7 +178,7 @@ abstract contract GovernorBase is
 
         // Revert if already initialized
         if (active) {
-            revert GovernanceAlreadyInitialized();
+            revert GovernorAlreadyFounded();
         }
 
         // TODO: Add this back in following Governance reorg
@@ -186,7 +186,7 @@ abstract contract GovernorBase is
         // uint256 voteEndedSupply = _token.getPastTotalSupply(proposalDeadline(proposalId));
         // uint256 threshold = _token.maxSupply().bpsUnchecked(bps);
         // if (voteEndedSupply < threshold) {
-        //     revert GovernanceThresholdIsNotMet(threshold, voteEndedSupply);
+        //     revert GovernorFoundingVoteThresholdNotMet(threshold, voteEndedSupply);
         // }
 
         // Try enabling balance shares on the executor (continue if already enabled, revert otherwise)
@@ -204,9 +204,9 @@ abstract contract GovernorBase is
     }
 
     /// @inheritdoc IGovernorBase
-    function isGovernanceActive() public view virtual returns (bool _isGovernanceActive) {
+    function isFounded() public view virtual returns (bool) {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
-        _isGovernanceActive = $._isFounded;
+        return $._isFounded;
     }
 
     /// @inheritdoc IGovernorBase

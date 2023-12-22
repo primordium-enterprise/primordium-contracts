@@ -55,6 +55,32 @@ interface IProposals {
      */
     error GovernorUnexpectedProposalState(uint256 proposalId, ProposalState current, bytes32 expectedStates);
 
+    /**
+     * @dev If governance has not been initialized, the only allowable proposal action is to initialize governance.
+     */
+    error GovernanceInitializationActionRequired();
+
+    /**
+     * @dev Thrown when the provided `proposalId` does not match any known proposals.
+     */
+    error GovernorUnknownProposalId(uint256 proposalId);
+
+    /**
+     * @dev Thrown when the proposal description ends with `#proposer=0x???`, where `0x???` is a valid address, and the
+     * msg.sender's address does not match this provided address.
+     */
+    error GovernorRestrictedProposer(address proposer);
+
+    /**
+     * @dev Thrown when the msg.sender is unauthorized to complete the current action.
+     */
+    error GovernorUnauthorized(address msgSender);
+
+    /**
+     * @dev Thrown when the actions hash of the targets, values, and calldatas do not match the proposal's actions hash.
+     */
+    error GovernorInvalidProposalActions(uint256 proposalId);
+
     function PROPOSER_ROLE() external view returns (bytes32 proposerRole);
     function CANCELER_ROLE() external view returns (bytes32 cancelerRole);
 
