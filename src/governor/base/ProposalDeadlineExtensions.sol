@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.20;
 
-import {GovernorBase} from "./GovernorBase.sol";
+import {ProposalVoting} from "./ProposalVoting.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -41,7 +41,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  *
  * @author Ben Jett - @BCJdevelopment
  */
-abstract contract ProposalDeadlineExtensions is GovernorBase {
+abstract contract ProposalDeadlineExtensions is ProposalVoting {
     struct DeadlineData {
         uint64 originalDeadline;
         uint64 extendedBy;
@@ -123,7 +123,7 @@ abstract contract ProposalDeadlineExtensions is GovernorBase {
     }
 
     function proposalOriginalDeadline(uint256 proposalId) public view virtual returns (uint256) {
-        return GovernorBase.proposalDeadline(proposalId);
+        return super.proposalDeadline(proposalId);
     }
 
     /**
@@ -249,7 +249,7 @@ abstract contract ProposalDeadlineExtensions is GovernorBase {
         // Initialize the rest of the struct if it hasn't been initialized yet
         if (dd.originalDeadline == 0) {
             // Assumes safe conversion, uint64 should be large enough for either block numbers or timestamps in seconds
-            dd.originalDeadline = uint64(GovernorBase.proposalDeadline(proposalId));
+            dd.originalDeadline = uint64(super.proposalDeadline(proposalId));
             dd.currentDeadline = dd.originalDeadline;
         }
 

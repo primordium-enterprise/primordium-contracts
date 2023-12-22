@@ -5,6 +5,25 @@ pragma solidity ^0.8.20;
 
 interface IProposalVoting {
     /**
+     * @dev Supported vote types. Matches GovernorBase Bravo ordering.
+     */
+    enum VoteType {
+        Against,
+        For,
+        Abstain
+    }
+
+    /**
+     * @dev Emitted when the percent majority for proposal success is updated.
+     */
+    event PercentMajorityUpdate(uint256 oldPercentMajority, uint256 newPercentMajority);
+
+    /**
+     * @dev Emitted when the quorum BPS value is updated.
+     */
+    event QuorumBpsUpdate(uint256 oldQuorumBps, uint256 newQuorumBps);
+
+    /**
      * @dev Emitted when a vote is cast without params.
      *
      * Note: `support` values should be seen as buckets. Their interpretation depends on the voting module used.
@@ -22,6 +41,10 @@ interface IProposalVoting {
     );
 
     error GovernorInvalidSignature(address voter);
+
+    error GovernorVoteAlreadyCast(uint256 proposalId, address account);
+    error GovernorInvalidVoteValue();
+    error GovernorPercentMajorityOutOfRange(uint256 minRange, uint256 maxRange);
 
     /**
      * @dev A description of the possible `support` values for {castVote} and the way these votes are counted, meant to
@@ -48,9 +71,56 @@ interface IProposalVoting {
     function COUNTING_MODE() external view returns (string memory);
 
     /**
+     * @notice The minimum setable percent majority for proposal vote success.
+     */
+    function MIN_PERCENT_MAJORITY() external view returns (uint256);
+
+    /**
+     * @notice The maximum setable percent majority for proposal vote success.
+     */
+    function MAX_PERCENT_MAJORITY() external view returns (uint256);
+
+    /**
      * @notice Returns whether `account` has cast a vote on `proposalId`.
      */
     function hasVoted(uint256 proposalId, address account) external view returns (bool);
+
+    /**
+     * @notice Returns the against votes, the for votes, and the abstain votes for the given proposal ID.
+     * @dev These counts can change if the proposal vote period is still active.
+     */
+    function proposalVotes(uint256 proposalId)
+        external
+        view
+        returns (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes);
+
+    /**
+     * @notice Returns the percent majority at the specified timepoint of for votes required for proposal success.
+     */
+    function percentMajority(uint256 timepoint) external view returns (uint256);
+
+    /**
+     * @notice A governance-only method to update the percent majority for future proposals.
+     */
+    function setPercentMajority(uint256 newPercentMajority) external;
+
+    /**
+     * @notice The minimum number of total votes required for a proposal to be successful.
+     *
+     * @dev Calculated as the `totalSupply * quorumBps / 10,000`.
+     */
+    function quorum(uint256 timepoint) external view returns (uint256);
+
+    /**
+     * @notice The minimum percentage of the vote token's total supply (in basis points) that must have voted on a
+     * proposal in order for it to succeed (regardless of the for vs. against votes).
+     */
+    function quorumBps(uint256 timepoint) external view returns (uint256);
+
+    /**
+     * @notice A governance-only method to update the quorum basis points value. Max value is 10,000.
+     */
+    function setQuorumBps(uint256 newQuorumBps) external;
 
     /**
      * @notice Cast a vote. Emits a {VoteCast} event.
@@ -111,5 +181,4 @@ interface IProposalVoting {
     )
         external
         returns (uint256 balance);
-
 }

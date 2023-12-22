@@ -15,6 +15,7 @@ import {SelectorChecker} from "src/libraries/SelectorChecker.sol";
 import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {BasisPoints} from "src/libraries/BasisPoints.sol";
+import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 
 /**
  * @title Proposals
@@ -25,6 +26,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
     using SafeCast for uint256;
     using BasisPoints for uint256;
+    using Checkpoints for Checkpoints.Trace208;
 
     struct ProposalCore {
         address proposer; // 20 bytes
@@ -67,6 +69,8 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         uint24 _votingPeriod;
         // Grace period can be set to max to be unlimited
         uint48 _gracePeriod;
+
+        Checkpoints.Trace208 _quorumBpsCheckpoints;
     }
 
     // keccak256(abi.encode(uint256(keccak256("Proposals.ProposalSettings.Storage")) - 1)) & ~bytes32(uint256(0xff));
@@ -242,7 +246,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
 
         emit ProposalThresholdBPSUpdate($._proposalThresholdBps, newProposalThresholdBps);
-        $._proposalThresholdBps = newProposalThresholdBps.toBps();
+        $._proposalThresholdBps = newProposalThresholdBps.toBps(); // toBps() checks for out of range BPS value
     }
 
     /// @inheritdoc IProposals
@@ -607,9 +611,6 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
 
         return proposalId;
     }
-
-    /// @inheritdoc IProposals
-    function quorum(uint256 timepoint) public view virtual returns (uint256);
 
     /// @inheritdoc IProposals
     function grantRoles(

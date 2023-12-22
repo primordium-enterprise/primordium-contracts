@@ -7,38 +7,10 @@ import {GovernorBase} from "../base/GovernorBase.sol";
 import {Proposals} from "../base/Proposals.sol";
 import {ProposalDeadlineExtensions} from "../base/ProposalDeadlineExtensions.sol";
 
-abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions, Proposals {
-    function _castVote(
-        uint256 proposalId,
-        address account,
-        uint8 support,
-        string memory reason,
-        bytes memory params
-    )
-        internal
-        virtual
-        override(GovernorBase, ProposalDeadlineExtensions)
-        returns (uint256)
-    {
-        return super._castVote(proposalId, account, support, reason, params);
-    }
-
-    function proposalDeadline(uint256 proposalId)
-        public
-        view
-        virtual
-        override(GovernorBase, ProposalDeadlineExtensions)
-        returns (uint256)
-    {
-        return super.proposalDeadline(proposalId);
-    }
-
-    function proposalThreshold() public view virtual override(GovernorBase, Proposals) returns (uint256) {
-        return super.proposalThreshold();
-    }
+abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions {
 
     /**
-     * ProposalSettings.sol
+     * Proposals.sol
      */
 
     error ProposalThresholdBpsTooLarge(uint256 providedBps, uint256 maxBps);

@@ -291,14 +291,6 @@ interface IProposals {
         returns (uint256 proposalId_);
 
     /**
-     * @notice Minimum number of cast voted required for a proposal to be successful.
-     *
-     * NOTE: The `timepoint` parameter corresponds to the snapshot used for counting vote. This allows to scale the
-     * quorum depending on values such as the totalSupply of a token at this timepoint (see {ERC20Votes}).
-     */
-    function quorum(uint256 timepoint) external view returns (uint256);
-
-    /**
      * @dev Batch method for granting roles. Only governance.
      * @param roles The bytes32 role hashes to grant.
      * @param accounts The accounts to grant each role to.
