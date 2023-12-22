@@ -644,6 +644,26 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
     /// @dev Is the proposal successful or not.
     function _voteSucceeded(uint256 proposalId) internal view virtual returns (bool);
 
+    /// @dev Override to check that the threshold is still met at the end of the proposal period
+    function _foundGovernor(uint256 proposalId) internal virtual override {
+        GovernorBaseStorage storage _governorBaseStorage;
+        assembly {
+            _governorBaseStorage.slot := GOVERNOR_BASE_STORAGE
+        }
+
+        IGovernorToken _token = _governorBaseStorage._token;
+        uint256 _governanceThresholdBps = _governorBaseStorage._governanceThresholdBps;
+
+        // Check that the total supply at the vote end is still above the threshold
+        uint256 voteEndedSupply = _token.getPastTotalSupply(proposalDeadline(proposalId));
+        uint256 threshold = _token.maxSupply().bpsUnchecked(_governanceThresholdBps);
+        if (voteEndedSupply < threshold) {
+            revert GovernorFoundingVoteThresholdNotMet(threshold, voteEndedSupply);
+        }
+
+        super._foundGovernor(proposalId);
+    }
+
     /**
      * @dev Encodes a `ProposalState` into a `bytes32` representation where each bit enabled corresponds to
      * the underlying position in the `ProposalState` enum. For example:

@@ -168,26 +168,16 @@ abstract contract GovernorBase is
         _foundGovernor(proposalId);
     }
 
-    /// @dev The proposalId is verified when the proposal is created.
+    /// @dev The proposalId will be verified when the proposal is created.
     function _foundGovernor(uint256 proposalId) internal virtual {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
 
-        IGovernorToken _token = $._token;
-        bool active = $._isFounded;
-        uint256 bps = $._governanceThresholdBps;
+        bool _isFounded = $._isFounded;
 
         // Revert if already initialized
-        if (active) {
+        if (_isFounded) {
             revert GovernorAlreadyFounded();
         }
-
-        // TODO: Add this back in following Governance reorg
-        // Check that the total supply at the vote end is still above the threshold
-        // uint256 voteEndedSupply = _token.getPastTotalSupply(proposalDeadline(proposalId));
-        // uint256 threshold = _token.maxSupply().bpsUnchecked(bps);
-        // if (voteEndedSupply < threshold) {
-        //     revert GovernorFoundingVoteThresholdNotMet(threshold, voteEndedSupply);
-        // }
 
         // Try enabling balance shares on the executor (continue if already enabled, revert otherwise)
         try Treasurer(payable(address(executor()))).enableBalanceShares(true) {}
