@@ -15,7 +15,7 @@ import {SelectorChecker} from "src/libraries/SelectorChecker.sol";
 import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {BasisPoints} from "src/libraries/BasisPoints.sol";
-import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
+import {Checkpoints} from "src/libraries/Checkpoints.sol";
 
 /**
  * @title Proposals
@@ -154,9 +154,63 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         pure
         virtual
         override
-        returns (bytes32)
+        returns (bytes32 actionsHash)
     {
-        return keccak256(abi.encode(targets, values, calldatas));
+        // Below performs gas-optimized equivalent of "keccak256(abi.encode(targets, values, calldatas))"
+        assembly ("memory-safe") {
+            // Start at free memory (don't update free mem pointer, just hash and exit)
+            let start := mload(0x40)
+            // Initialize pointer (3 dynamic arrays, so point past 3 * 32 byte header values)
+            let p := add(start, 0x60)
+
+            // Store targets
+            {
+                mstore(start, 0x60) // targets is first header item, store offset to pointer
+                mstore(0, mul(targets.length, 0x20)) // byte length is array length times 32
+                mstore(p, targets.length) // store targets length
+                calldatacopy(add(p, 0x20), targets.offset, mload(0)) // copy targets array items
+
+                // Increment pointer
+                p := add(p, add(0x20, mload(0)))
+            }
+
+            // Store values
+            {
+                mstore(add(start, 0x20), sub(p, start)) // values is second header item, store offset to pointer
+                mstore(0, mul(values.length, 0x20)) // byte length is array length times 32
+                mstore(p, values.length) // store values length
+                calldatacopy(add(p, 0x20), values.offset, mload(0)) // copy values array items
+
+                // Increment pointer
+                p := add(p, add(0x20, mload(0)))
+            }
+
+            // Store calldatas
+            {
+                mstore(add(start, 0x40), sub(p, start)) // calldatas is third header item, store offset to pointer
+                let calldatasByteLength := 0 // initialize byte length to zero
+                if gt(calldatas.length, 0) {
+                    // since calldatas is dynamic array of dynamic arrays, not as straightforward to copy...
+                    // but the calldata is already abi encoded
+                    // so we can add the last item's offset to the last item's (padded) length for total copy length
+                    let finalItemOffset := calldataload(add(calldatas.offset, mul(sub(calldatas.length, 0x01), 0x20)))
+                    let finalItemByteLength := calldataload(add(calldatas.offset, finalItemOffset))
+                    finalItemByteLength := mul(0x20, div(add(finalItemByteLength, 0x1f), 0x20)) // pad to 32 bytes
+                    calldatasByteLength := add(
+                        finalItemOffset,
+                        add(0x20, finalItemByteLength) // extra 32 bytes for the item length
+                    )
+                }
+                mstore(p, calldatas.length) // store calldatas length
+                calldatacopy(add(p, 0x20), calldatas.offset, calldatasByteLength) // copy calldatas array items
+
+                // Increment pointer
+                p := add(p, add(0x20, calldatasByteLength))
+            }
+
+            // The result is the hash starting at "start", hashing the pointer "p" minus "start" bytes
+            actionsHash := keccak256(start, sub(p, start))
+        }
     }
 
     /// @inheritdoc IProposals
@@ -323,12 +377,42 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
     {
         address proposer = _msgSender();
 
-        (, uint256 currentClock) = _authorizeProposal(proposer, targets, values, calldatas, description);
+        uint256 snapshot;
+        uint256 duration;
+        {
+            (, uint256 currentClock) = _authorizeProposal(proposer, targets, values, calldatas, description);
 
-        (uint256 _votingDelay, uint256 duration) = _getVotingDelayAndPeriod();
+            (uint256 _votingDelay, uint256 _votingPeriod) = _getVotingDelayAndPeriod();
 
-        proposalId = _propose(
-            proposer, currentClock + _votingDelay, duration, targets, values, calldatas, signatures, description
+            snapshot = currentClock + _votingDelay;
+            duration = _votingPeriod;
+        }
+
+        // proposalId = _propose(
+        //     proposer, snapshot, duration, targets, values, calldatas, signatures, description
+        // );
+
+        ProposalsStorage storage $ = _getProposalsStorage();
+
+        BatchArrayChecker.checkArrayLengths(targets.length, values.length, calldatas.length, signatures.length);
+
+        // Verify the human-readable function signatures
+        SelectorChecker.verifySelectors(calldatas, signatures);
+
+        // Increment proposal counter
+        {
+            bytes32 actionsHash = hashProposalActions(targets, values, calldatas);
+            proposalId = ++$._proposalCount;
+            $._proposalActionsHashes[proposalId] = actionsHash;
+        }
+
+        ProposalCore storage proposal = $._proposals[proposalId];
+        proposal.proposer = proposer;
+        proposal.voteStart = snapshot.toUint48();
+        proposal.voteDuration = duration.toUint32();
+
+        emit ProposalCreated(
+            proposalId, proposer, targets, values, signatures, calldatas, snapshot, snapshot + duration, description
         );
     }
 
@@ -362,7 +446,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         // check founded status
         bytes32 packedGovernorBaseStorage;
         bool isFounded;
-        assembly {
+        assembly ("memory-safe") {
             packedGovernorBaseStorage := sload(GOVERNOR_BASE_STORAGE)
             _token := packedGovernorBaseStorage
             // The _isFounded bool is at byte index 20 (after the 20 address bytes), so shift right 20 * 8 = 160 bits
@@ -375,7 +459,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         if (!isFounded) {
             // Check if goverance can begin yet
             uint256 _governanceCanBeginAt;
-            assembly {
+            assembly ("memory-safe") {
                 // Shift right by 20 address bytes + 1 bool byte = 21 bytes * 8 = 168 bits
                 _governanceCanBeginAt := and(shr(0xa8, packedGovernorBaseStorage), 0xffffffffff)
             }
@@ -385,7 +469,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
 
             // Check the governance threshold
             uint256 _governanceThresholdBps;
-            assembly {
+            assembly ("memory-safe") {
                 // Shift right by 20 address bytes + 1 bool byte + 5 uint40 bytes = 26 bytes * 8 = 208 bits
                 _governanceThresholdBps := and(shr(0xd0, packedGovernorBaseStorage), 0xffff)
             }
@@ -427,40 +511,41 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         ) revert GovernorUnauthorized(proposer);
     }
 
-    function _propose(
-        address proposer,
-        uint256 snapshot,
-        uint256 duration,
-        address[] calldata targets,
-        uint256[] calldata values,
-        bytes[] calldata calldatas,
-        string[] calldata signatures,
-        string calldata description
-    )
-        internal
-        virtual
-        returns (uint256 proposalId)
-    {
-        ProposalsStorage storage $ = _getProposalsStorage();
+    // function _propose(
+    //     address proposer,
+    //     address[] calldata targets,
+    //     uint256[] calldata values,
+    //     bytes[] calldata calldatas,
+    //     string[] calldata signatures,
+    //     string calldata description
+    // )
+    //     internal
+    //     virtual
+    //     returns (uint256 proposalId)
+    // {
+    //     ProposalsStorage storage $ = _getProposalsStorage();
 
-        BatchArrayChecker.checkArrayLengths(targets.length, values.length, calldatas.length, signatures.length);
+    //     BatchArrayChecker.checkArrayLengths(targets.length, values.length, calldatas.length, signatures.length);
 
-        // Verify the human-readable function signatures
-        SelectorChecker.verifySelectors(calldatas, signatures);
+    //     // Verify the human-readable function signatures
+    //     SelectorChecker.verifySelectors(calldatas, signatures);
 
-        // Increment proposal counter
-        proposalId = ++$._proposalCount;
+    //     // Increment proposal counter
+    //     {
+    //         bytes32 actionsHash = hashProposalActions(targets, values, calldatas);
+    //         proposalId = ++$._proposalCount;
+    //         $._proposalActionsHashes[proposalId] = actionsHash;
+    //     }
 
-        ProposalCore storage proposal = $._proposals[proposalId];
-        $._proposalActionsHashes[proposalId] = hashProposalActions(targets, values, calldatas);
-        proposal.proposer = proposer;
-        proposal.voteStart = snapshot.toUint48();
-        proposal.voteDuration = duration.toUint32();
+    //     ProposalCore storage proposal = $._proposals[proposalId];
+    //     proposal.proposer = proposer;
+    //     proposal.voteStart = snapshot.toUint48();
+    //     proposal.voteDuration = duration.toUint32();
 
-        emit ProposalCreated(
-            proposalId, proposer, targets, values, signatures, calldatas, snapshot, snapshot + duration, description
-        );
-    }
+    //     emit ProposalCreated(
+    //         proposalId, proposer, targets, values, signatures, calldatas, snapshot, snapshot + duration, description
+    //     );
+    // }
 
     /// @inheritdoc IProposals
     function queue(
@@ -721,7 +806,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         returns (bool)
     {
         uint256 len;
-        assembly {
+        assembly ("memory-safe") {
             len := description.length
         }
 
@@ -732,7 +817,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
 
         // Extract what would be the `#proposer=0x` marker beginning the suffix
         bytes12 marker;
-        assembly {
+        assembly ("memory-safe") {
             // - Start of the string contents in calldata = description.offset
             // - First character of the marker = len - 52
             //   - Length of "#proposer=0x0000000000000000000000000000000000000000" = 52

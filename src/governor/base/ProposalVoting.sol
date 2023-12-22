@@ -7,7 +7,7 @@ import {Proposals} from "./Proposals.sol";
 import {IProposalVoting} from "../interfaces/IProposalVoting.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
+import {Checkpoints} from "src/libraries/Checkpoints.sol";
 import {BasisPoints} from "src/libraries/BasisPoints.sol";
 
 abstract contract ProposalVoting is

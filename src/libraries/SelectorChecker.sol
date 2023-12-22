@@ -26,7 +26,7 @@ library SelectorChecker {
         uint256 i = 0;
         while (i < calldatas.length) {
             if (calldatas[i].length > 0) {
-                assembly {
+                assembly ("memory-safe") {
                     // Load the function selector from the current calldatas array item
                     selector :=
                         calldataload(

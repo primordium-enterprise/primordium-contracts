@@ -101,9 +101,6 @@ interface IProposals {
      */
     error GovernorInvalidProposalActions(uint256 proposalId);
 
-    function PROPOSER_ROLE() external view returns (bytes32 proposerRole);
-    function CANCELER_ROLE() external view returns (bytes32 cancelerRole);
-
     /**
      * @notice Returns the total number of submitted proposals.
      */
