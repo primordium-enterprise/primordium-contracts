@@ -4,7 +4,6 @@
 pragma solidity ^0.8.20;
 
 import {GovernorBase} from "./base/GovernorBase.sol";
-import {ProposalSettings} from "./base/ProposalSettings.sol";
 import {ProposalDeadlineExtensions} from "./base/ProposalDeadlineExtensions.sol";
 import {VoteMajoritySettings} from "./base/VoteMajoritySettings.sol";
 import {VotesQuorumBps} from "./base/VotesQuorumBps.sol";

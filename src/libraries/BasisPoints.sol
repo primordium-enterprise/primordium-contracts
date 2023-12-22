@@ -35,4 +35,15 @@ library BasisPoints {
     function bpsMulmod(uint256 baseValue, uint256 bpsValue) internal pure returns (uint256 result) {
         result = mulmod(baseValue, bpsValue, MAX_BPS);
     }
+
+    /**
+     * @dev Checks that the BPS value is not greater than 10,000, and returns as a uint16.
+     */
+    function toBps(uint256 bpsValue) internal pure returns (uint16 result) {
+        if (bpsValue > MAX_BPS) {
+            revert BPSValueTooLarge(bpsValue);
+        }
+
+        result = uint16(bpsValue);
+    }
 }

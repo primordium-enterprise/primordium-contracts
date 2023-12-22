@@ -4,10 +4,10 @@
 pragma solidity ^0.8.20;
 
 import {GovernorBase} from "../base/GovernorBase.sol";
-import {ProposalSettings} from "../base/ProposalSettings.sol";
+import {Proposals} from "../base/Proposals.sol";
 import {ProposalDeadlineExtensions} from "../base/ProposalDeadlineExtensions.sol";
 
-abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions, ProposalSettings {
+abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions, Proposals {
     function _castVote(
         uint256 proposalId,
         address account,
@@ -33,7 +33,7 @@ abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions, Proposal
         return super.proposalDeadline(proposalId);
     }
 
-    function proposalThreshold() public view virtual override(GovernorBase, ProposalSettings) returns (uint256) {
+    function proposalThreshold() public view virtual override(GovernorBase, Proposals) returns (uint256) {
         return super.proposalThreshold();
     }
 

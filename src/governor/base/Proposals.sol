@@ -16,11 +16,12 @@ import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {BasisPoints} from "src/libraries/BasisPoints.sol";
 
-abstract contract Proposals is
-    GovernorBase,
-    IProposals,
-    Roles
-{
+/**
+ * @title Proposals
+ * @notice Logic for creating, queueing, and executing Governor proposals.
+ * @author Ben Jett - @BCJdevelopment
+ */
+abstract contract Proposals is GovernorBase, IProposals, Roles {
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
     using SafeCast for uint256;
     using BasisPoints for uint256;
@@ -58,20 +59,50 @@ abstract contract Proposals is
         }
     }
 
-    function __Proposals_init(bytes memory initGrantRoles) internal virtual onlyInitializing {
+    /// @custom:storage-location erc7201:Proposals.ProposalSettings.Storage
+    struct ProposalSettingsStorage {
+        uint16 _proposalThresholdBps;
+        // uint24 allows each period to be up to 194 days long using timestamps (longer using block numbers)
+        uint24 _votingDelay;
+        uint24 _votingPeriod;
+        // Grace period can be set to max to be unlimited
+        uint48 _gracePeriod;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("Proposals.ProposalSettings.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant PROPOSAL_SETTINGS_STORAGE =
+        0xddaa15f4123548e9bd63b0bf0b1ef94e9857e581d03ae278a788cfe245267b00;
+
+    function _getProposalSettingsStorage() internal pure returns (ProposalSettingsStorage storage $) {
+        assembly {
+            $.slot := PROPOSAL_SETTINGS_STORAGE
+        }
+    }
+
+    function __Proposals_init(
+        uint256 proposalThresholdBps_,
+        uint256 votingDelay_,
+        uint256 votingPeriod_,
+        uint256 gracePeriod_,
+        bytes memory initGrantRoles
+    ) internal virtual onlyInitializing {
+        _setProposalThresholdBps(proposalThresholdBps_);
+        _setVotingDelay(votingDelay_);
+        _setVotingPeriod(votingPeriod_);
+        _setProposalGracePeriod(gracePeriod_);
+
         (bytes32[] memory roles, address[] memory accounts, uint256[] memory expiresAts) =
             abi.decode(initGrantRoles, (bytes32[], address[], uint256[]));
         _grantRoles(roles, accounts, expiresAts);
     }
 
+    /*//////////////////////////////////////////////////////////////////////////
+        PROPOSAL GETTERS
+    //////////////////////////////////////////////////////////////////////////*/
+
     /// @inheritdoc IProposals
     function proposalCount() public view virtual returns (uint256 count) {
         count = _getProposalsStorage()._proposalCount;
-    }
-
-    /// @inheritdoc IProposals
-    function proposalThreshold() public view virtual returns (uint256) {
-        return 10e18;
     }
 
     /// @inheritdoc IProposals
@@ -110,13 +141,19 @@ abstract contract Proposals is
     }
 
     /// @inheritdoc IProposals
-    function votingDelay() public view virtual returns (uint256);
-
-    /// @inheritdoc IProposals
-    function votingPeriod() public view virtual returns (uint256);
-
-    /// @inheritdoc IProposals
-    function proposalGracePeriod() public view virtual returns (uint256);
+    function hashProposalActions(
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
+    )
+        public
+        pure
+        virtual
+        override
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(targets, values, calldatas));
+    }
 
     /// @inheritdoc IProposals
     function state(uint256 proposalId) public view virtual override returns (ProposalState) {
@@ -178,20 +215,94 @@ abstract contract Proposals is
         return ProposalState.Queued;
     }
 
+    /*//////////////////////////////////////////////////////////////////////////
+        PROPOSAL SETTINGS
+    //////////////////////////////////////////////////////////////////////////*/
+
     /// @inheritdoc IProposals
-    function hashProposalActions(
-        address[] calldata targets,
-        uint256[] calldata values,
-        bytes[] calldata calldatas
-    )
-        public
-        pure
-        virtual
-        override
-        returns (bytes32)
-    {
-        return keccak256(abi.encode(targets, values, calldatas));
+    function proposalThreshold() public view virtual returns (uint256 _proposalThreshold) {
+        IGovernorToken _token = token();
+        uint256 _proposalThresholdBps = proposalThresholdBps();
+
+        // Use unchecked, overflow not a problem as long as the token's max supply <= type(uint224).max
+        _proposalThreshold = _proposalThresholdBps.bpsUnchecked(_token.getPastTotalSupply(_clock(_token) - 1));
     }
+
+    /// @inheritdoc IProposals
+    function proposalThresholdBps() public view virtual returns (uint256 _proposalThresholdBps) {
+        _proposalThresholdBps = _getProposalSettingsStorage()._proposalThresholdBps;
+    }
+
+    /// @inheritdoc IProposals
+    function setProposalThresholdBps(uint256 newProposalThresholdBps) public virtual onlyGovernance {
+        _setProposalThresholdBps(newProposalThresholdBps);
+    }
+
+    function _setProposalThresholdBps(uint256 newProposalThresholdBps) internal virtual {
+        ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
+
+        emit ProposalThresholdBPSUpdate($._proposalThresholdBps, newProposalThresholdBps);
+        $._proposalThresholdBps = newProposalThresholdBps.toBps();
+    }
+
+    /// @inheritdoc IProposals
+    function votingDelay() public view virtual override returns (uint256 _votingDelay) {
+        _votingDelay = _getProposalSettingsStorage()._votingDelay;
+    }
+
+    /// @inheritdoc IProposals
+    function setVotingDelay(uint256 newVotingDelay) public virtual onlyGovernance {
+        _setVotingDelay(newVotingDelay);
+    }
+
+    function _setVotingDelay(uint256 newVotingDelay) internal virtual {
+        ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
+
+        emit VotingDelayUpdate($._votingDelay, newVotingDelay);
+        $._votingDelay = SafeCast.toUint24(newVotingDelay);
+    }
+
+    /// @inheritdoc IProposals
+    function votingPeriod() public view virtual override returns (uint256 _votingPeriod) {
+        _votingPeriod = _getProposalSettingsStorage()._votingPeriod;
+    }
+
+    /// @inheritdoc IProposals
+    function setVotingPeriod(uint256 newVotingPeriod) public virtual onlyGovernance {
+        _setVotingPeriod(newVotingPeriod);
+    }
+
+    function _setVotingPeriod(uint256 newVotingPeriod) internal virtual {
+        ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
+
+        emit VotingPeriodUpdate($._votingPeriod, newVotingPeriod);
+        $._votingPeriod = SafeCast.toUint24(newVotingPeriod);
+    }
+
+    /// @inheritdoc IProposals
+    function proposalGracePeriod() public view virtual override returns (uint256 _gracePeriod) {
+        _gracePeriod = _getProposalSettingsStorage()._gracePeriod;
+    }
+
+    /// @inheritdoc IProposals
+    function setProposalGracePeriod(uint256 newGracePeriod) public virtual onlyGovernance {
+        _setProposalGracePeriod(newGracePeriod);
+    }
+
+    function _setProposalGracePeriod(uint256 newGracePeriod) internal virtual {
+        // Don't allow overflow for setting to a high value "unlimited" value
+        if (newGracePeriod > type(uint48).max) {
+            newGracePeriod = type(uint48).max;
+        }
+
+        ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
+        emit ProposalGracePeriodUpdate($._gracePeriod, newGracePeriod);
+        $._gracePeriod = uint48(newGracePeriod);
+    }
+
+    /*//////////////////////////////////////////////////////////////////////////
+        PROPOSAL CREATION/EXECUTION LOGIC
+    //////////////////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IProposals
     function propose(
@@ -520,7 +631,11 @@ abstract contract Proposals is
     }
 
     /// @dev Get both values at once to optimize gas where applicable
-    function _getVotingDelayAndPeriod() internal view virtual returns (uint256 _votingDelay, uint256 _votingPeriod);
+    function _getVotingDelayAndPeriod() internal view virtual returns (uint256 _votingDelay, uint256 _votingPeriod) {
+        ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
+        _votingDelay = $._votingDelay;
+        _votingPeriod = $._votingPeriod;
+    }
 
     /// @dev Amount of votes already cast passes the threshold limit.
     function _quorumReached(uint256 proposalId) internal view virtual returns (bool);

@@ -200,7 +200,7 @@ abstract contract GovernorBase is
         }
 
         $._isFounded = true;
-        emit GovernanceInitialized(proposalId);
+        emit GovernorFounded(proposalId);
     }
 
     /// @inheritdoc IGovernorBase

@@ -23,10 +23,30 @@ interface IGovernorBase is IERC165, IERC6372 {
         bool isFounded
     );
 
-    event GovernanceInitialized(uint256 proposalId);
+    /**
+     * @dev Emitted when the Governor is successfully founded.
+     */
+    event GovernorFounded(uint256 proposalId);
+
+    /**
+     * @dev Thrown if the current block.timestamp is still less than the "governanceCanBeginAt()" timestamp.
+     */
     error GovernorCannotBeFoundedYet(uint256 governanceCanBeginAt);
+
+    /**
+     * @dev Thrown if the current vote token supply is less than the required threshold for founding the Governor.
+     */
     error GovernorFoundingVoteThresholdNotMet(uint256 governanceThreshold, uint256 voteSupply);
+
+    /**
+     * @dev Thrown if the Governor is already founded.
+     */
     error GovernorAlreadyFounded();
+
+    /**
+     * @dev Thrown if the provided proposal ID when submitting a founding proposal is different than the expected
+     * proposal ID. The expected proposal ID is the current "proposalCount()" + 1
+     */
     error GovernorInvalidFoundingProposalID(uint256 expectedProposalId, uint256 providedProposalId);
 
     /**

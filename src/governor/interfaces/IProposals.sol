@@ -16,6 +16,26 @@ interface IProposals {
     }
 
     /**
+     * @dev Emitted when the proposal threshold BPS is updated.
+     */
+    event ProposalThresholdBPSUpdate(uint256 oldProposalThresholdBps, uint256 newProposalThresholdBps);
+
+    /**
+     * @dev Emitted when the voting delay is updated.
+     */
+    event VotingDelayUpdate(uint256 oldVotingDelay, uint256 newVotingDelay);
+
+    /**
+     * @dev Emitted when the voting period is updated.
+     */
+    event VotingPeriodUpdate(uint256 oldVotingPeriod, uint256 newVotingPeriod);
+
+    /**
+     * @dev Emitted when the proposal grace period is updated.
+     */
+    event ProposalGracePeriodUpdate(uint256 oldGracePeriod, uint256 newGracePeriod);
+
+    /**
      * @dev Emitted when a proposal is created.
      */
     event ProposalCreated(
@@ -90,12 +110,6 @@ interface IProposals {
     function proposalCount() external view returns (uint256 _proposalCount);
 
     /**
-     * @notice The current number of votes that need to be delegated to the msg.sender in order to create a new
-     * proposal.
-     */
-    function proposalThreshold() external view returns (uint256);
-
-    /**
      * @notice Timepoint used to retrieve user's votes and quorum. If using block number (as per Compound's Comp), the
      * snapshot is performed at the end of this block. Hence, voting for this proposal starts at the beginning of the
      * following block.
@@ -131,31 +145,6 @@ interface IProposals {
     function proposalOpNonce(uint256 proposalId) external view returns (uint256);
 
     /**
-     * @notice Delay, between the proposal is created and the vote starts. The unit this duration is expressed in
-     * depends on the clock (see EIP-6372) this contract uses.
-     *
-     * This can be increased to leave time for users to buy voting power, or delegate it, before the voting of a
-     * proposal starts.
-     */
-    function votingDelay() external view returns (uint256);
-
-    /**
-     * @notice Delay, between the vote start and vote ends. The unit this duration is expressed in depends on the clock
-     * (see EIP-6372) this contract uses.
-     *
-     * NOTE: The {votingDelay} can delay the start of the vote. This must be considered when setting the voting period
-     * compared to the voting delay.
-     */
-    function votingPeriod() external view returns (uint256);
-
-    /**
-     * @notice Grace period after a proposal deadline passes in which a successful proposal must be queued for
-     * execution, or else the proposal will expire. The unit this duration is expressed in depends on the clock
-     * (see EIP-6372) this contract uses.
-     */
-    function proposalGracePeriod() external view returns (uint256);
-
-    /**
      * Current state of a proposal, following Compound's convention.
      */
     function state(uint256 proposalId) external view returns (ProposalState);
@@ -172,6 +161,63 @@ interface IProposals {
         external
         pure
         returns (bytes32);
+
+    /**
+     * @notice The current number of votes that need to be delegated to the msg.sender in order to create a new
+     * proposal (calculated using the {proposalThresholdBps}).
+     */
+    function proposalThreshold() external view returns (uint256);
+
+    /**
+     * @notice The percentage of the vote token's total supply (in basis points) that must be delegated to the
+     * msg.sender in order to create a new proposal.
+     */
+    function proposalThresholdBps() external view returns (uint256);
+
+    /**
+     * @notice A governance-only function to update the proposal threshold basis points. Max value is 10,000.
+     */
+    function setProposalThresholdBps(uint256 newProposalThresholdBps) external;
+
+    /**
+     * @notice Delay, between the proposal is created and the vote starts. The unit this duration is expressed in
+     * depends on the clock (see EIP-6372) this contract uses.
+     *
+     * This can be increased to leave time for users to buy voting power, or delegate it, before the voting of a
+     * proposal starts.
+     */
+    function votingDelay() external view returns (uint256);
+
+    /**
+     * @notice A governance-only function to update the voting delay.
+     */
+    function setVotingDelay(uint256 newVotingDelay) external;
+
+    /**
+     * @notice Delay, between the vote start and vote ends. The unit this duration is expressed in depends on the clock
+     * (see EIP-6372) this contract uses.
+     *
+     * NOTE: The {votingDelay} can delay the start of the vote. This must be considered when setting the voting period
+     * compared to the voting delay.
+     */
+    function votingPeriod() external view returns (uint256);
+
+    /**
+     * @notice A governance-only function to update the voting period.
+     */
+    function setVotingPeriod(uint256 newVotingPeriod) external;
+
+    /**
+     * @notice Grace period after a proposal deadline passes in which a successful proposal must be queued for
+     * execution, or else the proposal will expire. The unit this duration is expressed in depends on the clock
+     * (see EIP-6372) this contract uses.
+     */
+    function proposalGracePeriod() external view returns (uint256);
+
+    /**
+     * @notice A governance-only function to update the proposal grace period.
+     */
+    function setProposalGracePeriod(uint256 newGracePeriod) external;
 
     /**
      * Create a new proposal. Emits a {ProposalCreated} event.
