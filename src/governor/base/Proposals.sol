@@ -505,7 +505,6 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         BatchArrayChecker.checkArrayLengths(targets.length, values.length, calldatas.length, signatures.length);
 
         // Verify the human-readable function signatures
-        // SelectorChecker.verifySelectors(calldatas, signatures);
         _validateCalldataSignatures(calldatas, signatures);
 
         // Increment proposal counter

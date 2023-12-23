@@ -125,23 +125,37 @@ contract MultiSendTest is PRBTest, IMultiSenderEvents {
         MultiSender(payable(multiSender)).execute(to, value, data);
     }
 
-    function test_MultiSend() public {
+    function testMultiSend() public {
         _executeMultiSend();
         _asserts();
     }
 
-    function test_MultiSendCalldata() public {
+    function testMultiSendCalldata() public {
         _executeMultiSendCalldata();
         _asserts();
     }
 
-    function test_MultiSendClassic() public {
+    function testMultiSendClassic() public {
         _executeMultiSendClassic();
         _asserts();
     }
 
-    function test_MultiSendEncodersAreEqual() public {
-        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = _buildTransactions();
+    struct Call {
+        address target;
+        uint256 value;
+        bytes data;
+    }
+
+    function testMultiSendEncodersAreEqual(Call[] memory calls) public {
+        address[] memory targets = new address[](calls.length);
+        uint256[] memory values = new uint256[](calls.length);
+        bytes[] memory calldatas = new bytes[](calls.length);
+        for (uint256 i = 0; i < calls.length; i++) {
+            Call memory call = calls[i];
+            targets[i] = call.target;
+            values[i] = call.value;
+            calldatas[i] = call.data;
+        }
 
         (address to, uint256 value, bytes memory data) =
             MultiSendEncoder.encodeMultiSend(multiSender, targets, values, calldatas);
