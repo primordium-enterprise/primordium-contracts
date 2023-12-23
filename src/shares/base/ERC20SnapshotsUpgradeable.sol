@@ -150,13 +150,19 @@ abstract contract ERC20SnapshotsUpgradeable is
     {
         ERC20SnapshotsStorage storage $ = _getERC20SnapshotsStorage();
 
-        // Optimize for most recent snapshot ID
         (uint256 lastSnapshotId, uint256 snapshotClock) = _checkSnapshotId($, snapshotId);
-        if (snapshotId != lastSnapshotId) {
-            snapshotClock = $._snapshotClocks[snapshotId];
+        SnapshotCheckpoints.Trace208 storage _accountBalanceCheckpoints = $._balanceCheckpoints[account];
+
+        // Optimize for most recent snapshot ID
+        if (snapshotId == lastSnapshotId) {
+            // Since balances use snapshots, optimize to get the latest snapshot
+            balanceAtSnapshot = _accountBalanceCheckpoints.upperLookupMostRecentSnapshot(uint48(snapshotClock));
+            return balanceAtSnapshot;
         }
 
-        return $._balanceCheckpoints[account].upperLookupRecent(uint8(snapshotClock));
+        // Otherwise, retrieve the snapshotClock value and perform the normal upperLookupRecent()
+        snapshotClock = $._snapshotClocks[snapshotId];
+        balanceAtSnapshot = _accountBalanceCheckpoints.upperLookupRecent(uint48(snapshotClock));
     }
 
     /**

@@ -253,6 +253,7 @@ contract SnapshotCheckpointsTest is PRBTest, StdUtils {
         _ckpts.push(key, value);
     }
 
+    /// forge-config: default.fuzz.runs = 1048
     function testLookup(uint48[] memory keys, uint208[] memory values, uint48 lookup) public {
         vm.assume(values.length > 0 && values.length <= keys.length);
         _prepareKeys(keys, _KEY_MAX_GAP);
@@ -287,6 +288,7 @@ contract SnapshotCheckpointsTest is PRBTest, StdUtils {
         assertEq(_ckpts.lowerLookup(lookup), lower, "Lower lookup failed");
         assertEq(_ckpts.upperLookup(lookup), upper, "Upper lookup failed");
         assertEq(_ckpts.upperLookupRecent(lookup), upper, "Upper lookup recent failed");
+        assertEq(_ckpts.upperLookupMostRecentSnapshot(lookup), upper, "Upper lookup most recent snapshot failed");
     }
 
     function _add(uint256 a, uint256 b) internal pure returns (uint256) {

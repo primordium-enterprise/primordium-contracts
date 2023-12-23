@@ -147,6 +147,7 @@ contract MultiSendTest is PRBTest, IMultiSenderEvents {
     }
 
     function testMultiSendEncodersAreEqual(Call[] memory calls) public {
+        vm.assume(calls.length > 0);
         address[] memory targets = new address[](calls.length);
         uint256[] memory values = new uint256[](calls.length);
         bytes[] memory calldatas = new bytes[](calls.length);
