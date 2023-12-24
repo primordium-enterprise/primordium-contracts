@@ -241,7 +241,9 @@ abstract contract ProposalDeadlineExtensions is ProposalVoting {
         if (!dd.quorumReached) {
             dd.quorumReached = _quorumReached(proposalId);
             // If quorum still hasn't been reached, skip the calculation and return
-            if (!dd.quorumReached) return voteWeight;
+            if (!dd.quorumReached) {
+                return voteWeight;
+            }
         }
 
         // Initialize the rest of the struct if it hasn't been initialized yet
@@ -274,7 +276,9 @@ abstract contract ProposalDeadlineExtensions is ProposalVoting {
             uint256 distanceFromDeadline = dd.currentDeadline - currentTimepoint;
 
             // We can return if we are outside the range of the base extension amount (since it gets subtracted out)
-            if (baseDeadlineExtension_ < distanceFromDeadline) return voteWeight;
+            if (baseDeadlineExtension_ < distanceFromDeadline) {
+                return voteWeight;
+            }
 
             // Extend amount decays past the original deadline
             if (currentTimepoint > dd.originalDeadline) {
@@ -282,7 +286,9 @@ abstract contract ProposalDeadlineExtensions is ProposalVoting {
                 uint256 extend = (baseDeadlineExtension_ * (MAX_PERCENT_DECAY - percentDecay_) ** periodsElapsed)
                     / (100 ** periodsElapsed);
                 // Check again for distance from the deadline. If extend is too small, just return.
-                if (extend < distanceFromDeadline) return voteWeight;
+                if (extend < distanceFromDeadline) {
+                    return voteWeight;
+                }
                 extendMultiple = extend - distanceFromDeadline;
             } else {
                 extendMultiple = baseDeadlineExtension_ - distanceFromDeadline;
