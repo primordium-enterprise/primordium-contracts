@@ -17,7 +17,7 @@ import {MultiSendEncoder} from "src/libraries/MultiSendEncoder.sol";
 import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {BasisPoints} from "src/libraries/BasisPoints.sol";
-import {Checkpoints} from "src/libraries/Checkpoints.sol";
+import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 
 /**
  * @title Proposals
