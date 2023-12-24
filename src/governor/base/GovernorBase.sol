@@ -6,7 +6,6 @@
 pragma solidity ^0.8.20;
 
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
-import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
@@ -32,7 +31,6 @@ import {BasisPoints} from "src/libraries/BasisPoints.sol";
  */
 abstract contract GovernorBase is
     TimelockAvatarControlled,
-    ERC165Upgradeable,
     EIP712Upgradeable,
     NoncesUpgradeable,
     IGovernorBase
@@ -88,22 +86,6 @@ abstract contract GovernorBase is
         emit GovernorBaseInitialized(
             name_, version_, executor_, token_, governanceCanBeginAt_, governanceThresholdBps_, $._isFounded
         );
-    }
-
-    /**
-     * @dev See {IERC165-supportsInterface}.
-     */
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(IERC165, ERC165Upgradeable)
-        returns (bool)
-    {
-        // forgefmt: disable-next-item
-        return
-            interfaceId == type(IGovernorBase).interfaceId ||
-            super.supportsInterface(interfaceId);
     }
 
     /// @inheritdoc IGovernorBase

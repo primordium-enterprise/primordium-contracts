@@ -4,14 +4,13 @@
 
 pragma solidity ^0.8.20;
 
-import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {IGovernorToken} from "src/governor/interfaces/IGovernorToken.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 
 /**
  * @dev Interface of the {GovernorBase} core.
  */
-interface IGovernorBase is IERC165, IERC6372 {
+interface IGovernorBase is IERC6372 {
 
     event GovernorBaseInitialized(
         string name,
