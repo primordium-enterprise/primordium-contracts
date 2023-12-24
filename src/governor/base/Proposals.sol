@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
+// Based on OpenZeppelin Contracts (last updated v5.0.0) (Governor.sol)
+// Based on OpenZeppelin Contracts (last updated v5.0.0) (GovernorSettings.sol)
 
 pragma solidity ^0.8.20;
 
@@ -69,7 +71,6 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         uint24 _votingPeriod;
         // Grace period can be set to max to be unlimited
         uint48 _gracePeriod;
-
         Checkpoints.Trace208 _quorumBpsCheckpoints;
     }
 
@@ -83,13 +84,15 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         }
     }
 
-    function __Proposals_init(
-        uint256 proposalThresholdBps_,
-        uint256 votingDelay_,
-        uint256 votingPeriod_,
-        uint256 gracePeriod_,
-        bytes memory initGrantRoles
-    ) internal virtual onlyInitializing {
+    function __Proposals_init_unchained(bytes memory proposalsInitParams) internal virtual onlyInitializing {
+        (
+            uint256 proposalThresholdBps_,
+            uint256 votingDelay_,
+            uint256 votingPeriod_,
+            uint256 gracePeriod_,
+            bytes memory initGrantRoles
+        ) = abi.decode(proposalsInitParams, (uint256, uint256, uint256, uint256, bytes));
+
         _setProposalThresholdBps(proposalThresholdBps_);
         _setVotingDelay(votingDelay_);
         _setVotingPeriod(votingPeriod_);
@@ -196,10 +199,11 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
                     let finalItemOffset := calldataload(add(calldatas.offset, mul(sub(calldatas.length, 0x01), 0x20)))
                     let finalItemByteLength := calldataload(add(calldatas.offset, finalItemOffset))
                     finalItemByteLength := mul(0x20, div(add(finalItemByteLength, 0x1f), 0x20)) // pad to 32 bytes
-                    calldatasByteLength := add(
-                        finalItemOffset,
-                        add(0x20, finalItemByteLength) // extra 32 bytes for the item length
-                    )
+                    calldatasByteLength :=
+                        add(
+                            finalItemOffset,
+                            add(0x20, finalItemByteLength) // extra 32 bytes for the item length
+                        )
                 }
                 mstore(p, calldatas.length) // store calldatas length
                 calldatacopy(add(p, 0x20), calldatas.offset, calldatasByteLength) // copy calldatas array items
@@ -388,9 +392,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
             duration = _votingPeriod;
         }
 
-        proposalId = _propose(
-            proposer, snapshot, duration, targets, values, calldatas, signatures, description
-        );
+        proposalId = _propose(proposer, snapshot, duration, targets, values, calldatas, signatures, description);
     }
 
     /**

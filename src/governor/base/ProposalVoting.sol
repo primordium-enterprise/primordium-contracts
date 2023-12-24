@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
+// Based on OpenZeppelin Contracts (last updated v5.0.0) (Governor.sol)
+// Based on OpenZeppelin Contracts (last updated v5.0.0) (GovernorCountingSimple.sol)
 
 pragma solidity ^0.8.20;
 
@@ -10,10 +12,7 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Checkpoints} from "src/libraries/Checkpoints.sol";
 import {BasisPoints} from "src/libraries/BasisPoints.sol";
 
-abstract contract ProposalVoting is
-    Proposals,
-    IProposalVoting
-{
+abstract contract ProposalVoting is Proposals, IProposalVoting {
     using SafeCast for *;
     using Checkpoints for Checkpoints.Trace208;
     using BasisPoints for uint256;
@@ -52,10 +51,9 @@ abstract contract ProposalVoting is
         }
     }
 
-    function __ProposalVoting_init(
-        uint256 percentMajority_,
-        uint256 quorumBps_
-    ) internal virtual onlyInitializing {
+    function __ProposalVoting_init_unchained(bytes memory proposalVotingInitParams) internal virtual onlyInitializing {
+        (uint256 percentMajority_, uint256 quorumBps_) = abi.decode(proposalVotingInitParams, (uint256, uint256));
+
         _setPercentMajority(percentMajority_);
         _setQuorumBps(quorumBps_);
     }

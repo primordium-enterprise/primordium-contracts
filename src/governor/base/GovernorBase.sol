@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 // Based on OpenZeppelin Contracts (last updated v5.0.0) (Governor.sol)
+// Based on OpenZeppelin Contracts (last updated v5.0.0) (GovernorVotes.sol)
 
 pragma solidity ^0.8.20;
 
@@ -61,17 +62,15 @@ abstract contract GovernorBase is
      */
     error RelayFailed();
 
-    function __GovernorBase_init(
-        string calldata name_,
-        address executor_,
-        address token_,
-        uint256 governanceCanBeginAt_,
-        uint256 governanceThresholdBps_
-    )
-        internal
-        virtual
-        onlyInitializing
-    {
+    function __GovernorBase_init(bytes memory governorBaseInitParams) internal virtual onlyInitializing {
+        (
+            string memory name_,
+            address executor_,
+            address token_,
+            uint256 governanceCanBeginAt_,
+            uint256 governanceThresholdBps_
+        ) = abi.decode(governorBaseInitParams, (string, address, address, uint256, uint256));
+
         if (governanceThresholdBps_ > BasisPoints.MAX_BPS) {
             revert BasisPoints.BPSValueTooLarge(governanceThresholdBps_);
         }

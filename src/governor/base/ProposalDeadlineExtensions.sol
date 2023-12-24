@@ -94,16 +94,14 @@ abstract contract ProposalDeadlineExtensions is ProposalVoting {
     error ExtensionDecayPeriodCannotBeZero();
     error ExtensionPercentDecayOutOfRange(uint256 min, uint256 max);
 
-    function __ProposalDeadlineExtensions_init(
-        uint256 maxDeadlineExtension_,
-        uint256 baseDeadlineExtension_,
-        uint256 decayPeriod_,
-        uint256 percentDecay_
-    )
+    function __ProposalDeadlineExtensions_init_unchained(bytes memory proposalDeadlineExtensionsInitParams)
         internal
         virtual
         onlyInitializing
     {
+        (uint256 maxDeadlineExtension_, uint256 baseDeadlineExtension_, uint256 decayPeriod_, uint256 percentDecay_) =
+            abi.decode(proposalDeadlineExtensionsInitParams, (uint256, uint256, uint256, uint256));
+
         _setMaxDeadlineExtension(maxDeadlineExtension_);
         _setBaseDeadlineExtension(baseDeadlineExtension_);
         _setExtensionDecayPeriod(decayPeriod_);
