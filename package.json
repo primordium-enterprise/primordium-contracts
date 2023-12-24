@@ -8,7 +8,7 @@
     "build": "forge build",
     "test": "forge test --no-match-path 'test/.*/*' -vvv",
     "lint": "solhint 'contracts/**/*.sol'",
-    "selector-order": "node utils/selectorOrder.js",
+    "selector-order": "ts-node utils/selectorOrder.ts",
     "check:erc7201": "node utils/checkERC7201.js",
     "get:erc7201": "node utils/getERC7201Hash.js"
   },
@@ -29,6 +29,7 @@
   },
   "homepage": "https://github.com/BCJdevelopment/primordium-contracts#readme",
   "devDependencies": {
+    "@types/node": "^20.10.5",
     "chalk": "^4.1.2",
     "ethers": "^6.9.0",
     "glob": "^10.3.10",

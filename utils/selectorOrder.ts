@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const path = require("path");
-const fs = require("fs");
+import path from "path";
+import fs from "fs";
 
 const contractName = process.argv[2];
 
@@ -20,12 +20,12 @@ fs.readFile(
             process.exit();
         }
 
-        json = JSON.parse(data);
+        json = JSON.parse(String(data));
 
-        let hexToNum = (str) => parseInt(Number(`0x${str}`));
+        let hexToNum = (str: string) => parseInt(`0x${str}`);
 
         let items = Object.entries(json["methodIdentifiers"]).sort((a, b) => {
-            return hexToNum(a[1]) - hexToNum(b[1]);
+            return hexToNum(String(a[1])) - hexToNum(String(b[1]));
         });
 
         for (let i = 0; i < items.length; i++) {
