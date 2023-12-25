@@ -5,6 +5,8 @@
 
 pragma solidity ^0.8.20;
 
+import {GovernorBaseLogicV1} from "./logic/GovernorBaseLogicV1.sol";
+import {ProposalsLogicV1} from "./logic/ProposalsLogicV1.sol";
 import {GovernorBase} from "./GovernorBase.sol";
 import {IProposals} from "../interfaces/IProposals.sol";
 import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
@@ -13,7 +15,6 @@ import {IGovernorToken} from "../interfaces/IGovernorToken.sol";
 import {Enum} from "src/common/Enum.sol";
 import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
 import {MultiSendEncoder} from "src/libraries/MultiSendEncoder.sol";
-// import {SelectorChecker} from "src/libraries/SelectorChecker.sol";
 import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {BasisPoints} from "src/libraries/BasisPoints.sol";
@@ -30,59 +31,8 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
     using BasisPoints for uint256;
     using Checkpoints for Checkpoints.Trace208;
 
-    struct ProposalCore {
-        address proposer; // 20 bytes
-        uint48 voteStart; // 6 bytes
-        uint32 voteDuration; // 4 bytes
-        bool executed; // 1 byte
-        bool canceled; // 1 byte
-    }
-
-    bytes32 private constant ALL_PROPOSAL_STATES_BITMAP = bytes32((2 ** (uint8(type(ProposalState).max) + 1)) - 1);
-
     bytes32 public immutable PROPOSER_ROLE = keccak256("PROPOSER");
     bytes32 public immutable CANCELER_ROLE = keccak256("CANCELER");
-
-    /// @custom:storage-location erc7201:Proposals.Storage
-    struct ProposalsStorage {
-        uint256 _proposalCount;
-        // Tracking core proposal data
-        mapping(uint256 => ProposalCore) _proposals;
-        // Tracking hashes of each proposal's actions
-        mapping(uint256 => bytes32) _proposalActionsHashes;
-        // Tracking queued operations on the TimelockAvatar
-        mapping(uint256 => uint256) _proposalOpNonces;
-    }
-
-    // keccak256(abi.encode(uint256(keccak256("Proposals.Storage")) - 1)) & ~bytes32(uint256(0xff));
-    bytes32 private constant PROPOSALS_STORAGE = 0x12dae0b7a75163feb738f3ebdd36c1ba0747f551a5ac705c9e7c1824cec3b800;
-
-    function _getProposalsStorage() internal pure returns (ProposalsStorage storage $) {
-        assembly {
-            $.slot := PROPOSALS_STORAGE
-        }
-    }
-
-    /// @custom:storage-location erc7201:Proposals.ProposalSettings.Storage
-    struct ProposalSettingsStorage {
-        uint16 _proposalThresholdBps;
-        // uint24 allows each period to be up to 194 days long using timestamps (longer using block numbers)
-        uint24 _votingDelay;
-        uint24 _votingPeriod;
-        // Grace period can be set to max to be unlimited
-        uint48 _gracePeriod;
-        Checkpoints.Trace208 _quorumBpsCheckpoints;
-    }
-
-    // keccak256(abi.encode(uint256(keccak256("Proposals.ProposalSettings.Storage")) - 1)) & ~bytes32(uint256(0xff));
-    bytes32 private constant PROPOSAL_SETTINGS_STORAGE =
-        0xddaa15f4123548e9bd63b0bf0b1ef94e9857e581d03ae278a788cfe245267b00;
-
-    function _getProposalSettingsStorage() internal pure returns (ProposalSettingsStorage storage $) {
-        assembly {
-            $.slot := PROPOSAL_SETTINGS_STORAGE
-        }
-    }
 
     function __Proposals_init_unchained(bytes memory proposalsInitParams) internal virtual onlyInitializing {
         (
@@ -109,42 +59,37 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
 
     /// @inheritdoc IProposals
     function proposalCount() public view virtual returns (uint256 count) {
-        count = _getProposalsStorage()._proposalCount;
+        return ProposalsLogicV1.proposalCount();
     }
 
     /// @inheritdoc IProposals
-    function proposalSnapshot(uint256 proposalId) public view virtual override returns (uint256 snapshot) {
-        snapshot = _getProposalsStorage()._proposals[proposalId].voteStart;
+    function proposalSnapshot(uint256 proposalId) public view virtual returns (uint256 snapshot) {
+        return ProposalsLogicV1.proposalSnapshot(proposalId);
     }
 
     /// @inheritdoc IProposals
-    function proposalDeadline(uint256 proposalId) public view virtual override returns (uint256 deadline) {
-        ProposalsStorage storage $ = _getProposalsStorage();
-        deadline = $._proposals[proposalId].voteStart + $._proposals[proposalId].voteDuration;
+    function proposalDeadline(uint256 proposalId) public view virtual returns (uint256 deadline) {
+        return ProposalsLogicV1.proposalDeadline(proposalId);
     }
 
     /// @inheritdoc IProposals
-    function proposalProposer(uint256 proposalId) public view virtual override returns (address proposer) {
-        proposer = _getProposalsStorage()._proposals[proposalId].proposer;
+    function proposalProposer(uint256 proposalId) public view virtual returns (address proposer) {
+        return ProposalsLogicV1.proposalProposer(proposalId);
     }
 
     /// @inheritdoc IProposals
-    function proposalActionsHash(uint256 proposalId) public view virtual override returns (bytes32 actionsHash) {
-        actionsHash = _getProposalsStorage()._proposalActionsHashes[proposalId];
+    function proposalActionsHash(uint256 proposalId) public view virtual returns (bytes32 actionsHash) {
+        return ProposalsLogicV1._proposalActionsHash(proposalId);
     }
 
     /// @inheritdoc IProposals
-    function proposalEta(uint256 proposalId) public view virtual override returns (uint256 eta) {
-        uint256 opNonce = _getProposalsStorage()._proposalOpNonces[proposalId];
-        if (opNonce == 0) {
-            return eta;
-        }
-        eta = executor().getOperationExecutableAt(opNonce);
+    function proposalEta(uint256 proposalId) public view virtual returns (uint256 eta) {
+        return ProposalsLogicV1._proposalEta(proposalId);
     }
 
     /// @inheritdoc IProposals
-    function proposalOpNonce(uint256 proposalId) public view virtual override returns (uint256 opNonce) {
-        opNonce = _getProposalsStorage()._proposalOpNonces[proposalId];
+    function proposalOpNonce(uint256 proposalId) public view virtual returns (uint256 opNonce) {
+        return ProposalsLogicV1._proposalOpNonce(proposalId);
     }
 
     /// @inheritdoc IProposals
@@ -156,125 +101,14 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         public
         pure
         virtual
-        override
         returns (bytes32 actionsHash)
     {
-        // Below performs gas-optimized equivalent of "keccak256(abi.encode(targets, values, calldatas))"
-        assembly ("memory-safe") {
-            // Start at free memory (don't update free mem pointer, just hash and exit)
-            let start := mload(0x40)
-            // Initialize pointer (3 dynamic arrays, so point past 3 * 32 byte header values)
-            let p := add(start, 0x60)
-
-            // Store targets
-            {
-                mstore(start, 0x60) // targets is first header item, store offset to pointer
-                mstore(0, mul(targets.length, 0x20)) // byte length is array length times 32
-                mstore(p, targets.length) // store targets length
-                calldatacopy(add(p, 0x20), targets.offset, mload(0)) // copy targets array items
-
-                // Increment pointer
-                p := add(p, add(0x20, mload(0)))
-            }
-
-            // Store values
-            {
-                mstore(add(start, 0x20), sub(p, start)) // values is second header item, store offset to pointer
-                mstore(0, mul(values.length, 0x20)) // byte length is array length times 32
-                mstore(p, values.length) // store values length
-                calldatacopy(add(p, 0x20), values.offset, mload(0)) // copy values array items
-
-                // Increment pointer
-                p := add(p, add(0x20, mload(0)))
-            }
-
-            // Store calldatas
-            {
-                mstore(add(start, 0x40), sub(p, start)) // calldatas is third header item, store offset to pointer
-                let calldatasByteLength := 0 // initialize byte length to zero
-                if gt(calldatas.length, 0) {
-                    // since calldatas is dynamic array of dynamic arrays, not as straightforward to copy...
-                    // but the calldata is already abi encoded
-                    // so we can add the last item's offset to the last item's (padded) length for total copy length
-                    let finalItemOffset := calldataload(add(calldatas.offset, mul(sub(calldatas.length, 0x01), 0x20)))
-                    let finalItemByteLength := calldataload(add(calldatas.offset, finalItemOffset))
-                    finalItemByteLength := mul(0x20, div(add(finalItemByteLength, 0x1f), 0x20)) // pad to 32 bytes
-                    calldatasByteLength :=
-                        add(
-                            finalItemOffset,
-                            add(0x20, finalItemByteLength) // extra 32 bytes for the item length
-                        )
-                }
-                mstore(p, calldatas.length) // store calldatas length
-                calldatacopy(add(p, 0x20), calldatas.offset, calldatasByteLength) // copy calldatas array items
-
-                // Increment pointer
-                p := add(p, add(0x20, calldatasByteLength))
-            }
-
-            // The result is the hash starting at "start", hashing the pointer "p" minus "start" bytes
-            actionsHash := keccak256(start, sub(p, start))
-        }
+        ProposalsLogicV1.hashProposalActions(targets, values, calldatas);
     }
 
     /// @inheritdoc IProposals
     function state(uint256 proposalId) public view virtual override returns (ProposalState) {
-        ProposalsStorage storage $ = _getProposalsStorage();
-
-        // Single SLOAD
-        ProposalCore storage proposal = $._proposals[proposalId];
-        bool proposalExecuted = proposal.executed;
-        bool proposalCanceled = proposal.canceled;
-
-        if (proposalExecuted) {
-            return ProposalState.Executed;
-        }
-
-        if (proposalCanceled) {
-            return ProposalState.Canceled;
-        }
-
-        uint256 snapshot = proposalSnapshot(proposalId);
-
-        if (snapshot == 0) {
-            revert GovernorUnknownProposalId(proposalId);
-        }
-
-        uint256 currentTimepoint = clock();
-
-        if (snapshot >= currentTimepoint) {
-            return ProposalState.Pending;
-        }
-
-        uint256 deadline = proposalDeadline(proposalId);
-
-        if (deadline >= currentTimepoint) {
-            return ProposalState.Active;
-        }
-
-        // If no quorum was reached, or if the vote did not succeed, the proposal is defeated
-        if (!_quorumReached(proposalId) || !_voteSucceeded(proposalId)) {
-            return ProposalState.Defeated;
-        }
-
-        uint256 opNonce = $._proposalOpNonces[proposalId];
-        if (opNonce == 0) {
-            uint256 grace = proposalGracePeriod();
-            if (deadline + grace >= currentTimepoint) {
-                return ProposalState.Expired;
-            }
-            return ProposalState.Succeeded;
-        }
-
-        ITimelockAvatar.OperationStatus opStatus = executor().getOperationStatus(opNonce);
-        if (opStatus == ITimelockAvatar.OperationStatus.Done) {
-            return ProposalState.Executed;
-        }
-        if (opStatus == ITimelockAvatar.OperationStatus.Expired) {
-            return ProposalState.Expired;
-        }
-
-        return ProposalState.Queued;
+        return ProposalsLogicV1.state(proposalId);
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -283,16 +117,12 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
 
     /// @inheritdoc IProposals
     function proposalThreshold() public view virtual returns (uint256 _proposalThreshold) {
-        IGovernorToken _token = token();
-        uint256 _proposalThresholdBps = proposalThresholdBps();
-
-        // Use unchecked, overflow not a problem as long as the token's max supply <= type(uint224).max
-        _proposalThreshold = _proposalThresholdBps.bpsUnchecked(_token.getPastTotalSupply(_clock(_token) - 1));
+        return ProposalsLogicV1.proposalThreshold();
     }
 
     /// @inheritdoc IProposals
     function proposalThresholdBps() public view virtual returns (uint256 _proposalThresholdBps) {
-        _proposalThresholdBps = _getProposalSettingsStorage()._proposalThresholdBps;
+        return ProposalsLogicV1.proposalThresholdBps();
     }
 
     /// @inheritdoc IProposals
@@ -301,15 +131,12 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
     }
 
     function _setProposalThresholdBps(uint256 newProposalThresholdBps) internal virtual {
-        ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
-
-        emit ProposalThresholdBPSUpdate($._proposalThresholdBps, newProposalThresholdBps);
-        $._proposalThresholdBps = newProposalThresholdBps.toBps(); // toBps() checks for out of range BPS value
+        ProposalsLogicV1.setProposalThresholdBps();
     }
 
     /// @inheritdoc IProposals
-    function votingDelay() public view virtual override returns (uint256 _votingDelay) {
-        _votingDelay = _getProposalSettingsStorage()._votingDelay;
+    function votingDelay() public view virtual returns (uint256 _votingDelay) {
+        return ProposalsLogicV1.votingDelay();
     }
 
     /// @inheritdoc IProposals
@@ -318,15 +145,12 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
     }
 
     function _setVotingDelay(uint256 newVotingDelay) internal virtual {
-        ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
-
-        emit VotingDelayUpdate($._votingDelay, newVotingDelay);
-        $._votingDelay = SafeCast.toUint24(newVotingDelay);
+        ProposalsLogicV1.setVotingDelay(newVotingDelay);
     }
 
     /// @inheritdoc IProposals
-    function votingPeriod() public view virtual override returns (uint256 _votingPeriod) {
-        _votingPeriod = _getProposalSettingsStorage()._votingPeriod;
+    function votingPeriod() public view virtual returns (uint256 _votingPeriod) {
+        return ProposalsLogicV1.votingPeriod();
     }
 
     /// @inheritdoc IProposals
@@ -335,15 +159,12 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
     }
 
     function _setVotingPeriod(uint256 newVotingPeriod) internal virtual {
-        ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
-
-        emit VotingPeriodUpdate($._votingPeriod, newVotingPeriod);
-        $._votingPeriod = SafeCast.toUint24(newVotingPeriod);
+        ProposalsLogicV1.setVotingPeriod(newVotingPeriod);
     }
 
     /// @inheritdoc IProposals
-    function proposalGracePeriod() public view virtual override returns (uint256 _gracePeriod) {
-        _gracePeriod = _getProposalSettingsStorage()._gracePeriod;
+    function proposalGracePeriod() public view virtual returns (uint256 _gracePeriod) {
+        return ProposalsLogicV1.proposalGracePeriod();
     }
 
     /// @inheritdoc IProposals
@@ -352,14 +173,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
     }
 
     function _setProposalGracePeriod(uint256 newGracePeriod) internal virtual {
-        // Don't allow overflow for setting to a high value "unlimited" value
-        if (newGracePeriod > type(uint48).max) {
-            newGracePeriod = type(uint48).max;
-        }
-
-        ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
-        emit ProposalGracePeriodUpdate($._gracePeriod, newGracePeriod);
-        $._gracePeriod = uint48(newGracePeriod);
+        ProposalsLogicV1.setProposalGracePeriod(newGracePeriod);
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -582,7 +396,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         $._proposals[proposalId].executed = true;
 
         // before execute: queue any operations on self
-        DoubleEndedQueue.Bytes32Deque storage governanceCall = _getGovernanceCallQueue();
+        DoubleEndedQueue.Bytes32Deque storage governanceCall = GovernorBaseLogicV1._getGovernanceCallQueue();
         for (uint256 i = 0; i < targets.length; ++i) {
             if (targets[i] == address(this)) {
                 governanceCall.pushBack(keccak256(calldatas[i]));

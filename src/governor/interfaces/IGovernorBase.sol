@@ -6,6 +6,7 @@ pragma solidity ^0.8.20;
 
 import {IGovernorToken} from "src/governor/interfaces/IGovernorToken.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
+import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
 
 /**
  * @dev Interface of the {GovernorBase} core.
@@ -26,6 +27,27 @@ interface IGovernorBase is IERC6372 {
      * @dev Emitted when the Governor is successfully founded.
      */
     event GovernorFounded(uint256 proposalId);
+
+    /**
+     * @dev Emitted when the executor controller used for proposal execution is modified.
+     */
+    event ExecutorUpdate(address oldExecutor, address newExecutor);
+
+    /**
+     * @dev Thrown if the action requires being executed through a governance proposal.
+     */
+    error OnlyGovernance();
+
+    /**
+     * @dev Thrown if the provided address is an invalid address to update the executor to.
+     */
+    error GovernorInvalidExecutorAddress(address invalidAddress);
+
+    /**
+     * @dev Thrown if an attempt to set the executor address in the initializer is made, but the executor is already
+     * a non-zero address (meaning it was already initialized).
+     */
+    error GovernorExecutorAlreadyInitialized();
 
     /**
      * @dev Thrown if the current block.timestamp is still less than the "governanceCanBeginAt()" timestamp.
@@ -49,6 +71,11 @@ interface IGovernorBase is IERC6372 {
     error GovernorInvalidFoundingProposalID(uint256 expectedProposalId, uint256 providedProposalId);
 
     /**
+     * @dev Error thrown if a relay call by the exector to this contract reverts.
+     */
+    error GovernorRelayFailed();
+
+    /**
      * @dev Name of the governor instance (used in building the ERC712 domain separator).
      */
     function name() external view returns (string memory);
@@ -57,6 +84,19 @@ interface IGovernorBase is IERC6372 {
      * @dev Version of the governor instance (used in building the ERC712 domain separator). Default: "1"
      */
     function version() external view returns (string memory);
+
+    /**
+     * @notice Returns the address of the executor.
+     */
+    function executor() external view returns (ITimelockAvatar _executor);
+
+    /**
+     * @notice Public endpoint to update the underlying timelock instance. Restricted to the timelock itself, so updates
+     * must be proposed, scheduled, and executed through governance proposals.
+     *
+     * @dev CAUTION: It is not recommended to change the timelock while there are other queued governance proposals.
+     */
+    function updateExecutor(address newExecutor) external;
 
     /**
      * @notice Returns the address of the token used for tracking votes.
