@@ -85,20 +85,20 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
         _;
     }
 
-    function __SharesManager_init(
-        address owner_,
-        address treasury_,
-        uint256 maxSupply_,
-        address quoteAsset_,
-        bool checkQuoteAssetInterface_,
-        SharePrice calldata sharePrice_,
-        uint256 fundingBeginsAt_,
-        uint256 fundingEndsAt_
-    )
-        internal
-        virtual
-        onlyInitializing
-    {
+    function __SharesManager_init(bytes memory sharesManagerInitParams) internal virtual onlyInitializing {
+        (
+            address owner_,
+            address treasury_,
+            uint256 maxSupply_,
+            address quoteAsset_,
+            bool checkQuoteAssetInterface_,
+            SharePrice memory sharePrice_,
+            uint256 fundingBeginsAt_,
+            uint256 fundingEndsAt_
+        ) = abi.decode(
+            sharesManagerInitParams, (address, address, uint256, address, bool, SharePrice, uint256, uint256)
+        );
+
         __Ownable_init(owner_);
         _setTreasury(treasury_);
         _setMaxSupply(maxSupply_);
@@ -213,7 +213,7 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
 
     function _setQuoteAsset(address newQuoteAsset, bool checkInterfaceSupport) internal virtual {
         if (newQuoteAsset == address(this)) revert CannotSetQuoteAssetToSelf();
-        if (checkInterfaceSupport) {
+        if (newQuoteAsset != address(0) && checkInterfaceSupport) {
             newQuoteAsset.checkInterface(type(IERC20).interfaceId);
         }
 

@@ -21,14 +21,14 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
  * @title Allows for creating historical ERC20 balance snapshots with the IERC6372 clock mode.
  * @author Ben Jett - @BCJdevelopment
  *
- * @dev Implementation of the OpenZeppelin {ERC20} module with {ERC20Permit} and the IERC6372 clock mode, but uses
+ * @notice Implementation of the OpenZeppelin {ERC20} module with {ERC20Permit} and the IERC6372 clock mode, but uses
  * snapshot checkpoints to keep historical track of account balance's at the time of each created snapshot.
  *
- * @notice This contract only optimizes balance checkpoints between snapshots. The total supply checkpoints will still
+ * @dev This contract only optimizes balance checkpoints between snapshots. The total supply checkpoints will still
  * write a new checkpoint on every mint/burn, regardless of snapshot status, to ensure compatibility with the
  * {ERC20VotesUpgradeable} that inherits from this contract.
  *
- * Maintains EIP7201 storage namespacing for upgradeability.
+ * Maintains ERC7201 storage namespacing for upgradeability.
  */
 abstract contract ERC20SnapshotsUpgradeable is
     ContextUpgradeable,
