@@ -71,6 +71,16 @@ interface IProposalVoting {
     function COUNTING_MODE() external view returns (string memory);
 
     /**
+     * @dev The minimum setable percent majority for vote success on a proposal. Defaults to 50%.
+     */
+    function MIN_PERCENT_MAJORITY() external view returns (uint256);
+
+    /**
+     * @dev The maximum setable percent majority for vote success on a proposal. Defaults to 66%.
+     */
+    function MAX_PERCENT_MAJORITY() external view returns (uint256);
+
+    /**
      * @notice Returns whether `account` has cast a vote on `proposalId`.
      */
     function hasVoted(uint256 proposalId, address account) external view returns (bool);

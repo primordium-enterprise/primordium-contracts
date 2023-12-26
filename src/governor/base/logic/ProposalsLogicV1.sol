@@ -3,8 +3,9 @@
 
 pragma solidity ^0.8.20;
 
-import {GovernorBase} from "../GovernorBase.sol";
 import {GovernorBaseLogicV1} from "./GovernorBaseLogicV1.sol";
+import {ProposalVotingLogicV1} from "./ProposalVotingLogicV1.sol";
+import {GovernorBase} from "../GovernorBase.sol";
 import {Proposals} from "../Proposals.sol";
 import {IGovernorBase} from "../../interfaces/IGovernorBase.sol";
 import {IProposals} from "../../interfaces/IProposals.sol";
@@ -24,8 +25,8 @@ import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol
  * @author Ben Jett - @BCJdevelopment
  * @notice An external library with the main proposals CRUD logic (for reducing code size)
  * @dev Some functions are internal, meaning they will still be included in a contract's code if the contract makes use
- * of these functions. While this leads to some bytecode duplication across contracts, it also saves on gas by avoiding
- * extra DELEGATECALL's in some cases.
+ * of these functions. While this leads to some bytecode duplication across contracts/libraries, it also saves on gas by
+ * avoiding extra DELEGATECALL's in some cases.
  */
 library ProposalsLogicV1 {
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
@@ -227,9 +228,9 @@ library ProposalsLogicV1 {
         }
 
         // If no quorum was reached, or if the vote did not succeed, the proposal is defeated
-        if (!_quorumReached(proposalId) || !_voteSucceeded(proposalId)) {
+        if (!ProposalVotingLogicV1._quorumReached(proposalId) || !ProposalVotingLogicV1._voteSucceeded(proposalId)) {
             return IProposals.ProposalState.Defeated;
-        // }
+        }
 
         uint256 opNonce = $._proposalOpNonces[proposalId];
         if (opNonce == 0) {
