@@ -94,7 +94,7 @@ interface IProposals {
     /**
      * @dev Thrown when the msg.sender is unauthorized to complete the current action.
      */
-    error GovernorUnauthorized(address msgSender);
+    error GovernorUnauthorizedSender(address msgSender);
 
     /**
      * @dev Thrown when the actions hash of the targets, values, and calldatas do not match the proposal's actions hash.

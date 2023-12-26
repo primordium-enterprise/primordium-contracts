@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {PRBTest} from "@prb/test/PRBTest.sol";
+import {ProposalsLogicV1} from "src/governor/base/logic/ProposalsLogicV1.sol";
 import {Proposals} from "src/governor/base/Proposals.sol";
 import {IProposals} from "src/governor/interfaces/IProposals.sol";
 
@@ -19,7 +20,7 @@ contract ProposalsHarness is Proposals {
         bytes[] calldata calldatas,
         string[] memory signatures
     ) public pure {
-        _validateCalldataSignatures(calldatas, signatures);
+        ProposalsLogicV1._validateCalldataSignatures(calldatas, signatures);
     }
 
     function testSignature(uint256 a) public pure {}

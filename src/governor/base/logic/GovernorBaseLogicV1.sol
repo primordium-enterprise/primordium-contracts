@@ -182,4 +182,11 @@ library GovernorBaseLogicV1 {
     {
         voteWeight = token_.getPastVotes(account, timepoint);
     }
+
+    /**
+     * @dev Defaults to no params.
+     */
+    function _defaultParams() internal pure returns (bytes memory) {
+        return "";
+    }
 }

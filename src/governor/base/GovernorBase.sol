@@ -190,7 +190,7 @@ abstract contract GovernorBase is
      * meaning of the additional params, in the context of that implementation
      */
     function _defaultParams() internal pure returns (bytes memory) {
-        return "";
+        return GovernorBaseLogicV1._defaultParams();
     }
 
     /**

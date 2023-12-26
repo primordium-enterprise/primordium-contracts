@@ -5,7 +5,9 @@
 
 pragma solidity ^0.8.20;
 
+import {GovernorBaseLogicV1} from "./logic/GovernorBaseLogicV1.sol";
 import {Proposals} from "./Proposals.sol";
+import {ProposalsLogicV1} from "./logic/ProposalsLogicV1.sol";
 import {IProposalVoting} from "../interfaces/IProposalVoting.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -419,11 +421,11 @@ abstract contract ProposalVoting is Proposals, IProposalVoting {
         virtual
         returns (uint256 weight)
     {
-        _validateStateBitmap(proposalId, _encodeStateBitmap(ProposalState.Active));
+        ProposalsLogicV1._validateStateBitmap(proposalId, ProposalsLogicV1._encodeStateBitmap(ProposalState.Active));
 
-        ProposalCore storage proposal = _getProposalsStorage()._proposals[proposalId];
+        ProposalsLogicV1.ProposalCore storage proposal = ProposalsLogicV1._getProposalsStorage()._proposals[proposalId];
 
-        weight = _getVotes(account, proposal.voteStart, params);
+        weight = GovernorBaseLogicV1._getVotes(account, proposal.voteStart, params);
         _countVote(proposalId, account, support, weight, params);
 
         if (params.length == 0) {
