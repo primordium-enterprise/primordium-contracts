@@ -5,10 +5,12 @@ pragma solidity ^0.8.20;
 
 import {GovernorBase} from "../GovernorBase.sol";
 import {GovernorBaseLogicV1} from "./GovernorBaseLogicV1.sol";
+import {Proposals} from "../Proposals.sol";
 import {IGovernorBase} from "../../interfaces/IGovernorBase.sol";
 import {IProposals} from "../../interfaces/IProposals.sol";
 import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
 import {IGovernorToken} from "../../interfaces/IGovernorToken.sol";
+import {RolesLib} from "src/libraries/RolesLib.sol";
 import {Enum} from "src/common/Enum.sol";
 import {MultiSendEncoder} from "src/libraries/MultiSendEncoder.sol";
 import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
@@ -38,6 +40,9 @@ library ProposalsLogicV1 {
         bool executed; // 1 byte
         bool canceled; // 1 byte
     }
+
+    bytes32 internal constant _PROPOSER_ROLE = keccak256("PROPOSER");
+    bytes32 internal constant _CANCELER_ROLE = keccak256("CANCELER");
 
     bytes32 internal constant ALL_PROPOSAL_STATES_BITMAP =
         bytes32((2 ** (uint8(type(IProposals.ProposalState).max) + 1)) - 1);
@@ -224,7 +229,7 @@ library ProposalsLogicV1 {
         // If no quorum was reached, or if the vote did not succeed, the proposal is defeated
         if (!_quorumReached(proposalId) || !_voteSucceeded(proposalId)) {
             return IProposals.ProposalState.Defeated;
-        }
+        // }
 
         uint256 opNonce = $._proposalOpNonces[proposalId];
         if (opNonce == 0) {
@@ -370,7 +375,8 @@ library ProposalsLogicV1 {
             assembly ("memory-safe") {
                 packedGovernorBaseStorage := sload(governorBaseStorageSlot)
                 _token := packedGovernorBaseStorage
-                // The _isFounded bool is at byte index 20 (after the 20 address bytes), so shift right 20 * 8 = 160 bits
+                // The _isFounded bool is at byte index 20 (after the 20 address bytes), so shift right 20 * 8 = 160
+                // bits
                 isFounded := and(shr(160, packedGovernorBaseStorage), 0xff)
             }
         }
@@ -428,10 +434,11 @@ library ProposalsLogicV1 {
         // Check the proposer's votes against the proposalThreshold() (if greater than zero)
         uint256 _proposalThreshold = proposalThreshold();
         if (_proposalThreshold > 0) {
-            uint256 _proposerVotes = GovernorBaseLogicV1._getVotes(_token, proposer, currentClock - 1, GovernorBaseLogicV1._defaultParams());
+            uint256 _proposerVotes =
+                GovernorBaseLogicV1._getVotes(_token, proposer, currentClock - 1, GovernorBaseLogicV1._defaultParams());
             if (_proposerVotes < _proposalThreshold) {
                 // If the proposer votes is less than the threshold, and the proposer does not have the PROPOSER_ROLE...
-                if (!_hasRole(PROPOSER_ROLE, proposer)) {
+                if (!RolesLib._hasRole(_PROPOSER_ROLE, proposer)) {
                     revert IProposals.GovernorUnauthorizedSender(proposer);
                 }
             }
@@ -576,7 +583,7 @@ library ProposalsLogicV1 {
         }
 
         // Only allow cancellation if the sender is CANCELER_ROLE, or if the proposer cancels before voting starts
-        if (!_hasRole(CANCELER_ROLE, msg.sender)) {
+        if (!RolesLib._hasRole(_CANCELER_ROLE, msg.sender)) {
             if (msg.sender != _proposalProposer(proposalId)) {
                 revert IProposals.GovernorUnauthorizedSender(msg.sender);
             }
@@ -597,7 +604,8 @@ library ProposalsLogicV1 {
         _validateStateBitmap(
             proposalId,
             ALL_PROPOSAL_STATES_BITMAP ^ _encodeStateBitmap(IProposals.ProposalState.Canceled)
-                ^ _encodeStateBitmap(IProposals.ProposalState.Expired) ^ _encodeStateBitmap(IProposals.ProposalState.Executed)
+                ^ _encodeStateBitmap(IProposals.ProposalState.Expired)
+                ^ _encodeStateBitmap(IProposals.ProposalState.Executed)
         );
 
         ProposalsStorage storage $ = _getProposalsStorage();
@@ -622,7 +630,8 @@ library ProposalsLogicV1 {
     }
 
     function checkFoundingProposalGovernanceThreshold(uint256 proposalId) public view {
-        GovernorBaseLogicV1.GovernorBaseStorage storage _governorBaseStorage = GovernorBaseLogicV1._getGovernorBaseStorage();
+        GovernorBaseLogicV1.GovernorBaseStorage storage _governorBaseStorage =
+            GovernorBaseLogicV1._getGovernorBaseStorage();
 
         IGovernorToken _token = _governorBaseStorage._token;
         uint256 _governanceThresholdBps = _governorBaseStorage._governanceThresholdBps;
@@ -657,7 +666,14 @@ library ProposalsLogicV1 {
      *
      * If requirements are not met, reverts with a {GovernorUnexpectedProposalState} error.
      */
-    function _validateStateBitmap(uint256 proposalId, bytes32 allowedStates) internal view returns (IProposals.ProposalState) {
+    function _validateStateBitmap(
+        uint256 proposalId,
+        bytes32 allowedStates
+    )
+        internal
+        view
+        returns (IProposals.ProposalState)
+    {
         IProposals.ProposalState currentState = state(proposalId);
         if (_encodeStateBitmap(currentState) & allowedStates == bytes32(0)) {
             revert IProposals.GovernorUnexpectedProposalState(proposalId, currentState, allowedStates);

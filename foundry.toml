@@ -3,7 +3,7 @@ libs = ["node_modules", "lib"]
 sparse_mode = true
 solc = '0.8.23'
 optimizer = true
-optimizer_runs = 2000
+optimizer_runs = 100000
 via_ir = true
 ignored_error_codes = ['unused-param']
 

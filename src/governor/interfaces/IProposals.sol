@@ -108,6 +108,19 @@ interface IProposals {
     error GovernorInvalidActionSignature(uint256 index);
 
     /**
+     * @dev The bytes32 role hash for accounts that are allowed to submit proposals, regardless of the proposal
+     * threshold.
+     */
+    function PROPOSER_ROLE() external view returns (bytes32);
+
+    /**
+     * @dev The bytes32 role hash for accounts that are allowed to cancel proposals. If granting this ability to an
+     * account, it is recommended to set a reasonable "expiresAt" paramater, as any account with this role can cancel
+     * any proposal before execution.
+     */
+    function CANCELER_ROLE() external view returns (bytes32);
+
+    /**
      * @notice Returns the total number of submitted proposals.
      */
     function proposalCount() external view returns (uint256 _proposalCount);

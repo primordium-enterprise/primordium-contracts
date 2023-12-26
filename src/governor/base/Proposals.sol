@@ -11,6 +11,7 @@ import {GovernorBase} from "./GovernorBase.sol";
 import {IProposals} from "../interfaces/IProposals.sol";
 import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import {Roles} from "src/utils/Roles.sol";
+import {RolesLib} from "src/libraries/RolesLib.sol";
 import {IGovernorToken} from "../interfaces/IGovernorToken.sol";
 import {Enum} from "src/common/Enum.sol";
 import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
@@ -31,9 +32,6 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
     using BasisPoints for uint256;
     using Checkpoints for Checkpoints.Trace208;
 
-    bytes32 public immutable PROPOSER_ROLE = keccak256("PROPOSER");
-    bytes32 public immutable CANCELER_ROLE = keccak256("CANCELER");
-
     function __Proposals_init_unchained(bytes memory proposalsInitParams) internal virtual onlyInitializing {
         (
             uint256 proposalThresholdBps_,
@@ -50,12 +48,22 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
 
         (bytes32[] memory roles, address[] memory accounts, uint256[] memory expiresAts) =
             abi.decode(initGrantRoles, (bytes32[], address[], uint256[]));
-        _grantRoles(roles, accounts, expiresAts);
+        RolesLib._grantRoles(roles, accounts, expiresAts);
     }
 
     /*//////////////////////////////////////////////////////////////////////////
         PROPOSAL GETTERS
     //////////////////////////////////////////////////////////////////////////*/
+
+    /// @inheritdoc IProposals
+    function PROPOSER_ROLE() external pure virtual returns (bytes32) {
+        return ProposalsLogicV1._PROPOSER_ROLE;
+    }
+
+    /// @inheritdoc IProposals
+    function CANCELER_ROLE() external pure virtual returns (bytes32) {
+        return ProposalsLogicV1._CANCELER_ROLE;
+    }
 
     /// @inheritdoc IProposals
     function proposalCount() public view virtual returns (uint256 count) {
@@ -247,12 +255,12 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         override
         onlyGovernance
     {
-        _grantRoles(roles, accounts, expiresAts);
+        RolesLib._grantRoles(roles, accounts, expiresAts);
     }
 
     /// @inheritdoc IProposals
     function revokeRoles(bytes32[] memory roles, address[] memory accounts) public virtual override onlyGovernance {
-        _revokeRoles(roles, accounts);
+        RolesLib._revokeRoles(roles, accounts);
     }
 
     /// @dev Amount of votes already cast passes the threshold limit.
