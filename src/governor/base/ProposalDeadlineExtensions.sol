@@ -6,7 +6,9 @@ pragma solidity ^0.8.20;
 import {ProposalsLogicV1} from "./logic/ProposalsLogicV1.sol";
 import {ProposalVotingLogicV1} from "./logic/ProposalVotingLogicV1.sol";
 import {ProposalDeadlineExtensionsLogicV1} from "./logic/ProposalDeadlineExtensionsLogicV1.sol";
+import {Proposals} from "./Proposals.sol";
 import {ProposalVoting} from "./ProposalVoting.sol";
+import {IProposalDeadlineExtensions} from "../interfaces/IProposalDeadlineExtensions.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -42,7 +44,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  *
  * deadlineExtension = ( E - distanceFromDeadline ) * min(1.25, [ voteWeight / ( abs(ForVotes - AgainstVotes) + 1 ) ])
  */
-abstract contract ProposalDeadlineExtensions is ProposalVoting {
+abstract contract ProposalDeadlineExtensions is ProposalVoting, IProposalDeadlineExtensions {
 
     function __ProposalDeadlineExtensions_init_unchained(bytes memory proposalDeadlineExtensionsInitParams)
         internal
@@ -58,25 +60,22 @@ abstract contract ProposalDeadlineExtensions is ProposalVoting {
         _setExtensionPercentDecay(percentDecay_);
     }
 
-    /**
-     * @dev We override to provide the extended deadline (if applicable)
-     */
-    function proposalDeadline(uint256 proposalId) public view virtual override returns (uint256) {
+    /// @inheritdoc IProposalDeadlineExtensions
+    function proposalDeadline(uint256 proposalId) public view virtual override(Proposals, IProposalDeadlineExtensions) returns (uint256) {
         return ProposalDeadlineExtensionsLogicV1._proposalDeadline(proposalId);
     }
 
+    /// @inheritdoc IProposalDeadlineExtensions
     function proposalOriginalDeadline(uint256 proposalId) public view virtual returns (uint256) {
         return ProposalDeadlineExtensionsLogicV1._originalProposalDeadline(proposalId);
     }
 
-    /**
-     * @notice The current max extension period for any given proposal. The voting period cannot be extended past the
-     * original deadline more than this amount. DAOs can set this to zero for no extensions whatsoever.
-     */
+    /// @inheritdoc IProposalDeadlineExtensions
     function maxDeadlineExtension() public view virtual returns (uint256) {
         return ProposalDeadlineExtensionsLogicV1._maxDeadlineExtension();
     }
 
+    /// @inheritdoc IProposalDeadlineExtensions
     function setMaxDeadlineExtension(uint256 newMaxDeadlineExtension) public virtual onlyGovernance {
         _setMaxDeadlineExtension(newMaxDeadlineExtension);
     }
@@ -85,14 +84,12 @@ abstract contract ProposalDeadlineExtensions is ProposalVoting {
         ProposalDeadlineExtensionsLogicV1.setMaxDeadlineExtension(newMaxDeadlineExtension);
     }
 
-    /**
-     * @notice The base extension period used in the deadline extension calculations. This amount by {percentDecay} for
-     * every {decayPeriod} past the original proposal deadline.
-     */
+    /// @inheritdoc IProposalDeadlineExtensions
     function baseDeadlineExtension() public view virtual returns (uint256) {
         return ProposalDeadlineExtensionsLogicV1._baseDeadlineExtension();
     }
 
+    /// @inheritdoc IProposalDeadlineExtensions
     function setBaseDeadlineExtension(uint256 newBaseDeadlineExtension) public virtual onlyGovernance {
         _setBaseDeadlineExtension(newBaseDeadlineExtension);
     }
@@ -101,14 +98,12 @@ abstract contract ProposalDeadlineExtensions is ProposalVoting {
         ProposalDeadlineExtensionsLogicV1.setBaseDeadlineExtension(newBaseDeadlineExtension);
     }
 
-    /**
-     * @notice The base extension period decays by {percentDecay} for every period set by this parameter. DAOs should be
-     * sure to set this period in accordance with their clock mode.
-     */
+    /// @inheritdoc IProposalDeadlineExtensions
     function extensionDecayPeriod() public view virtual returns (uint256) {
         return ProposalDeadlineExtensionsLogicV1._extensionDecayPeriod();
     }
 
+    /// @inheritdoc IProposalDeadlineExtensions
     function setExtensionDecayPeriod(uint256 newDecayPeriod) public virtual onlyGovernance {
         _setExtensionDecayPeriod(newDecayPeriod);
     }
@@ -117,13 +112,12 @@ abstract contract ProposalDeadlineExtensions is ProposalVoting {
         return ProposalDeadlineExtensionsLogicV1.setExtensionDecayPeriod(newDecayPeriod);
     }
 
-    /**
-     * @notice The percentage that the base extension period decays by for every {decayPeriod}.
-     */
+    /// @inheritdoc IProposalDeadlineExtensions
     function extensionPercentDecay() public view virtual returns (uint256) {
         return ProposalDeadlineExtensionsLogicV1._extensionDecayPeriod();
     }
 
+    /// @inheritdoc IProposalDeadlineExtensions
     function setExtensionPercentDecay(uint256 newPercentDecay) public virtual onlyGovernance {
         _setExtensionPercentDecay(newPercentDecay);
     }

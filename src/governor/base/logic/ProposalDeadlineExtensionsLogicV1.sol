@@ -6,6 +6,7 @@ pragma solidity ^0.8.20;
 import {GovernorBaseLogicV1} from "./GovernorBaseLogicV1.sol";
 import {ProposalsLogicV1} from "./ProposalsLogicV1.sol";
 import {ProposalVotingLogicV1} from "./ProposalVotingLogicV1.sol";
+import {IProposalDeadlineExtensions} from "../../interfaces/IProposalDeadlineExtensions.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -57,15 +58,6 @@ library ProposalDeadlineExtensionsLogicV1 {
     /// @dev Max 1.25 multiple on the vote weight
     uint256 private constant FRACTION_MULTIPLE_MAX = FRACTION_MULTIPLE * 5 / 4;
 
-    event ProposalDeadlineExtended(uint256 indexed proposalId, uint256 extendedDeadline);
-    event MaxDeadlineExtensionSet(uint256 oldMaxDeadlineExtension, uint256 newMaxDeadlineExtension);
-    event BaseDeadlineExtensionSet(uint256 oldBaseDeadlineExtension, uint256 newBaseDeadlineExtension);
-    event ExtensionDecayPeriodSet(uint256 oldDecayPeriod, uint256 newDecayPeriod);
-    event ExtensionPercentDecaySet(uint256 oldPercentDecay, uint256 newPercentDecay);
-
-    error ExtensionDecayPeriodCannotBeZero();
-    error ExtensionPercentDecayOutOfRange(uint256 min, uint256 max);
-
     function _proposalDeadline(uint256 proposalId) internal view returns (uint256) {
         uint256 currentDeadline = _getProposalDeadlineExtensionsStorage()._deadlineDatas[proposalId].currentDeadline;
         // If uninitialized (no votes cast yet), return the original proposal deadline
@@ -85,7 +77,7 @@ library ProposalDeadlineExtensionsLogicV1 {
 
     function setMaxDeadlineExtension(uint256 newMaxDeadlineExtension) public {
         ProposalDeadlineExtensionsStorage storage $ = _getProposalDeadlineExtensionsStorage();
-        emit MaxDeadlineExtensionSet($._maxDeadlineExtension, newMaxDeadlineExtension);
+        emit IProposalDeadlineExtensions.MaxDeadlineExtensionSet($._maxDeadlineExtension, newMaxDeadlineExtension);
         $._maxDeadlineExtension = newMaxDeadlineExtension.toUint64();
     }
 
@@ -95,7 +87,7 @@ library ProposalDeadlineExtensionsLogicV1 {
 
     function setBaseDeadlineExtension(uint256 newBaseDeadlineExtension) public {
         ProposalDeadlineExtensionsStorage storage $ = _getProposalDeadlineExtensionsStorage();
-        emit BaseDeadlineExtensionSet($._baseDeadlineExtension, newBaseDeadlineExtension);
+        emit IProposalDeadlineExtensions.BaseDeadlineExtensionSet($._baseDeadlineExtension, newBaseDeadlineExtension);
         $._baseDeadlineExtension = newBaseDeadlineExtension.toUint64();
     }
 
@@ -105,11 +97,11 @@ library ProposalDeadlineExtensionsLogicV1 {
 
     function setExtensionDecayPeriod(uint256 newDecayPeriod) public {
         if (newDecayPeriod == 0) {
-            revert ExtensionDecayPeriodCannotBeZero();
+            revert IProposalDeadlineExtensions.GovernorExtensionDecayPeriodCannotBeZero();
         }
 
         ProposalDeadlineExtensionsStorage storage $ = _getProposalDeadlineExtensionsStorage();
-        emit ExtensionDecayPeriodSet($._decayPeriod, newDecayPeriod);
+        emit IProposalDeadlineExtensions.ExtensionDecayPeriodSet($._decayPeriod, newDecayPeriod);
         $._decayPeriod = newDecayPeriod.toUint64();
     }
 
@@ -119,21 +111,18 @@ library ProposalDeadlineExtensionsLogicV1 {
 
     function setExtensionPercentDecay(uint256 newPercentDecay) public {
         if (newPercentDecay < MIN_PERCENT_DECAY || newPercentDecay > MAX_PERCENT_DECAY) {
-            revert ExtensionPercentDecayOutOfRange(MIN_PERCENT_DECAY, MAX_PERCENT_DECAY);
+            revert IProposalDeadlineExtensions.GovernorExtensionPercentDecayOutOfRange(
+                MIN_PERCENT_DECAY, MAX_PERCENT_DECAY
+            );
         }
 
         ProposalDeadlineExtensionsStorage storage $ = _getProposalDeadlineExtensionsStorage();
-        emit ExtensionPercentDecaySet($._percentDecay, newPercentDecay);
+        emit IProposalDeadlineExtensions.ExtensionPercentDecaySet($._percentDecay, newPercentDecay);
         // SafeCast unnecessary here as long as the MAX_PERCENT_DECAY is less than type(uint64).max
         $._percentDecay = uint64(newPercentDecay);
     }
 
-    function processDeadlineExtensionOnVote(
-        uint256 proposalId,
-        uint256 voteWeight
-    )
-        public
-    {
+    function processDeadlineExtensionOnVote(uint256 proposalId, uint256 voteWeight) public {
         ProposalDeadlineExtensionsStorage storage $ = _getProposalDeadlineExtensionsStorage();
 
         // Grab the max deadline extension
@@ -229,7 +218,7 @@ library ProposalDeadlineExtensionsLogicV1 {
             $._deadlineDatas[proposalId] = dd;
 
             // Emit the event
-            emit ProposalDeadlineExtended(proposalId, dd.currentDeadline);
+            emit IProposalDeadlineExtensions.ProposalDeadlineExtended(proposalId, dd.currentDeadline);
         }
     }
 }
