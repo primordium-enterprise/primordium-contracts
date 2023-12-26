@@ -149,6 +149,7 @@ library GovernorBaseLogicV1 {
     }
 
     function _isFounded() internal view returns (bool isFounded_) {
+        // NOTE: The below leads to lower bytecode size than just calling _getGovernorBaseStorage()._isFounded
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
         assembly ("memory-safe") {
             isFounded_ := and(0xff, shr(160, sload($.slot)))
