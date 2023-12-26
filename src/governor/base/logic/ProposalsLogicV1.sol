@@ -234,7 +234,7 @@ library ProposalsLogicV1 {
 
         uint256 opNonce = $._proposalOpNonces[proposalId];
         if (opNonce == 0) {
-            uint256 grace = proposalGracePeriod();
+            uint256 grace = _proposalGracePeriod();
             if (deadline + grace >= currentTimepoint) {
                 return IProposals.ProposalState.Expired;
             }
@@ -258,14 +258,14 @@ library ProposalsLogicV1 {
 
     function proposalThreshold() public view returns (uint256 proposalThreshold_) {
         IGovernorToken _token = GovernorBaseLogicV1._token();
-        uint256 _proposalThresholdBps = proposalThresholdBps();
+        uint256 proposalThresholdBps_ = _proposalThresholdBps();
 
         // Use unchecked, overflow not a problem as long as the token's max supply <= type(uint224).max
         proposalThreshold_ =
-            _proposalThresholdBps.bpsUnchecked(_token.getPastTotalSupply(GovernorBaseLogicV1._clock(_token) - 1));
+            proposalThresholdBps_.bpsUnchecked(_token.getPastTotalSupply(GovernorBaseLogicV1._clock(_token) - 1));
     }
 
-    function proposalThresholdBps() public view returns (uint256 proposalThresholdBps_) {
+    function _proposalThresholdBps() internal view returns (uint256 proposalThresholdBps_) {
         proposalThresholdBps_ = _getProposalSettingsStorage()._proposalThresholdBps;
     }
 
@@ -276,8 +276,8 @@ library ProposalsLogicV1 {
         $._proposalThresholdBps = newProposalThresholdBps.toBps(); // toBps() checks for out of range BPS value
     }
 
-    function votingDelay() public view returns (uint256 _votingDelay) {
-        _votingDelay = _getProposalSettingsStorage()._votingDelay;
+    function _votingDelay() internal view returns (uint256 votingDelay_) {
+        votingDelay_ = _getProposalSettingsStorage()._votingDelay;
     }
 
     function setVotingDelay(uint256 newVotingDelay) public {
@@ -287,8 +287,8 @@ library ProposalsLogicV1 {
         $._votingDelay = SafeCast.toUint24(newVotingDelay);
     }
 
-    function votingPeriod() public view returns (uint256 _votingPeriod) {
-        _votingPeriod = _getProposalSettingsStorage()._votingPeriod;
+    function _votingPeriod() internal view returns (uint256 votingPeriod_) {
+        votingPeriod_ = _getProposalSettingsStorage()._votingPeriod;
     }
 
     function setVotingPeriod(uint256 newVotingPeriod) public {
@@ -298,8 +298,8 @@ library ProposalsLogicV1 {
         $._votingPeriod = SafeCast.toUint24(newVotingPeriod);
     }
 
-    function proposalGracePeriod() public view returns (uint256 _gracePeriod) {
-        _gracePeriod = _getProposalSettingsStorage()._gracePeriod;
+    function _proposalGracePeriod() internal view returns (uint256 proposalGracePeriod_) {
+        proposalGracePeriod_ = _getProposalSettingsStorage()._gracePeriod;
     }
 
     function setProposalGracePeriod(uint256 newGracePeriod) public {
@@ -333,10 +333,10 @@ library ProposalsLogicV1 {
         {
             (, uint256 currentClock) = _authorizeProposal(proposer, targets, values, calldatas, description);
 
-            (uint256 _votingDelay, uint256 _votingPeriod) = _getVotingDelayAndPeriod();
+            (uint256 votingDelay_, uint256 votingPeriod_) = _getVotingDelayAndPeriod();
 
-            snapshot = currentClock + _votingDelay;
-            duration = _votingPeriod;
+            snapshot = currentClock + votingDelay_;
+            duration = votingPeriod_;
         }
 
         proposalId = _propose(proposer, snapshot, duration, targets, values, calldatas, signatures, description);
@@ -624,10 +624,10 @@ library ProposalsLogicV1 {
     }
 
     /// @dev Get both values at once to optimize gas where applicable
-    function _getVotingDelayAndPeriod() internal view returns (uint256 _votingDelay, uint256 _votingPeriod) {
+    function _getVotingDelayAndPeriod() internal view returns (uint256 votingDelay_, uint256 votingPeriod_) {
         ProposalSettingsStorage storage $ = _getProposalSettingsStorage();
-        _votingDelay = $._votingDelay;
-        _votingPeriod = $._votingPeriod;
+        votingDelay_ = $._votingDelay;
+        votingPeriod_ = $._votingPeriod;
     }
 
     function checkFoundingProposalGovernanceThreshold(uint256 proposalId) public view {

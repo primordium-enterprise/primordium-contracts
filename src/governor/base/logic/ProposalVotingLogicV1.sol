@@ -5,6 +5,7 @@ pragma solidity ^0.8.20;
 
 import {GovernorBaseLogicV1} from "./GovernorBaseLogicV1.sol";
 import {ProposalsLogicV1} from "./ProposalsLogicV1.sol";
+import {IProposals} from "../../interfaces/IProposals.sol";
 import {IProposalVoting} from "../../interfaces/IProposalVoting.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
@@ -30,11 +31,7 @@ library ProposalVotingLogicV1 {
         mapping(address => bool) hasVoted;
     }
 
-    bytes32 private constant BALLOT_TYPEHASH =
-        keccak256("Ballot(uint256 proposalId,uint8 support,address voter,uint256 nonce)");
-    bytes32 private constant EXTENDED_BALLOT_TYPEHASH = keccak256(
-        "ExtendedBallot(uint256 proposalId,uint8 support,address voter,uint256 nonce,string reason,bytes params)"
-    );
+
 
     uint256 internal constant _MAX_PERCENT = 100;
     uint256 internal constant _MIN_PERCENT_MAJORITY = 50;
@@ -61,21 +58,21 @@ library ProposalVotingLogicV1 {
         VOTE COUNTING
     //////////////////////////////////////////////////////////////////////////*/
 
-    function hasVoted(uint256 proposalId, address account) public view returns (bool) {
+    function _hasVoted(uint256 proposalId, address account) internal view returns (bool) {
         return _getProposalVotingStorage()._proposalVotes[proposalId].hasVoted[account];
     }
 
-    function proposalVotes(uint256 proposalId)
-        public
+    function _proposalVotes(uint256 proposalId)
+        internal
         view
         returns (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes)
     {
-        ProposalVote storage _proposalVote = _getProposalVote(proposalId);
+        ProposalVote storage _proposalVote = _getProposalVoteStorageRef(proposalId);
         return (_proposalVote.againstVotes, _proposalVote.forVotes, _proposalVote.abstainVotes);
     }
 
     /// @dev Internal access to ProposalVote storage for a proposalId
-    function _getProposalVote(uint256 proposalId) internal view returns (ProposalVote storage proposalVote) {
+    function _getProposalVoteStorageRef(uint256 proposalId) internal view returns (ProposalVote storage proposalVote) {
         proposalVote = _getProposalVotingStorage()._proposalVotes[proposalId];
     }
 
@@ -191,7 +188,7 @@ library ProposalVotingLogicV1 {
      */
     function _voteSucceeded(uint256 proposalId) internal view returns (bool) {
         uint256 percentToSucceed = _percentMajority(ProposalsLogicV1._proposalSnapshot(proposalId));
-        ProposalVote storage _proposalVote = _getProposalVote(proposalId);
+        ProposalVote storage _proposalVote = _getProposalVoteStorageRef(proposalId);
         uint256 againstVotes = _proposalVote.againstVotes;
         uint256 forVotes = _proposalVote.forVotes;
 
@@ -223,7 +220,7 @@ library ProposalVotingLogicV1 {
      * from the tipping point number of forVotes required to reverse the current voting success of the proposal.
      */
     function _voteMargin(uint256 proposalId) internal view returns (uint256) {
-        ProposalVote storage _proposalVote = _getProposalVote(proposalId);
+        ProposalVote storage _proposalVote = _getProposalVoteStorageRef(proposalId);
         uint256 againstVotes = _proposalVote.againstVotes;
         uint256 forVotes = _proposalVote.forVotes;
 
@@ -253,4 +250,34 @@ library ProposalVotingLogicV1 {
     /*//////////////////////////////////////////////////////////////////////////
         CASTING VOTES
     //////////////////////////////////////////////////////////////////////////*/
+
+    /**
+     * @dev Internal vote casting mechanism: Check that the vote is pending, that it has not been cast yet, retrieve
+     * voting weight using {IGovernor-getVotes} and call the {_countVote} internal function.
+     *
+     * Emits a {IGovernor-VoteCast} event.
+     */
+    function castVote(
+        uint256 proposalId,
+        address account,
+        uint8 support,
+        string memory reason,
+        bytes memory params
+    )
+        public
+        returns (uint256 weight)
+    {
+        ProposalsLogicV1._validateStateBitmap(proposalId, ProposalsLogicV1._encodeStateBitmap(IProposals.ProposalState.Active));
+
+        ProposalsLogicV1.ProposalCore storage proposal = ProposalsLogicV1._getProposalsStorage()._proposals[proposalId];
+
+        weight = GovernorBaseLogicV1._getVotes(account, proposal.voteStart, params);
+        _countVote(proposalId, account, support, weight, params);
+
+        if (params.length == 0) {
+            emit IProposalVoting.VoteCast(account, proposalId, support, weight, reason);
+        } else {
+            emit IProposalVoting.VoteCastWithParams(account, proposalId, support, weight, reason, params);
+        }
+    }
 }

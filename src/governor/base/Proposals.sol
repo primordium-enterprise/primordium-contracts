@@ -130,7 +130,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
 
     /// @inheritdoc IProposals
     function proposalThresholdBps() public view virtual returns (uint256 _proposalThresholdBps) {
-        return ProposalsLogicV1.proposalThresholdBps();
+        return ProposalsLogicV1._proposalThresholdBps();
     }
 
     /// @inheritdoc IProposals
@@ -144,7 +144,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
 
     /// @inheritdoc IProposals
     function votingDelay() public view virtual returns (uint256 _votingDelay) {
-        return ProposalsLogicV1.votingDelay();
+        return ProposalsLogicV1._votingDelay();
     }
 
     /// @inheritdoc IProposals
@@ -158,7 +158,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
 
     /// @inheritdoc IProposals
     function votingPeriod() public view virtual returns (uint256 _votingPeriod) {
-        return ProposalsLogicV1.votingPeriod();
+        return ProposalsLogicV1._votingPeriod();
     }
 
     /// @inheritdoc IProposals
@@ -172,7 +172,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
 
     /// @inheritdoc IProposals
     function proposalGracePeriod() public view virtual returns (uint256 _gracePeriod) {
-        return ProposalsLogicV1.proposalGracePeriod();
+        return ProposalsLogicV1._proposalGracePeriod();
     }
 
     /// @inheritdoc IProposals
@@ -262,12 +262,6 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
     function revokeRoles(bytes32[] memory roles, address[] memory accounts) public virtual override onlyGovernance {
         RolesLib._revokeRoles(roles, accounts);
     }
-
-    /// @dev Amount of votes already cast passes the threshold limit.
-    function _quorumReached(uint256 proposalId) internal view virtual returns (bool);
-
-    /// @dev Is the proposal successful or not.
-    function _voteSucceeded(uint256 proposalId) internal view virtual returns (bool);
 
     /// @dev Override to check that the threshold is still met at the end of the proposal period
     function _foundGovernor(uint256 proposalId) internal virtual override {

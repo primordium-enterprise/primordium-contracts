@@ -140,7 +140,7 @@ abstract contract GovernorBase is
 
     /// @inheritdoc IGovernorBase
     function governanceCanBeginAt() public view returns (uint256 _governanceCanBeginAt) {
-        return GovernorBaseLogicV1.governanceCanBeginAt();
+        return GovernorBaseLogicV1._governanceCanBeginAt();
     }
 
     /// @inheritdoc IGovernorBase
@@ -159,8 +159,8 @@ abstract contract GovernorBase is
     }
 
     /// @inheritdoc IGovernorBase
-    function isFounded() public view virtual returns (bool) {
-        return GovernorBaseLogicV1.isFounded();
+    function isFounded() public view virtual returns (bool _isFounded) {
+        _isFounded = GovernorBaseLogicV1._isFounded();
     }
 
     /// @inheritdoc IGovernorBase
@@ -189,7 +189,7 @@ abstract contract GovernorBase is
      * Note: Should be overridden by specific implementations to use an appropriate value, the
      * meaning of the additional params, in the context of that implementation
      */
-    function _defaultParams() internal pure returns (bytes memory) {
+    function _defaultParams() internal pure virtual returns (bytes memory) {
         return GovernorBaseLogicV1._defaultParams();
     }
 

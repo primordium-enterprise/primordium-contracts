@@ -109,8 +109,8 @@ library GovernorBaseLogicV1 {
         }
     }
 
-    function governanceCanBeginAt() public view returns (uint256 _governanceCanBeginAt) {
-        _governanceCanBeginAt = _getGovernorBaseStorage()._governanceCanBeginAt;
+    function _governanceCanBeginAt() internal view returns (uint256 governanceCanBeginAt_) {
+        governanceCanBeginAt_ = _getGovernorBaseStorage()._governanceCanBeginAt;
     }
 
     function governanceFoundingVoteThreshold() public view returns (uint256 threshold) {
@@ -127,10 +127,10 @@ library GovernorBaseLogicV1 {
     function _foundGovernor(uint256 proposalId) internal {
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
 
-        bool _isFounded = $._isFounded;
+        bool isFounded_ = $._isFounded;
 
         // Revert if already initialized
-        if (_isFounded) {
+        if (isFounded_) {
             revert IGovernorBase.GovernorAlreadyFounded();
         }
 
@@ -148,8 +148,11 @@ library GovernorBaseLogicV1 {
         emit IGovernorBase.GovernorFounded(proposalId);
     }
 
-    function isFounded() public view returns (bool _isFounded) {
-        _isFounded = _getGovernorBaseStorage()._isFounded;
+    function _isFounded() internal view returns (bool isFounded_) {
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        assembly ("memory-safe") {
+            isFounded_ := and(0xff, shr(160, sload($.slot)))
+        }
     }
 
     /**

@@ -8,14 +8,6 @@ import {IProposals} from "src/governor/interfaces/IProposals.sol";
 
 contract ProposalsHarness is Proposals {
 
-    function _quorumReached(
-        uint256 proposalId
-    ) internal view virtual override returns (bool) {}
-
-    function _voteSucceeded(
-        uint256 proposalId
-    ) internal view virtual override returns (bool) {}
-
     function validateCalldataSignatures(
         bytes[] calldata calldatas,
         string[] memory signatures
