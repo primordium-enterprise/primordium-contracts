@@ -65,7 +65,6 @@ interface ISharesManager is IERC6372 {
     error TreasuryInterfaceNotSupported(address treasury);
     error QuoteAssetInterfaceNotSupported(address quoteAsset);
     error CannotSetQuoteAssetToSelf();
-    error MaxSupplyTooLarge(uint256 max);
     error FundingIsNotActive();
     error InvalidDepositAmount();
     error InvalidPermitSpender(address providedSpender, address correctSpender);
@@ -87,27 +86,6 @@ interface ISharesManager is IERC6372 {
      * @notice Only the owner can update the treasury address.
      */
     function setTreasury(address newTreasury) external;
-
-    /**
-     * Mints vote shares to an account.
-     * @notice Only the owner can mint shares. Shares can be otherwise minted through the deposit functionality.
-     * @param account The address to receive the newly minted shares.
-     * @param amount The amount of vote shares to mint.
-     */
-    function mint(address account, uint256 amount) external;
-
-    /**
-     * The current max supply of vote shares available for minting.
-     */
-    function maxSupply() external view returns (uint256 _maxSupply);
-
-    /**
-     * Function to update the max supply of vote tokens available to be minted by deposits during active funding.
-     * @notice Only the owner can update the max supply.
-     * @notice The max supply can be set below the total supply of tokens.
-     * @param newMaxSupply The new max supply. Must be no greater than type(uint224).max.
-     */
-    function setMaxSupply(uint256 newMaxSupply) external;
 
     /**
      * Gets the admin status for the account. The owning contract can approve "admin" accounts that will have the
