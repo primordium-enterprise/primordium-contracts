@@ -6,9 +6,8 @@ pragma solidity ^0.8.20;
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
 import {ISharesToken} from "src/shares/interfaces/ISharesToken.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
-import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 
-interface ISharesOnboarder is IERC6372 {
+interface ISharesOnboarder {
     struct SharePrice {
         uint128 quoteAmount; // Minimum amount of quote asset tokens required to mint {mintAmount} amount of votes.
         uint128 mintAmount; // Number of votes that can be minted per {quoteAmount} count of quote asset.
