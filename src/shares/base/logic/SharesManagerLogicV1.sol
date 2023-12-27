@@ -9,6 +9,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
+import {ERC20Utils} from "src/libraries/ERC20Utils.sol";
+import {SafeTransferLib} from "src/libraries/SafeTransferLib.sol";
 import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
 
 /**
@@ -179,5 +181,79 @@ library SharesManagerLogicV1 {
         );
         $._sharePrice.quoteAmount = castedQuoteAmount;
         $._sharePrice.mintAmount = castedMintAmount;
+    }
+
+    /**
+     * @dev Processes a given deposit amount (sending deposit to the treasury), and returns the amount to mint. Runs
+     * several checks before transferring the deposit to the treasury. Main checks:
+     * - Funding is active (treasury is not zero address, and block.timestamp is in funding window)
+     * - depositAmount cannot be zero, and must be an exact multiple of the quoteAmount
+     * - msg.value is proper based on the current quoteAsset
+     */
+    function processDepositAmount(
+        uint256 depositAmount,
+        address depositor
+    )
+        public
+        returns (uint256 totalSharesToMint)
+    {
+        (bool fundingActive, ITreasury treasury_) = SharesManagerLogicV1._isFundingActive();
+        if (!fundingActive) {
+            revert ISharesManager.FundingIsNotActive();
+        }
+
+        // NOTE: The {_mint} function already checks to ensure the account address != address(0)
+        if (depositAmount == 0) {
+            revert ISharesManager.InvalidDepositAmount();
+        }
+
+        // Share price must not be zero
+        (uint256 quoteAmount, uint256 mintAmount) = _sharePrice();
+        if (quoteAmount == 0 || mintAmount == 0) {
+            revert ISharesManager.FundingIsNotActive();
+        }
+
+        // The "depositAmount" must be a multiple of the share price quoteAmount
+        if (depositAmount % quoteAmount != 0) {
+            revert ISharesManager.InvalidDepositAmountMultiple();
+        }
+
+        // Transfer the deposit to the treasury
+        IERC20 quoteAsset_ = _quoteAsset();
+        uint256 msgValue;
+
+        // For ETH, just transfer via the treasury "registerDeposit" function, so set the msg.value
+        if (address(quoteAsset_) == address(0)) {
+            if (depositAmount != msg.value) {
+                revert ERC20Utils.InvalidMsgValue(depositAmount, msg.value);
+            }
+            msgValue = msg.value;
+            // For ERC20, safe transfer from the depositor to the treasury
+        } else {
+            if (msg.value > 0) {
+                revert ERC20Utils.InvalidMsgValue(0, msg.value);
+            }
+            SafeTransferLib.safeTransferFrom(quoteAsset_, depositor, address(treasury_), depositAmount);
+        }
+
+        // Register the deposit on the treasury
+        assembly ("memory-safe") {
+            // Call `registerDeposit{value: msgValue}(quoteAsset_, depositAmount)`
+            mstore(0x14, quoteAsset_)
+            mstore(0x34, depositAmount)
+            // `registerDeposit(address,uint256)`
+            mstore(0x00, 0x219dabeb000000000000000000000000)
+            let result := call(gas(), treasury_, msgValue, 0x10, 0x44, 0, 0x40)
+            // Restore free mem overwrite
+            mstore(0x34, 0)
+            if iszero(result) {
+                let m := mload(0x40)
+                returndatacopy(m, 0, returndatasize())
+                revert(m, returndatasize())
+            }
+        }
+
+        // Set the total shares for the base contract to mint
+        totalSharesToMint = depositAmount / quoteAmount * mintAmount;
     }
 }

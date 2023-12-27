@@ -44,8 +44,9 @@ interface ISharesManager is IERC6372 {
      * @param account The account address that votes were minted to.
      * @param amountDeposited The amount of the base asset transferred to the Executor as a deposit.
      * @param votesMinted The amount of vote tokens minted to the account.
+     * @param depositor The account that deposited the quote asset.
      */
-    event Deposit(address indexed account, uint256 amountDeposited, uint256 votesMinted);
+    event Deposit(address indexed account, uint256 amountDeposited, uint256 votesMinted, address depositor);
 
     /**
      * @notice Emitted when a withdrawal is made and tokens are burned.

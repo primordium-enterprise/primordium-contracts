@@ -15,7 +15,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC20Utils} from "src/libraries/ERC20Utils.sol";
 import {SafeTransferLib} from "src/libraries/SafeTransferLib.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
@@ -247,7 +246,9 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
         virtual
         returns (uint256 totalSharesMinted)
     {
-        if (spender != address(this)) revert InvalidPermitSpender(spender, address(this));
+        if (spender != address(this)) {
+            revert InvalidPermitSpender(spender, address(this));
+        }
         IERC20Permit(address(quoteAsset())).permit(owner, spender, value, deadline, v, r, s);
         // The "owner" should be the receiver and the depositor
         totalSharesMinted = _depositFor(owner, value, owner);
@@ -269,67 +270,21 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
         virtual
         returns (uint256 totalSharesMinted)
     {
-        (bool fundingActive, ITreasury _treasury) = SharesManagerLogicV1._isFundingActive();
-        if (!fundingActive) {
-            revert FundingIsNotActive();
-        }
-
-        // NOTE: The {_mint} function already checks to ensure the account address != address(0)
-        if (depositAmount == 0) {
-            revert InvalidDepositAmount();
-        }
-
-        // Share price must not be zero
-        (uint256 quoteAmount, uint256 mintAmount) = sharePrice();
-        if (quoteAmount == 0 || mintAmount == 0) {
-            revert FundingIsNotActive();
-        }
-
-        // The "depositAmount" must be a multiple of the share price quoteAmount
-        if (depositAmount % quoteAmount != 0) {
-            revert InvalidDepositAmountMultiple();
-        }
-
-        // Transfer the deposit to the treasury
-        IERC20 _quoteAsset = quoteAsset();
-        uint256 msgValue;
-
-        // For ETH, just transfer via the treasury "registerDeposit" function, so set the msg.value
-        if (address(_quoteAsset) == address(0)) {
-            if (depositAmount != msg.value) {
-                revert ERC20Utils.InvalidMsgValue(depositAmount, msg.value);
-            }
-            msgValue = msg.value;
-            // For ERC20, safe transfer from the depositor to the treasury
-        } else {
-            if (msg.value > 0) {
-                revert ERC20Utils.InvalidMsgValue(0, msg.value);
-            }
-            SafeTransferLib.safeTransferFrom(_quoteAsset, depositor, address(_treasury), depositAmount);
-        }
-
-        // Register the deposit on the treasury
-        assembly ("memory-safe") {
-            // Call `registerDeposit{value: msgValue}(_quoteAsset, depositAmount)`
-            mstore(0x14, _quoteAsset)
-            mstore(0x34, depositAmount)
-            // `registerDeposit(address,uint256)`
-            mstore(0x00, 0x219dabeb000000000000000000000000)
-            let result := call(gas(), _treasury, msgValue, 0x10, 0x44, 0, 0x40)
-            // Restore free mem overwrite
-            mstore(0x34, 0)
-            if iszero(result) {
-                let m := mload(0x40)
-                returndatacopy(m, 0, returndatasize())
-                revert(m, returndatasize())
-            }
-        }
-
-        // Mint the vote shares to the receiver
-        totalSharesMinted = depositAmount / quoteAmount * mintAmount;
+        totalSharesMinted = SharesManagerLogicV1.processDepositAmount(depositAmount, depositor);
+        // Mint the vote shares to the receiver AFTER sending funds to treasury to ensure no re-entrancy
         _mint(account, totalSharesMinted);
 
-        emit Deposit(account, depositAmount, totalSharesMinted);
+        // emit Deposit(account, depositAmount, totalSharesMinted, depositor);
+        bytes32 _Deposit_eventSignature = Deposit.selector;
+        assembly ("memory-safe") {
+            let m := mload(0x40) // Cache free mem pointer
+            // Store event un-indexed data and log
+            mstore(0, depositAmount)
+            mstore(0x20, totalSharesMinted)
+            mstore(0x40, depositor)
+            log2(_Deposit_eventSignature, account, 0, 0x60)
+            mstore(0x40, m) // Restore free mem pointer
+        }
     }
 
     /**

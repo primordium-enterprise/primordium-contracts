@@ -88,23 +88,7 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
         virtual
         returns (SnapshotCheckpoints.Checkpoint208 memory)
     {
-        return _votesCheckpoints(account, pos);
-    }
-
-    /**
-     * @dev Get the `pos`-th checkpoint for `account`.
-     */
-    function _votesCheckpoints(
-        address account,
-        uint32 pos
-    )
-        internal
-        view
-        virtual
-        returns (SnapshotCheckpoints.Checkpoint208 memory)
-    {
-        ERC20VotesStorage storage $ = _getERC20VotesStorage();
-        return $._delegateCheckpoints[account].at(pos);
+        return _getERC20VotesStorage()._delegateCheckpoints[account].at(pos);
     }
 
     /// @inheritdoc IVotes

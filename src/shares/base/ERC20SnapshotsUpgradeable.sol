@@ -40,6 +40,8 @@ abstract contract ERC20SnapshotsUpgradeable is
     using SafeCast for uint256;
     using SnapshotCheckpoints for SnapshotCheckpoints.Trace208;
 
+    uint256 internal constant MAX_SUPPLY = type(uint208).max;
+
     /// @custom:storage-location erc7201:ERC20Snapshots.Storage
     struct ERC20SnapshotsStorage {
         uint48 _lastSnapshotClock;
@@ -128,7 +130,7 @@ abstract contract ERC20SnapshotsUpgradeable is
 
     /// @inheritdoc IERC20Snapshots
     function maxSupply() public view virtual override returns (uint256) {
-        return type(uint208).max;
+        return MAX_SUPPLY;
     }
 
     /// @inheritdoc IERC20
