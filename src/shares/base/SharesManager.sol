@@ -3,6 +3,7 @@
 
 pragma solidity ^0.8.20;
 
+import {SharesManagerLogicV1} from "./logic/SharesManagerLogicV1.sol";
 import {ERC20SnapshotsUpgradeable} from "./ERC20SnapshotsUpgradeable.sol";
 import {ERC20VotesUpgradeable} from "./ERC20VotesUpgradeable.sol";
 import {ISharesManager} from "../interfaces/ISharesManager.sol";
@@ -48,33 +49,6 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
         "WithdrawTo(address owner,address receiver,uint256 amount,address[] tokens,uint256 nonce,uint256 deadline)"
     );
 
-    struct SharePrice {
-        uint128 quoteAmount; // Minimum amount of quote asset tokens required to mint {mintAmount} amount of votes.
-        uint128 mintAmount; // Number of votes that can be minted per {quoteAmount} count of quote asset.
-    }
-
-    /// @custom:storage-location erc7201:SharesManager.Storage
-    struct SharesManagerStorage {
-        uint256 _maxSupply;
-        // Funding parameters
-        ITreasury _treasury;
-        uint48 _fundingBeginsAt;
-        uint48 _fundingEndsAt;
-        /// @dev _sharePrice updates should always go through {_setSharesPrice} to avoid setting price to zero
-        SharePrice _sharePrice;
-        IERC20 _quoteAsset; // (address(0) for ETH)
-        mapping(address admin => uint256 expiresAt) _admins;
-    }
-
-    // keccak256(abi.encode(uint256(keccak256("SharesManager.Storage")) - 1)) & ~bytes32(uint256(0xff));
-    bytes32 private constant SHARES_MANAGER_STORAGE = 0x215673db40ee2d172c8a31c3afde8d42c5c2dd6c697826d8d8447d186545ea00;
-
-    function _getSharesManagerStorage() private pure returns (SharesManagerStorage storage $) {
-        assembly {
-            $.slot := SHARES_MANAGER_STORAGE
-        }
-    }
-
     modifier onlyOwnerOrAdmin() {
         if (!_senderIsOwner()) {
             (bool isAdmin,) = adminStatus(msg.sender);
@@ -85,31 +59,23 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
         _;
     }
 
-    function __SharesManager_init(bytes memory sharesManagerInitParams) internal virtual onlyInitializing {
-        (
-            address owner_,
-            address treasury_,
-            uint256 maxSupply_,
-            address quoteAsset_,
-            bool checkQuoteAssetInterface_,
-            SharePrice memory sharePrice_,
-            uint256 fundingBeginsAt_,
-            uint256 fundingEndsAt_
-        ) = abi.decode(
-            sharesManagerInitParams, (address, address, uint256, address, bool, SharePrice, uint256, uint256)
-        );
+    function __SharesManager_init_unchained(bytes memory sharesManagerInitParams) internal virtual onlyInitializing {
+        SharesManagerLogicV1.setUp(sharesManagerInitParams);
+    }
 
-        __Ownable_init(owner_);
-        _setTreasury(treasury_);
-        _setMaxSupply(maxSupply_);
-        _setQuoteAsset(quoteAsset_, checkQuoteAssetInterface_);
-        _setSharePrice(sharePrice_.quoteAmount, sharePrice_.mintAmount);
-        _setFundingPeriods(fundingBeginsAt_, fundingEndsAt_);
+    /// @inheritdoc IERC20Snapshots
+    function createSnapshot() external virtual override onlyOwner returns (uint256 newSnapshotId) {
+        newSnapshotId = _createSnapshot();
+    }
+
+    /// @inheritdoc ISharesManager
+    function mint(address account, uint256 amount) external virtual override onlyOwner {
+        _mint(account, amount);
     }
 
     /// @inheritdoc ISharesManager
     function treasury() public view virtual override returns (ITreasury _treasury) {
-        _treasury = _getSharesManagerStorage()._treasury;
+        _treasury = SharesManagerLogicV1._treasury();
     }
 
     /// @inheritdoc ISharesManager
@@ -118,25 +84,7 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
     }
 
     function _setTreasury(address newTreasury) internal virtual {
-        if (newTreasury == address(0) || newTreasury == address(this)) {
-            revert InvalidTreasuryAddress(newTreasury);
-        }
-
-        newTreasury.checkInterface(type(ITreasury).interfaceId);
-
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-        emit TreasuryChange(address($._treasury), newTreasury);
-        $._treasury = ITreasury(newTreasury);
-    }
-
-    /// @inheritdoc ISharesManager
-    function mint(address account, uint256 amount) external virtual override onlyOwner {
-        _mint(account, amount);
-    }
-
-    /// @inheritdoc IERC20Snapshots
-    function createSnapshot() external virtual override onlyOwner returns (uint256 newSnapshotId) {
-        newSnapshotId = _createSnapshot();
+        SharesManagerLogicV1.setTreasury(newTreasury);
     }
 
     /// @inheritdoc ISharesManager
@@ -148,7 +96,7 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
         override(ISharesManager, ERC20SnapshotsUpgradeable)
         returns (uint256 _maxSupply)
     {
-        _maxSupply = _getSharesManagerStorage()._maxSupply;
+        _maxSupply = SharesManagerLogicV1._maxSupply();
     }
 
     /// @inheritdoc ISharesManager
@@ -162,19 +110,18 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
      * funding active but continue to reject deposits ABOVE the max supply threshold of tokens minted.
      */
     function _setMaxSupply(uint256 newMaxSupply) internal virtual {
-        // Max supply is limited by ERC20Checkpoints
+        // Max supply is limited by ERC20Snapshots
         uint256 maxSupplyLimit = super.maxSupply();
-        if (newMaxSupply > maxSupplyLimit) revert MaxSupplyTooLarge(maxSupplyLimit);
+        if (newMaxSupply > maxSupplyLimit) {
+            revert MaxSupplyTooLarge(maxSupplyLimit);
+        }
 
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-        emit MaxSupplyChange($._maxSupply, newMaxSupply);
-        $._maxSupply = newMaxSupply;
+        SharesManagerLogicV1.setMaxSupply(newMaxSupply);
     }
 
     /// @inheritdoc ISharesManager
     function adminStatus(address account) public view virtual override returns (bool isAdmin, uint256 expiresAt) {
-        expiresAt = _getSharesManagerStorage()._admins[account];
-        isAdmin = block.timestamp > expiresAt;
+        (isAdmin, expiresAt) = SharesManagerLogicV1._adminStatus(account);
     }
 
     /// @inheritdoc ISharesManager
@@ -187,63 +134,31 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
         override
         onlyOwner
     {
-        BatchArrayChecker.checkArrayLengths(accounts.length, expiresAts.length);
-
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-        for (uint256 i = 0; i < accounts.length; ++i) {
-            address account = accounts[i];
-            uint256 expiresAt = expiresAts[i];
-
-            emit AdminStatusChange(accounts[i], $._admins[account], expiresAt);
-            $._admins[account] = expiresAt;
-        }
+        SharesManagerLogicV1.setAdminExpirations(accounts, expiresAts);
     }
 
+    /// @inheritdoc ISharesManager
     function quoteAsset() public view virtual override returns (IERC20 _quoteAsset) {
-        _quoteAsset = _getSharesManagerStorage()._quoteAsset;
+        _quoteAsset = SharesManagerLogicV1._quoteAsset();
     }
 
-    function setQuoteAsset(address newQuoteAsset) external virtual override onlyOwner {
-        _setQuoteAsset(newQuoteAsset, false);
-    }
-
-    function setQuoteAssetAndCheckInterfaceSupport(address newQuoteAsset) external virtual override onlyOwner {
-        _setQuoteAsset(newQuoteAsset, true);
+    /// @inheritdoc ISharesManager
+    function setQuoteAsset(address newQuoteAsset, bool checkInterfaceSupport) external virtual override onlyOwner {
+        _setQuoteAsset(newQuoteAsset, checkInterfaceSupport);
     }
 
     function _setQuoteAsset(address newQuoteAsset, bool checkInterfaceSupport) internal virtual {
-        if (newQuoteAsset == address(this)) revert CannotSetQuoteAssetToSelf();
-        if (newQuoteAsset != address(0) && checkInterfaceSupport) {
-            newQuoteAsset.checkInterface(type(IERC20).interfaceId);
-        }
-
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-        emit QuoteAssetChange(address($._quoteAsset), newQuoteAsset);
-        $._quoteAsset = IERC20(newQuoteAsset);
+        SharesManagerLogicV1.setQuoteAsset(newQuoteAsset, checkInterfaceSupport);
     }
 
     /// @inheritdoc ISharesManager
     function isFundingActive() public view virtual override returns (bool fundingActive) {
-        (fundingActive,) = _isFundingActive();
-    }
-
-    function _isFundingActive() internal view virtual returns (bool fundingActive, ITreasury treasury_) {
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-        treasury_ = $._treasury;
-        uint256 fundingBeginsAt_ = $._fundingBeginsAt;
-        uint256 fundingEndsAt_ = $._fundingEndsAt;
-
-        // forgefmt: disable-next-item
-        fundingActive =
-            address(treasury_) != address(0) &&
-            block.timestamp >= fundingBeginsAt_ &&
-            block.timestamp < fundingEndsAt_;
+        (fundingActive,) = SharesManagerLogicV1._isFundingActive();
     }
 
     /// @inheritdoc ISharesManager
     function fundingPeriods() public view virtual override returns (uint256 fundingBeginsAt, uint256 fundingEndsAt) {
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-        (fundingBeginsAt, fundingEndsAt) = ($._fundingBeginsAt, $._fundingEndsAt);
+        (fundingBeginsAt, fundingEndsAt) = SharesManagerLogicV1._fundingPeriods();
     }
 
     /// @inheritdoc ISharesManager
@@ -268,26 +183,12 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
 
     /// @dev Internal method to set funding period timestamps. Passing value of zero leaves that timestamp unchanged.
     function _setFundingPeriods(uint256 newFundingBeginsAt, uint256 newFundingEndsAt) internal virtual {
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-        uint256 fundingBeginsAt = $._fundingBeginsAt;
-        uint256 fundingEndsAt = $._fundingEndsAt;
-
-        // Zero value signals to leave the current value unchanged.
-        uint48 castedFundingBeginsAt =
-            newFundingBeginsAt > 0 ? uint48(Math.min(newFundingBeginsAt, type(uint48).max)) : uint48(fundingBeginsAt);
-        uint48 castedFundingEndsAt =
-            newFundingEndsAt > 0 ? uint48(Math.min(newFundingEndsAt, type(uint48).max)) : uint48(fundingEndsAt);
-
-        // Update in storage
-        $._fundingBeginsAt = castedFundingBeginsAt;
-        $._fundingEndsAt = castedFundingEndsAt;
-        emit FundingPeriodChange(fundingBeginsAt, castedFundingBeginsAt, fundingEndsAt, castedFundingEndsAt);
+        SharesManagerLogicV1.setFundingPeriods(newFundingBeginsAt, newFundingEndsAt);
     }
 
     /// @inheritdoc ISharesManager
     function sharePrice() public view virtual override returns (uint128 quoteAmount, uint128 mintAmount) {
-        SharePrice storage _sharePrice = _getSharesManagerStorage()._sharePrice;
-        (quoteAmount, mintAmount) = (_sharePrice.quoteAmount, _sharePrice.mintAmount);
+        (quoteAmount, mintAmount) = SharesManagerLogicV1._sharePrice();
     }
 
     /// @inheritdoc ISharesManager
@@ -295,16 +196,8 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
         _setSharePrice(newQuoteAmount, newMintAmount);
     }
 
-    /// @dev Private function to update the tokenPrice quoteAmount and mintAmount.
     function _setSharePrice(uint256 newQuoteAmount, uint256 newMintAmount) internal virtual {
-        // Casting checks for overflow
-        uint128 castedQuoteAmount = newQuoteAmount.toUint128();
-        uint128 castedMintAmount = newMintAmount.toUint128();
-
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
-        emit SharePriceChange($._sharePrice.quoteAmount, newQuoteAmount, $._sharePrice.mintAmount, newMintAmount);
-        $._sharePrice.quoteAmount = castedQuoteAmount;
-        $._sharePrice.mintAmount = castedMintAmount;
+        SharesManagerLogicV1.setSharePrice(newQuoteAmount, newMintAmount);
     }
 
     /**
@@ -376,7 +269,7 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
         virtual
         returns (uint256 totalSharesMinted)
     {
-        (bool fundingActive, ITreasury _treasury) = _isFundingActive();
+        (bool fundingActive, ITreasury _treasury) = SharesManagerLogicV1._isFundingActive();
         if (!fundingActive) {
             revert FundingIsNotActive();
         }
@@ -549,9 +442,17 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
         virtual
         returns (uint256 totalSharesBurned)
     {
-        if (account == address(0)) revert WithdrawFromZeroAddress();
-        if (receiver == address(0)) revert WithdrawToZeroAddress();
-        if (amount == 0) revert WithdrawAmountInvalid();
+        if (account == address(0)) {
+            revert WithdrawFromZeroAddress();
+        }
+
+        if (receiver == address(0)) {
+            revert WithdrawToZeroAddress();
+        }
+
+        if (amount == 0) {
+            revert WithdrawAmountInvalid();
+        }
 
         totalSharesBurned = amount;
 
@@ -566,34 +467,4 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
 
         emit Withdrawal(account, receiver, totalSharesBurned, tokens);
     }
-
-    // error RelayFailed();
-
-    // /**
-    //  * @dev Relays a transaction or function call to an arbitrary target, only callable by the owner. If the relay
-    //  * target is the owner, then no calldata is allowed, only ETH transfers. If the data is an ERC20 function
-    // selector
-    //  * for transferFrom(address,address,uint256), the call reverts (to protect against the owner spending token
-    //  * approvals from the deposit process).
-    //  */
-    // function relay(address target, uint256 value, bytes memory data) external payable virtual onlyOwner {
-    //     if (target == owner() && data.length > 0) {
-    //         revert RelayDataToExecutorNotAllowed();
-    //     }
-
-    //     if (bytes4(data) == IERC20.transferFrom.selector) {
-    //         revert RelayTransferFromNotAllowed();
-    //     }
-
-    //     assembly ("memory-safe") {
-    //         if iszero(call(gas(), target, value, add(data, 0x20), mload(data), 0, 0)) {
-    //             if gt(returndatasize(), 0) {
-    //                 returndatacopy(0, 0, returndatasize())
-    //                 revert(0, returndatasize())
-    //             }
-    //             mstore(0, 0xdb6a42ee) // bytes4(keccak256(RelayFailed()))
-    //             revert(0x1c, 0x04)
-    //         }
-    //     }
-    // }
 }

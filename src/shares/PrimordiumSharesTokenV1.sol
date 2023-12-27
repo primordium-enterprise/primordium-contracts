@@ -19,10 +19,11 @@ contract PrimordiumSharesTokenV1 is SharesManager, UUPSUpgradeable {
         _disableInitializers();
     }
 
-    function setUp(bytes memory sharesManagerInitParams) external initializer {
+    function setUp(address owner_, bytes memory sharesManagerInitParams) external initializer {
         __ERC20_init(TOKEN_NAME, TOKEN_SYMBOL);
         __ERC20Permit_init(TOKEN_NAME);
-        __SharesManager_init(sharesManagerInitParams);
+        __Ownable_init_unchained(owner_);
+        __SharesManager_init_unchained(sharesManagerInitParams);
     }
 
     /// @dev Upgrading to new implementation is an only-owner operation

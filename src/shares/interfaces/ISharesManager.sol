@@ -8,6 +8,11 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 
 interface ISharesManager is IERC6372 {
+    struct SharePrice {
+        uint128 quoteAmount; // Minimum amount of quote asset tokens required to mint {mintAmount} amount of votes.
+        uint128 mintAmount; // Number of votes that can be minted per {quoteAmount} count of quote asset.
+    }
+
     event QuoteAssetChange(address oldQuoteAsset, address newQuoteAsset);
 
     event TreasuryChange(address oldTreasury, address newTreasury);
@@ -126,8 +131,7 @@ interface ISharesManager is IERC6372 {
     function setAdminExpirations(address[] memory accounts, uint256[] memory expiresAts) external;
 
     function quoteAsset() external view returns (IERC20 _quoteAsset);
-    function setQuoteAsset(address newQuoteAsset) external;
-    function setQuoteAssetAndCheckInterfaceSupport(address newQuoteAsset) external;
+    function setQuoteAsset(address newQuoteAsset, bool checkInterfaceSupport) external;
 
     /**
      * Returns true if deposits are currently allowed.
