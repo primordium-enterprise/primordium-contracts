@@ -12,7 +12,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeab
  * @notice The implementation contract for the first version of the Primordium shares token.
  */
 contract PrimordiumSharesTokenV1 is SharesManager, UUPSUpgradeable {
-    string constant TOKEN_NAME = "Primordium Shares";
+    string constant TOKEN_NAME = "Primordium";
     string constant TOKEN_SYMBOL = "MUSHI";
 
     constructor() {
@@ -20,8 +20,8 @@ contract PrimordiumSharesTokenV1 is SharesManager, UUPSUpgradeable {
     }
 
     function setUp(address owner_, bytes memory sharesManagerInitParams) external initializer {
-        __ERC20_init(TOKEN_NAME, TOKEN_SYMBOL);
-        __ERC20Permit_init(TOKEN_NAME);
+        __ERC20_init_unchained(TOKEN_NAME, TOKEN_SYMBOL);
+        __EIP712_init_unchained(TOKEN_NAME, "1");
         __Ownable_init_unchained(owner_);
         __SharesManager_init_unchained(sharesManagerInitParams);
     }

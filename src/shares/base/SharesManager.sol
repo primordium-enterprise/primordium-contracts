@@ -10,7 +10,7 @@ import {ISharesManager} from "../interfaces/ISharesManager.sol";
 import {IERC20Snapshots} from "../interfaces/IERC20Snapshots.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
-import {Ownable1Or2StepUpgradeable} from "src/utils/Ownable1Or2StepUpgradeable.sol";
+import {OwnableUpgradeable} from "src/utils/OwnableUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -39,7 +39,7 @@ import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
  *
  * @author Ben Jett - @BCJdevelopment
  */
-abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgradeable, ISharesManager {
+abstract contract SharesManager is OwnableUpgradeable, ERC20VotesUpgradeable, ISharesManager {
     using Math for uint256;
     using SafeCast for *;
     using ERC165Verifier for address;
@@ -87,7 +87,7 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
     }
 
     /// @inheritdoc ISharesManager
-    /// @dev Overrides to return the updateable _maxSupply
+    /// @dev Overridden to return the updateable _maxSupply
     function maxSupply()
         public
         view
