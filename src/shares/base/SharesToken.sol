@@ -8,7 +8,7 @@ import {ERC20VotesUpgradeable} from "./ERC20VotesUpgradeable.sol";
 import {Ownable1Or2StepUpgradeable} from "src/utils/Ownable1Or2StepUpgradeable.sol";
 import {ISharesToken} from "../interfaces/ISharesToken.sol";
 import {IERC20Snapshots} from "../interfaces/IERC20Snapshots.sol";
-import {ISharesManager} from "src/sharesManager/interfaces/ISharesManager.sol";
+import {ISharesOnboarder} from "src/sharesOnboarder/interfaces/ISharesOnboarder.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
@@ -21,7 +21,7 @@ abstract contract SharesToken is Ownable1Or2StepUpgradeable, ERC20VotesUpgradeab
     /// @custom:storage-location erc7201:SharesToken.Storage
     struct SharesTokenStorage {
         uint256 _maxSupply;
-        ISharesManager _sharesManager;
+        ISharesOnboarder _sharesOnboarder;
         ITreasury _treasury;
     }
 
@@ -34,21 +34,21 @@ abstract contract SharesToken is Ownable1Or2StepUpgradeable, ERC20VotesUpgradeab
         }
     }
 
-    modifier onlyOwnerOrSharesManager() {
-        _checkOwnerOrSharesManager();
+    modifier onlyOwnerOrSharesOnboarder() {
+        _checkOwnerOrSharesOnboarder();
         _;
     }
 
-    function _checkOwnerOrSharesManager() internal virtual {
-        if (msg.sender != address(_getSharesTokenStorage()._sharesManager) && msg.sender != owner()) {
+    function _checkOwnerOrSharesOnboarder() internal virtual {
+        if (msg.sender != address(_getSharesTokenStorage()._sharesOnboarder) && msg.sender != owner()) {
             revert UnauthorizedForSharesTokenOperation(msg.sender);
         }
     }
 
     function __SharesToken_init_unchained(bytes memory sharesTokenInitParams) internal virtual onlyInitializing {
-        (address sharesManager_, uint256 maxSupply_) = abi.decode(sharesTokenInitParams, (address, uint256));
+        (address sharesOnboarder_, uint256 maxSupply_) = abi.decode(sharesTokenInitParams, (address, uint256));
 
-        _setSharesManager(sharesManager_);
+        _setSharesOnboarder(sharesOnboarder_);
         _setMaxSupply(maxSupply_);
     }
 
@@ -68,23 +68,23 @@ abstract contract SharesToken is Ownable1Or2StepUpgradeable, ERC20VotesUpgradeab
     }
 
     /// @inheritdoc ISharesToken
-    function sharesManager() public view virtual override returns (ISharesManager _sharesManager) {
-        _sharesManager = _getSharesTokenStorage()._sharesManager;
+    function sharesOnboarder() public view virtual override returns (ISharesOnboarder _sharesOnboarder) {
+        _sharesOnboarder = _getSharesTokenStorage()._sharesOnboarder;
     }
 
     /// @inheritdoc ISharesToken
-    function setSharesManager(address newSharesManager) external virtual override onlyOwner {
-        _setSharesManager(newSharesManager);
+    function setSharesOnboarder(address newSharesOnboarder) external virtual override onlyOwner {
+        _setSharesOnboarder(newSharesOnboarder);
     }
 
-    function _setSharesManager(address newSharesManager) internal virtual {
+    function _setSharesOnboarder(address newSharesOnboarder) internal virtual {
         SharesTokenStorage storage $ = _getSharesTokenStorage();
-        emit SharesManagerUpdate(address($._sharesManager), newSharesManager);
-        $._sharesManager = ISharesManager(newSharesManager);
+        emit SharesOnboarderUpdate(address($._sharesOnboarder), newSharesOnboarder);
+        $._sharesOnboarder = ISharesOnboarder(newSharesOnboarder);
     }
 
     /// @inheritdoc ISharesToken
-    function mint(address account, uint256 amount) external virtual override onlyOwnerOrSharesManager {
+    function mint(address account, uint256 amount) external virtual override onlyOwnerOrSharesOnboarder {
         _mint(account, amount);
     }
 

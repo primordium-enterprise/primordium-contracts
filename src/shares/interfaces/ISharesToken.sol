@@ -4,16 +4,16 @@
 pragma solidity ^0.8.20;
 
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
-import {ISharesManager} from "src/sharesManager/interfaces/ISharesManager.sol";
+import {ISharesOnboarder} from "src/sharesOnboarder/interfaces/ISharesOnboarder.sol";
 import {IERC20Snapshots} from "./IERC20Snapshots.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface ISharesToken is IERC20Snapshots {
 
     /**
-     * @notice Emitted when the address of the shares manager is updated.
+     * @notice Emitted when the address of the shares onboarder is updated.
      */
-    event SharesManagerUpdate(address oldSharesManager, address newSharesManager);
+    event SharesOnboarderUpdate(address oldSharesOnboarder, address newSharesOnboarder);
 
     /**
      * @notice Emitted when the max supply of votes is updated.
@@ -45,13 +45,13 @@ interface ISharesToken is IERC20Snapshots {
 
     function treasury() external view returns (ITreasury);
 
-    function sharesManager() external view returns (ISharesManager);
+    function sharesOnboarder() external view returns (ISharesOnboarder);
 
-    function setSharesManager(address newSharesManager) external;
+    function setSharesOnboarder(address newSharesOnboarder) external;
 
     /**
      * Mints vote shares to an account.
-     * @notice Only the owner or the shares manager can mint shares.
+     * @notice Only the owner or the shares onboarder can mint shares.
      * @param account The address to receive the newly minted shares.
      * @param amount The amount of vote shares to mint.
      */

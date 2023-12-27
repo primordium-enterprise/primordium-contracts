@@ -4,7 +4,7 @@
 pragma solidity ^0.8.20;
 
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
-import {ISharesManager} from "../interfaces/ISharesManager.sol";
+import {ISharesOnboarder} from "../interfaces/ISharesOnboarder.sol";
 import {ISharesToken} from "src/shares/interfaces/ISharesToken.sol";
 import {Ownable1Or2StepUpgradeable} from "src/utils/Ownable1Or2StepUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -17,33 +17,32 @@ import {SafeTransferLib} from "src/libraries/SafeTransferLib.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
 
-abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
+abstract contract SharesOnboarder is Ownable1Or2StepUpgradeable, ISharesOnboarder {
     using SafeCast for *;
     using Math for uint256;
     using ERC165Verifier for address;
 
-    /// @custom:storage-location erc7201:SharesManager.Storage
-    struct SharesManagerStorage {
+    /// @custom:storage-location erc7201:SharesOnboarder.Storage
+    struct SharesOnboarderStorage {
         // Funding parameters
         ITreasury _treasury;
         uint48 _fundingBeginsAt;
         uint48 _fundingEndsAt;
         SharePrice _sharePrice;
         IERC20 _quoteAsset; // (address(0) for ETH)
-
-         // Shares token
+        // Shares token
         ISharesToken _token;
-
         // Admins for pausing funding
         mapping(address admin => uint256 expiresAt) _admins;
     }
 
-    // keccak256(abi.encode(uint256(keccak256("SharesManager.Storage")) - 1)) & ~bytes32(uint256(0xff));
-    bytes32 private constant SHARES_MANAGER_STORAGE = 0x215673db40ee2d172c8a31c3afde8d42c5c2dd6c697826d8d8447d186545ea00;
+    // keccak256(abi.encode(uint256(keccak256("SharesOnboarder.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant SHARES_ONBOARDER_STORAGE =
+        0xed8a854f633e6f341abfcf74ec385c7984ad70669f707fb05ac008e3eb7a8000;
 
-    function _getSharesManagerStorage() private pure returns (SharesManagerStorage storage $) {
+    function _getSharesOnboarderStorage() private pure returns (SharesOnboarderStorage storage $) {
         assembly {
-            $.slot := SHARES_MANAGER_STORAGE
+            $.slot := SHARES_ONBOARDER_STORAGE
         }
     }
 
@@ -57,7 +56,7 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
         _;
     }
 
-    function __SharesManagerBase_init_unchained(bytes memory sharesManagerBaseInitParams)
+    function __SharesOnboarder_init_unchained(bytes memory sharesOnboarderInitParams)
         internal
         virtual
         onlyInitializing
@@ -70,11 +69,9 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
             SharePrice memory sharePrice_,
             uint256 fundingBeginsAt_,
             uint256 fundingEndsAt_
-        ) = abi.decode(
-            sharesManagerBaseInitParams, (address, address, address, bool, SharePrice, uint256, uint256)
-        );
+        ) = abi.decode(sharesOnboarderInitParams, (address, address, address, bool, SharePrice, uint256, uint256));
 
-        _getSharesManagerStorage()._token = ISharesToken(token_);
+        _getSharesOnboarderStorage()._token = ISharesToken(token_);
 
         _setTreasury(treasury_);
         _setQuoteAsset(quoteAsset_, checkQuoteAssetInterfaceSupport_);
@@ -82,17 +79,17 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
         _setFundingPeriods(fundingBeginsAt_, fundingEndsAt_);
     }
 
-    /// @inheritdoc ISharesManager
+    /// @inheritdoc ISharesOnboarder
     function token() public view virtual override returns (ISharesToken _sharesToken) {
-        _sharesToken = _getSharesManagerStorage()._token;
+        _sharesToken = _getSharesOnboarderStorage()._token;
     }
 
-    /// @inheritdoc ISharesManager
+    /// @inheritdoc ISharesOnboarder
     function treasury() public view virtual override returns (ITreasury _treasury) {
-        _treasury = _getSharesManagerStorage()._treasury;
+        _treasury = _getSharesOnboarderStorage()._treasury;
     }
 
-    /// @inheritdoc ISharesManager
+    /// @inheritdoc ISharesOnboarder
     function setTreasury(address newTreasury) external virtual override onlyOwner {
         _setTreasury(newTreasury);
     }
@@ -104,18 +101,18 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
 
         newTreasury.checkInterface(type(ITreasury).interfaceId);
 
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        SharesOnboarderStorage storage $ = _getSharesOnboarderStorage();
         emit TreasuryChange(address($._treasury), newTreasury);
         $._treasury = ITreasury(newTreasury);
     }
 
-    /// @inheritdoc ISharesManager
+    /// @inheritdoc ISharesOnboarder
     function adminStatus(address account) public view virtual override returns (bool isAdmin, uint256 expiresAt) {
-        expiresAt = _getSharesManagerStorage()._admins[account];
+        expiresAt = _getSharesOnboarderStorage()._admins[account];
         isAdmin = block.timestamp > expiresAt;
     }
 
-    /// @inheritdoc ISharesManager
+    /// @inheritdoc ISharesOnboarder
     function setAdminExpirations(
         address[] memory accounts,
         uint256[] memory expiresAts
@@ -127,7 +124,7 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
     {
         BatchArrayChecker.checkArrayLengths(accounts.length, expiresAts.length);
 
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        SharesOnboarderStorage storage $ = _getSharesOnboarderStorage();
         for (uint256 i = 0; i < accounts.length; ++i) {
             address account = accounts[i];
             uint256 expiresAt = expiresAts[i];
@@ -137,12 +134,12 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
         }
     }
 
-    /// @inheritdoc ISharesManager
+    /// @inheritdoc ISharesOnboarder
     function quoteAsset() public view virtual override returns (IERC20 _quoteAsset) {
-        _quoteAsset = _getSharesManagerStorage()._quoteAsset;
+        _quoteAsset = _getSharesOnboarderStorage()._quoteAsset;
     }
 
-    /// @inheritdoc ISharesManager
+    /// @inheritdoc ISharesOnboarder
     function setQuoteAsset(address newQuoteAsset, bool checkInterfaceSupport) external virtual override onlyOwner {
         _setQuoteAsset(newQuoteAsset, checkInterfaceSupport);
     }
@@ -155,18 +152,18 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
             newQuoteAsset.checkInterface(type(IERC20).interfaceId);
         }
 
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        SharesOnboarderStorage storage $ = _getSharesOnboarderStorage();
         emit QuoteAssetChange(address($._quoteAsset), newQuoteAsset);
         $._quoteAsset = IERC20(newQuoteAsset);
     }
 
-    /// @inheritdoc ISharesManager
+    /// @inheritdoc ISharesOnboarder
     function isFundingActive() public view virtual override returns (bool fundingActive) {
         (fundingActive,) = _isFundingActive();
     }
 
     function _isFundingActive() internal view virtual returns (bool fundingActive, ITreasury _treasury) {
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        SharesOnboarderStorage storage $ = _getSharesOnboarderStorage();
         _treasury = $._treasury;
         uint256 fundingBeginsAt_ = $._fundingBeginsAt;
         uint256 fundingEndsAt_ = $._fundingEndsAt;
@@ -178,13 +175,13 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
             block.timestamp < fundingEndsAt_;
     }
 
-    /// @inheritdoc ISharesManager
+    /// @inheritdoc ISharesOnboarder
     function fundingPeriods() public view virtual override returns (uint256 fundingBeginsAt, uint256 fundingEndsAt) {
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        SharesOnboarderStorage storage $ = _getSharesOnboarderStorage();
         (fundingBeginsAt, fundingEndsAt) = ($._fundingBeginsAt, $._fundingEndsAt);
     }
 
-    /// @inheritdoc ISharesManager
+    /// @inheritdoc ISharesOnboarder
     function setFundingPeriods(
         uint256 newFundingBeginsAt,
         uint256 newFundingEndsAt
@@ -197,7 +194,7 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
         _setFundingPeriods(newFundingBeginsAt, newFundingEndsAt);
     }
 
-    /// @inheritdoc ISharesManager
+    /// @inheritdoc ISharesOnboarder
     function pauseFunding() external virtual override onlyOwnerOrAdmin {
         // Using zero value leaves the fundingBeginsAt unchanged
         _setFundingPeriods(0, block.timestamp - 1);
@@ -206,7 +203,7 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
 
     /// @dev Internal method to set funding period timestamps. Passing value of zero leaves that timestamp unchanged.
     function _setFundingPeriods(uint256 newFundingBeginsAt, uint256 newFundingEndsAt) internal virtual {
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        SharesOnboarderStorage storage $ = _getSharesOnboarderStorage();
         uint256 fundingBeginsAt = $._fundingBeginsAt;
         uint256 fundingEndsAt = $._fundingEndsAt;
 
@@ -222,14 +219,14 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
         emit FundingPeriodChange(fundingBeginsAt, castedFundingBeginsAt, fundingEndsAt, castedFundingEndsAt);
     }
 
-    /// @inheritdoc ISharesManager
+    /// @inheritdoc ISharesOnboarder
     function sharePrice() public view virtual override returns (uint128 quoteAmount, uint128 mintAmount) {
-        SharePrice storage _sharePrice = _getSharesManagerStorage()._sharePrice;
+        SharePrice storage _sharePrice = _getSharesOnboarderStorage()._sharePrice;
         quoteAmount = _sharePrice.quoteAmount;
         mintAmount = _sharePrice.mintAmount;
     }
 
-    /// @inheritdoc ISharesManager
+    /// @inheritdoc ISharesOnboarder
     function setSharePrice(uint256 newQuoteAmount, uint256 newMintAmount) external virtual override onlyOwner {
         _setSharePrice(newQuoteAmount, newMintAmount);
     }
@@ -239,7 +236,7 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
         uint128 castedQuoteAmount = newQuoteAmount.toUint128();
         uint128 castedMintAmount = newMintAmount.toUint128();
 
-        SharesManagerStorage storage $ = _getSharesManagerStorage();
+        SharesOnboarderStorage storage $ = _getSharesOnboarderStorage();
         emit SharePriceChange($._sharePrice.quoteAmount, newQuoteAmount, $._sharePrice.mintAmount, newMintAmount);
         $._sharePrice.quoteAmount = castedQuoteAmount;
         $._sharePrice.mintAmount = castedMintAmount;

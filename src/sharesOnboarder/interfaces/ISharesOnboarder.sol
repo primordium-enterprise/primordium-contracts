@@ -8,7 +8,7 @@ import {ISharesToken} from "src/shares/interfaces/ISharesToken.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 
-interface ISharesManager is IERC6372 {
+interface ISharesOnboarder is IERC6372 {
     struct SharePrice {
         uint128 quoteAmount; // Minimum amount of quote asset tokens required to mint {mintAmount} amount of votes.
         uint128 mintAmount; // Number of votes that can be minted per {quoteAmount} count of quote asset.
@@ -56,16 +56,6 @@ interface ISharesManager is IERC6372 {
     error TokenSalesNotAvailableYet(uint256 tokenSaleBeginsAt);
     error InvalidDepositAmountMultiple();
     error TokenPriceTooLow();
-
-    /**
-     * @notice The name of this SharesManager contract (used for EIP712 signed messages).
-     */
-    function name() external view returns (string memory);
-
-    /**
-     * @notice The version of this SharesManager contract (used for EIP712 signed messages).
-     */
-    function version() external view returns (string memory);
 
     /**
      * Returns the address for the token that is minted for deposits.

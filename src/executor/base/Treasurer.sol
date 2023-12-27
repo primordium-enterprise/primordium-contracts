@@ -4,7 +4,7 @@
 pragma solidity ^0.8.20;
 
 import {TimelockAvatar} from "./TimelockAvatar.sol";
-import {ISharesManager} from "src/sharesManager/interfaces/ISharesManager.sol";
+import {ISharesOnboarder} from "src/sharesOnboarder/interfaces/ISharesOnboarder.sol";
 import {ISharesToken} from "src/shares/interfaces/ISharesToken.sol";
 import {ITreasury} from "../interfaces/ITreasury.sol";
 import {IDistributor} from "../interfaces/IDistributor.sol";
@@ -34,7 +34,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     /// @custom:storage-location erc7201:Treasurer.Storage
     struct TreasurerStorage {
         ISharesToken _token;
-        ISharesManager _sharesManager;
+        ISharesOnboarder _sharesOnboarder;
         BalanceShares _balanceShares;
         IDistributor _distributor;
     }
@@ -48,7 +48,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         }
     }
 
-    event SharesManagerUpdate(address oldSharesManager, address newSharesManager);
+    event SharesOnboarderUpdate(address oldSharesOnboarder, address newSharesOnboarder);
     event BalanceSharesManagerUpdate(address oldBalanceSharesManager, address newBalanceSharesManager);
     event BalanceSharesInitialized(address balanceSharesManager, uint256 totalDeposits, uint256 depositsAllocated);
 
@@ -62,7 +62,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     error InvalidERC165InterfaceSupport(address _contract);
     error BalanceSharesInitializationCallFailed(uint256 index, bytes data);
     error OnlyToken();
-    error OnlySharesManager();
+    error OnlySharesOnboarder();
     error DepositSharesAlreadyInitialized();
     error ETHTransferFailed();
     error FailedToTransferBaseAsset(address to, uint256 amount);
@@ -81,9 +81,9 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         }
     }
 
-    modifier onlySharesManager() {
-        if (msg.sender != address(sharesManager())) {
-            revert OnlySharesManager();
+    modifier onlySharesOnboarder() {
+        if (msg.sender != address(sharesOnboarder())) {
+            revert OnlySharesOnboarder();
         }
         _;
     }
@@ -104,8 +104,8 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         token_.checkInterfaces([type(ISharesToken).interfaceId, type(IERC20).interfaceId]);
         $._token = ISharesToken(token_);
 
-        // Set the shares manager
-        _setSharesManager(sharesManager_);
+        // Set the shares onboarder
+        _setSharesOnboarder(sharesManager_);
 
         // Set the balance shares manager, and call any initialization functions
         _setBalanceSharesManager(balanceSharesManager_);
@@ -140,18 +140,18 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         _token = address(_getTreasurerStorage()._token);
     }
 
-    function sharesManager() public view virtual returns (ISharesManager _sharesManager) {
-        _sharesManager = _getTreasurerStorage()._sharesManager;
+    function sharesOnboarder() public view virtual returns (ISharesOnboarder _sharesOnboarder) {
+        _sharesOnboarder = _getTreasurerStorage()._sharesOnboarder;
     }
 
-    function setSharesManager(address newSharesManager) public virtual onlySelf {
-        _setSharesManager(newSharesManager);
+    function setSharesOnboarder(address newSharesOnboarder) public virtual onlySelf {
+        _setSharesOnboarder(newSharesOnboarder);
     }
 
-    function _setSharesManager(address newSharesManager) internal virtual {
+    function _setSharesOnboarder(address newSharesOnboarder) internal virtual {
         TreasurerStorage storage $ = _getTreasurerStorage();
-        emit SharesManagerUpdate(address($._sharesManager), newSharesManager);
-        $._sharesManager = ISharesManager(newSharesManager);
+        emit SharesOnboarderUpdate(address($._sharesOnboarder), newSharesOnboarder);
+        $._sharesOnboarder = ISharesOnboarder(newSharesOnboarder);
     }
 
     /**
@@ -258,15 +258,15 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         uint256 depositsAllocated;
 
         if (applyDepositSharesRetroactively) {
-            ISharesManager _sharesManager = $._sharesManager;
+            ISharesOnboarder _sharesOnboarder = $._sharesOnboarder;
 
             // Retrieve the deposit share amount
             uint256 totalSupply = $._token.totalSupply();
-            (uint256 quoteAmount, uint256 mintAmount) = _sharesManager.sharePrice();
+            (uint256 quoteAmount, uint256 mintAmount) = _sharesOnboarder.sharePrice();
             totalDeposits = Math.mulDiv(totalSupply, quoteAmount, mintAmount);
 
             // Allocate the deposit shares to the balance shares manager
-            IERC20 quoteAsset = _sharesManager.quoteAsset();
+            IERC20 quoteAsset = _sharesOnboarder.quoteAsset();
             depositsAllocated = _allocateBalanceShare(manager, DEPOSITS_ID, quoteAsset, totalDeposits);
         }
 
@@ -278,7 +278,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
 
     /**
      * @inheritdoc ITreasury
-     * @notice Only callable by the shares manager contract.
+     * @notice Only callable by the shares onboarder contract.
      */
     function registerDeposit(
         IERC20 quoteAsset,
@@ -288,7 +288,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         payable
         virtual
         override
-        onlySharesManager
+        onlySharesOnboarder
     {
         _registerDeposit(quoteAsset, depositAmount);
     }
