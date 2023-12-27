@@ -122,7 +122,7 @@ contract Distributor is
     /**
      * By default, initializes to the msg.sender being the owner.
      */
-    function initialize(address token_, uint256 claimPeriod_) external initializer {
+    function setUp(address token_, uint256 claimPeriod_) external initializer {
         DistributorStorage storage $ = _getDistributorStorage();
 
         __Ownable_init(msg.sender);

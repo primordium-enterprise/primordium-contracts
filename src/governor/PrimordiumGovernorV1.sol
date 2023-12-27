@@ -8,8 +8,8 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeab
 
 /**
  * @title PrimordiumGovernorV1
- * @notice The implementation contract for the first version of the Primordium Governor.
  * @author Ben Jett - @BCJdevelopment
+ * @notice The implementation contract for the first version of the Primordium Governor.
  */
 contract PrimordiumGovernorV1 is GovernorSettingsRanges, UUPSUpgradeable {
     constructor() {

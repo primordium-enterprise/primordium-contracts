@@ -17,6 +17,47 @@ interface ITimelockAvatar is IAvatar {
     }
 
     /**
+     * @dev Emitted when the minimum delay for future operations is modified.
+     */
+    event MinDelayUpdate(uint256 oldMinDelay, uint256 newMinDelay);
+
+    /**
+     * @dev Emitted with the modules enabled at initialization.
+     */
+    event ModulesInitialized(address[] modules_);
+
+    event OperationScheduled(
+        uint256 indexed opNonce,
+        address indexed module,
+        address to,
+        uint256 value,
+        bytes data,
+        Enum.Operation operation,
+        uint256 delay
+    );
+
+    event OperationExecuted(
+        uint256 indexed opNonce, address indexed module, address to, uint256 value, bytes data, Enum.Operation operation
+    );
+
+    event OperationCancelled(uint256 indexed opNonce, address indexed module);
+
+    error MinDelayOutOfRange(uint256 min, uint256 max);
+    error InsufficientDelay();
+    error ModuleNotEnabled(address module);
+    error SenderMustBeExecutingModule(address sender, address executingModule);
+    error ModulesAlreadyInitialized();
+    error ModuleInitializationNeedsMoreThanZeroModules();
+    error InvalidModuleAddress(address module);
+    error ModuleAlreadyEnabled(address module);
+    error InvalidPreviousModuleAddress(address prevModule);
+    error InvalidStartModule(address start);
+    error InvalidPageSize(uint256 pageSize);
+    error InvalidOperationStatus(OperationStatus currentStatus, OperationStatus requiredStatus);
+    error UnauthorizedModule();
+    error InvalidCallParameters();
+
+    /**
      * Returns the address of the module that that scheduled the operation under active execution.
      * @return module The module address.
      */
@@ -33,7 +74,7 @@ interface ITimelockAvatar is IAvatar {
      * @notice Only the timelock itself can make updates to the timelock delay.
      * @param newMinDelay The new minimum delay. Must be at least MIN_DELAY and no greater than MAX_DELAY.
      */
-    function updateMinDelay(uint256 newMinDelay) external;
+    function setMinDelay(uint256 newMinDelay) external;
 
     /**
      * Returns the nonce value for the next operation.

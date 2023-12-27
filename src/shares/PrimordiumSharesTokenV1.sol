@@ -8,8 +8,8 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeab
 
 /**
  * @title PrimordiumSharesTokenV1
- * @notice The implementation contract for the first version of the Primordium shares token.
  * @author Ben Jett - @BCJdevelopment
+ * @notice The implementation contract for the first version of the Primordium shares token.
  */
 contract PrimordiumSharesTokenV1 is SharesManager, UUPSUpgradeable {
     string constant TOKEN_NAME = "Primordium Shares";

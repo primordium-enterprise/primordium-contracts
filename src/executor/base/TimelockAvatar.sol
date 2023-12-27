@@ -75,44 +75,6 @@ abstract contract TimelockAvatar is
     uint256 public constant MIN_DELAY = 2 days;
     uint256 public constant MAX_DELAY = 30 days;
 
-    /**
-     * @dev Emitted when the minimum delay for future operations is modified.
-     */
-    event MinDelayUpdate(uint256 oldMinDelay, uint256 newMinDelay);
-
-    event ModulesInitialized(address[] modules_);
-
-    event OperationScheduled(
-        uint256 indexed opNonce,
-        address indexed module,
-        address to,
-        uint256 value,
-        bytes data,
-        Enum.Operation operation,
-        uint256 delay
-    );
-
-    event OperationExecuted(
-        uint256 indexed opNonce, address indexed module, address to, uint256 value, bytes data, Enum.Operation operation
-    );
-
-    event OperationCancelled(uint256 indexed opNonce, address indexed module);
-
-    error MinDelayOutOfRange(uint256 min, uint256 max);
-    error InsufficientDelay();
-    error ModuleNotEnabled(address module);
-    error SenderMustBeExecutingModule(address sender, address executingModule);
-    error ModulesAlreadyInitialized();
-    error ModuleInitializationNeedsMoreThanZeroModules();
-    error InvalidModuleAddress(address module);
-    error ModuleAlreadyEnabled(address module);
-    error InvalidPreviousModuleAddress(address prevModule);
-    error InvalidStartModule(address start);
-    error InvalidPageSize(uint256 pageSize);
-    error InvalidOperationStatus(OperationStatus currentStatus, OperationStatus requiredStatus);
-    error UnauthorizedModule();
-    error InvalidCallParameters();
-
     /// @dev Only enabled modules to take the specified action.
     modifier onlyModule() {
         if (!isModuleEnabled(msg.sender)) {
@@ -146,11 +108,13 @@ abstract contract TimelockAvatar is
         return _getModuleExecutionStorage()._executingModule;
     }
 
-    function __ModuleTimelockAdmin_init(uint256 minDelay_, address[] memory modules_) internal onlyInitializing {
+    function __TimelockAvatar_init(bytes memory timelockAvatarInitParams) internal onlyInitializing {
+        (uint256 minDelay_, address[] memory modules_) = abi.decode(timelockAvatarInitParams, (uint256, address[]));
+
         __SelfAuthorized_init();
         // Initialize the module execution to address(0x01) for cheaper gas updates
         _setModuleExecution(MODULES_HEAD);
-        _updateMinDelay(minDelay_);
+        _setMinDelay(minDelay_);
         _setUpModules(modules_);
     }
 
@@ -204,12 +168,12 @@ abstract contract TimelockAvatar is
     }
 
     /// @inheritdoc ITimelockAvatar
-    function updateMinDelay(uint256 newMinDelay) external onlySelf {
-        _updateMinDelay(newMinDelay);
+    function setMinDelay(uint256 newMinDelay) external onlySelf {
+        _setMinDelay(newMinDelay);
     }
 
     /// @dev Internal function to update the _minDelay.
-    function _updateMinDelay(uint256 newMinDelay) internal {
+    function _setMinDelay(uint256 newMinDelay) internal {
         TimelockStorage storage $ = _getTimelockStorage();
 
         if (newMinDelay < MIN_DELAY || newMinDelay > MAX_DELAY) {

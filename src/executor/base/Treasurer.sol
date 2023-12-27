@@ -84,16 +84,15 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         }
     }
 
-    function __Treasurer_init(
-        address token_,
-        address balanceSharesManager_,
-        bytes[] memory balanceShareInitCalldatas,
-        address distributorImplementation,
-        uint256 distributionClaimPeriod
-    )
-        internal
-        onlyInitializing
-    {
+    function __Treasurer_init_unchained(bytes memory treasurerInitParams) internal onlyInitializing {
+        (
+            address token_,
+            address balanceSharesManager_,
+            bytes[] memory balanceShareInitCalldatas,
+            address distributorImplementation,
+            uint256 distributionClaimPeriod
+        ) = abi.decode(treasurerInitParams, (address, address, bytes[], address, uint256));
+
         TreasurerStorage storage $ = _getTreasurerStorage();
 
         // Token cannot be reset later, must be correct token on initialization
@@ -114,7 +113,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
             address(
                 new ERC1967Proxy{salt: bytes32(uint256(uint160(distributorImplementation)))}(
                     distributorImplementation,
-                    abi.encodeCall(IDistributor.initialize, (token_, distributionClaimPeriod))
+                    abi.encodeCall(IDistributor.setUp, (token_, distributionClaimPeriod))
                 )
             )
         );
