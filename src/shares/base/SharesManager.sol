@@ -49,7 +49,7 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
     );
 
     modifier onlyOwnerOrAdmin() {
-        if (!_senderIsOwner()) {
+        if (owner() != msg.sender) {
             (bool isAdmin,) = adminStatus(msg.sender);
             if (!isAdmin) {
                 revert OwnableUnauthorizedAccount(msg.sender);
@@ -225,8 +225,7 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
      * shares.
      */
     function deposit(uint256 depositAmount) public payable virtual returns (uint256 totalSharesMinted) {
-        address account = msg.sender;
-        totalSharesMinted = _depositFor(account, depositAmount, account);
+        totalSharesMinted = _depositFor(msg.sender, depositAmount, msg.sender);
     }
 
     /**
@@ -275,14 +274,14 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ERC20VotesUpgrade
         _mint(account, totalSharesMinted);
 
         // emit Deposit(account, depositAmount, totalSharesMinted, depositor);
-        bytes32 _Deposit_eventSignature = Deposit.selector;
+        bytes32 _Deposit_eventSelector = Deposit.selector;
         assembly ("memory-safe") {
             let m := mload(0x40) // Cache free mem pointer
             // Store event un-indexed data and log
             mstore(0, depositAmount)
             mstore(0x20, totalSharesMinted)
             mstore(0x40, depositor)
-            log2(_Deposit_eventSignature, account, 0, 0x60)
+            log2(_Deposit_eventSelector, account, 0, 0x60)
             mstore(0x40, m) // Restore free mem pointer
         }
     }

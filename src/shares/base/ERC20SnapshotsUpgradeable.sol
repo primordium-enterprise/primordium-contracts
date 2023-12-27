@@ -4,7 +4,6 @@
 
 pragma solidity ^0.8.20;
 
-import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20PermitUpgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
@@ -31,7 +30,6 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
  * Maintains ERC7201 storage namespacing for upgradeability.
  */
 abstract contract ERC20SnapshotsUpgradeable is
-    ContextUpgradeable,
     ERC20Upgradeable,
     ERC20PermitUpgradeable,
     ERC165Upgradeable,

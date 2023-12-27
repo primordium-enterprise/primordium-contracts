@@ -49,9 +49,15 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
     error VotesInvalidSignature();
 
     modifier noFutureLookup(uint256 timepoint) {
-        uint256 currentClock = clock();
-        if (timepoint >= currentClock) revert ERC20FutureLookup(currentClock);
+        _checkFutureLookup(timepoint);
         _;
+    }
+
+    function _checkFutureLookup(uint256 timepoint) internal view {
+        uint256 currentClock = clock();
+        if (timepoint >= currentClock) {
+            revert ERC20FutureLookup(currentClock);
+        }
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
@@ -59,36 +65,6 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
         return
             interfaceId == type(IVotes).interfaceId ||
             super.supportsInterface(interfaceId);
-    }
-
-    /**
-     * @dev Get number of checkpoints for `account`.
-     */
-    function numVotesCheckpoints(address account) public view virtual returns (uint32) {
-        return _numVotesCheckpoints(account);
-    }
-
-    /**
-     * @dev Get number of checkpoints for `account`.
-     */
-    function _numVotesCheckpoints(address account) internal view virtual returns (uint32) {
-        ERC20VotesStorage storage $ = _getERC20VotesStorage();
-        return SafeCast.toUint32($._delegateCheckpoints[account].length());
-    }
-
-    /**
-     * @dev Get the `pos`-th checkpoint for `account`.
-     */
-    function votesCheckpoints(
-        address account,
-        uint32 pos
-    )
-        public
-        view
-        virtual
-        returns (SnapshotCheckpoints.Checkpoint208 memory)
-    {
-        return _getERC20VotesStorage()._delegateCheckpoints[account].at(pos);
     }
 
     /// @inheritdoc IVotes
@@ -108,8 +84,7 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
      * @dev Returns the current amount of votes that `account` has.
      */
     function getVotes(address account) public view virtual returns (uint256) {
-        ERC20VotesStorage storage $ = _getERC20VotesStorage();
-        return $._delegateCheckpoints[account].latest();
+        return _getERC20VotesStorage()._delegateCheckpoints[account].latest();
     }
 
     /**
@@ -130,24 +105,21 @@ abstract contract ERC20VotesUpgradeable is IERC5805, ERC20SnapshotsUpgradeable {
         noFutureLookup(timepoint)
         returns (uint256)
     {
-        ERC20VotesStorage storage $ = _getERC20VotesStorage();
-        return $._delegateCheckpoints[account].upperLookupRecent(uint48(timepoint));
+        return _getERC20VotesStorage()._delegateCheckpoints[account].upperLookupRecent(uint48(timepoint));
     }
 
     /**
      * @dev Returns the delegate that `account` has chosen.
      */
     function delegates(address account) public view virtual returns (address) {
-        ERC20VotesStorage storage $ = _getERC20VotesStorage();
-        return $._delegatee[account];
+        return _getERC20VotesStorage()._delegatee[account];
     }
 
     /**
      * @dev Delegates votes from the sender to `delegatee`.
      */
     function delegate(address delegatee) public virtual {
-        address account = _msgSender();
-        _delegate(account, delegatee);
+        _delegate(_msgSender(), delegatee);
     }
 
     function delegateBySig(

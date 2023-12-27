@@ -125,7 +125,7 @@ contract Distributor is
     function setUp(address token_, uint256 claimPeriod_) external initializer {
         DistributorStorage storage $ = _getDistributorStorage();
 
-        __Ownable_init(msg.sender);
+        __Ownable_init_unchained(msg.sender);
         __EIP712_init("Distributor", "1");
 
         token_.checkInterfaces([type(IERC20Snapshots).interfaceId, type(IERC6372).interfaceId]);
