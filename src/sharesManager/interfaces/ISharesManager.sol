@@ -4,6 +4,7 @@
 pragma solidity ^0.8.20;
 
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
+import {ISharesToken} from "src/shares/interfaces/ISharesToken.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 
@@ -33,13 +34,6 @@ interface ISharesManager is IERC6372 {
     );
 
     /**
-     * @notice Emitted when the max supply of votes is updated.
-     * @param oldMaxSupply The previous max supply.
-     * @param newMaxSupply The new max supply.
-     */
-    event MaxSupplyChange(uint256 oldMaxSupply, uint256 newMaxSupply);
-
-    /**
      * @notice Emitted when a deposit is made and tokens are minted.
      * @param account The account address that votes were minted to.
      * @param amountDeposited The amount of the base asset transferred to the Executor as a deposit.
@@ -47,15 +41,6 @@ interface ISharesManager is IERC6372 {
      * @param depositor The account that deposited the quote asset.
      */
     event Deposit(address indexed account, uint256 amountDeposited, uint256 votesMinted, address depositor);
-
-    /**
-     * @notice Emitted when a withdrawal is made and tokens are burned.
-     * @param account The account address that votes were burned for.
-     * @param receiver The receiver address that the withdrawal was sent to.
-     * @param totalSharesBurned The amount of vote tokens burned from the account.
-     * @param tokens The tokens withdrawn.
-     */
-    event Withdrawal(address indexed account, address receiver, uint256 totalSharesBurned, IERC20[] tokens);
 
     event AdminStatusChange(address indexed account, uint256 oldExpiresAt, uint256 newExpiresAt);
 
@@ -71,15 +56,27 @@ interface ISharesManager is IERC6372 {
     error TokenSalesNotAvailableYet(uint256 tokenSaleBeginsAt);
     error InvalidDepositAmountMultiple();
     error TokenPriceTooLow();
-    error WithdrawFromZeroAddress();
-    error WithdrawToZeroAddress();
-    error WithdrawAmountInvalid();
 
     /**
-     * Returns the address for the treasury that processes deposits and withdrawals (usually the DAO executor contract).
-     * @return _treasury
+     * @notice The name of this SharesManager contract (used for EIP712 signed messages).
      */
-    function treasury() external view returns (ITreasury _treasury);
+    function name() external view returns (string memory);
+
+    /**
+     * @notice The version of this SharesManager contract (used for EIP712 signed messages).
+     */
+    function version() external view returns (string memory);
+
+    /**
+     * Returns the address for the token that is minted for deposits.
+     */
+    function token() external view returns (ISharesToken);
+
+    /**
+     * Returns the address for the treasury that processes deposits and withdrawals (most-likely the DAO executor
+     * contract).
+     */
+    function treasury() external view returns (ITreasury);
 
     /**
      * Sets the address of the treasury to register deposits and process withdrawals.
@@ -176,33 +173,4 @@ interface ISharesManager is IERC6372 {
     )
         external
         returns (uint256 totalMintAmount);
-
-    /**
-     * Withdraw the supplied amount of tokens, with the pro-rata amount of the base asset sent from the treasury to the
-     * receiver
-     */
-    function withdrawTo(
-        address receiver,
-        uint256 amount,
-        IERC20[] calldata tokens
-    )
-        external
-        returns (uint256 totalSharesBurned);
-
-    /**
-     * Withdraw the supplied amount of tokens, with the pro-rata amount of the base asset sent from the treasury to the
-     * msg.sender
-     */
-    function withdraw(uint256 amount, IERC20[] calldata tokens) external returns (uint256 totalSharesBurned);
-
-    function withdrawToBySig(
-        address owner,
-        address receiver,
-        uint256 amount,
-        IERC20[] calldata tokens,
-        uint256 deadline,
-        bytes memory signature
-    )
-        external
-        returns (uint256 totalSharesBurned);
 }

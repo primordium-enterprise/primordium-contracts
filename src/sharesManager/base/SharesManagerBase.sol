@@ -5,13 +5,16 @@ pragma solidity ^0.8.20;
 
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
 import {ISharesManager} from "../interfaces/ISharesManager.sol";
+import {ISharesToken} from "src/shares/interfaces/ISharesToken.sol";
 import {Ownable1Or2StepUpgradeable} from "src/utils/Ownable1Or2StepUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
 import {ERC20Utils} from "src/libraries/ERC20Utils.sol";
 import {SafeTransferLib} from "src/libraries/SafeTransferLib.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
 
 abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
@@ -19,19 +22,19 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
     using Math for uint256;
     using ERC165Verifier for address;
 
-    bytes32 private immutable WITHDRAW_TO_TYPEHASH = keccak256(
-        "WithdrawTo(address owner,address receiver,uint256 amount,address[] tokens,uint256 nonce,uint256 deadline)"
-    );
-
     /// @custom:storage-location erc7201:SharesManager.Storage
     struct SharesManagerStorage {
         // Funding parameters
         ITreasury _treasury;
         uint48 _fundingBeginsAt;
         uint48 _fundingEndsAt;
-        /// @dev _sharePrice updates should always go through {_setSharesPrice} to avoid setting price to zero
-        ISharesManager.SharePrice _sharePrice;
+        SharePrice _sharePrice;
         IERC20 _quoteAsset; // (address(0) for ETH)
+
+         // Shares token
+        ISharesToken _token;
+
+        // Admins for pausing funding
         mapping(address admin => uint256 expiresAt) _admins;
     }
 
@@ -60,22 +63,28 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
         onlyInitializing
     {
         (
+            address token_,
             address treasury_,
-            uint256 maxSupply_,
             address quoteAsset_,
             bool checkQuoteAssetInterfaceSupport_,
-            ISharesManager.SharePrice memory sharePrice_,
+            SharePrice memory sharePrice_,
             uint256 fundingBeginsAt_,
             uint256 fundingEndsAt_
         ) = abi.decode(
-            sharesManagerInitParams, (address, uint256, address, bool, ISharesManager.SharePrice, uint256, uint256)
+            sharesManagerBaseInitParams, (address, address, address, bool, SharePrice, uint256, uint256)
         );
 
-        setTreasury(treasury_);
-        setMaxSupply(maxSupply_);
-        setQuoteAsset(quoteAsset_, checkQuoteAssetInterfaceSupport_);
-        setSharePrice(sharePrice_.quoteAmount, sharePrice_.mintAmount);
-        setFundingPeriods(fundingBeginsAt_, fundingEndsAt_);
+        _getSharesManagerStorage()._token = ISharesToken(token_);
+
+        _setTreasury(treasury_);
+        _setQuoteAsset(quoteAsset_, checkQuoteAssetInterfaceSupport_);
+        _setSharePrice(sharePrice_.quoteAmount, sharePrice_.mintAmount);
+        _setFundingPeriods(fundingBeginsAt_, fundingEndsAt_);
+    }
+
+    /// @inheritdoc ISharesManager
+    function token() public view virtual override returns (ISharesToken _sharesToken) {
+        _sharesToken = _getSharesManagerStorage()._token;
     }
 
     /// @inheritdoc ISharesManager
@@ -90,7 +99,7 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
 
     function _setTreasury(address newTreasury) internal virtual {
         if (newTreasury == address(0) || newTreasury == address(this)) {
-            revert ISharesManager.InvalidTreasuryAddress(newTreasury);
+            revert InvalidTreasuryAddress(newTreasury);
         }
 
         newTreasury.checkInterface(type(ITreasury).interfaceId);
@@ -158,13 +167,13 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
 
     function _isFundingActive() internal view virtual returns (bool fundingActive, ITreasury _treasury) {
         SharesManagerStorage storage $ = _getSharesManagerStorage();
-        treasury_ = $._treasury;
+        _treasury = $._treasury;
         uint256 fundingBeginsAt_ = $._fundingBeginsAt;
         uint256 fundingEndsAt_ = $._fundingEndsAt;
 
         // forgefmt: disable-next-item
         fundingActive =
-            address(treasury_) != address(0) &&
+            address(_treasury) != address(0) &&
             block.timestamp >= fundingBeginsAt_ &&
             block.timestamp < fundingEndsAt_;
     }
@@ -306,29 +315,29 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
         virtual
         returns (uint256 totalSharesMinted)
     {
-        (bool fundingActive, ITreasury treasury_) = SharesManagerLogicV1._isFundingActive();
+        (bool fundingActive, ITreasury treasury_) = _isFundingActive();
         if (!fundingActive) {
-            revert ISharesManager.FundingIsNotActive();
+            revert FundingIsNotActive();
         }
 
         // NOTE: The {_mint} function already checks to ensure the account address != address(0)
         if (depositAmount == 0) {
-            revert ISharesManager.InvalidDepositAmount();
+            revert InvalidDepositAmount();
         }
 
         // Share price must not be zero
-        (uint256 quoteAmount, uint256 mintAmount) = _sharePrice();
+        (uint256 quoteAmount, uint256 mintAmount) = sharePrice();
         if (quoteAmount == 0 || mintAmount == 0) {
-            revert ISharesManager.FundingIsNotActive();
+            revert FundingIsNotActive();
         }
 
         // The "depositAmount" must be a multiple of the share price quoteAmount
         if (depositAmount % quoteAmount != 0) {
-            revert ISharesManager.InvalidDepositAmountMultiple();
+            revert InvalidDepositAmountMultiple();
         }
 
         // Transfer the deposit to the treasury
-        IERC20 quoteAsset_ = _quoteAsset();
+        IERC20 quoteAsset_ = quoteAsset();
         uint256 msgValue;
 
         // For ETH, just transfer via the treasury "registerDeposit" function, so set the msg.value
@@ -366,154 +375,18 @@ abstract contract SharesManager is Ownable1Or2StepUpgradeable, ISharesManager {
         totalSharesMinted = depositAmount / quoteAmount * mintAmount;
 
         // Mint the vote shares to the receiver AFTER sending funds to treasury to ensure no re-entrancy
-        _mint(account, totalSharesMinted);
+        token().mint(account, totalSharesMinted);
 
-        // emit Deposit(account, depositAmount, totalSharesMinted, depositor);
-        bytes32 _Deposit_eventSelector = Deposit.selector;
-        assembly ("memory-safe") {
-            let m := mload(0x40) // Cache free mem pointer
-            // Store event un-indexed data and log
-            mstore(0, depositAmount)
-            mstore(0x20, totalSharesMinted)
-            mstore(0x40, depositor)
-            log2(_Deposit_eventSelector, account, 0, 0x60)
-            mstore(0x40, m) // Restore free mem pointer
-        }
-    }
-
-    /**
-     * @notice Allows burning the provided amount of vote tokens owned by the msg.sender and withdrawing the
-     * proportional share of the provided tokens in the treasury.
-     * @param receiver The address for the share of provided tokens to be sent to.
-     * @param amount The amount of vote shares to be burned.
-     * @param tokens A list of token addresses to withdraw from the treasury. Use address(0) for the native currency,
-     * such as ETH.
-     * @return totalSharesBurned The amount of shares burned.
-     */
-    function withdrawTo(
-        address receiver,
-        uint256 amount,
-        IERC20[] calldata tokens
-    )
-        public
-        virtual
-        override
-        returns (uint256 totalSharesBurned)
-    {
-        totalSharesBurned = _withdraw(msg.sender, receiver, amount, tokens);
-    }
-
-    /**
-     * @notice Same as the {withdrawTo} function, but uses the msg.sender as the receiver of all token withdrawals.
-     */
-    function withdraw(
-        uint256 amount,
-        IERC20[] calldata tokens
-    )
-        public
-        virtual
-        override
-        returns (uint256 totalSharesBurned)
-    {
-        address account = msg.sender;
-        totalSharesBurned = _withdraw(account, account, amount, tokens);
-    }
-
-    /**
-     * @dev Allow withdrawal by EIP712 signature or EIP1271 for smart contracts.
-     *
-     * @param signature The signature is a packed bytes encoding of the ECDSA r, s, and v signature values.
-     */
-    function withdrawToBySig(
-        address owner,
-        address receiver,
-        uint256 amount,
-        IERC20[] calldata tokens,
-        uint256 deadline,
-        bytes memory signature
-    )
-        public
-        virtual
-        override
-        returns (uint256 totalSharesBurned)
-    {
-        if (block.timestamp > deadline) {
-            revert VotesExpiredSignature(deadline);
-        }
-
-        // Copy the tokens content to memory and hash
-        bytes32 tokensContentHash;
-        // @solidity memory-safe-assembly
-        assembly {
-            // Get free mem pointer
-            let m := mload(0x40)
-            let offset := tokens.offset
-            // Store the total byte length of the array items (length * 32 bytes per item)
-            let byteLength := mul(tokens.length, 0x20)
-            // Allocate the memory
-            mstore(m, add(m, byteLength))
-            // Copy to memory for hashing
-            calldatacopy(m, offset, byteLength)
-            // Hash the packed items
-            tokensContentHash := keccak256(m, byteLength)
-        }
-
-        bool valid = SignatureChecker.isValidSignatureNow(
-            owner,
-            _hashTypedDataV4(
-                keccak256(
-                    abi.encode(
-                        WITHDRAW_TO_TYPEHASH, owner, receiver, amount, tokensContentHash, _useNonce(owner), deadline
-                    )
-                )
-            ),
-            signature
-        );
-
-        if (!valid) {
-            revert VotesInvalidSignature();
-        }
-
-        totalSharesBurned = _withdraw(owner, receiver, amount, tokens);
-    }
-
-    /**
-     * @dev Internal function for processing the withdrawal. Calls _transferWithdrawalToReciever, which must be
-     * implemented in an inheriting contract.
-     */
-    function _withdraw(
-        address account,
-        address receiver,
-        uint256 amount,
-        IERC20[] calldata tokens
-    )
-        internal
-        virtual
-        returns (uint256 totalSharesBurned)
-    {
-        if (account == address(0)) {
-            revert WithdrawFromZeroAddress();
-        }
-
-        if (receiver == address(0)) {
-            revert WithdrawToZeroAddress();
-        }
-
-        if (amount == 0) {
-            revert WithdrawAmountInvalid();
-        }
-
-        totalSharesBurned = amount;
-
-        // Cache the total supply before burning
-        uint256 totalSupply = totalSupply();
-
-        // _burn checks for InsufficientBalance
-        _burn(account, amount);
-
-        // Transfer withdrawal funds AFTER burning tokens to ensure no re-entrancy
-        treasury().processWithdrawal(account, receiver, amount, totalSupply, tokens);
-
-        emit Withdrawal(account, receiver, totalSharesBurned, tokens);
+        emit Deposit(account, depositAmount, totalSharesMinted, depositor);
+        // bytes32 _Deposit_eventSelector = Deposit.selector;
+        // assembly ("memory-safe") {
+        //     let m := mload(0x40) // Cache free mem pointer
+        //     // Store event un-indexed data and log
+        //     mstore(0, depositAmount)
+        //     mstore(0x20, totalSharesMinted)
+        //     mstore(0x40, depositor)
+        //     log2(_Deposit_eventSelector, account, 0, 0x60)
+        //     mstore(0x40, m) // Restore free mem pointer
+        // }
     }
 }

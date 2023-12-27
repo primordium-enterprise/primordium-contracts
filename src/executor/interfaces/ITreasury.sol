@@ -3,7 +3,6 @@
 
 pragma solidity ^0.8.20;
 
-import {ISharesManager} from "src/shares/interfaces/ISharesManager.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
 /**
@@ -11,6 +10,26 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
  * @author Ben Jett - @BCJdevelopment
  */
 interface ITreasury {
+
+    /**
+     * @dev Emitted when a deposit is registered on the treasury.
+     */
+    event DepositRegistered(IERC20 quoteAsset, uint256 depositAmount);
+
+    /**
+     * @dev Emitted for each asset that withdrawn in a processed withdrawal.
+     */
+    event WithdrawalAssetProcessed(
+        address indexed account, address receiver, IERC20 asset, uint256 payout, uint256 distributionShareAllocation
+    );
+
+    /**
+     * @dev Emitted when a withdrawal is processed on the treasury.
+     */
+    event WithdrawalProcessed(
+        address indexed account, uint256 sharesBurned, uint256 totalSharesSupply, address receiver, IERC20[] assets
+    );
+
     /**
      * @dev Registers a deposit on the Treasury. Should only be callable by the shares contract.
      * @param quoteAsset The ERC20 asset that is being deposited. address(0) for native currency (such as ETH).

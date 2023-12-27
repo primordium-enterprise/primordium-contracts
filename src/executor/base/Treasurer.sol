@@ -4,12 +4,12 @@
 pragma solidity ^0.8.20;
 
 import {TimelockAvatar} from "./TimelockAvatar.sol";
-import {ISharesManager} from "src/shares/interfaces/ISharesManager.sol";
+import {ISharesManager} from "src/sharesManager/interfaces/ISharesManager.sol";
+import {ISharesToken} from "src/shares/interfaces/ISharesToken.sol";
 import {ITreasury} from "../interfaces/ITreasury.sol";
 import {IDistributor} from "../interfaces/IDistributor.sol";
 import {IBalanceShareAllocations} from "balance-shares-protocol/interfaces/IBalanceShareAllocations.sol";
 import {BalanceShareIds} from "src/common/BalanceShareIds.sol";
-import {SharesManager} from "src/shares/base/SharesManager.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
@@ -33,7 +33,8 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
 
     /// @custom:storage-location erc7201:Treasurer.Storage
     struct TreasurerStorage {
-        SharesManager _token;
+        ISharesToken _token;
+        ISharesManager _sharesManager;
         BalanceShares _balanceShares;
         IDistributor _distributor;
     }
@@ -47,15 +48,10 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         }
     }
 
+    event SharesManagerUpdate(address oldSharesManager, address newSharesManager);
     event BalanceSharesManagerUpdate(address oldBalanceSharesManager, address newBalanceSharesManager);
     event BalanceSharesInitialized(address balanceSharesManager, uint256 totalDeposits, uint256 depositsAllocated);
-    event DepositRegistered(IERC20 quoteAsset, uint256 depositAmount);
-    event Withdrawal(
-        address indexed account, address receiver, IERC20 asset, uint256 payout, uint256 distributionShareAllocation
-    );
-    event WithdrawalProcessed(
-        address indexed account, uint256 sharesBurned, uint256 totalSharesSupply, address receiver, IERC20[] assets
-    );
+
     event BalanceShareAllocated(
         IBalanceShareAllocations indexed balanceSharesManager,
         uint256 indexed balanceShareId,
@@ -66,6 +62,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     error InvalidERC165InterfaceSupport(address _contract);
     error BalanceSharesInitializationCallFailed(uint256 index, bytes data);
     error OnlyToken();
+    error OnlySharesManager();
     error DepositSharesAlreadyInitialized();
     error ETHTransferFailed();
     error FailedToTransferBaseAsset(address to, uint256 amount);
@@ -79,25 +76,36 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     }
 
     function _onlyToken() private view {
-        if (msg.sender != address(_getTreasurerStorage()._token)) {
+        if (msg.sender != token()) {
             revert OnlyToken();
         }
+    }
+
+    modifier onlySharesManager() {
+        if (msg.sender != address(sharesManager())) {
+            revert OnlySharesManager();
+        }
+        _;
     }
 
     function __Treasurer_init_unchained(bytes memory treasurerInitParams) internal onlyInitializing {
         (
             address token_,
+            address sharesManager_,
             address balanceSharesManager_,
             bytes[] memory balanceShareInitCalldatas,
             address distributorImplementation,
             uint256 distributionClaimPeriod
-        ) = abi.decode(treasurerInitParams, (address, address, bytes[], address, uint256));
+        ) = abi.decode(treasurerInitParams, (address, address, address, bytes[], address, uint256));
 
         TreasurerStorage storage $ = _getTreasurerStorage();
 
         // Token cannot be reset later, must be correct token on initialization
-        token_.checkInterfaces([type(ISharesManager).interfaceId, type(IERC20).interfaceId]);
-        $._token = SharesManager(token_);
+        token_.checkInterfaces([type(ISharesToken).interfaceId, type(IERC20).interfaceId]);
+        $._token = ISharesToken(token_);
+
+        // Set the shares manager
+        _setSharesManager(sharesManager_);
 
         // Set the balance shares manager, and call any initialization functions
         _setBalanceSharesManager(balanceSharesManager_);
@@ -112,8 +120,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         $._distributor = IDistributor(
             address(
                 new ERC1967Proxy{salt: bytes32(uint256(uint160(distributorImplementation)))}(
-                    distributorImplementation,
-                    abi.encodeCall(IDistributor.setUp, (token_, distributionClaimPeriod))
+                    distributorImplementation, abi.encodeCall(IDistributor.setUp, (token_, distributionClaimPeriod))
                 )
             )
         );
@@ -129,14 +136,28 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     /**
      * Returns the address of the ERC20 token used for vote shares.
      */
-    function token() public view returns (address _token) {
+    function token() public view virtual returns (address _token) {
         _token = address(_getTreasurerStorage()._token);
+    }
+
+    function sharesManager() public view virtual returns (ISharesManager _sharesManager) {
+        _sharesManager = _getTreasurerStorage()._sharesManager;
+    }
+
+    function setSharesManager(address newSharesManager) public virtual onlySelf {
+        _setSharesManager(newSharesManager);
+    }
+
+    function _setSharesManager(address newSharesManager) internal virtual {
+        TreasurerStorage storage $ = _getTreasurerStorage();
+        emit SharesManagerUpdate(address($._sharesManager), newSharesManager);
+        $._sharesManager = ISharesManager(newSharesManager);
     }
 
     /**
      * Returns the address of the contract used for distributions.
      */
-    function distributor() public view returns (address _distributor) {
+    function distributor() public view virtual returns (address _distributor) {
         return address(_getTreasurerStorage()._distributor);
     }
 
@@ -237,15 +258,15 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         uint256 depositsAllocated;
 
         if (applyDepositSharesRetroactively) {
-            SharesManager _token = $._token;
+            ISharesManager _sharesManager = $._sharesManager;
 
             // Retrieve the deposit share amount
-            uint256 totalSupply = _token.totalSupply();
-            (uint256 quoteAmount, uint256 mintAmount) = _token.sharePrice();
+            uint256 totalSupply = $._token.totalSupply();
+            (uint256 quoteAmount, uint256 mintAmount) = _sharesManager.sharePrice();
             totalDeposits = Math.mulDiv(totalSupply, quoteAmount, mintAmount);
 
             // Allocate the deposit shares to the balance shares manager
-            IERC20 quoteAsset = _token.quoteAsset();
+            IERC20 quoteAsset = _sharesManager.quoteAsset();
             depositsAllocated = _allocateBalanceShare(manager, DEPOSITS_ID, quoteAsset, totalDeposits);
         }
 
@@ -257,9 +278,18 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
 
     /**
      * @inheritdoc ITreasury
-     * @notice Only callable by the shares token contract.
+     * @notice Only callable by the shares manager contract.
      */
-    function registerDeposit(IERC20 quoteAsset, uint256 depositAmount) external payable virtual override onlyToken {
+    function registerDeposit(
+        IERC20 quoteAsset,
+        uint256 depositAmount
+    )
+        external
+        payable
+        virtual
+        override
+        onlySharesManager
+    {
         _registerDeposit(quoteAsset, depositAmount);
     }
 
@@ -330,7 +360,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
 
                     assets[i].transferTo(receiver, payout);
 
-                    emit Withdrawal(account, receiver, assets[i], payout, distributionShareAllocation);
+                    emit WithdrawalAssetProcessed(account, receiver, assets[i], payout, distributionShareAllocation);
                 }
 
                 unchecked {

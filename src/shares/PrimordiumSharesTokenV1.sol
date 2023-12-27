@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.20;
 
-import {SharesManager} from "./base/SharesManager.sol";
+import {SharesToken} from "./base/SharesToken.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 /**
@@ -11,7 +11,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeab
  * @author Ben Jett - @BCJdevelopment
  * @notice The implementation contract for the first version of the Primordium shares token.
  */
-contract PrimordiumSharesTokenV1 is SharesManager, UUPSUpgradeable {
+contract PrimordiumSharesTokenV1 is SharesToken, UUPSUpgradeable {
     string constant TOKEN_NAME = "Primordium";
     string constant TOKEN_SYMBOL = "MUSHI";
 
@@ -21,9 +21,9 @@ contract PrimordiumSharesTokenV1 is SharesManager, UUPSUpgradeable {
 
     function setUp(address owner_, bytes memory sharesManagerInitParams) external initializer {
         __ERC20_init_unchained(TOKEN_NAME, TOKEN_SYMBOL);
-        __EIP712_init_unchained(TOKEN_NAME, "1");
+        __EIP712_init_unchained(TOKEN_NAME, "");
         __Ownable_init_unchained(owner_);
-        __SharesManager_init_unchained(sharesManagerInitParams);
+        __SharesToken_init_unchained(sharesManagerInitParams);
     }
 
     /// @dev Upgrading to new implementation is an only-owner operation
