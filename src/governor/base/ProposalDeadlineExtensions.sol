@@ -50,13 +50,7 @@ abstract contract ProposalDeadlineExtensions is ProposalVoting, IProposalDeadlin
         virtual
         onlyInitializing
     {
-        (uint256 maxDeadlineExtension_, uint256 baseDeadlineExtension_, uint256 decayPeriod_, uint256 percentDecay_) =
-            abi.decode(proposalDeadlineExtensionsInitParams, (uint256, uint256, uint256, uint256));
-
-        _setMaxDeadlineExtension(maxDeadlineExtension_);
-        _setBaseDeadlineExtension(baseDeadlineExtension_);
-        _setExtensionDecayPeriod(decayPeriod_);
-        _setExtensionPercentDecay(percentDecay_);
+        ProposalDeadlineExtensionsLogicV1.setUp(proposalDeadlineExtensionsInitParams);
     }
 
     /// @inheritdoc IProposalDeadlineExtensions

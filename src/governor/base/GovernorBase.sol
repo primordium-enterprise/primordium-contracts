@@ -57,37 +57,8 @@ abstract contract GovernorBase is
         while ($._governanceCall.popFront() != msgDataHash) {}
     }
 
-    function __GovernorBase_init(bytes memory governorBaseInitParams) internal virtual onlyInitializing {
-        (
-            string memory name_,
-            address executor_,
-            address token_,
-            uint256 governanceCanBeginAt_,
-            uint256 governanceThresholdBps_
-        ) = abi.decode(governorBaseInitParams, (string, address, address, uint256, uint256));
-
-        if (governanceThresholdBps_ > BasisPoints.MAX_BPS) {
-            revert BasisPoints.BPSValueTooLarge(governanceThresholdBps_);
-        }
-
-        string memory version_ = version();
-        __EIP712_init(name_, version_);
-
-        // Initialize executor
-        if (address(executor()) != address(0)) {
-            revert GovernorExecutorAlreadyInitialized();
-        }
-        _updateExecutor(executor_);
-
-        GovernorBaseLogicV1.GovernorBaseStorage storage $ = GovernorBaseLogicV1._getGovernorBaseStorage();
-        $._token = IGovernorToken(token_);
-        $._governanceCanBeginAt = governanceCanBeginAt_.toUint40();
-        // If it is less than the MAX_BPS (10_000), it fits into uint16 without SafeCast
-        $._governanceThresholdBps = uint16(governanceThresholdBps_);
-
-        emit GovernorBaseInitialized(
-            name_, version_, executor_, token_, governanceCanBeginAt_, governanceThresholdBps_, $._isFounded
-        );
+    function __GovernorBase_init_unchained(bytes memory governorBaseInitParams) internal virtual onlyInitializing {
+        GovernorBaseLogicV1.setUp(governorBaseInitParams);
     }
 
     /// @inheritdoc IGovernorBase
@@ -106,12 +77,12 @@ abstract contract GovernorBase is
     }
 
     /// @inheritdoc IGovernorBase
-    function updateExecutor(address newExecutor) external virtual onlyGovernance {
-        _updateExecutor(newExecutor);
+    function setExecutor(address newExecutor) external virtual onlyGovernance {
+        _setExecutor(newExecutor);
     }
 
-    function _updateExecutor(address newExecutor) internal virtual {
-        GovernorBaseLogicV1.updateExecutor(newExecutor);
+    function _setExecutor(address newExecutor) internal virtual {
+        GovernorBaseLogicV1.setExecutor(newExecutor);
     }
 
     /// @inheritdoc IGovernorBase

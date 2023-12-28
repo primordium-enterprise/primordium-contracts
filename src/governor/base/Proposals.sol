@@ -33,22 +33,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
     using Checkpoints for Checkpoints.Trace208;
 
     function __Proposals_init_unchained(bytes memory proposalsInitParams) internal virtual onlyInitializing {
-        (
-            uint256 proposalThresholdBps_,
-            uint256 votingDelay_,
-            uint256 votingPeriod_,
-            uint256 gracePeriod_,
-            bytes memory initGrantRoles
-        ) = abi.decode(proposalsInitParams, (uint256, uint256, uint256, uint256, bytes));
-
-        _setProposalThresholdBps(proposalThresholdBps_);
-        _setVotingDelay(votingDelay_);
-        _setVotingPeriod(votingPeriod_);
-        _setProposalGracePeriod(gracePeriod_);
-
-        (bytes32[] memory roles, address[] memory accounts, uint256[] memory expiresAts) =
-            abi.decode(initGrantRoles, (bytes32[], address[], uint256[]));
-        RolesLib._grantRoles(roles, accounts, expiresAts);
+        ProposalsLogicV1.setUp(proposalsInitParams);
     }
 
     /*//////////////////////////////////////////////////////////////////////////

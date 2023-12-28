@@ -13,13 +13,7 @@ import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
  */
 interface IGovernorBase is IERC6372 {
     event GovernorBaseInitialized(
-        string name,
-        string version,
-        address timelockAvatar,
-        address token,
-        uint256 governanceCanBeginAt,
-        uint256 governanceThresholdBps,
-        bool isFounded
+        address executor, address token, uint256 governanceCanBeginAt, uint256 governanceThresholdBps, bool isFounded
     );
 
     /**
@@ -95,7 +89,7 @@ interface IGovernorBase is IERC6372 {
      *
      * @dev CAUTION: It is not recommended to change the timelock while there are other queued governance proposals.
      */
-    function updateExecutor(address newExecutor) external;
+    function setExecutor(address newExecutor) external;
 
     /**
      * @notice Returns the address of the token used for tracking votes.

@@ -17,6 +17,7 @@ contract PrimordiumGovernorV1 is GovernorSettingsRanges, UUPSUpgradeable {
     }
 
     function setUp(
+        string memory name_,
         bytes memory governorBaseInitParams,
         bytes memory proposalsInitParams,
         bytes memory proposalVotingInitParams,
@@ -25,7 +26,8 @@ contract PrimordiumGovernorV1 is GovernorSettingsRanges, UUPSUpgradeable {
         external
         initializer
     {
-        __GovernorBase_init(governorBaseInitParams);
+        __EIP712_init_unchained(name_, version());
+        __GovernorBase_init_unchained(governorBaseInitParams);
         __Proposals_init_unchained(proposalsInitParams);
         __ProposalVoting_init_unchained(proposalVotingInitParams);
         __ProposalDeadlineExtensions_init_unchained(proposalDeadlineExtensionsInitParams);

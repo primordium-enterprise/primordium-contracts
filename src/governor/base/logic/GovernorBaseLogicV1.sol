@@ -12,6 +12,7 @@ import {Treasurer} from "src/executor/base/Treasurer.sol";
 import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
 import {BasisPoints} from "src/libraries/BasisPoints.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 
 /**
@@ -63,6 +64,31 @@ library GovernorBaseLogicV1 {
         }
     }
 
+    function setUp(bytes memory governorBaseInitParams) public {
+        (address executor_, address token_, uint256 governanceCanBeginAt_, uint256 governanceThresholdBps_) =
+            abi.decode(governorBaseInitParams, (address, address, uint256, uint256));
+
+        if (governanceThresholdBps_ > BasisPoints.MAX_BPS) {
+            revert BasisPoints.BPSValueTooLarge(governanceThresholdBps_);
+        }
+
+        // Initialize executor
+        if (address(_executor()) != address(0)) {
+            revert IGovernorBase.GovernorExecutorAlreadyInitialized();
+        }
+        setExecutor(executor_);
+
+        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
+        $._token = IGovernorToken(token_);
+        $._governanceCanBeginAt = SafeCast.toUint40(governanceCanBeginAt_);
+        // If it is less than the MAX_BPS (10_000), it fits into uint16 without SafeCast
+        $._governanceThresholdBps = uint16(governanceThresholdBps_);
+
+        emit IGovernorBase.GovernorBaseInitialized(
+            executor_, token_, governanceCanBeginAt_, governanceThresholdBps_, $._isFounded
+        );
+    }
+
     /**
      * @dev Get the governance call dequeuer for governance operations.
      */
@@ -81,7 +107,7 @@ library GovernorBaseLogicV1 {
      * @dev Updates the executor to a new address. Does not allow setting to itself. Checks that the executor interface
      * follows the {IAvatar} and {ITimelockAvatar} interfaces.
      */
-    function updateExecutor(address newExecutor) public {
+    function setExecutor(address newExecutor) public {
         if (newExecutor == address(0) || newExecutor == address(this)) {
             revert IGovernorBase.GovernorInvalidExecutorAddress(newExecutor);
         }
