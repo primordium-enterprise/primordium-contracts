@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
 import {ISharesOnboarder} from "../interfaces/ISharesOnboarder.sol";
-import {ISharesToken} from "src/shares/interfaces/ISharesToken.sol";
+import {ISharesToken} from "src/token/interfaces/ISharesToken.sol";
 import {OwnableUpgradeable} from "src/utils/OwnableUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";

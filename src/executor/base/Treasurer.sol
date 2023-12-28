@@ -4,8 +4,8 @@
 pragma solidity ^0.8.20;
 
 import {TimelockAvatar} from "./TimelockAvatar.sol";
-import {ISharesOnboarder} from "src/sharesOnboarder/interfaces/ISharesOnboarder.sol";
-import {ISharesToken} from "src/shares/interfaces/ISharesToken.sol";
+import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
+import {ISharesToken} from "src/token/interfaces/ISharesToken.sol";
 import {ITreasury} from "../interfaces/ITreasury.sol";
 import {IDistributor} from "../interfaces/IDistributor.sol";
 import {IBalanceShareAllocations} from "balance-shares-protocol/interfaces/IBalanceShareAllocations.sol";

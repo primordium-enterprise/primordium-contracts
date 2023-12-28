@@ -5,6 +5,6 @@ pragma solidity ^0.8.20;
 
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {IERC5805} from "@openzeppelin/contracts/interfaces/IERC5805.sol";
-import {IERC20Snapshots} from "src/shares/interfaces/IERC20Snapshots.sol";
+import {IERC20Snapshots} from "src/token/interfaces/IERC20Snapshots.sol";
 
 interface IGovernorToken is IERC20Snapshots, IERC5805 {}

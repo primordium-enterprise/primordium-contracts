@@ -14,7 +14,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Treasurer} from "../base/Treasurer.sol";
 import {SelfAuthorized} from "../base/SelfAuthorized.sol";
 import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
-import {IERC20Snapshots} from "src/shares/interfaces/IERC20Snapshots.sol";
+import {IERC20Snapshots} from "src/token/interfaces/IERC20Snapshots.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -117,6 +117,10 @@ contract Distributor is
             revert OwnerAuthorizationRequired();
         }
         _;
+    }
+
+    constructor() {
+        _disableInitializers();
     }
 
     /**

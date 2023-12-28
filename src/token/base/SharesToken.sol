@@ -8,7 +8,7 @@ import {ERC20VotesUpgradeable} from "./ERC20VotesUpgradeable.sol";
 import {OwnableUpgradeable} from "src/utils/OwnableUpgradeable.sol";
 import {ISharesToken} from "../interfaces/ISharesToken.sol";
 import {IERC20Snapshots} from "../interfaces/IERC20Snapshots.sol";
-import {ISharesOnboarder} from "src/sharesOnboarder/interfaces/ISharesOnboarder.sol";
+import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
