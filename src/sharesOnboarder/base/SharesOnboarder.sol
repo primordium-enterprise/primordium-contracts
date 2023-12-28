@@ -30,8 +30,6 @@ abstract contract SharesOnboarder is Ownable1Or2StepUpgradeable, ISharesOnboarde
         uint48 _fundingEndsAt;
         SharePrice _sharePrice;
         IERC20 _quoteAsset; // (address(0) for ETH)
-        // Shares token
-        ISharesToken _token;
         // Admins for pausing funding
         mapping(address admin => uint256 expiresAt) _admins;
     }
@@ -62,26 +60,18 @@ abstract contract SharesOnboarder is Ownable1Or2StepUpgradeable, ISharesOnboarde
         onlyInitializing
     {
         (
-            address token_,
             address treasury_,
             address quoteAsset_,
             bool checkQuoteAssetInterfaceSupport_,
             SharePrice memory sharePrice_,
             uint256 fundingBeginsAt_,
             uint256 fundingEndsAt_
-        ) = abi.decode(sharesOnboarderInitParams, (address, address, address, bool, SharePrice, uint256, uint256));
-
-        _getSharesOnboarderStorage()._token = ISharesToken(token_);
+        ) = abi.decode(sharesOnboarderInitParams, (address, address, bool, SharePrice, uint256, uint256));
 
         _setTreasury(treasury_);
         _setQuoteAsset(quoteAsset_, checkQuoteAssetInterfaceSupport_);
         _setSharePrice(sharePrice_.quoteAmount, sharePrice_.mintAmount);
         _setFundingPeriods(fundingBeginsAt_, fundingEndsAt_);
-    }
-
-    /// @inheritdoc ISharesOnboarder
-    function token() public view virtual override returns (ISharesToken _sharesToken) {
-        _sharesToken = _getSharesOnboarderStorage()._token;
     }
 
     /// @inheritdoc ISharesOnboarder
@@ -312,7 +302,7 @@ abstract contract SharesOnboarder is Ownable1Or2StepUpgradeable, ISharesOnboarde
         virtual
         returns (uint256 totalSharesMinted)
     {
-        (bool fundingActive, ITreasury treasury_) = _isFundingActive();
+        (bool fundingActive, ITreasury _treasury) = _isFundingActive();
         if (!fundingActive) {
             revert FundingIsNotActive();
         }
@@ -334,11 +324,11 @@ abstract contract SharesOnboarder is Ownable1Or2StepUpgradeable, ISharesOnboarde
         }
 
         // Transfer the deposit to the treasury
-        IERC20 quoteAsset_ = quoteAsset();
+        IERC20 _quoteAsset = quoteAsset();
         uint256 msgValue;
 
         // For ETH, just transfer via the treasury "registerDeposit" function, so set the msg.value
-        if (address(quoteAsset_) == address(0)) {
+        if (address(_quoteAsset) == address(0)) {
             if (depositAmount != msg.value) {
                 revert ERC20Utils.InvalidMsgValue(depositAmount, msg.value);
             }
@@ -348,31 +338,32 @@ abstract contract SharesOnboarder is Ownable1Or2StepUpgradeable, ISharesOnboarde
             if (msg.value > 0) {
                 revert ERC20Utils.InvalidMsgValue(0, msg.value);
             }
-            SafeTransferLib.safeTransferFrom(quoteAsset_, depositor, address(treasury_), depositAmount);
-        }
-
-        // Register the deposit on the treasury (sending the funds there)
-        assembly ("memory-safe") {
-            // Call `registerDeposit{value: msgValue}(quoteAsset_, depositAmount)`
-            mstore(0x14, quoteAsset_)
-            mstore(0x34, depositAmount)
-            // `registerDeposit(address,uint256)`
-            mstore(0x00, 0x219dabeb000000000000000000000000)
-            let result := call(gas(), treasury_, msgValue, 0x10, 0x44, 0, 0x40)
-            // Restore free mem overwrite
-            mstore(0x34, 0)
-            if iszero(result) {
-                let m := mload(0x40)
-                returndatacopy(m, 0, returndatasize())
-                revert(m, returndatasize())
-            }
+            SafeTransferLib.safeTransferFrom(_quoteAsset, depositor, address(_treasury), depositAmount);
         }
 
         // Set the total shares for the base contract to mint
         totalSharesMinted = depositAmount / quoteAmount * mintAmount;
 
+        // Register the deposit on the treasury (sends funds to treasury, and treasury mints shares)
+        _treasury.registerDeposit(account, _quoteAsset, depositAmount, totalSharesMinted);
+        // assembly ("memory-safe") {
+        //     // Call `registerDeposit{value: msgValue}(_quoteAsset, depositAmount)`
+        //     mstore(0x14, _quoteAsset)
+        //     mstore(0x34, depositAmount)
+        //     // `registerDeposit(address,uint256)`
+        //     mstore(0x00, 0x219dabeb000000000000000000000000)
+        //     let result := call(gas(), _treasury, msgValue, 0x10, 0x44, 0, 0x40)
+        //     // Restore free mem overwrite
+        //     mstore(0x34, 0)
+        //     if iszero(result) {
+        //         let m := mload(0x40)
+        //         returndatacopy(m, 0, returndatasize())
+        //         revert(m, returndatasize())
+        //     }
+        // }
+
         // Mint the vote shares to the receiver AFTER sending funds to treasury to ensure no re-entrancy
-        token().mint(account, totalSharesMinted);
+        // token().mint(account, totalSharesMinted);
 
         emit Deposit(account, depositAmount, totalSharesMinted, depositor);
         // bytes32 _Deposit_eventSelector = Deposit.selector;
@@ -382,7 +373,7 @@ abstract contract SharesOnboarder is Ownable1Or2StepUpgradeable, ISharesOnboarde
         //     mstore(0, depositAmount)
         //     mstore(0x20, totalSharesMinted)
         //     mstore(0x40, depositor)
-        //     log2(_Deposit_eventSelector, account, 0, 0x60)
+        //     log2(0, 0x60, _Deposit_eventSelector, account)
         //     mstore(0x40, m) // Restore free mem pointer
         // }
     }

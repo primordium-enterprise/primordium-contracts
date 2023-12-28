@@ -26,6 +26,11 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     using ERC165Verifier for address;
     using Address for address;
 
+    // using "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol" from release v5.0.0
+    // keccak256(type(ERC1967Proxy).creationCode)
+    bytes32 private constant ERC1967PROXY_CREATIONCODE_HASH =
+        0xea794f7b1e3861daf44227baf5c04b78eed1d62282bb4edb0b71ad749dd25d53;
+
     struct BalanceShares {
         IBalanceShareAllocations _balanceSharesManager;
         bool _isEnabled;
@@ -60,6 +65,8 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     );
 
     error InvalidERC165InterfaceSupport(address _contract);
+    error DistributorCreationFailed();
+    error InvalidERC1967ProxyCreationCode();
     error BalanceSharesInitializationCallFailed(uint256 index, bytes data);
     error OnlyToken();
     error OnlySharesOnboarder();
@@ -88,15 +95,20 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         _;
     }
 
+    /**
+     * @dev The erc1967CreationCode must use the OpenZeppelin ERC1967Proxy.sol contract creation code, from version
+     * v5.0.0, or else this initialization will fail. (This is used to reduce deployment bytecode size).
+     */
     function __Treasurer_init_unchained(bytes memory treasurerInitParams) internal onlyInitializing {
         (
             address token_,
             address sharesManager_,
             address balanceSharesManager_,
             bytes[] memory balanceShareInitCalldatas,
-            address distributorImplementation,
-            uint256 distributionClaimPeriod
-        ) = abi.decode(treasurerInitParams, (address, address, address, bytes[], address, uint256));
+            bytes memory erc1967CreationCode, // Passed as argument to reduce deployment size
+            address distributorImplementation_,
+            uint256 distributionClaimPeriod_
+        ) = abi.decode(treasurerInitParams, (address, address, address, bytes[], bytes, address, uint256));
 
         TreasurerStorage storage $ = _getTreasurerStorage();
 
@@ -115,15 +127,45 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
             }
         }
 
-        // Check distributor interface
-        authorizeDistributorImplementation(distributorImplementation);
-        $._distributor = IDistributor(
-            address(
-                new ERC1967Proxy{salt: bytes32(uint256(uint160(distributorImplementation)))}(
-                    distributorImplementation, abi.encodeCall(IDistributor.setUp, (token_, distributionClaimPeriod))
-                )
-            )
+        // Validate that creation code is OpenZeppelin 5.0.0 ERC1967Proxy creation code
+        if (keccak256(erc1967CreationCode) != ERC1967PROXY_CREATIONCODE_HASH) {
+            revert InvalidERC1967ProxyCreationCode();
+        }
+
+        // Check distributor implementation interface
+        authorizeDistributorImplementation(distributorImplementation_);
+
+        // Pack the proxy deployment bytecode with the constructor arguments
+        bytes memory proxyDeploymentBytecode = abi.encodePacked(
+            erc1967CreationCode,
+            uint256(uint160(distributorImplementation_)),
+            abi.encodeCall(IDistributor.setUp, (token_, distributionClaimPeriod_))
         );
+        // Use the implementation address as the salt
+        bytes32 salt = bytes32(uint256(uint160(distributorImplementation_)));
+
+        // Create the proxy for the distributor
+        address distributorProxy;
+        assembly ("memory-safe") {
+            distributorProxy :=
+                create2(0, mload(add(0x20, proxyDeploymentBytecode)), mload(proxyDeploymentBytecode), salt)
+        }
+
+        if (distributorProxy == address(0)) {
+            revert DistributorCreationFailed();
+        }
+
+        // Set the storage reference to the proxy address
+        $._distributor = IDistributor(distributorProxy);
+
+        // TODO: Remove old unused code after testing
+        // $._distributor = IDistributor(
+        //     address(
+        //         new ERC1967Proxy{salt: bytes32(uint256(uint160(distributorImplementation)))}(
+        //             distributorImplementation, abi.encodeCall(IDistributor.setUp, (token_, distributionClaimPeriod))
+        //         )
+        //     )
+        // );
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
@@ -278,11 +320,13 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
 
     /**
      * @inheritdoc ITreasury
-     * @notice Only callable by the shares onboarder contract.
+     * @dev Only callable by the shares onboarder contract.
      */
     function registerDeposit(
+        address account,
         IERC20 quoteAsset,
-        uint256 depositAmount
+        uint256 depositAmount,
+        uint256 mintAmount
     )
         external
         payable
@@ -290,10 +334,18 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         override
         onlySharesOnboarder
     {
-        _registerDeposit(quoteAsset, depositAmount);
+        _registerDeposit(account, quoteAsset, depositAmount, mintAmount);
     }
 
-    function _registerDeposit(IERC20 quoteAsset, uint256 depositAmount) internal virtual {
+    function _registerDeposit(
+        address account,
+        IERC20 quoteAsset,
+        uint256 depositAmount,
+        uint256 mintAmount
+    )
+        internal
+        virtual
+    {
         if (depositAmount == 0) {
             revert InvalidDepositAmount();
         }
@@ -302,14 +354,19 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
             revert InvalidDepositAmount();
         }
 
-        BalanceShares storage $ = _getTreasurerStorage()._balanceShares;
-        IBalanceShareAllocations manager = $._balanceSharesManager;
-        bool sharesEnabled = $._isEnabled;
+        TreasurerStorage storage $ = _getTreasurerStorage();
+
+        BalanceShares storage _balanceShares = $._balanceShares;
+        IBalanceShareAllocations manager = _balanceShares._balanceSharesManager;
+        bool sharesEnabled = _balanceShares._isEnabled;
         if (sharesEnabled) {
             _allocateBalanceShare(manager, DEPOSITS_ID, quoteAsset, depositAmount);
         }
 
-        emit DepositRegistered(quoteAsset, depositAmount);
+        // Mint the shares to the account
+        $._token.mint(account, mintAmount);
+
+        emit DepositRegistered(account, quoteAsset, depositAmount, mintAmount);
     }
 
     /**
@@ -440,6 +497,11 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                 // );
 
                 emit BalanceShareAllocated(manager, balanceShareId, asset, balanceIncreasedBy);
+                // bytes32 _BalanceShareAllocated_eventSelector = BalanceShareAllocated.selector;
+                // assembly ("memory-safe") {
+                //     mstore(0, balanceIncreasedBy)
+                //     log4(0, 0x20, _BalanceShareAllocated_eventSelector, manager, balanceShareId, balanceIncreasedBy)
+                // }
             }
         }
     }

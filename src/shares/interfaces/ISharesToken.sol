@@ -9,7 +9,6 @@ import {IERC20Snapshots} from "./IERC20Snapshots.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface ISharesToken is IERC20Snapshots {
-
     /**
      * @notice Emitted when the address of the shares onboarder is updated.
      */
@@ -31,23 +30,32 @@ interface ISharesToken is IERC20Snapshots {
      */
     event Withdrawal(address indexed account, address receiver, uint256 totalSharesBurned, IERC20[] assets);
 
+    event TreasuryChange(address oldTreasury, address newTreasury);
+
+    error InvalidTreasuryAddress(address treasury);
+    error TreasuryInterfaceNotSupported(address treasury);
     error WithdrawFromZeroAddress();
     error WithdrawToZeroAddress();
     error WithdrawAmountInvalid();
     error UnauthorizedForSharesTokenOperation(address sender);
     error MaxSupplyTooLarge(uint256 maxSupplyLimit);
-
     error SharesTokenExpiredSignature(uint256 deadline);
     error SharesTokenInvalidSignature();
 
     /// @inheritdoc IERC20Snapshots
     function createSnapshot() external returns (uint256 newSnapshotId);
 
+    /**
+     * Returns the address for the treasury that processes deposits and withdrawals (most-likely the DAO executor
+     * contract).
+     */
     function treasury() external view returns (ITreasury);
 
-    function sharesOnboarder() external view returns (ISharesOnboarder);
-
-    function setSharesOnboarder(address newSharesOnboarder) external;
+    /**
+     * Sets the address of the treasury to register deposits and process withdrawals.
+     * @notice Only the owner can update the treasury address.
+     */
+    function setTreasury(address newTreasury) external;
 
     /**
      * Mints vote shares to an account.
@@ -113,5 +121,4 @@ interface ISharesToken is IERC20Snapshots {
     )
         external
         returns (uint256 totalSharesBurned);
-
 }

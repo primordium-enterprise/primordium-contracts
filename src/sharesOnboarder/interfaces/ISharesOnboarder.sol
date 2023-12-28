@@ -57,11 +57,6 @@ interface ISharesOnboarder {
     error TokenPriceTooLow();
 
     /**
-     * Returns the address for the token that is minted for deposits.
-     */
-    function token() external view returns (ISharesToken);
-
-    /**
      * Returns the address for the treasury that processes deposits and withdrawals (most-likely the DAO executor
      * contract).
      */

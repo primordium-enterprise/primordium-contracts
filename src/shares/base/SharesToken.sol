@@ -12,8 +12,11 @@ import {ISharesOnboarder} from "src/sharesOnboarder/interfaces/ISharesOnboarder.
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
+import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
 
 abstract contract SharesToken is Ownable1Or2StepUpgradeable, ERC20VotesUpgradeable, ISharesToken {
+    using ERC165Verifier for address;
+
     bytes32 private immutable WITHDRAW_TO_TYPEHASH = keccak256(
         "WithdrawTo(address owner,address receiver,uint256 amount,address[] tokens,uint256 nonce,uint256 deadline)"
     );
@@ -21,7 +24,6 @@ abstract contract SharesToken is Ownable1Or2StepUpgradeable, ERC20VotesUpgradeab
     /// @custom:storage-location erc7201:SharesToken.Storage
     struct SharesTokenStorage {
         uint256 _maxSupply;
-        ISharesOnboarder _sharesOnboarder;
         ITreasury _treasury;
     }
 
@@ -34,22 +36,11 @@ abstract contract SharesToken is Ownable1Or2StepUpgradeable, ERC20VotesUpgradeab
         }
     }
 
-    modifier onlyOwnerOrSharesOnboarder() {
-        _checkOwnerOrSharesOnboarder();
-        _;
-    }
-
-    function _checkOwnerOrSharesOnboarder() internal virtual {
-        if (msg.sender != address(_getSharesTokenStorage()._sharesOnboarder) && msg.sender != owner()) {
-            revert UnauthorizedForSharesTokenOperation(msg.sender);
-        }
-    }
-
     function __SharesToken_init_unchained(bytes memory sharesTokenInitParams) internal virtual onlyInitializing {
-        (address sharesOnboarder_, uint256 maxSupply_) = abi.decode(sharesTokenInitParams, (address, uint256));
+        (uint256 maxSupply_, address treasury_) = abi.decode(sharesTokenInitParams, (uint256, address));
 
-        _setSharesOnboarder(sharesOnboarder_);
         _setMaxSupply(maxSupply_);
+        _setTreasury(treasury_);
     }
 
     /// @inheritdoc IERC20Snapshots
@@ -63,28 +54,30 @@ abstract contract SharesToken is Ownable1Or2StepUpgradeable, ERC20VotesUpgradeab
         newSnapshotId = _createSnapshot();
     }
 
+    /// @inheritdoc ISharesToken
     function treasury() public view returns (ITreasury _treasury) {
         _treasury = _getSharesTokenStorage()._treasury;
     }
 
     /// @inheritdoc ISharesToken
-    function sharesOnboarder() public view virtual override returns (ISharesOnboarder _sharesOnboarder) {
-        _sharesOnboarder = _getSharesTokenStorage()._sharesOnboarder;
+    function setTreasury(address newTreasury) external virtual override onlyOwner {
+        _setTreasury(newTreasury);
     }
 
-    /// @inheritdoc ISharesToken
-    function setSharesOnboarder(address newSharesOnboarder) external virtual override onlyOwner {
-        _setSharesOnboarder(newSharesOnboarder);
-    }
+    function _setTreasury(address newTreasury) internal virtual {
+        if (newTreasury == address(0) || newTreasury == address(this)) {
+            revert InvalidTreasuryAddress(newTreasury);
+        }
 
-    function _setSharesOnboarder(address newSharesOnboarder) internal virtual {
+        newTreasury.checkInterface(type(ITreasury).interfaceId);
+
         SharesTokenStorage storage $ = _getSharesTokenStorage();
-        emit SharesOnboarderUpdate(address($._sharesOnboarder), newSharesOnboarder);
-        $._sharesOnboarder = ISharesOnboarder(newSharesOnboarder);
+        emit TreasuryChange(address($._treasury), newTreasury);
+        $._treasury = ITreasury(newTreasury);
     }
 
     /// @inheritdoc ISharesToken
-    function mint(address account, uint256 amount) external virtual override onlyOwnerOrSharesOnboarder {
+    function mint(address account, uint256 amount) external virtual override onlyOwner {
         _mint(account, amount);
     }
 
@@ -122,14 +115,7 @@ abstract contract SharesToken is Ownable1Or2StepUpgradeable, ERC20VotesUpgradeab
     }
 
     /// @inheritdoc ISharesToken
-    function withdraw(
-        uint256 amount,
-        IERC20[] calldata tokens
-    )
-        public
-        virtual
-        returns (uint256 totalSharesBurned)
-    {
+    function withdraw(uint256 amount, IERC20[] calldata tokens) public virtual returns (uint256 totalSharesBurned) {
         address account = msg.sender;
         totalSharesBurned = _withdraw(account, account, amount, tokens);
     }

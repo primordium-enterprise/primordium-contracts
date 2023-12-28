@@ -16,10 +16,7 @@ contract PrimordiumExecutorV1 is Treasurer, UUPSUpgradeable {
         _disableInitializers();
     }
 
-    function setUp(
-        bytes memory timelockAvatarInitParams,
-        bytes memory treasurerInitParams
-    ) external initializer {
+    function setUp(bytes memory timelockAvatarInitParams, bytes memory treasurerInitParams) external initializer {
         __TimelockAvatar_init(timelockAvatarInitParams);
         __Treasurer_init_unchained(treasurerInitParams);
     }

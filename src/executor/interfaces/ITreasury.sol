@@ -10,11 +10,10 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
  * @author Ben Jett - @BCJdevelopment
  */
 interface ITreasury {
-
     /**
      * @dev Emitted when a deposit is registered on the treasury.
      */
-    event DepositRegistered(IERC20 quoteAsset, uint256 depositAmount);
+    event DepositRegistered(address indexed account, IERC20 quoteAsset, uint256 depositAmount, uint256 mintAmount);
 
     /**
      * @dev Emitted for each asset that withdrawn in a processed withdrawal.
@@ -31,15 +30,25 @@ interface ITreasury {
     );
 
     /**
-     * @dev Registers a deposit on the Treasury. Should only be callable by the shares contract.
+     * @notice Registers a deposit on the treasury.
+     * @dev This function is expected to mint the shares, which means this contract should have the required permissions
+     * to mint shares on the token contract.
+     * @param account The account to mint shares to.
      * @param quoteAsset The ERC20 asset that is being deposited. address(0) for native currency (such as ETH).
      * @param depositAmount The amount being deposited.
+     * @param mintAmount The amount of shares to mint to the account.
      */
-    function registerDeposit(IERC20 quoteAsset, uint256 depositAmount) external payable;
+    function registerDeposit(
+        address account,
+        IERC20 quoteAsset,
+        uint256 depositAmount,
+        uint256 mintAmount
+    )
+        external
+        payable;
 
     /**
-     * @dev Processes a withdrawal from the Treasurer to the withdrawing member. Should only be callable by the shares
-     * contract.
+     * @notice Processes a withdrawal to the withdrawing member.
      * @param receiver The address to send the shares of the treasury to.
      * @param sharesBurned The amount of share tokens being burned.
      * @param sharesTotalSupply The total supply of share tokens before the burning the withdraw amount.
