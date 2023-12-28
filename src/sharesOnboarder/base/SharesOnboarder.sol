@@ -6,7 +6,7 @@ pragma solidity ^0.8.20;
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
 import {ISharesOnboarder} from "../interfaces/ISharesOnboarder.sol";
 import {ISharesToken} from "src/shares/interfaces/ISharesToken.sol";
-import {Ownable1Or2StepUpgradeable} from "src/utils/Ownable1Or2StepUpgradeable.sol";
+import {OwnableUpgradeable} from "src/utils/OwnableUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -17,7 +17,12 @@ import {SafeTransferLib} from "src/libraries/SafeTransferLib.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
 
-abstract contract SharesOnboarder is Ownable1Or2StepUpgradeable, ISharesOnboarder {
+/**
+ * @title SharesOnboarder
+ * @author Ben Jett - @BCJdevelopment
+ * @notice Manages funding parameters and deposit flows for permissionless onboarding to the DAO.
+ */
+abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
     using SafeCast for *;
     using Math for uint256;
     using ERC165Verifier for address;

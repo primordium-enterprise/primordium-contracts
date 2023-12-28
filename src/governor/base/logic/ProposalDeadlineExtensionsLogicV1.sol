@@ -10,6 +10,14 @@ import {IProposalDeadlineExtensions} from "../../interfaces/IProposalDeadlineExt
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
+/**
+ * @title ProposalDeadlineExtensionsLogicV1
+ * @author Ben Jett - @BCJdevelopment
+ * @notice An external library with the main proposal deadline extension logic (for reducing code size).
+ * @dev Some functions are internal, meaning they will still be included in a contract's code if the contract makes use
+ * of these functions. While this leads to some bytecode duplication across contracts/libraries, it also saves on gas by
+ * avoiding extra DELEGATECALL's in some cases.
+ */
 library ProposalDeadlineExtensionsLogicV1 {
     using SafeCast for uint256;
 

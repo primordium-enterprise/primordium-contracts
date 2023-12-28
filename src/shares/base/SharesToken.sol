@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 
 import {ERC20SnapshotsUpgradeable} from "./ERC20SnapshotsUpgradeable.sol";
 import {ERC20VotesUpgradeable} from "./ERC20VotesUpgradeable.sol";
-import {Ownable1Or2StepUpgradeable} from "src/utils/Ownable1Or2StepUpgradeable.sol";
+import {OwnableUpgradeable} from "src/utils/OwnableUpgradeable.sol";
 import {ISharesToken} from "../interfaces/ISharesToken.sol";
 import {IERC20Snapshots} from "../interfaces/IERC20Snapshots.sol";
 import {ISharesOnboarder} from "src/sharesOnboarder/interfaces/ISharesOnboarder.sol";
@@ -14,7 +14,15 @@ import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/Signa
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
 import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
 
-abstract contract SharesToken is Ownable1Or2StepUpgradeable, ERC20VotesUpgradeable, ISharesToken {
+/**
+ * @title SharesToken
+ * @author Ben Jett - @BCJdevelopment
+ * @notice Inherits the ERC20Snapshots and ERC20Votes contracts, and adds an owner authorized to create snapshots and
+ * mint share tokens (it is most-likely that the DAO executor should be the owner). Also includes logic for members to
+ * permissionlessly withdraw from the DAO by burning their tokens and receiving their pro-rata share of specified ERC20
+ * assets from the treasury.
+ */
+abstract contract SharesToken is OwnableUpgradeable, ERC20VotesUpgradeable, ISharesToken {
     using ERC165Verifier for address;
 
     bytes32 private immutable WITHDRAW_TO_TYPEHASH = keccak256(
