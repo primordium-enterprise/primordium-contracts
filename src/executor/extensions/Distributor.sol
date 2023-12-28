@@ -9,7 +9,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeab
 import {Ownable1Or2StepUpgradeable} from "src/utils/Ownable1Or2StepUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
-import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Treasurer} from "../base/Treasurer.sol";
 import {SelfAuthorized} from "../base/SelfAuthorized.sol";
@@ -29,7 +29,7 @@ contract Distributor is
     Ownable1Or2StepUpgradeable,
     EIP712Upgradeable,
     NoncesUpgradeable,
-    ERC165,
+    ERC165Upgradeable,
     IDistributor
 {
     using ERC20Utils for IERC20;
@@ -97,7 +97,6 @@ contract Distributor is
     event DistributionClaimed(uint256 indexed distributionId, address indexed holder, IERC20 asset, uint256 amount);
 
     error Unauthorized();
-    error InvalidERC165InterfaceSupport(address _contract);
     error InvalidSnapshotId(uint256 currentClock, uint256 snapshotClock);
     error DistributionAmountTooLow();
     error DistributionAmountTooHigh(uint256 maxAmount);
@@ -136,6 +135,13 @@ contract Distributor is
         $._token = IERC20Snapshots(token_);
 
         _setDistributionClaimPeriod(claimPeriod_);
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+        // forgefmt: disable-next-item
+        return
+            interfaceId == type(IDistributor).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 
     /**

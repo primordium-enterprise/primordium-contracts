@@ -17,11 +17,11 @@ contract SnapshotCheckpointsTest is PRBTest, StdUtils {
     SnapshotCheckpoints.Trace208 internal _ckpts;
 
     // helpers
-    function _boundUint48(uint48 x, uint48 min, uint48 max) internal view returns (uint48) {
-        return SafeCast.toUint48(bound(uint256(x), uint256(min), uint256(max)));
+    function _boundUint48(uint48 x, uint48 min, uint48 max) internal pure returns (uint48) {
+        return SafeCast.toUint48(_bound(uint256(x), uint256(min), uint256(max)));
     }
 
-    function _prepareKeys(uint48[] memory keys, uint48 maxSpread) internal view {
+    function _prepareKeys(uint48[] memory keys, uint48 maxSpread) internal pure {
         uint48 lastKey = 0;
         for (uint256 i = 0; i < keys.length; ++i) {
             uint48 key = _boundUint48(keys[i], lastKey, lastKey + maxSpread);
@@ -38,7 +38,7 @@ contract SnapshotCheckpointsTest is PRBTest, StdUtils {
     }
 
     // tests
-    function testPush(uint48[] memory keys, uint208[] memory values, uint48 pastKey) public {
+    function test_Push(uint48[] memory keys, uint208[] memory values, uint48 pastKey) public {
         vm.assume(values.length > 0 && values.length <= keys.length);
         _prepareKeys(keys, _KEY_MAX_GAP);
 
@@ -73,7 +73,7 @@ contract SnapshotCheckpointsTest is PRBTest, StdUtils {
         }
     }
 
-    function testPushWithOp(uint48[] memory keys, uint208[] memory values, uint48 pastKey) public {
+    function test_PushWithOp(uint48[] memory keys, uint208[] memory values, uint48 pastKey) public {
         vm.assume(values.length > 0 && values.length <= keys.length);
         _prepareKeys(keys, _KEY_MAX_GAP);
 
@@ -113,7 +113,7 @@ contract SnapshotCheckpointsTest is PRBTest, StdUtils {
         }
     }
 
-    function testPushSnapshot(
+    function test_PushSnapshot(
         uint48[] memory keys,
         uint208[] memory values,
         uint48[] memory snapshotKeys,
@@ -178,7 +178,7 @@ contract SnapshotCheckpointsTest is PRBTest, StdUtils {
         }
     }
 
-    function testPushSnapshotWithOp(
+    function test_PushSnapshotWithOp(
         uint48[] memory keys,
         uint208[] memory values,
         uint48[] memory snapshotKeys,
@@ -254,7 +254,7 @@ contract SnapshotCheckpointsTest is PRBTest, StdUtils {
     }
 
     /// forge-config: default.fuzz.runs = 1048
-    function testLookup(uint48[] memory keys, uint208[] memory values, uint48 lookup) public {
+    function test_Lookup(uint48[] memory keys, uint208[] memory values, uint48 lookup) public {
         vm.assume(values.length > 0 && values.length <= keys.length);
         _prepareKeys(keys, _KEY_MAX_GAP);
 

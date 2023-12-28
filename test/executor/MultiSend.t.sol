@@ -125,17 +125,17 @@ contract MultiSendTest is PRBTest, IMultiSenderEvents {
         MultiSender(payable(multiSender)).execute(to, value, data);
     }
 
-    function testMultiSend() public {
+    function test_MultiSend() public {
         _executeMultiSend();
         _asserts();
     }
 
-    function testMultiSendCalldata() public {
+    function test_MultiSendCalldata() public {
         _executeMultiSendCalldata();
         _asserts();
     }
 
-    function testMultiSendClassic() public {
+    function test_MultiSendClassic() public {
         _executeMultiSendClassic();
         _asserts();
     }
@@ -146,7 +146,7 @@ contract MultiSendTest is PRBTest, IMultiSenderEvents {
         bytes data;
     }
 
-    function testMultiSendEncodersAreEqual(Call[] memory calls) public {
+    function test_MultiSendEncodersAreEqual(Call[] memory calls) public {
         vm.assume(calls.length > 0);
         address[] memory targets = new address[](calls.length);
         uint256[] memory values = new uint256[](calls.length);

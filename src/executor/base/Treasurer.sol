@@ -64,7 +64,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         uint256 amountAllocated
     );
 
-    error InvalidERC165InterfaceSupport(address _contract);
     error DistributorCreationFailed();
     error InvalidERC1967ProxyCreationCode();
     error BalanceSharesInitializationCallFailed(uint256 index, bytes data);
@@ -138,9 +137,12 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         // Pack the proxy deployment bytecode with the constructor arguments
         bytes memory proxyDeploymentBytecode = abi.encodePacked(
             erc1967CreationCode,
-            uint256(uint160(distributorImplementation_)),
-            abi.encodeCall(IDistributor.setUp, (token_, distributionClaimPeriod_))
+            abi.encode(
+                uint256(uint160(distributorImplementation_)),
+                abi.encodeCall(IDistributor.setUp, (token_, distributionClaimPeriod_))
+            )
         );
+
         // Use the implementation address as the salt
         bytes32 salt = bytes32(uint256(uint160(distributorImplementation_)));
 
@@ -148,7 +150,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         address distributorProxy;
         assembly ("memory-safe") {
             distributorProxy :=
-                create2(0, mload(add(0x20, proxyDeploymentBytecode)), mload(proxyDeploymentBytecode), salt)
+                create2(0, add(0x20, proxyDeploymentBytecode), mload(proxyDeploymentBytecode), salt)
         }
 
         if (distributorProxy == address(0)) {
@@ -256,7 +258,9 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     }
 
     function _setBalanceSharesManager(address newBalanceSharesManager) internal {
-        newBalanceSharesManager.checkInterface(type(IBalanceShareAllocations).interfaceId);
+        if (newBalanceSharesManager != address(0)) {
+            newBalanceSharesManager.checkInterface(type(IBalanceShareAllocations).interfaceId);
+        }
 
         BalanceShares storage $ = _getTreasurerStorage()._balanceShares;
         emit BalanceSharesManagerUpdate(address($._balanceSharesManager), newBalanceSharesManager);

@@ -16,6 +16,7 @@ library ERC165Verifier {
     error InvalidERC165InterfaceSupport(address _contract, bytes4 missingInterfaceId);
 
     function checkInterface(address _contract, bytes4 interfaceId) internal view {
+        _checkIERC165Support(_contract);
         if (!_contract.supportsInterface(interfaceId)) {
             revert InvalidERC165InterfaceSupport(_contract, interfaceId);
         }

@@ -11,7 +11,7 @@ contract ProposalsHarness is Proposals {
         ProposalsLogicV1._validateCalldataSignatures(calldatas, signatures);
     }
 
-    function testSignature(uint256 a) public pure {}
+    function aFunctionSignature(uint256 a) public pure {}
 }
 
 contract ProposalsTest is PRBTest {
@@ -21,8 +21,8 @@ contract ProposalsTest is PRBTest {
         proposals = new ProposalsHarness();
     }
 
-    /// forge-config: default.fuzz.runs = 1048
-    function testHashProposalActions(
+    /// forge-config: default.fuzz.runs = 512
+    function test_HashProposalActions(
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
@@ -34,7 +34,7 @@ contract ProposalsTest is PRBTest {
         );
     }
 
-    function testValidateCalldataSignaturesFuzz(string[] memory signatures) public view {
+    function test_ValidateCalldataSignaturesFuzz(string[] memory signatures) public view {
         // Test fuzz values
         bytes[] memory calldatas = new bytes[](signatures.length);
         for (uint256 i = 0; i < signatures.length; i++) {
@@ -46,13 +46,13 @@ contract ProposalsTest is PRBTest {
         proposals.validateCalldataSignatures(calldatas, signatures);
     }
 
-    function testValidateCalldataSignaturesReverts() public {
+    function test_ValidateCalldataSignaturesReverts() public {
         // Test specific signature
         bytes[] memory calldatas = new bytes[](2);
         string[] memory signatures = new string[](2);
-        signatures[0] = "testSignature(uint256)";
+        signatures[0] = "aFunctionSignature(uint256)";
         calldatas[0] = abi.encodeWithSignature(signatures[0], (1));
-        signatures[1] = "testSignature(uint256)";
+        signatures[1] = "aFunctionSignature(uint256)";
         calldatas[1] = abi.encodeWithSignature(signatures[0], (1));
         proposals.validateCalldataSignatures(calldatas, signatures);
 

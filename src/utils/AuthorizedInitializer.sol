@@ -29,20 +29,28 @@ abstract contract AuthorizedInitializer is Initializable {
     event InitializerAuthorized(address authorizedInitializer);
 
     error AlreadyInitialized();
+    error AuthorizedInitializerAlreadySet();
     error UnauthorizedInitializer(address sender, address authorizedInitializer);
 
     /**
-     * @dev Sets the authorized initializer. Requires that the contract has not been previously initialized.
+     * @dev Sets the authorized initializer. Requires that the contract has not been previously initialized, and that
+     * the authorized initializer is not already set.
      */
     function setAuthorizedInitializer(address authorizedInitializer) public {
         // Revert if already initialized
         if (_getInitializedVersion() > 0) {
             revert AlreadyInitialized();
         }
+
         AuthorizedInitializerStorage storage $;
         assembly {
             $.slot := AUTHORIZED_INITIALIZER_STORAGE
         }
+
+        if ($.authorizedInitializer != address(0)) {
+            revert AuthorizedInitializerAlreadySet();
+        }
+
         $.authorizedInitializer = authorizedInitializer;
         emit InitializerAuthorized(authorizedInitializer);
     }

@@ -51,6 +51,13 @@ abstract contract SharesToken is OwnableUpgradeable, ERC20VotesUpgradeable, ISha
         _setTreasury(treasury_);
     }
 
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+        // forgefmt: disable-next-item
+        return
+            interfaceId == type(ISharesToken).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
+
     /// @inheritdoc IERC20Snapshots
     function createSnapshot()
         external

@@ -14,6 +14,9 @@ import {MockERC20} from "./helpers/MockERC20.sol";
 import {Users} from "./helpers/Types.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
+// Import console2 globally for easy access in subsequent tests
+import "forge-std/console2.sol";
+
 abstract contract BaseTest is PRBTest, StdCheats {
     Users internal users;
 
@@ -124,8 +127,8 @@ abstract contract BaseTest is PRBTest, StdCheats {
         vm.label({account: address(mockERC20), newLabel: "MockERC20"});
     }
 
-    function setUp() public {
-        _deploy();
+    function setUp() public virtual {
+        _deployAndInitializeDefaults();
     }
 
     function _deploy() internal {
@@ -150,81 +153,81 @@ abstract contract BaseTest is PRBTest, StdCheats {
 
     function _deployAndInitializeDefaults() internal {
         _deploy();
+        _initializeDefaultToken();
+        _initializeDefaultOnboarder();
+        _initializeDefaultGovernor();
+        _initializeDefaultExecutor();
+    }
 
-        // Initialize Token
-        {
-            bytes memory sharesTokenInitParams = abi.encode(TOKEN.maxSupply, address(executor));
-            token.setUp(address(executor), TOKEN.name, TOKEN.symbol, sharesTokenInitParams);
-        }
+    function _initializeDefaultToken() internal {
+        bytes memory sharesTokenInitParams = abi.encode(TOKEN.maxSupply, address(executor));
+        token.setUp(address(executor), TOKEN.name, TOKEN.symbol, sharesTokenInitParams);
+    }
 
-        // Initialize Onboarder
-        {
-            bytes memory sharesOnboarderInitParams = abi.encode(
-                address(executor),
-                ONBOARDER.quoteAsset,
-                true,
-                ISharesOnboarder.SharePrice({
-                    quoteAmount: uint128(ONBOARDER.quoteAmount),
-                    mintAmount: uint128(ONBOARDER.mintAmount)
-                }),
-                ONBOARDER.fundingBeginsAt,
-                ONBOARDER.fundingEndsAt
-            );
-            onboarder.setUp(address(executor), sharesOnboarderInitParams);
-        }
+    function _initializeDefaultOnboarder() internal {
+        bytes memory sharesOnboarderInitParams = abi.encode(
+            address(executor),
+            ONBOARDER.quoteAsset,
+            true,
+            ISharesOnboarder.SharePrice({
+                quoteAmount: uint128(ONBOARDER.quoteAmount),
+                mintAmount: uint128(ONBOARDER.mintAmount)
+            }),
+            ONBOARDER.fundingBeginsAt,
+            ONBOARDER.fundingEndsAt
+        );
+        onboarder.setUp(address(executor), sharesOnboarderInitParams);
+    }
 
-        // Initialize Governor
-        {
-            bytes memory governorBaseInitParams = abi.encode(
-                address(executor), address(token), GOVERNOR.governanceCanBeginAt, GOVERNOR.governanceThresholdBps
-            );
+    function _initializeDefaultGovernor() internal {
+        bytes memory governorBaseInitParams = abi.encode(
+            address(executor), address(token), GOVERNOR.governanceCanBeginAt, GOVERNOR.governanceThresholdBps
+        );
 
-            bytes memory proposalsInitParams = abi.encode(
-                GOVERNOR.proposalThresholdBps,
-                GOVERNOR.votingDelay,
-                GOVERNOR.votingPeriod,
-                GOVERNOR.gracePeriod,
-                _getDefaultGovernorRoles()
-            );
+        bytes memory proposalsInitParams = abi.encode(
+            GOVERNOR.proposalThresholdBps,
+            GOVERNOR.votingDelay,
+            GOVERNOR.votingPeriod,
+            GOVERNOR.gracePeriod,
+            _getDefaultGovernorRoles()
+        );
 
-            bytes memory proposalVotingInitParams = abi.encode(GOVERNOR.percentMajority, GOVERNOR.quorumBps);
+        bytes memory proposalVotingInitParams = abi.encode(GOVERNOR.percentMajority, GOVERNOR.quorumBps);
 
-            bytes memory proposalDeadlineExtensionsInitParams = abi.encode(
-                GOVERNOR.maxDeadlineExtension,
-                GOVERNOR.baseDeadlineExtension,
-                GOVERNOR.extensionDecayPeriod,
-                GOVERNOR.extensionPercentDecay
-            );
+        bytes memory proposalDeadlineExtensionsInitParams = abi.encode(
+            GOVERNOR.maxDeadlineExtension,
+            GOVERNOR.baseDeadlineExtension,
+            GOVERNOR.extensionDecayPeriod,
+            GOVERNOR.extensionPercentDecay
+        );
 
-            governor.setUp(
-                GOVERNOR.name,
-                governorBaseInitParams,
-                proposalsInitParams,
-                proposalVotingInitParams,
-                proposalDeadlineExtensionsInitParams
-            );
-        }
+        governor.setUp(
+            GOVERNOR.name,
+            governorBaseInitParams,
+            proposalsInitParams,
+            proposalVotingInitParams,
+            proposalDeadlineExtensionsInitParams
+        );
+    }
 
-        // Initialize Executor
-        {
-            // Governor is only module
-            address[] memory modules = new address[](1);
-            modules[0] = address(governor);
+    function _initializeDefaultExecutor() internal {
+        // Governor is only module
+        address[] memory modules = new address[](1);
+        modules[0] = address(governor);
 
-            bytes memory timelockAvatarInitParams = abi.encode(EXECUTOR.minDelay, modules);
+        bytes memory timelockAvatarInitParams = abi.encode(EXECUTOR.minDelay, modules);
 
-            bytes memory treasurerInitParams = abi.encode(
-                address(token),
-                address(onboarder),
-                address(0),
-                "",
-                type(ERC1967Proxy).creationCode,
-                distributorImpl,
-                EXECUTOR.distributionClaimPeriod
-            );
+        bytes memory treasurerInitParams = abi.encode(
+            address(token),
+            address(onboarder),
+            address(0),
+            "",
+            type(ERC1967Proxy).creationCode,
+            distributorImpl,
+            EXECUTOR.distributionClaimPeriod
+        );
 
-            executor.setUp(timelockAvatarInitParams, treasurerInitParams);
-        }
+        executor.setUp(timelockAvatarInitParams, treasurerInitParams);
     }
 
     function _getDefaultGovernorRoles() internal view returns (bytes memory) {
