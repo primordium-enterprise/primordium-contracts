@@ -31,8 +31,6 @@ library ProposalVotingLogicV1 {
         mapping(address => bool) hasVoted;
     }
 
-
-
     uint256 internal constant _MAX_PERCENT = 100;
     uint256 internal constant _MIN_PERCENT_MAJORITY = 50;
     uint256 internal constant _MAX_PERCENT_MAJORITY = 66;
@@ -165,7 +163,8 @@ library ProposalVotingLogicV1 {
         uint256 oldQuorumBps = $._quorumBpsCheckpoints.latest();
 
         // Set new quorum for future proposals
-        $._quorumBpsCheckpoints.push(GovernorBaseLogicV1._clock(), newQuorumBps.toBps()); // toBps() checks for out of range BPS value
+        $._quorumBpsCheckpoints.push(GovernorBaseLogicV1._clock(), newQuorumBps.toBps()); // toBps() checks for out of
+            // range BPS value
         emit IProposalVoting.QuorumBpsUpdate(oldQuorumBps, newQuorumBps);
     }
 
@@ -267,7 +266,9 @@ library ProposalVotingLogicV1 {
         public
         returns (uint256 weight)
     {
-        ProposalsLogicV1._validateStateBitmap(proposalId, ProposalsLogicV1._encodeStateBitmap(IProposals.ProposalState.Active));
+        ProposalsLogicV1._validateStateBitmap(
+            proposalId, ProposalsLogicV1._encodeStateBitmap(IProposals.ProposalState.Active)
+        );
 
         ProposalsLogicV1.ProposalCore storage proposal = ProposalsLogicV1._getProposalsStorage()._proposals[proposalId];
 

@@ -7,11 +7,7 @@ import {Proposals} from "src/governor/base/Proposals.sol";
 import {IProposals} from "src/governor/interfaces/IProposals.sol";
 
 contract ProposalsHarness is Proposals {
-
-    function validateCalldataSignatures(
-        bytes[] calldata calldatas,
-        string[] memory signatures
-    ) public pure {
+    function validateCalldataSignatures(bytes[] calldata calldatas, string[] memory signatures) public pure {
         ProposalsLogicV1._validateCalldataSignatures(calldatas, signatures);
     }
 
@@ -19,7 +15,6 @@ contract ProposalsHarness is Proposals {
 }
 
 contract ProposalsTest is PRBTest {
-
     ProposalsHarness proposals;
 
     constructor() {
@@ -31,10 +26,11 @@ contract ProposalsTest is PRBTest {
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
-    ) public {
+    )
+        public
+    {
         assertEq(
-            proposals.hashProposalActions(targets, values, calldatas),
-            keccak256(abi.encode(targets, values, calldatas))
+            proposals.hashProposalActions(targets, values, calldatas), keccak256(abi.encode(targets, values, calldatas))
         );
     }
 
@@ -62,16 +58,12 @@ contract ProposalsTest is PRBTest {
 
         // Test signature is incorrect
         signatures[1] = "incorrectSignature(uint256)";
-        vm.expectRevert(
-            abi.encodeWithSelector(IProposals.GovernorInvalidActionSignature.selector, (1))
-        );
+        vm.expectRevert(abi.encodeWithSelector(IProposals.GovernorInvalidActionSignature.selector, (1)));
         proposals.validateCalldataSignatures(calldatas, signatures);
 
         // Test missing signature
         signatures[0] = "";
-        vm.expectRevert(
-            abi.encodeWithSelector(IProposals.GovernorInvalidActionSignature.selector, (0))
-        );
+        vm.expectRevert(abi.encodeWithSelector(IProposals.GovernorInvalidActionSignature.selector, (0)));
         proposals.validateCalldataSignatures(calldatas, signatures);
     }
 }

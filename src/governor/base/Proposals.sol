@@ -268,5 +268,4 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
         ProposalsLogicV1.checkFoundingProposalGovernanceThreshold(proposalId);
         super._foundGovernor(proposalId);
     }
-
 }

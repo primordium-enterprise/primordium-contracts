@@ -8,7 +8,6 @@ import {Proposals} from "../base/Proposals.sol";
 import {ProposalDeadlineExtensions} from "../base/ProposalDeadlineExtensions.sol";
 
 abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions {
-
     /**
      * Proposals.sol
      */

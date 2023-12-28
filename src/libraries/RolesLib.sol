@@ -12,7 +12,6 @@ import {BatchArrayChecker} from "../utils/BatchArrayChecker.sol";
  * @dev This library stores it's internal state at erc7201:RolesLib.Storage.
  */
 library RolesLib {
-
     /// @custom:storage-location erc7201:RolesLib.Storage
     struct RolesLibStorage {
         mapping(bytes32 => mapping(address => uint256)) _roleMembers;
@@ -52,8 +51,6 @@ library RolesLib {
      */
     error UnauthorizedRoles(bytes32[] roles, address account);
 
-
-
     /**
      * @dev An internal utility to check the role of the specified account, reverts if the account does not currently
      * carry the role.
@@ -88,7 +85,7 @@ library RolesLib {
         hasRole = _getRolesLibStorage()._roleMembers[role][account] > block.timestamp;
     }
 
-     /**
+    /**
      * @dev Internal utility to see whether or not an account has a specified role.
      * @param roles The bytes32 role hashes.
      * @param account The account to be checked.
@@ -100,7 +97,9 @@ library RolesLib {
             if ($._roleMembers[roles[i]][account] > block.timestamp) {
                 return true;
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -138,19 +137,15 @@ library RolesLib {
     /**
      * @dev Batch method for granting roles.
      */
-    function _grantRoles(
-        bytes32[] memory roles,
-        address[] memory accounts,
-        uint256[] memory expiresAts
-    )
-        internal
-    {
+    function _grantRoles(bytes32[] memory roles, address[] memory accounts, uint256[] memory expiresAts) internal {
         BatchArrayChecker.checkArrayLengths(roles.length, accounts.length, expiresAts.length);
 
         RolesLibStorage storage $ = _getRolesLibStorage();
         for (uint256 i = 0; i < roles.length;) {
             _grantRole($, roles[i], accounts[i], expiresAts[i]);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 

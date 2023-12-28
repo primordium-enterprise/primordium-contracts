@@ -11,7 +11,6 @@ pragma solidity ^0.8.20;
  * @notice Some public boilerplate functions that make use of the {RolesLib} library for managing roles.
  */
 contract Roles {
-
     /**
      * @dev Thrown when an account fails to confirm their own address when revoking their own role.
      */

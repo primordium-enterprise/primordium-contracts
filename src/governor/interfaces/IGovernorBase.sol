@@ -12,7 +12,6 @@ import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
  * @dev Interface of the {GovernorBase} core.
  */
 interface IGovernorBase is IERC6372 {
-
     event GovernorBaseInitialized(
         string name,
         string version,
@@ -149,5 +148,4 @@ interface IGovernorBase is IERC6372 {
         external
         view
         returns (uint256);
-
 }

@@ -15,7 +15,6 @@ import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol
 import {BasisPoints} from "src/libraries/BasisPoints.sol";
 
 abstract contract ProposalVoting is Proposals, IProposalVoting {
-
     bytes32 private immutable BALLOT_TYPEHASH =
         keccak256("Ballot(uint256 proposalId,uint8 support,address voter,uint256 nonce)");
     bytes32 private immutable EXTENDED_BALLOT_TYPEHASH = keccak256(
