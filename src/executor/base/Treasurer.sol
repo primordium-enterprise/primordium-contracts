@@ -102,7 +102,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     function __Treasurer_init_unchained(bytes memory treasurerInitParams) internal onlyInitializing {
         (
             address token_,
-            address sharesManager_,
+            address sharesOnboarder_,
             address balanceSharesManager_,
             bytes[] memory balanceShareInitCalldatas,
             bytes memory erc1967CreationCode, // Passed as argument to reduce deployment size
@@ -117,7 +117,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         $._token = ISharesToken(token_);
 
         // Set the shares onboarder
-        _setSharesOnboarder(sharesManager_);
+        _setSharesOnboarder(sharesOnboarder_);
 
         // Set the balance shares manager, and call any initialization functions
         _setBalanceSharesManager(balanceSharesManager_);
