@@ -8,13 +8,13 @@ import {PrimordiumGovernorV1} from "src/governor/PrimordiumGovernorV1.sol";
 import {PrimordiumSharesTokenV1} from "src/token/PrimordiumSharesTokenV1.sol";
 import {PrimordiumSharesOnboarderV1} from "src/onboarder/PrimordiumSharesOnboarderV1.sol";
 import {Distributor} from "src/executor/extensions/Distributor.sol";
+import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockERC20} from "./helpers/MockERC20.sol";
 import {Users} from "./helpers/Types.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
 abstract contract BaseTest is PRBTest, StdCheats {
-
     Users internal users;
 
     /*//////////////////////////////////////////////////////////
@@ -36,10 +36,7 @@ abstract contract BaseTest is PRBTest, StdCheats {
         uint256 distributionClaimPeriod;
     }
 
-    ExecutorParams EXECUTOR = ExecutorParams({
-        minDelay: 2 days,
-        distributionClaimPeriod: 60 days
-    });
+    ExecutorParams EXECUTOR = ExecutorParams({minDelay: 2 days, distributionClaimPeriod: 60 days});
 
     address internal executorImpl;
     PrimordiumExecutorV1 internal executor;
@@ -50,11 +47,7 @@ abstract contract BaseTest is PRBTest, StdCheats {
         uint256 maxSupply;
     }
 
-    TokenParams internal TOKEN = TokenParams({
-        name: "Primordium",
-        symbol: "MUSHI",
-        maxSupply: 100 ether
-    });
+    TokenParams internal TOKEN = TokenParams({name: "Primordium", symbol: "MUSHI", maxSupply: 100 ether});
 
     address internal tokenImpl;
     PrimordiumSharesTokenV1 internal token;
@@ -128,7 +121,7 @@ abstract contract BaseTest is PRBTest, StdCheats {
         });
 
         mockERC20 = new MockERC20();
-        vm.label({ account: address(mockERC20), newLabel: "MockERC20" });
+        vm.label({account: address(mockERC20), newLabel: "MockERC20"});
     }
 
     function setUp() public {
@@ -137,26 +130,117 @@ abstract contract BaseTest is PRBTest, StdCheats {
 
     function _deploy() internal {
         executorImpl = address(new PrimordiumExecutorV1());
-        executor = PrimordiumExecutorV1(payable(address(new ERC1967Proxy(executorImpl, ''))));
-        vm.label({ account: address(executor), newLabel: "Executor" });
+        executor = PrimordiumExecutorV1(payable(address(new ERC1967Proxy(executorImpl, ""))));
+        vm.label({account: address(executor), newLabel: "Executor"});
 
         tokenImpl = address(new PrimordiumSharesTokenV1());
-        token = PrimordiumSharesTokenV1(address(new ERC1967Proxy(tokenImpl, '')));
-        vm.label({ account: address(token), newLabel: "SharesToken" });
+        token = PrimordiumSharesTokenV1(address(new ERC1967Proxy(tokenImpl, "")));
+        vm.label({account: address(token), newLabel: "SharesToken"});
 
         onboarderImpl = address(new PrimordiumSharesOnboarderV1());
-        onboarder = PrimordiumSharesOnboarderV1(address(new ERC1967Proxy(onboarderImpl, '')));
-        vm.label({ account: address(onboarder), newLabel: "SharesOnboarder" });
+        onboarder = PrimordiumSharesOnboarderV1(address(new ERC1967Proxy(onboarderImpl, "")));
+        vm.label({account: address(onboarder), newLabel: "SharesOnboarder"});
 
         governorImpl = address(new PrimordiumGovernorV1());
-        governor = PrimordiumGovernorV1(address(new ERC1967Proxy(governorImpl, '')));
-        vm.label({ account: address(governor), newLabel: "Governor" });
+        governor = PrimordiumGovernorV1(address(new ERC1967Proxy(governorImpl, "")));
+        vm.label({account: address(governor), newLabel: "Governor"});
 
         distributorImpl = address(new Distributor());
     }
 
     function _deployAndInitializeDefaults() internal {
+        _deploy();
 
+        // Initialize Token
+        {
+            bytes memory sharesTokenInitParams = abi.encode(TOKEN.maxSupply, address(executor));
+            token.setUp(address(executor), TOKEN.name, TOKEN.symbol, sharesTokenInitParams);
+        }
+
+        // Initialize Onboarder
+        {
+            bytes memory sharesOnboarderInitParams = abi.encode(
+                address(executor),
+                ONBOARDER.quoteAsset,
+                true,
+                ISharesOnboarder.SharePrice({
+                    quoteAmount: uint128(ONBOARDER.quoteAmount),
+                    mintAmount: uint128(ONBOARDER.mintAmount)
+                }),
+                ONBOARDER.fundingBeginsAt,
+                ONBOARDER.fundingEndsAt
+            );
+            onboarder.setUp(address(executor), sharesOnboarderInitParams);
+        }
+
+        // Initialize Governor
+        {
+            bytes memory governorBaseInitParams = abi.encode(
+                address(executor), address(token), GOVERNOR.governanceCanBeginAt, GOVERNOR.governanceThresholdBps
+            );
+
+            bytes memory proposalsInitParams = abi.encode(
+                GOVERNOR.proposalThresholdBps,
+                GOVERNOR.votingDelay,
+                GOVERNOR.votingPeriod,
+                GOVERNOR.gracePeriod,
+                _getDefaultGovernorRoles()
+            );
+
+            bytes memory proposalVotingInitParams = abi.encode(GOVERNOR.percentMajority, GOVERNOR.quorumBps);
+
+            bytes memory proposalDeadlineExtensionsInitParams = abi.encode(
+                GOVERNOR.maxDeadlineExtension,
+                GOVERNOR.baseDeadlineExtension,
+                GOVERNOR.extensionDecayPeriod,
+                GOVERNOR.extensionPercentDecay
+            );
+
+            governor.setUp(
+                GOVERNOR.name,
+                governorBaseInitParams,
+                proposalsInitParams,
+                proposalVotingInitParams,
+                proposalDeadlineExtensionsInitParams
+            );
+        }
+
+        // Initialize Executor
+        {
+            // Governor is only module
+            address[] memory modules = new address[](1);
+            modules[0] = address(governor);
+
+            bytes memory timelockAvatarInitParams = abi.encode(EXECUTOR.minDelay, modules);
+
+            bytes memory treasurerInitParams = abi.encode(
+                address(token),
+                address(onboarder),
+                address(0),
+                "",
+                type(ERC1967Proxy).creationCode,
+                distributorImpl,
+                EXECUTOR.distributionClaimPeriod
+            );
+
+            executor.setUp(timelockAvatarInitParams, treasurerInitParams);
+        }
+    }
+
+    function _getDefaultGovernorRoles() internal view returns (bytes memory) {
+        bytes32[] memory roles = new bytes32[](2);
+        address[] memory accounts = new address[](2);
+        uint256[] memory expiresAts = new uint256[](2);
+
+        roles[0] = governor.PROPOSER_ROLE();
+        accounts[0] = users.proposer;
+        expiresAts[0] = type(uint256).max;
+
+        roles[1] = governor.CANCELER_ROLE();
+        accounts[1] = users.canceler;
+        expiresAts[1] = type(uint256).max;
+
+        return abi.encode(roles, accounts, expiresAts);
     }
 
     function _createUser(string memory name) internal returns (address payable user) {

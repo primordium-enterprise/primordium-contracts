@@ -20,7 +20,7 @@ contract PrimordiumSharesTokenV1 is SharesToken, UUPSUpgradeable {
         address owner_,
         string memory name,
         string memory symbol,
-        bytes memory sharesManagerInitParams
+        bytes memory sharesTokenInitParams
     )
         external
         initializer
@@ -28,7 +28,7 @@ contract PrimordiumSharesTokenV1 is SharesToken, UUPSUpgradeable {
         __ERC20_init_unchained(name, symbol);
         __EIP712_init_unchained(name, "1");
         __Ownable_init_unchained(owner_);
-        __SharesToken_init_unchained(sharesManagerInitParams);
+        __SharesToken_init_unchained(sharesTokenInitParams);
     }
 
     /// @dev Upgrading to new implementation is an only-owner operation
