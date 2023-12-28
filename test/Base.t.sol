@@ -120,6 +120,8 @@ abstract contract BaseTest is PRBTest, StdCheats {
             sharesGifter: _createUser("uSharesGifter"),
             sharesGiftReceiver: _createUser("uSharesGiftReceiver"),
             gwart: _createUser("uGwart"),
+            bob: _createUser("uBob"),
+            alice: _createUser("uAlice"),
             maliciousUser: _createUser("uMaliciousUser")
         });
 
@@ -153,18 +155,18 @@ abstract contract BaseTest is PRBTest, StdCheats {
 
     function _deployAndInitializeDefaults() internal {
         _deploy();
-        _initializeDefaultToken();
-        _initializeDefaultOnboarder();
-        _initializeDefaultGovernor();
-        _initializeDefaultExecutor();
+        _initializeToken();
+        _initializeOnboarder();
+        _initializeGovernor();
+        _initializeExecutor();
     }
 
-    function _initializeDefaultToken() internal {
+    function _initializeToken() internal {
         bytes memory sharesTokenInitParams = abi.encode(TOKEN.maxSupply, address(executor));
         token.setUp(address(executor), TOKEN.name, TOKEN.symbol, sharesTokenInitParams);
     }
 
-    function _initializeDefaultOnboarder() internal {
+    function _initializeOnboarder() internal {
         bytes memory sharesOnboarderInitParams = abi.encode(
             address(executor),
             ONBOARDER.quoteAsset,
@@ -179,7 +181,7 @@ abstract contract BaseTest is PRBTest, StdCheats {
         onboarder.setUp(address(executor), sharesOnboarderInitParams);
     }
 
-    function _initializeDefaultGovernor() internal {
+    function _initializeGovernor() internal {
         bytes memory governorBaseInitParams = abi.encode(
             address(executor), address(token), GOVERNOR.governanceCanBeginAt, GOVERNOR.governanceThresholdBps
         );
@@ -210,7 +212,7 @@ abstract contract BaseTest is PRBTest, StdCheats {
         );
     }
 
-    function _initializeDefaultExecutor() internal {
+    function _initializeExecutor() internal {
         // Governor is only module
         address[] memory modules = new address[](1);
         modules[0] = address(governor);

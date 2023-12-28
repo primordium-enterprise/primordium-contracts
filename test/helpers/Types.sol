@@ -12,6 +12,10 @@ struct Users {
     address payable sharesGiftReceiver;
     // Impartial address
     address payable gwart;
+    // Impartial address
+    address payable bob;
+    // Impartial address
+    address payable alice;
     // Malicious address
     address payable maliciousUser;
 }

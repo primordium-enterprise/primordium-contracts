@@ -143,14 +143,11 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
             )
         );
 
-        // Use the implementation address as the salt
-        bytes32 salt = bytes32(uint256(uint160(distributorImplementation_)));
-
         // Create the proxy for the distributor
         address distributorProxy;
         assembly ("memory-safe") {
             distributorProxy :=
-                create2(0, add(0x20, proxyDeploymentBytecode), mload(proxyDeploymentBytecode), salt)
+                create2(0, add(0x20, proxyDeploymentBytecode), mload(proxyDeploymentBytecode), 0)
         }
 
         if (distributorProxy == address(0)) {
@@ -159,15 +156,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
 
         // Set the storage reference to the proxy address
         $._distributor = IDistributor(distributorProxy);
-
-        // TODO: Remove old unused code after testing
-        // $._distributor = IDistributor(
-        //     address(
-        //         new ERC1967Proxy{salt: bytes32(uint256(uint160(distributorImplementation)))}(
-        //             distributorImplementation, abi.encodeCall(IDistributor.setUp, (token_, distributionClaimPeriod))
-        //         )
-        //     )
-        // );
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {

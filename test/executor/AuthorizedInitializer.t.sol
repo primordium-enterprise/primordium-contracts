@@ -24,19 +24,19 @@ contract AuthorizedInitializerTest is BaseTest {
 
     function test_AuthorizeInitializer() public {
         vm.prank(users.gwart);
-        _initializeDefaultExecutor();
+        _initializeExecutor();
     }
 
     function test_Revert_InvalidInitializer() public {
         vm.expectRevert(
             abi.encodeWithSelector(AuthorizedInitializer.UnauthorizedInitializer.selector, address(this), users.gwart)
         );
-        _initializeDefaultExecutor();
+        _initializeExecutor();
     }
 
     function test_Revert_AlreadyInitialized() public {
         vm.prank(users.gwart);
-        _initializeDefaultExecutor();
+        _initializeExecutor();
         vm.expectRevert(
             abi.encodeWithSelector(AuthorizedInitializer.AlreadyInitialized.selector)
         );
