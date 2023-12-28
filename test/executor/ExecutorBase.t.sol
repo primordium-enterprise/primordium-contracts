@@ -96,9 +96,8 @@ contract ExecutorBaseTest is PRBTest {
     function test_ExecuteRevert() public {
         // bytes memory err = hex"0d5e7082"; // TestError.selector
         vm.expectRevert(
-            abi.encodeWithSelector(ExecutorBase.CallReverted.selector, (
-                abi.encodeWithSelector(TestError.selector)
-            )));
+            abi.encodeWithSelector(ExecutorBase.CallReverted.selector, (abi.encodeWithSelector(TestError.selector)))
+        );
         executorBase.execute(address(this), 0, abi.encodeCall(this.thisFunctionReverts, ()), Enum.Operation.Call);
     }
 
@@ -115,9 +114,10 @@ contract ExecutorBaseTest is PRBTest {
 
     function test_DelegateExecuteRevert() public {
         vm.expectRevert(
-            abi.encodeWithSelector(ExecutorBase.CallReverted.selector, (
+            abi.encodeWithSelector(
+                ExecutorBase.CallReverted.selector,
                 abi.encodeWithSelector(TestDelegateCall.TestDelegateCallRevert.selector, (TEST_REVERT_MESSAGE))
-            ))
+            )
         );
         executorBase.execute(
             address(testDelegateCall),
