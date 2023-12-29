@@ -7,6 +7,9 @@ optimizer_runs = 100000
 via_ir = true
 ignored_error_codes = ['unused-param']
 
+[profile.lite]
+optimizer = false
+
 [fmt]
   bracket_spacing = false
   int_types = "long"

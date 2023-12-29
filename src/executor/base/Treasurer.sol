@@ -26,11 +26,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     using ERC165Verifier for address;
     using Address for address;
 
-    // using "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol" from release v5.0.0
-    // keccak256(type(ERC1967Proxy).creationCode)
-    bytes32 private constant ERC1967PROXY_CREATIONCODE_HASH =
-        0xea794f7b1e3861daf44227baf5c04b78eed1d62282bb4edb0b71ad749dd25d53;
-
     struct BalanceShares {
         IBalanceShareAllocations _balanceSharesManager;
         bool _isEnabled;
@@ -65,7 +60,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     );
 
     error DistributorCreationFailed();
-    error InvalidERC1967ProxyCreationCode();
     error BalanceSharesInitializationCallFailed(uint256 index, bytes data);
     error OnlyToken();
     error OnlySharesOnboarder();
@@ -124,11 +118,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
             for (uint256 i = 0; i < balanceShareInitCalldatas.length;) {
                 balanceSharesManager_.functionCall(balanceShareInitCalldatas[i]);
             }
-        }
-
-        // Validate that creation code is OpenZeppelin 5.0.0 ERC1967Proxy creation code
-        if (keccak256(erc1967CreationCode) != ERC1967PROXY_CREATIONCODE_HASH) {
-            revert InvalidERC1967ProxyCreationCode();
         }
 
         // Check distributor implementation interface

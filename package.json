@@ -6,7 +6,10 @@
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "build": "forge build",
+    "build:lite": "FOUNDRY_PROFILE=lite pnpm build",
     "test": "forge test --no-match-path 'test/.*/*' -vvv",
+    "test:lite": "FOUNDRY_PROFILE=lite pnpm test",
+    "test:lite:watch": "pnpm test:lite -- --watch",
     "lint": "solhint 'contracts/**/*.sol'",
     "selector-order": "ts-node utils/selectorOrder.ts",
     "check:erc7201": "node utils/checkERC7201.js",

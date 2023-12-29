@@ -14,11 +14,13 @@ import {MockERC20} from "./helpers/MockERC20.sol";
 import {Users} from "./helpers/Types.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
-// Import console2 globally for easy access in subsequent tests
-import "forge-std/console2.sol";
+// Import console2 for easy import in other test files
+import {console2} from "forge-std/console2.sol";
 
 abstract contract BaseTest is PRBTest, StdCheats {
     Users internal users;
+
+    uint256 internal constant STARTING_TIMESTAMP = 1703487600;
 
     /*//////////////////////////////////////////////////////////
         MOCK CONTRACTS
@@ -67,8 +69,8 @@ abstract contract BaseTest is PRBTest, StdCheats {
         quoteAsset: IERC20(address(0)),
         quoteAmount: 10 ether,
         mintAmount: 1 ether,
-        fundingBeginsAt: block.timestamp,
-        fundingEndsAt: block.timestamp + 365 days
+        fundingBeginsAt: STARTING_TIMESTAMP,
+        fundingEndsAt: STARTING_TIMESTAMP + 30 days
     });
 
     address internal onboarderImpl;
@@ -94,7 +96,7 @@ abstract contract BaseTest is PRBTest, StdCheats {
     GovernorParams internal GOVERNOR = GovernorParams({
         name: "Primordium Governor",
         version: "1",
-        governanceCanBeginAt: block.timestamp + 1,
+        governanceCanBeginAt: STARTING_TIMESTAMP,
         governanceThresholdBps: 2000, // 20 %
         proposalThresholdBps: 1000, // 10%
         votingDelay: _secondsToBlocks(2 days),
@@ -114,6 +116,7 @@ abstract contract BaseTest is PRBTest, StdCheats {
     address internal distributorImpl;
 
     constructor() {
+        vm.warp(STARTING_TIMESTAMP);
         users = Users({
             proposer: _createUser("uProposer"),
             canceler: _createUser("uCanceler"),
@@ -153,12 +156,16 @@ abstract contract BaseTest is PRBTest, StdCheats {
         distributorImpl = address(new Distributor());
     }
 
-    function _deployAndInitializeDefaults() internal {
-        _deploy();
+    function _initializeDefaults() internal {
         _initializeToken();
         _initializeOnboarder();
         _initializeGovernor();
         _initializeExecutor();
+    }
+
+    function _deployAndInitializeDefaults() internal {
+        _deploy();
+        _initializeDefaults();
     }
 
     function _initializeToken() internal {
@@ -258,5 +265,19 @@ abstract contract BaseTest is PRBTest, StdCheats {
 
     function _secondsPerBlock() internal pure virtual returns (uint256 secondsPerBlock) {
         return 12;
+    }
+
+    /**
+     * @dev Wrapper around "deal" that gives specified amount of the quote asset to the address. Returns `amount` if the
+     * quote asset is ETH, or zero otherwise.
+     */
+    function _giveQuoteAsset(address to, uint256 amount) internal returns (uint256 value) {
+        address quoteAsset = address(onboarder.quoteAsset());
+        if (quoteAsset == address(0)) {
+            deal(to, amount);
+            value = amount;
+        } else {
+            deal(quoteAsset, to, amount);
+        }
     }
 }
