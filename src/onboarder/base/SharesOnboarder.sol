@@ -67,14 +67,13 @@ abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
         (
             address treasury_,
             address quoteAsset_,
-            bool checkQuoteAssetInterfaceSupport_,
             SharePrice memory sharePrice_,
             uint256 fundingBeginsAt_,
             uint256 fundingEndsAt_
-        ) = abi.decode(sharesOnboarderInitParams, (address, address, bool, SharePrice, uint256, uint256));
+        ) = abi.decode(sharesOnboarderInitParams, (address, address, SharePrice, uint256, uint256));
 
         _setTreasury(treasury_);
-        _setQuoteAsset(quoteAsset_, checkQuoteAssetInterfaceSupport_);
+        _setQuoteAsset(quoteAsset_);
         _setSharePrice(sharePrice_.quoteAmount, sharePrice_.mintAmount);
         _setFundingPeriods(fundingBeginsAt_, fundingEndsAt_);
     }
@@ -135,16 +134,13 @@ abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
     }
 
     /// @inheritdoc ISharesOnboarder
-    function setQuoteAsset(address newQuoteAsset, bool checkInterfaceSupport) external virtual override onlyOwner {
-        _setQuoteAsset(newQuoteAsset, checkInterfaceSupport);
+    function setQuoteAsset(address newQuoteAsset) external virtual override onlyOwner {
+        _setQuoteAsset(newQuoteAsset);
     }
 
-    function _setQuoteAsset(address newQuoteAsset, bool checkInterfaceSupport) internal virtual {
+    function _setQuoteAsset(address newQuoteAsset) internal virtual {
         if (newQuoteAsset == address(this)) {
             revert CannotSetQuoteAssetToSelf();
-        }
-        if (newQuoteAsset != address(0) && checkInterfaceSupport) {
-            newQuoteAsset.checkInterface(type(IERC20).interfaceId);
         }
 
         SharesOnboarderStorage storage $ = _getSharesOnboarderStorage();
@@ -352,7 +348,7 @@ abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
         assembly ("memory-safe") {
             // Call `_treasury.registerDeposit{value: msgValue}(account, _quoteAsset, depositAmount, totalSharesMinted)`
             let m := mload(0x40)
-            mstore(m, 0x219dabeb00000000000000000000000000000000000000000000000000000000) // registerDeposit selector
+            mstore(m, 0x64bcb10c00000000000000000000000000000000000000000000000000000000) // registerDeposit selector
             mstore(add(m, 0x04), account)
             mstore(add(m, 0x24), _quoteAsset)
             mstore(add(m, 0x44), depositAmount)

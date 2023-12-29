@@ -3,7 +3,9 @@ pragma solidity ^0.8.20;
 
 import {BaseTest, console2} from "test/Base.t.sol";
 import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
+import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
 import {IERC20Snapshots} from "src/token/interfaces/IERC20Snapshots.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -13,7 +15,15 @@ contract SharesOnboarderTest is BaseTest {
     }
 
     // Helper to make a deposit as the provided account, with optional bytes for expected error
-    function _deposit(address account, uint256 depositAmount, bytes memory err) internal returns (uint256 mintAmount) {
+    function _deposit(
+        address account,
+        uint256 depositAmount,
+        bytes memory err
+    )
+        internal
+        virtual
+        returns (uint256 mintAmount)
+    {
         uint256 value = _giveQuoteAsset(account, depositAmount);
         vm.prank(account);
         if (err.length > 0) {
@@ -58,7 +68,12 @@ contract SharesOnboarderTest is BaseTest {
     )
         public
     {
-        vm.assume(depositAmount > 0 && depositAmount < type(uint128).max && depositMultiple > 0);
+        // forgefmt: disable-next-item
+        vm.assume(
+            depositAmount > 0 &&
+            depositAmount < type(uint128).max &&
+            depositMultiple > 0
+        );
 
         address owner = onboarder.owner();
 
@@ -93,7 +108,7 @@ contract SharesOnboarderTest is BaseTest {
         assertEq(expectedMintAmount, _deposit(users.gwart, depositAmount, ""));
     }
 
-    function test_Fuzz_DepositAmounts(uint128 depositAmount) public {
+    function test_Fuzz_RandomDepositAmounts(uint128 depositAmount) public {
         bytes memory err;
         if (depositAmount == 0) {
             err = abi.encodeWithSelector(ISharesOnboarder.InvalidDepositAmount.selector);
@@ -103,15 +118,56 @@ contract SharesOnboarderTest is BaseTest {
         _deposit(users.gwart, depositAmount, err);
     }
 
-    function test_Fuzz_DepositMultiples(uint8 depositMultiple) public {
+    function test_Fuzz_ValidDepositAmounts(uint8 depositMultiple) public {
         vm.assume(depositMultiple > 0);
         uint256 depositAmount = ONBOARDER.quoteAmount * depositMultiple;
         uint256 expectedMintAmount = depositAmount / ONBOARDER.quoteAmount * ONBOARDER.mintAmount;
 
-        vm.expectEmit(true, false, false, true);
-        emit ISharesOnboarder.Deposit(
-            users.gwart, depositAmount, expectedMintAmount, users.gwart
+        vm.expectEmit(true, true, false, true, address(token));
+        emit IERC20.Transfer(address(0), users.gwart, expectedMintAmount);
+
+        vm.expectEmit(true, false, false, true, address(executor));
+        emit ITreasury.DepositRegistered(users.gwart, ONBOARDER.quoteAsset, depositAmount, expectedMintAmount);
+
+        vm.expectEmit(true, false, false, true, address(onboarder));
+        emit ISharesOnboarder.Deposit(users.gwart, depositAmount, expectedMintAmount, users.gwart);
+
+        assertEq(expectedMintAmount, _deposit(users.gwart, depositAmount, ""));
+        assertEq(expectedMintAmount, token.balanceOf(users.gwart));
+        assertEq(expectedMintAmount, token.totalSupply());
+        assertEq(_quoteAssetBalanceOf(address(executor)), depositAmount);
+    }
+
+    function test_Revert_MaxSupplyOverflow() public {
+        // Equal to max supply should work fine
+        uint256 maxSupply = TOKEN.maxSupply;
+        uint256 depositMultiple = (maxSupply / ONBOARDER.mintAmount);
+        _deposit(users.gwart, ONBOARDER.quoteAmount * depositMultiple, "");
+
+        // Expect revert due to overflow
+        _deposit(
+            users.gwart,
+            ONBOARDER.quoteAmount,
+            abi.encodeWithSelector(
+                IERC20Snapshots.ERC20MaxSupplyOverflow.selector, maxSupply, maxSupply + ONBOARDER.mintAmount
+            )
         );
-        assertEq(expectedMintAmount, _deposit(users.gwart, depositAmount, ''));
+
+        // Increase max supply by mintAmount
+        maxSupply += ONBOARDER.mintAmount;
+        vm.prank(token.owner());
+        token.setMaxSupply(maxSupply);
+
+        // Now deposit should work
+        _deposit(users.gwart, ONBOARDER.quoteAmount, "");
+
+        // But an additional deposit should again revert due to overflow
+        _deposit(
+            users.gwart,
+            ONBOARDER.quoteAmount,
+            abi.encodeWithSelector(
+                IERC20Snapshots.ERC20MaxSupplyOverflow.selector, maxSupply, maxSupply + ONBOARDER.mintAmount
+            )
+        );
     }
 }

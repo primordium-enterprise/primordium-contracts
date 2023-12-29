@@ -89,7 +89,7 @@ interface ISharesOnboarder {
     function setAdminExpirations(address[] memory accounts, uint256[] memory expiresAts) external;
 
     function quoteAsset() external view returns (IERC20 _quoteAsset);
-    function setQuoteAsset(address newQuoteAsset, bool checkInterfaceSupport) external;
+    function setQuoteAsset(address newQuoteAsset) external;
 
     /**
      * Returns true if deposits are currently allowed.

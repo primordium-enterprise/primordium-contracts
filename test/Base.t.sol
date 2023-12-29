@@ -11,13 +11,14 @@ import {Distributor} from "src/executor/extensions/Distributor.sol";
 import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockERC20} from "./helpers/MockERC20.sol";
+import {EIP712Utils} from "./helpers/EIP712Utils.sol";
 import {Users} from "./helpers/Types.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
 // Import console2 for easy import in other test files
 import {console2} from "forge-std/console2.sol";
 
-abstract contract BaseTest is PRBTest, StdCheats {
+abstract contract BaseTest is PRBTest, StdCheats, EIP712Utils {
     Users internal users;
 
     uint256 internal constant STARTING_TIMESTAMP = 1703487600;
@@ -117,6 +118,8 @@ abstract contract BaseTest is PRBTest, StdCheats {
 
     constructor() {
         vm.warp(STARTING_TIMESTAMP);
+
+        uint256 signerPrivateKey = vm.deriveKey("test test test test test test test test test test test junk", 0);
         users = Users({
             proposer: _createUser("uProposer"),
             canceler: _createUser("uCanceler"),
@@ -125,8 +128,11 @@ abstract contract BaseTest is PRBTest, StdCheats {
             gwart: _createUser("uGwart"),
             bob: _createUser("uBob"),
             alice: _createUser("uAlice"),
-            maliciousUser: _createUser("uMaliciousUser")
+            maliciousUser: _createUser("uMaliciousUser"),
+            signer: payable(vm.addr(signerPrivateKey)),
+            signerPrivateKey: signerPrivateKey
         });
+        vm.label({account: users.signer, newLabel: "uSigner"});
 
         mockERC20 = new MockERC20();
         vm.label({account: address(mockERC20), newLabel: "MockERC20"});
@@ -177,7 +183,6 @@ abstract contract BaseTest is PRBTest, StdCheats {
         bytes memory sharesOnboarderInitParams = abi.encode(
             address(executor),
             ONBOARDER.quoteAsset,
-            true,
             ISharesOnboarder.SharePrice({
                 quoteAmount: uint128(ONBOARDER.quoteAmount),
                 mintAmount: uint128(ONBOARDER.mintAmount)
@@ -277,7 +282,16 @@ abstract contract BaseTest is PRBTest, StdCheats {
             deal(to, amount);
             value = amount;
         } else {
-            deal(quoteAsset, to, amount);
+            _dealMockERC20(to, amount);
+        }
+    }
+
+    function _quoteAssetBalanceOf(address account) internal view returns (uint256 balance) {
+        address quoteAsset = address(onboarder.quoteAsset());
+        if (quoteAsset == address(0)) {
+            balance = account.balance;
+        } else {
+            balance = IERC20(quoteAsset).balanceOf(account);
         }
     }
 }

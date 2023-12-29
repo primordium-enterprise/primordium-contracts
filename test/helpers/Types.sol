@@ -18,4 +18,7 @@ struct Users {
     address payable alice;
     // Malicious address
     address payable maliciousUser;
+    // ECDSA signer
+    address payable signer;
+    uint256 signerPrivateKey;
 }
