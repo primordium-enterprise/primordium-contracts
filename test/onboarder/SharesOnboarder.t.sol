@@ -107,6 +107,7 @@ contract SharesOnboarderTest is BaseTest {
         vm.assume(depositMultiple > 0);
         uint256 depositAmount = ONBOARDER.quoteAmount * depositMultiple;
         uint256 expectedMintAmount = depositAmount / ONBOARDER.quoteAmount * ONBOARDER.mintAmount;
+
         vm.expectEmit(true, false, false, true);
         emit ISharesOnboarder.Deposit(
             users.gwart, depositAmount, expectedMintAmount, users.gwart

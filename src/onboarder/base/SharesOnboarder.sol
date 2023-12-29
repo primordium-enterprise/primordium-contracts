@@ -348,11 +348,9 @@ abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
         totalSharesMinted = depositAmount / quoteAmount * mintAmount;
 
         // Register the deposit on the treasury (sends funds to treasury, and treasury mints shares)
-        // _treasury.registerDeposit{value: msg.value}(account, _quoteAsset, depositAmount, totalSharesMinted);
-
         bytes32 _Deposit_eventSelector = Deposit.selector;
         assembly ("memory-safe") {
-            // Call `registerDeposit{value: msgValue}(account, _quoteAsset, depositAmount, totalSharesMinted)`
+            // Call `_treasury.registerDeposit{value: msgValue}(account, _quoteAsset, depositAmount, totalSharesMinted)`
             let m := mload(0x40)
             mstore(m, 0x219dabeb00000000000000000000000000000000000000000000000000000000) // registerDeposit selector
             mstore(add(m, 0x04), account)
@@ -371,6 +369,7 @@ abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
             log2(add(m, 0x44), 0x60, _Deposit_eventSelector, account)
         }
 
+        // _treasury.registerDeposit{value: msg.value}(account, _quoteAsset, depositAmount, totalSharesMinted);
         // emit Deposit(account, depositAmount, totalSharesMinted, depositor);
     }
 }

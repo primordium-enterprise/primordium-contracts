@@ -52,7 +52,7 @@ abstract contract BaseTest is PRBTest, StdCheats {
         uint256 maxSupply;
     }
 
-    TokenParams internal TOKEN = TokenParams({name: "Primordium", symbol: "MUSHI", maxSupply: 100 ether});
+    TokenParams internal TOKEN = TokenParams({name: "Primordium", symbol: "MUSHI", maxSupply: 100_000_000 ether});
 
     address internal tokenImpl;
     PrimordiumSharesTokenV1 internal token;
@@ -67,8 +67,8 @@ abstract contract BaseTest is PRBTest, StdCheats {
 
     OnboarderParams internal ONBOARDER = OnboarderParams({
         quoteAsset: IERC20(address(0)),
-        quoteAmount: 10 ether,
-        mintAmount: 1 ether,
+        quoteAmount: 10 gwei,
+        mintAmount: 1 gwei,
         fundingBeginsAt: STARTING_TIMESTAMP,
         fundingEndsAt: STARTING_TIMESTAMP + 30 days
     });
