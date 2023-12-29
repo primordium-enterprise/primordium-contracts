@@ -348,36 +348,29 @@ abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
         totalSharesMinted = depositAmount / quoteAmount * mintAmount;
 
         // Register the deposit on the treasury (sends funds to treasury, and treasury mints shares)
-        _treasury.registerDeposit{value: msg.value}(account, _quoteAsset, depositAmount, totalSharesMinted);
-        // assembly ("memory-safe") {
-        //     // Call `registerDeposit{value: msgValue}(_quoteAsset, depositAmount)`
-        //     mstore(0x14, _quoteAsset)
-        //     mstore(0x34, depositAmount)
-        //     // `registerDeposit(address,uint256)`
-        //     mstore(0x00, 0x219dabeb000000000000000000000000)
-        //     let result := call(gas(), _treasury, msgValue, 0x10, 0x44, 0, 0x40)
-        //     // Restore free mem overwrite
-        //     mstore(0x34, 0)
-        //     if iszero(result) {
-        //         let m := mload(0x40)
-        //         returndatacopy(m, 0, returndatasize())
-        //         revert(m, returndatasize())
-        //     }
-        // }
+        // _treasury.registerDeposit{value: msg.value}(account, _quoteAsset, depositAmount, totalSharesMinted);
 
-        // Mint the vote shares to the receiver AFTER sending funds to treasury to ensure no re-entrancy
-        // token().mint(account, totalSharesMinted);
+        bytes32 _Deposit_eventSelector = Deposit.selector;
+        assembly ("memory-safe") {
+            // Call `registerDeposit{value: msgValue}(account, _quoteAsset, depositAmount, totalSharesMinted)`
+            let m := mload(0x40)
+            mstore(m, 0x219dabeb00000000000000000000000000000000000000000000000000000000) // registerDeposit selector
+            mstore(add(m, 0x04), account)
+            mstore(add(m, 0x24), _quoteAsset)
+            mstore(add(m, 0x44), depositAmount)
+            mstore(add(m, 0x64), totalSharesMinted)
+            let result := call(gas(), _treasury, callvalue(), m, 0x84, 0, 0)
+            if iszero(result) {
+                returndatacopy(m, 0, returndatasize())
+                revert(m, returndatasize())
+            }
 
-        emit Deposit(account, depositAmount, totalSharesMinted, depositor);
-        // bytes32 _Deposit_eventSelector = Deposit.selector;
-        // assembly ("memory-safe") {
-        //     let m := mload(0x40) // Cache free mem pointer
-        //     // Store event un-indexed data and log
-        //     mstore(0, depositAmount)
-        //     mstore(0x20, totalSharesMinted)
-        //     mstore(0x40, depositor)
-        //     log2(0, 0x60, _Deposit_eventSelector, account)
-        //     mstore(0x40, m) // Restore free mem pointer
-        // }
+            // emit Deposit(account, depositAmount, totalSharesMinted, depositor);
+            // Use stored depositAmount and totalSharesMinted from the call before
+            mstore(add(m, 0x84), depositor)
+            log2(add(m, 0x44), 0x60, _Deposit_eventSelector, account)
+        }
+
+        // emit Deposit(account, depositAmount, totalSharesMinted, depositor);
     }
 }

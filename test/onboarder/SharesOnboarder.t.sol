@@ -102,4 +102,15 @@ contract SharesOnboarderTest is BaseTest {
         }
         _deposit(users.gwart, depositAmount, err);
     }
+
+    function test_Fuzz_DepositMultiples(uint8 depositMultiple) public {
+        vm.assume(depositMultiple > 0);
+        uint256 depositAmount = ONBOARDER.quoteAmount * depositMultiple;
+        uint256 expectedMintAmount = depositAmount / ONBOARDER.quoteAmount * ONBOARDER.mintAmount;
+        vm.expectEmit(true, false, false, true);
+        emit ISharesOnboarder.Deposit(
+            users.gwart, depositAmount, expectedMintAmount, users.gwart
+        );
+        assertEq(expectedMintAmount, _deposit(users.gwart, depositAmount, ''));
+    }
 }
