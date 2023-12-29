@@ -32,6 +32,25 @@ contract SharesOnboarderTest is BaseTest {
         mintAmount = onboarder.deposit{value: value}(depositAmount);
     }
 
+    // Helper to make a deposit as the provided account, with optional bytes for expected error
+    function _depositFor(
+        address account,
+        uint256 depositAmount,
+        address depositor,
+        bytes memory err
+    )
+        internal
+        virtual
+        returns (uint256 mintAmount)
+    {
+        uint256 value = _giveQuoteAsset(depositor, depositAmount);
+        vm.prank(depositor);
+        if (err.length > 0) {
+            vm.expectRevert(err);
+        }
+        mintAmount = onboarder.depositFor{value: value}(account, depositAmount);
+    }
+
     function test_Deposits() public {}
 
     function test_Revert_OutsideFundingPeriods() public {
@@ -134,6 +153,28 @@ contract SharesOnboarderTest is BaseTest {
 
         assertEq(expectedMintAmount, _deposit(users.gwart, depositAmount, ""));
         assertEq(expectedMintAmount, token.balanceOf(users.gwart));
+        assertEq(expectedMintAmount, token.totalSupply());
+        assertEq(_quoteAssetBalanceOf(address(executor)), depositAmount);
+    }
+
+    function test_Fuzz_ValidDepositForAmounts(uint8 depositMultiple) public {
+        // gwart deposits to mint shares for alice
+        vm.assume(depositMultiple > 0);
+        uint256 depositAmount = ONBOARDER.quoteAmount * depositMultiple;
+        uint256 expectedMintAmount = depositAmount / ONBOARDER.quoteAmount * ONBOARDER.mintAmount;
+
+        vm.expectEmit(true, true, false, true, address(token));
+        emit IERC20.Transfer(address(0), users.alice, expectedMintAmount);
+
+        vm.expectEmit(true, false, false, true, address(executor));
+        emit ITreasury.DepositRegistered(users.alice, ONBOARDER.quoteAsset, depositAmount, expectedMintAmount);
+
+        vm.expectEmit(true, false, false, true, address(onboarder));
+        emit ISharesOnboarder.Deposit(users.alice, depositAmount, expectedMintAmount, users.gwart);
+
+        assertEq(_quoteAssetBalanceOf(users.alice), 0); // Alice should not have any quote asset to deposit
+        assertEq(expectedMintAmount, _depositFor(users.alice, depositAmount, users.gwart, ""));
+        assertEq(expectedMintAmount, token.balanceOf(users.alice));
         assertEq(expectedMintAmount, token.totalSupply());
         assertEq(_quoteAssetBalanceOf(address(executor)), depositAmount);
     }
