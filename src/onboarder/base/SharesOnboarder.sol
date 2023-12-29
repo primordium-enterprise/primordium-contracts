@@ -330,14 +330,12 @@ abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
 
         // Transfer the deposit to the treasury
         IERC20 _quoteAsset = quoteAsset();
-        uint256 msgValue;
 
         // For ETH, just transfer via the treasury "registerDeposit" function, so set the msg.value
         if (address(_quoteAsset) == address(0)) {
             if (depositAmount != msg.value) {
                 revert ERC20Utils.InvalidMsgValue(depositAmount, msg.value);
             }
-            msgValue = msg.value;
             // For ERC20, safe transfer from the depositor to the treasury
         } else {
             if (msg.value > 0) {
@@ -350,7 +348,7 @@ abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
         totalSharesMinted = depositAmount / quoteAmount * mintAmount;
 
         // Register the deposit on the treasury (sends funds to treasury, and treasury mints shares)
-        _treasury.registerDeposit(account, _quoteAsset, depositAmount, totalSharesMinted);
+        _treasury.registerDeposit{value: msg.value}(account, _quoteAsset, depositAmount, totalSharesMinted);
         // assembly ("memory-safe") {
         //     // Call `registerDeposit{value: msgValue}(_quoteAsset, depositAmount)`
         //     mstore(0x14, _quoteAsset)

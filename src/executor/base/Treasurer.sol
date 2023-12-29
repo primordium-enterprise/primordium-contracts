@@ -332,7 +332,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         }
 
         if (address(quoteAsset) == address(0) && msg.value != depositAmount) {
-            revert InvalidDepositAmount();
+            revert ERC20Utils.InvalidMsgValue(depositAmount, msg.value);
         }
 
         TreasurerStorage storage $ = _getTreasurerStorage();
