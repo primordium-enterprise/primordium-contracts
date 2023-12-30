@@ -337,15 +337,17 @@ contract SharesTokenTest is BaseTest {
     ) public {
         vm.assume(sender != address(0));
 
+        address owner = users.signer.addr;
+
         // Transfer gwart's shares to signer
         vm.prank(users.gwart);
-        token.transfer(users.signer, gwartShares);
+        token.transfer(owner, gwartShares);
 
         address treasury = address(executor);
 
         (, string memory name, string memory version,,,,) = token.eip712Domain();
 
-        uint256 nonce = token.nonces(users.signer);
+        uint256 nonce = token.nonces(owner);
 
         bytes memory expiredRevert;
         if (block.timestamp > deadline) {
@@ -359,7 +361,7 @@ contract SharesTokenTest is BaseTest {
             uint256 totalSupply,
             IERC20[] memory assets
         ) = _setupWithdrawExpectations(
-            treasury, users.signer, receiver, withdrawAmount, treasuryETHAmount, treasuryERC20Amount, expiredRevert
+            treasury, owner, receiver, withdrawAmount, treasuryETHAmount, treasuryERC20Amount, expiredRevert
         );
 
         bytes32 tokensContentHash = keccak256(abi.encodePacked(assets));
@@ -369,21 +371,21 @@ contract SharesTokenTest is BaseTest {
         );
 
         bytes32 structHash = keccak256(
-            abi.encode(WITHDRAW_TO_TYPEHASH, users.signer, receiver, withdrawAmount, tokensContentHash, nonce, deadline)
+            abi.encode(WITHDRAW_TO_TYPEHASH, owner, receiver, withdrawAmount, tokensContentHash, nonce, deadline)
         );
 
         bytes32 dataHash = _hashTypedData(_buildEIP712DomainSeparator(name, version, address(token)), structHash);
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(users.signerPrivateKey, dataHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(users.signer.privateKey, dataHash);
 
         bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.prank(sender);
-        token.withdrawToBySig(users.signer, receiver, withdrawAmount, assets, deadline, signature);
+        token.withdrawToBySig(owner, receiver, withdrawAmount, assets, deadline, signature);
 
         assertEq(receiver.balance, expectedETHPayout, "Invalid ETH payout");
         assertEq(mockERC20.balanceOf(receiver), expectedERC20Payout, "Invalid ERC20 payout");
-        assertEq(expectedSignerShares, token.balanceOf(users.signer), "Invalid shares balance");
+        assertEq(expectedSignerShares, token.balanceOf(owner), "Invalid shares balance");
         assertEq(totalSupply, token.totalSupply(), "Invalid total supply");
         assertEq(treasuryETHAmount - expectedETHPayout, treasury.balance);
         assertEq(treasuryERC20Amount - expectedERC20Payout, mockERC20.balanceOf(treasury));

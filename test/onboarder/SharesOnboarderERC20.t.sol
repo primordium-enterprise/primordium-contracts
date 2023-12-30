@@ -20,7 +20,7 @@ contract SharesOnboarderERC20Test is SharesOnboarderTest {
 
         (, string memory name, string memory version,,,,) = mockERC20.eip712Domain();
 
-        address owner = users.signer;
+        address owner = users.signer.addr;
         address spender = address(onboarder);
         uint256 deadline = block.timestamp + 1 days;
 
@@ -32,12 +32,12 @@ contract SharesOnboarderERC20Test is SharesOnboarderTest {
 
         bytes32 dataHash = _hashTypedData(_buildEIP712DomainSeparator(name, version, address(mockERC20)), structHash);
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(users.signerPrivateKey, dataHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(users.signer.privateKey, dataHash);
 
-        _dealMockERC20(users.signer, depositAmount);
+        _dealMockERC20(owner, depositAmount);
 
         uint256 expectedMintAmount = ONBOARDER.mintAmount;
         assertEq(expectedMintAmount, onboarder.depositWithPermit(owner, spender, depositAmount, deadline, v, r, s));
-        assertEq(token.balanceOf(users.signer), expectedMintAmount);
+        assertEq(token.balanceOf(owner), expectedMintAmount);
     }
 }

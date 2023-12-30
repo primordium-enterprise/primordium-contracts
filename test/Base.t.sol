@@ -129,10 +129,8 @@ abstract contract BaseTest is PRBTest, StdCheats, EIP712Utils {
             bob: _createUser("uBob"),
             alice: _createUser("uAlice"),
             maliciousUser: _createUser("uMaliciousUser"),
-            signer: payable(vm.addr(signerPrivateKey)),
-            signerPrivateKey: signerPrivateKey
+            signer: vm.createWallet("uSigner")
         });
-        vm.label({account: users.signer, newLabel: "uSigner"});
 
         mockERC20 = new MockERC20();
         vm.label({account: address(mockERC20), newLabel: "MockERC20"});

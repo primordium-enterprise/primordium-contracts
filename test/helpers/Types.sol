@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
+import {Vm} from "@prb/test/Vm.sol";
+
 struct Users {
     // Address authorized to submit proposals
     address payable proposer;
@@ -19,6 +21,5 @@ struct Users {
     // Malicious address
     address payable maliciousUser;
     // ECDSA signer
-    address payable signer;
-    uint256 signerPrivateKey;
+    Vm.Wallet signer;
 }
