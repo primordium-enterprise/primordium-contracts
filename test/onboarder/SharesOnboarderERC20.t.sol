@@ -3,6 +3,8 @@ pragma solidity ^0.8.20;
 
 import {SharesOnboarderTest} from "./SharesOnboarder.t.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 
 contract SharesOnboarderERC20Test is SharesOnboarderTest {
     function setUp() public virtual override {
@@ -15,29 +17,58 @@ contract SharesOnboarderERC20Test is SharesOnboarderTest {
         _initializeDefaults();
     }
 
-    function test_DepositWithPermit() public {
-        uint256 depositAmount = ONBOARDER.quoteAmount;
+    function test_Fuzz_DepositWithPermit(
+        uint8 depositMultiple,
+        uint48 deadline,
+        uint64 ownerPrivateKey,
+        uint64 invalidSignerPrivateKey
+    )
+        public
+    {
+        // forgefmt: disable-next-item
+        vm.assume(
+            depositMultiple > 0 &&
+            ownerPrivateKey != invalidSignerPrivateKey &&
+            ownerPrivateKey > 0 &&
+            invalidSignerPrivateKey > 0
+        );
+
+        uint256 depositAmount = ONBOARDER.quoteAmount * depositMultiple;
 
         (, string memory name, string memory version,,,,) = mockERC20.eip712Domain();
 
-        address owner = users.signer.addr;
+        address owner = vm.addr(ownerPrivateKey);
         address spender = address(onboarder);
-        uint256 deadline = block.timestamp + 1 days;
 
-        bytes32 structHash = keccak256(
-            abi.encode(
-                PERMIT_TYPEHASH, owner, spender, depositAmount, mockERC20.nonces(owner), deadline
-            )
-        );
+        bytes32 structHash =
+            keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, depositAmount, mockERC20.nonces(owner), deadline));
 
         bytes32 dataHash = _hashTypedData(_buildEIP712DomainSeparator(name, version, address(mockERC20)), structHash);
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(users.signer.privateKey, dataHash);
-
         _dealMockERC20(owner, depositAmount);
 
-        uint256 expectedMintAmount = ONBOARDER.mintAmount;
-        assertEq(expectedMintAmount, onboarder.depositWithPermit(owner, spender, depositAmount, deadline, v, r, s));
+        uint256 expectedMintAmount = ONBOARDER.mintAmount * depositMultiple;
+
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+
+        if (block.timestamp > deadline) {
+            expectedMintAmount = 0;
+            vm.expectRevert(abi.encodeWithSelector(ERC20Permit.ERC2612ExpiredSignature.selector, deadline));
+        } else {
+            // Test invalid signer
+            address invalidSigner = vm.addr(invalidSignerPrivateKey);
+            (v, r, s) = vm.sign(invalidSignerPrivateKey, dataHash);
+            vm.expectRevert(abi.encodeWithSelector(ERC20Permit.ERC2612InvalidSigner.selector, invalidSigner, owner));
+            onboarder.depositWithPermit(owner, spender, depositAmount, deadline, v, r, s);
+        }
+
+        (v, r, s) = vm.sign(ownerPrivateKey, dataHash);
+
+        uint256 mintAmount = onboarder.depositWithPermit(owner, spender, depositAmount, deadline, v, r, s);
+
+        assertEq(expectedMintAmount, mintAmount);
         assertEq(token.balanceOf(owner), expectedMintAmount);
     }
 }
