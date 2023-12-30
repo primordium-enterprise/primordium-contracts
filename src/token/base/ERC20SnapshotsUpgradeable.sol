@@ -230,7 +230,7 @@ abstract contract ERC20SnapshotsUpgradeable is
 
             // Overflow not possible: value <= fromBalance <= totalSupply <= maxSupply
             // Use snapshot for balance
-            $._balanceCheckpoints[from].push(lastSnapshotClock, currentClock, _subtractUnchecked, lastSnapshotClock);
+            $._balanceCheckpoints[from].push(lastSnapshotClock, currentClock, _subtractUnchecked, value);
         }
 
         if (to == address(0)) {
