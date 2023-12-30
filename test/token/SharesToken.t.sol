@@ -5,6 +5,7 @@ import {BaseTest} from "test/Base.t.sol";
 import {ISharesToken} from "src/token/interfaces/ISharesToken.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract SharesTokenTest is BaseTest {
     uint256 gwartShares = 200;
@@ -180,6 +181,40 @@ contract SharesTokenTest is BaseTest {
         }
         // Total supply should not change
         assertEq(cachedTotalSupply, token.totalSupply());
+    }
+
+    function test_Fuzz_Withdraw(uint8 withdrawAmount, uint96 treasuryETHAmount, uint96 treasuryERC20Amount) public {
+        address treasury = address(executor);
+        deal(treasury, treasuryETHAmount);
+        deal(address(mockERC20), treasury, treasuryERC20Amount);
+
+        uint256 expectedETHPayout;
+        uint256 expectedERC20Payout;
+        uint256 expectedGwartShares = gwartShares;
+        uint256 totalSupply = token.totalSupply();
+
+        if (withdrawAmount == 0) {
+            vm.expectRevert(ISharesToken.WithdrawAmountInvalid.selector);
+        } else if (withdrawAmount > gwartShares) {
+            vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, users.gwart, gwartShares, withdrawAmount));
+        } else {
+            expectedETHPayout = Math.mulDiv(treasuryETHAmount, withdrawAmount, totalSupply);
+            expectedERC20Payout = Math.mulDiv(treasuryERC20Amount, withdrawAmount, totalSupply);
+            expectedGwartShares = gwartShares - withdrawAmount;
+            totalSupply -= withdrawAmount;
+        }
+
+        IERC20[] memory assets = new IERC20[](2);
+        assets[0] = IERC20(address(0)); // ETH
+        assets[1] = IERC20(address(mockERC20));
+
+        vm.prank(users.gwart);
+        token.withdraw(withdrawAmount, assets);
+
+        assertEq(users.gwart.balance, expectedETHPayout);
+        assertEq(mockERC20.balanceOf(users.gwart), expectedERC20Payout);
+        assertEq(expectedGwartShares, token.balanceOf(users.gwart));
+        assertEq(totalSupply, token.totalSupply());
     }
 
 }

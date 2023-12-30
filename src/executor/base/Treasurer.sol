@@ -379,10 +379,10 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         internal
         virtual
     {
-        TreasurerStorage storage $ = _getTreasurerStorage();
-        IBalanceShareAllocations manager = $._balanceShares._balanceSharesManager;
-
         if (sharesTotalSupply > 0 && sharesBurned > 0) {
+            TreasurerStorage storage $ = _getTreasurerStorage();
+            IBalanceShareAllocations manager = $._balanceShares._balanceSharesManager;
+
             // Iterate through the token addresses, sending proportional payouts (using address(0) for ETH)
             // TODO: Need to add the PROFT/DISTRIBUTIONS Balance share allocation to this function
             for (uint256 i = 0; i < assets.length;) {
