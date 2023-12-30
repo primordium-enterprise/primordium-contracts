@@ -18,15 +18,13 @@ interface ITreasury {
     /**
      * @dev Emitted for each asset that withdrawn in a processed withdrawal.
      */
-    event WithdrawalAssetProcessed(
-        address indexed account, address receiver, IERC20 asset, uint256 payout, uint256 distributionShareAllocation
-    );
+    event WithdrawalAssetProcessed(address indexed account, address receiver, IERC20 asset, uint256 payout);
 
     /**
      * @dev Emitted when a withdrawal is processed on the treasury.
      */
     event WithdrawalProcessed(
-        address indexed account, uint256 sharesBurned, uint256 totalSharesSupply, address receiver, IERC20[] assets
+        address indexed account, address receiver, uint256 sharesBurned, uint256 totalSharesSupply, IERC20[] assets
     );
 
     /**

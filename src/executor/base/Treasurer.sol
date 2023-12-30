@@ -398,7 +398,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
 
                     assets[i].transferTo(receiver, payout);
 
-                    emit WithdrawalAssetProcessed(account, receiver, assets[i], payout, distributionShareAllocation);
+                    emit WithdrawalAssetProcessed(account, receiver, assets[i], payout);
                 }
 
                 unchecked {
@@ -407,7 +407,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
             }
         }
 
-        emit WithdrawalProcessed(account, sharesBurned, sharesTotalSupply, receiver, assets);
+        emit WithdrawalProcessed(account, receiver, sharesBurned, sharesTotalSupply, assets);
     }
 
     /**

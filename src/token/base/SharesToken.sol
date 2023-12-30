@@ -238,6 +238,6 @@ abstract contract SharesToken is OwnableUpgradeable, ERC20VotesUpgradeable, ISha
         // Transfer withdrawal funds AFTER burning tokens to ensure no re-entrancy
         treasury().processWithdrawal(account, receiver, amount, totalSupply, tokens);
 
-        emit Withdrawal(account, receiver, totalSharesBurned, tokens);
+        // emit Withdrawal(account, receiver, totalSharesBurned, tokens);
     }
 }

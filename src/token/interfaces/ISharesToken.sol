@@ -21,14 +21,14 @@ interface ISharesToken is IERC20Snapshots {
      */
     event MaxSupplyChange(uint256 oldMaxSupply, uint256 newMaxSupply);
 
-    /**
-     * @notice Emitted when a withdrawal is made and tokens are burned.
-     * @param account The account address that votes were burned for.
-     * @param receiver The receiver address that the withdrawal was sent to.
-     * @param totalSharesBurned The amount of vote tokens burned from the account.
-     * @param assets The ERC20 tokens withdrawn.
-     */
-    event Withdrawal(address indexed account, address receiver, uint256 totalSharesBurned, IERC20[] assets);
+    // /**
+    //  * @notice Emitted when a withdrawal is made and tokens are burned.
+    //  * @param account The account address that votes were burned for.
+    //  * @param receiver The receiver address that the withdrawal was sent to.
+    //  * @param totalSharesBurned The amount of vote tokens burned from the account.
+    //  * @param assets The ERC20 tokens withdrawn.
+    //  */
+    // event Withdrawal(address indexed account, address receiver, uint256 totalSharesBurned, IERC20[] assets);
 
     event TreasuryChange(address oldTreasury, address newTreasury);
 

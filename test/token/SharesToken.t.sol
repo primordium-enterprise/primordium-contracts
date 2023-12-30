@@ -5,6 +5,7 @@ import {BaseTest} from "test/Base.t.sol";
 import {ISharesToken} from "src/token/interfaces/ISharesToken.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract SharesTokenTest is BaseTest {
@@ -206,6 +207,10 @@ contract SharesTokenTest is BaseTest {
         expectedWithdrawerResultingShares = token.balanceOf(withdrawer);
         expectedTotalSupply = token.totalSupply();
 
+        assets = new IERC20[](2);
+        assets[0] = IERC20(address(0)); // ETH
+        assets[1] = IERC20(address(mockERC20));
+
         if (receiver == address(0)) {
             vm.expectRevert(ISharesToken.WithdrawToZeroAddress.selector);
         } else if (withdrawAmount == 0) {
@@ -220,12 +225,30 @@ contract SharesTokenTest is BaseTest {
             expectedETHPayout = Math.mulDiv(treasuryETHAmount, withdrawAmount, expectedTotalSupply);
             expectedERC20Payout = Math.mulDiv(treasuryERC20Amount, withdrawAmount, expectedTotalSupply);
             expectedWithdrawerResultingShares = gwartShares - withdrawAmount;
+
+            // Anticipated events
+            if (expectedTotalSupply > 0 && withdrawAmount > 0) {
+                vm.expectEmit(true, true, false, true, address(token));
+                emit IERC20.Transfer(withdrawer, address(0), withdrawAmount);
+
+                if (expectedETHPayout > 0) {
+                    vm.expectEmit(true, false, false, true, treasury);
+                    emit ITreasury.WithdrawalAssetProcessed(withdrawer, receiver, assets[0], expectedETHPayout);
+                }
+
+                if (expectedERC20Payout > 0) {
+                    vm.expectEmit(true, false, false, true, treasury);
+                    emit ITreasury.WithdrawalAssetProcessed(withdrawer, receiver, assets[1], expectedERC20Payout);
+                }
+
+                vm.expectEmit(true, false, false, true, treasury);
+                emit ITreasury.WithdrawalProcessed(withdrawer, receiver, withdrawAmount, expectedTotalSupply, assets);
+            }
+
             expectedTotalSupply -= withdrawAmount;
         }
 
-        assets = new IERC20[](2);
-        assets[0] = IERC20(address(0)); // ETH
-        assets[1] = IERC20(address(mockERC20));
+
     }
 
     function test_Fuzz_Withdraw(uint8 withdrawAmount, uint96 treasuryETHAmount, uint96 treasuryERC20Amount) public {
