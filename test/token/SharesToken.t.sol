@@ -39,9 +39,7 @@ contract SharesTokenTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_Mint() public {
-
-    }
+    function test_Mint() public {}
 
     function test_Transfer() public {
         // Transfer half of gwart's shares to alice
@@ -152,7 +150,9 @@ contract SharesTokenTest is BaseTest {
         bool noRevert;
         if (transferAmount > allowance) {
             vm.expectRevert(
-                abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, users.bob, allowance, transferAmount)
+                abi.encodeWithSelector(
+                    IERC20Errors.ERC20InsufficientAllowance.selector, users.bob, allowance, transferAmount
+                )
             );
         } else {
             if (transferAmount > gwartShares) {
@@ -183,30 +183,63 @@ contract SharesTokenTest is BaseTest {
         assertEq(cachedTotalSupply, token.totalSupply());
     }
 
-    function test_Fuzz_Withdraw(uint8 withdrawAmount, uint96 treasuryETHAmount, uint96 treasuryERC20Amount) public {
-        address treasury = address(executor);
+    function _setupWithdrawExpectations(
+        address treasury,
+        address withdrawer,
+        address receiver,
+        uint256 withdrawAmount,
+        uint256 treasuryETHAmount,
+        uint256 treasuryERC20Amount
+    )
+        internal
+        returns (
+            uint256 expectedETHPayout,
+            uint256 expectedERC20Payout,
+            uint256 expectedWithdrawerResultingShares,
+            uint256 expectedTotalSupply,
+            IERC20[] memory assets
+        )
+    {
         deal(treasury, treasuryETHAmount);
         deal(address(mockERC20), treasury, treasuryERC20Amount);
 
-        uint256 expectedETHPayout;
-        uint256 expectedERC20Payout;
-        uint256 expectedGwartShares = gwartShares;
-        uint256 totalSupply = token.totalSupply();
+        expectedWithdrawerResultingShares = token.balanceOf(withdrawer);
+        expectedTotalSupply = token.totalSupply();
 
-        if (withdrawAmount == 0) {
+        if (receiver == address(0)) {
+            vm.expectRevert(ISharesToken.WithdrawToZeroAddress.selector);
+        } else if (withdrawAmount == 0) {
             vm.expectRevert(ISharesToken.WithdrawAmountInvalid.selector);
         } else if (withdrawAmount > gwartShares) {
-            vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, users.gwart, gwartShares, withdrawAmount));
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IERC20Errors.ERC20InsufficientBalance.selector, users.gwart, gwartShares, withdrawAmount
+                )
+            );
         } else {
-            expectedETHPayout = Math.mulDiv(treasuryETHAmount, withdrawAmount, totalSupply);
-            expectedERC20Payout = Math.mulDiv(treasuryERC20Amount, withdrawAmount, totalSupply);
-            expectedGwartShares = gwartShares - withdrawAmount;
-            totalSupply -= withdrawAmount;
+            expectedETHPayout = Math.mulDiv(treasuryETHAmount, withdrawAmount, expectedTotalSupply);
+            expectedERC20Payout = Math.mulDiv(treasuryERC20Amount, withdrawAmount, expectedTotalSupply);
+            expectedWithdrawerResultingShares = gwartShares - withdrawAmount;
+            expectedTotalSupply -= withdrawAmount;
         }
 
-        IERC20[] memory assets = new IERC20[](2);
+        assets = new IERC20[](2);
         assets[0] = IERC20(address(0)); // ETH
         assets[1] = IERC20(address(mockERC20));
+    }
+
+    function test_Fuzz_Withdraw(uint8 withdrawAmount, uint96 treasuryETHAmount, uint96 treasuryERC20Amount) public {
+        address treasury = address(executor);
+
+        (
+            uint256 expectedETHPayout,
+            uint256 expectedERC20Payout,
+            uint256 expectedGwartShares,
+            uint256 totalSupply,
+            IERC20[] memory assets
+        ) = _setupWithdrawExpectations(
+            treasury, users.gwart, users.gwart, withdrawAmount, treasuryETHAmount, treasuryERC20Amount
+        );
 
         vm.prank(users.gwart);
         token.withdraw(withdrawAmount, assets);
@@ -215,6 +248,38 @@ contract SharesTokenTest is BaseTest {
         assertEq(mockERC20.balanceOf(users.gwart), expectedERC20Payout);
         assertEq(expectedGwartShares, token.balanceOf(users.gwart));
         assertEq(totalSupply, token.totalSupply());
+        assertEq(treasuryETHAmount - expectedETHPayout, treasury.balance);
+        assertEq(treasuryERC20Amount - expectedERC20Payout, mockERC20.balanceOf(treasury));
     }
 
+    function test_Fuzz_WithdrawTo(
+        uint8 withdrawAmount,
+        address receiver,
+        uint96 treasuryETHAmount,
+        uint96 treasuryERC20Amount
+    )
+        public
+    {
+        address treasury = address(executor);
+
+        (
+            uint256 expectedETHPayout,
+            uint256 expectedERC20Payout,
+            uint256 expectedGwartShares,
+            uint256 totalSupply,
+            IERC20[] memory assets
+        ) = _setupWithdrawExpectations(
+            treasury, users.gwart, receiver, withdrawAmount, treasuryETHAmount, treasuryERC20Amount
+        );
+
+        vm.prank(users.gwart);
+        token.withdrawTo(receiver, withdrawAmount, assets);
+
+        assertEq(receiver.balance, expectedETHPayout);
+        assertEq(mockERC20.balanceOf(receiver), expectedERC20Payout);
+        assertEq(expectedGwartShares, token.balanceOf(users.gwart));
+        assertEq(totalSupply, token.totalSupply());
+        assertEq(treasuryETHAmount - expectedETHPayout, treasury.balance);
+        assertEq(treasuryERC20Amount - expectedERC20Payout, mockERC20.balanceOf(treasury));
+    }
 }
