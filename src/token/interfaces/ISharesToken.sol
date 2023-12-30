@@ -39,8 +39,8 @@ interface ISharesToken is IERC20Snapshots {
     error WithdrawAmountInvalid();
     error UnauthorizedForSharesTokenOperation(address sender);
     error MaxSupplyTooLarge(uint256 maxSupplyLimit);
-    error SharesTokenExpiredSignature(uint256 deadline);
-    error SharesTokenInvalidSignature();
+    error WithdrawToExpiredSignature(uint256 deadline);
+    error WithdrawToInvalidSignature();
 
     /// @inheritdoc IERC20Snapshots
     function createSnapshot() external returns (uint256 newSnapshotId);

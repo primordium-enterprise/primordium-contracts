@@ -201,6 +201,27 @@ contract SharesTokenTest is BaseTest {
             IERC20[] memory assets
         )
     {
+        return _setupWithdrawExpectations(treasury, withdrawer, receiver, withdrawAmount, treasuryETHAmount, treasuryERC20Amount, '');
+    }
+
+    function _setupWithdrawExpectations(
+        address treasury,
+        address withdrawer,
+        address receiver,
+        uint256 withdrawAmount,
+        uint256 treasuryETHAmount,
+        uint256 treasuryERC20Amount,
+        bytes memory expectedRevertOverride
+    )
+        internal
+        returns (
+            uint256 expectedETHPayout,
+            uint256 expectedERC20Payout,
+            uint256 expectedWithdrawerResultingShares,
+            uint256 expectedTotalSupply,
+            IERC20[] memory assets
+        )
+    {
         deal(treasury, treasuryETHAmount);
         deal(address(mockERC20), treasury, treasuryERC20Amount);
 
@@ -211,20 +232,22 @@ contract SharesTokenTest is BaseTest {
         assets[0] = IERC20(address(0)); // ETH
         assets[1] = IERC20(address(mockERC20));
 
-        if (receiver == address(0)) {
+        if (expectedRevertOverride.length > 0) {
+            vm.expectRevert(expectedRevertOverride);
+        } else if (receiver == address(0)) {
             vm.expectRevert(ISharesToken.WithdrawToZeroAddress.selector);
         } else if (withdrawAmount == 0) {
             vm.expectRevert(ISharesToken.WithdrawAmountInvalid.selector);
-        } else if (withdrawAmount > gwartShares) {
+        } else if (withdrawAmount > expectedWithdrawerResultingShares) {
             vm.expectRevert(
                 abi.encodeWithSelector(
-                    IERC20Errors.ERC20InsufficientBalance.selector, users.gwart, gwartShares, withdrawAmount
+                    IERC20Errors.ERC20InsufficientBalance.selector, withdrawer, expectedWithdrawerResultingShares, withdrawAmount
                 )
             );
         } else {
             expectedETHPayout = Math.mulDiv(treasuryETHAmount, withdrawAmount, expectedTotalSupply);
             expectedERC20Payout = Math.mulDiv(treasuryERC20Amount, withdrawAmount, expectedTotalSupply);
-            expectedWithdrawerResultingShares = gwartShares - withdrawAmount;
+            expectedWithdrawerResultingShares = expectedWithdrawerResultingShares - withdrawAmount;
 
             // Anticipated events
             if (expectedTotalSupply > 0 && withdrawAmount > 0) {
@@ -247,8 +270,6 @@ contract SharesTokenTest is BaseTest {
 
             expectedTotalSupply -= withdrawAmount;
         }
-
-
     }
 
     function test_Fuzz_Withdraw(uint8 withdrawAmount, uint96 treasuryETHAmount, uint96 treasuryERC20Amount) public {
@@ -302,6 +323,68 @@ contract SharesTokenTest is BaseTest {
         assertEq(mockERC20.balanceOf(receiver), expectedERC20Payout);
         assertEq(expectedGwartShares, token.balanceOf(users.gwart));
         assertEq(totalSupply, token.totalSupply());
+        assertEq(treasuryETHAmount - expectedETHPayout, treasury.balance);
+        assertEq(treasuryERC20Amount - expectedERC20Payout, mockERC20.balanceOf(treasury));
+    }
+
+    function test_Fuzz_WithdrawToBySig(
+        uint8 withdrawAmount,
+        address receiver,
+        uint96 treasuryETHAmount,
+        uint96 treasuryERC20Amount,
+        uint48 deadline,
+        address sender
+    ) public {
+        vm.assume(sender != address(0));
+
+        // Transfer gwart's shares to signer
+        vm.prank(users.gwart);
+        token.transfer(users.signer, gwartShares);
+
+        address treasury = address(executor);
+
+        (, string memory name, string memory version,,,,) = token.eip712Domain();
+
+        uint256 nonce = token.nonces(users.signer);
+
+        bytes memory expiredRevert;
+        if (block.timestamp > deadline) {
+            expiredRevert = abi.encodeWithSelector(ISharesToken.WithdrawToExpiredSignature.selector, deadline);
+        }
+
+        (
+            uint256 expectedETHPayout,
+            uint256 expectedERC20Payout,
+            uint256 expectedSignerShares,
+            uint256 totalSupply,
+            IERC20[] memory assets
+        ) = _setupWithdrawExpectations(
+            treasury, users.signer, receiver, withdrawAmount, treasuryETHAmount, treasuryERC20Amount, expiredRevert
+        );
+
+        bytes32 tokensContentHash = keccak256(abi.encodePacked(assets));
+
+        bytes32 WITHDRAW_TO_TYPEHASH = keccak256(
+            "WithdrawTo(address owner,address receiver,uint256 amount,address[] tokens,uint256 nonce,uint256 deadline)"
+        );
+
+        bytes32 structHash = keccak256(
+            abi.encode(WITHDRAW_TO_TYPEHASH, users.signer, receiver, withdrawAmount, tokensContentHash, nonce, deadline)
+        );
+
+        bytes32 dataHash = _hashTypedData(_buildEIP712DomainSeparator(name, version, address(token)), structHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(users.signerPrivateKey, dataHash);
+
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.prank(sender);
+        token.withdrawToBySig(users.signer, receiver, withdrawAmount, assets, deadline, signature);
+
+        assertEq(receiver.balance, expectedETHPayout, "Invalid ETH payout");
+        assertEq(mockERC20.balanceOf(receiver), expectedERC20Payout, "Invalid ERC20 payout");
+        assertEq(expectedSignerShares, token.balanceOf(users.signer), "Invalid shares balance");
+        assertEq(totalSupply, token.totalSupply(), "Invalid total supply");
         assertEq(treasuryETHAmount - expectedETHPayout, treasury.balance);
         assertEq(treasuryERC20Amount - expectedERC20Payout, mockERC20.balanceOf(treasury));
     }

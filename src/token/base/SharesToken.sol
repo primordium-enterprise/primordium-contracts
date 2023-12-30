@@ -162,7 +162,7 @@ abstract contract SharesToken is OwnableUpgradeable, ERC20VotesUpgradeable, ISha
         returns (uint256 totalSharesBurned)
     {
         if (block.timestamp > deadline) {
-            revert VotesExpiredSignature(deadline);
+            revert WithdrawToExpiredSignature(deadline);
         }
 
         // Copy the tokens content to memory and hash
@@ -195,7 +195,7 @@ abstract contract SharesToken is OwnableUpgradeable, ERC20VotesUpgradeable, ISha
         );
 
         if (!valid) {
-            revert VotesInvalidSignature();
+            revert WithdrawToInvalidSignature();
         }
 
         totalSharesBurned = _withdraw(owner, receiver, amount, tokens);
