@@ -22,4 +22,6 @@ struct Users {
     address payable maliciousUser;
     // ECDSA signer
     Vm.Wallet signer;
+    // Default receiver of balance shares
+    address payable balanceSharesReceiver;
 }

@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import {BaseTest, console2} from "test/Base.t.sol";
+import {BaseTest} from "test/Base.t.sol";
+import {BalanceSharesTestUtils} from "test/helpers/BalanceSharesTestUtils.sol";
 import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
+import {Treasurer} from "src/executor/base/Treasurer.sol";
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
 import {IERC20Snapshots} from "src/token/interfaces/IERC20Snapshots.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-contract SharesOnboarderTest is BaseTest {
+contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
     function setUp() public virtual override {
         super.setUp();
     }
@@ -141,6 +143,15 @@ contract SharesOnboarderTest is BaseTest {
         vm.assume(depositMultiple > 0);
         uint256 depositAmount = ONBOARDER.quoteAmount * depositMultiple;
         uint256 expectedMintAmount = depositAmount / ONBOARDER.quoteAmount * ONBOARDER.mintAmount;
+        uint256 expectedBalanceShareAllocation =
+            _expectedTreasuryBalanceShareAllocation(DEPOSITS_ID, address(ONBOARDER.quoteAsset), depositAmount);
+
+        if (expectedBalanceShareAllocation > 0) {
+            vm.expectEmit(true, true, false, true, address(executor));
+            emit Treasurer.BalanceShareAllocated(
+                executor.balanceSharesManager(), DEPOSITS_ID, ONBOARDER.quoteAsset, expectedBalanceShareAllocation
+            );
+        }
 
         vm.expectEmit(true, true, false, true, address(token));
         emit IERC20.Transfer(address(0), users.gwart, expectedMintAmount);
@@ -154,7 +165,7 @@ contract SharesOnboarderTest is BaseTest {
         assertEq(expectedMintAmount, _deposit(users.gwart, depositAmount, ""));
         assertEq(expectedMintAmount, token.balanceOf(users.gwart));
         assertEq(expectedMintAmount, token.totalSupply());
-        assertEq(_quoteAssetBalanceOf(address(executor)), depositAmount);
+        assertEq(depositAmount - expectedBalanceShareAllocation, _quoteAssetBalanceOf(address(executor)));
     }
 
     function test_Fuzz_ValidDepositForAmounts(uint8 depositMultiple) public {
@@ -162,6 +173,15 @@ contract SharesOnboarderTest is BaseTest {
         vm.assume(depositMultiple > 0);
         uint256 depositAmount = ONBOARDER.quoteAmount * depositMultiple;
         uint256 expectedMintAmount = depositAmount / ONBOARDER.quoteAmount * ONBOARDER.mintAmount;
+        uint256 expectedBalanceShareAllocation =
+            _expectedTreasuryBalanceShareAllocation(DEPOSITS_ID, address(ONBOARDER.quoteAsset), depositAmount);
+
+        if (expectedBalanceShareAllocation > 0) {
+            vm.expectEmit(true, true, false, true, address(executor));
+            emit Treasurer.BalanceShareAllocated(
+                executor.balanceSharesManager(), DEPOSITS_ID, ONBOARDER.quoteAsset, expectedBalanceShareAllocation
+            );
+        }
 
         vm.expectEmit(true, true, false, true, address(token));
         emit IERC20.Transfer(address(0), users.alice, expectedMintAmount);
@@ -176,7 +196,7 @@ contract SharesOnboarderTest is BaseTest {
         assertEq(expectedMintAmount, _depositFor(users.alice, depositAmount, users.gwart, ""));
         assertEq(expectedMintAmount, token.balanceOf(users.alice));
         assertEq(expectedMintAmount, token.totalSupply());
-        assertEq(_quoteAssetBalanceOf(address(executor)), depositAmount);
+        assertEq(depositAmount - expectedBalanceShareAllocation, _quoteAssetBalanceOf(address(executor)));
     }
 
     function test_Revert_MaxSupplyOverflow() public {

@@ -8,6 +8,7 @@ import {PrimordiumGovernorV1} from "src/governor/PrimordiumGovernorV1.sol";
 import {PrimordiumSharesTokenV1} from "src/token/PrimordiumSharesTokenV1.sol";
 import {PrimordiumSharesOnboarderV1} from "src/onboarder/PrimordiumSharesOnboarderV1.sol";
 import {Distributor} from "src/executor/extensions/Distributor.sol";
+import {BalanceSharesSingleton} from "balance-shares-protocol/BalanceSharesSingleton.sol";
 import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockERC20} from "./helpers/MockERC20.sol";
@@ -116,10 +117,11 @@ abstract contract BaseTest is PRBTest, StdCheats, EIP712Utils {
 
     address internal distributorImpl;
 
+    BalanceSharesSingleton balanceSharesSingleton;
+
     constructor() {
         vm.warp(STARTING_TIMESTAMP);
 
-        uint256 signerPrivateKey = vm.deriveKey("test test test test test test test test test test test junk", 0);
         users = Users({
             proposer: _createUser("uProposer"),
             canceler: _createUser("uCanceler"),
@@ -129,11 +131,15 @@ abstract contract BaseTest is PRBTest, StdCheats, EIP712Utils {
             bob: _createUser("uBob"),
             alice: _createUser("uAlice"),
             maliciousUser: _createUser("uMaliciousUser"),
-            signer: vm.createWallet("uSigner")
+            signer: vm.createWallet("uSigner"),
+            balanceSharesReceiver: _createUser("uBalanceSharesRecipient")
         });
 
         mockERC20 = new MockERC20();
         vm.label({account: address(mockERC20), newLabel: "MockERC20"});
+
+        balanceSharesSingleton = new BalanceSharesSingleton();
+        vm.label({account: address(balanceSharesSingleton), newLabel: "BalanceSharesSingleton"});
     }
 
     function setUp() public virtual {

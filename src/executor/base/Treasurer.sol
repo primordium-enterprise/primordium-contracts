@@ -53,9 +53,9 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
     event BalanceSharesInitialized(address balanceSharesManager, uint256 totalDeposits, uint256 depositsAllocated);
 
     event BalanceShareAllocated(
-        IBalanceShareAllocations indexed balanceSharesManager,
+        address indexed balanceSharesManager,
         uint256 indexed balanceShareId,
-        IERC20 indexed asset,
+        IERC20 asset,
         uint256 amountAllocated
     );
 
@@ -462,14 +462,20 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                 // manager.allocateToBalanceShareWithRemainder{value: msgValue}(balanceShareId, asset,
                 // balanceIncreasedBy)
                 selector = manager.allocateToBalanceShareWithRemainder.selector;
+                bytes32 _BalanceShareAllocated_eventSelector = BalanceShareAllocated.selector;
                 assembly ("memory-safe") {
                     // Update the selector
-                    let c := mload(dataStart)
-                    mstore(dataStart, or(selector, and(c, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff)))
+                    let oldSelector := mload(dataStart)
+                    mstore(dataStart, or(selector, and(oldSelector, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff)))
                     if iszero(call(gas(), manager, msgValue, dataStart, 0x64, 0, 0)) {
                         returndatacopy(0, 0, returndatasize())
                         revert(0, returndatasize())
                     }
+
+                    // emit BalanceShareAllocated(manager, balanceShareId, asset, amountAllocated)
+                     // Reuse call memory, where asset is already set, but change balanceIncreasedBy to amountAllocated
+                    mstore(add(dataStart, 0x44), amountAllocated)
+                    log3(add(dataStart, 0x24), 0x40, _BalanceShareAllocated_eventSelector, manager, balanceShareId)
                 }
                 // manager.allocateToBalanceShareWithRemainder{value: msgValue}(
                 //     balanceShareId,
@@ -477,7 +483,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                 //     balanceIncreasedBy
                 // );
 
-                emit BalanceShareAllocated(manager, balanceShareId, asset, balanceIncreasedBy);
+                // emit BalanceShareAllocated(manager, balanceShareId, asset, amountAllocated);
                 // bytes32 _BalanceShareAllocated_eventSelector = BalanceShareAllocated.selector;
                 // assembly ("memory-safe") {
                 //     mstore(0, balanceIncreasedBy)
