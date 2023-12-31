@@ -16,58 +16,75 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
         super.setUp();
     }
 
-    // Helper to make a deposit as the provided account, with optional bytes for expected error
-    function _deposit(
+    /// @dev Overload where the `account` is the `depositor`
+    function _setupDepositExpectations(
         address account,
         uint256 depositAmount,
         bytes memory err
     )
         internal
         virtual
-        returns (uint256 mintAmount)
+        returns (uint256, uint256, uint256)
     {
-        uint256 value = _giveQuoteAsset(account, depositAmount);
-        vm.prank(account);
-        if (err.length > 0) {
-            vm.expectRevert(err);
-        }
-        mintAmount = onboarder.deposit{value: value}(depositAmount);
+        return _setupDepositExpectations(account, account, depositAmount, err);
     }
 
-    // Helper to make a deposit as the provided account, with optional bytes for expected error
-    function _depositFor(
-        address account,
-        uint256 depositAmount,
+    /// @dev Setup expected events, or expected error if the bytes error is supplied, prank as the depositor
+    function _setupDepositExpectations(
         address depositor,
+        address account,
+        uint256 depositAmount,
         bytes memory err
     )
         internal
         virtual
-        returns (uint256 mintAmount)
+        returns (uint256 value, uint256 expectedMintAmount, uint256 expectedBalanceShareAllocation)
     {
-        uint256 value = _giveQuoteAsset(depositor, depositAmount);
-        vm.prank(depositor);
+        value = _giveQuoteAsset(depositor, depositAmount);
         if (err.length > 0) {
             vm.expectRevert(err);
-        }
-        mintAmount = onboarder.depositFor{value: value}(account, depositAmount);
-    }
+        } else {
+            (uint256 quoteAmount, uint256 mintAmount) = onboarder.sharePrice();
+            expectedMintAmount = depositAmount / quoteAmount * mintAmount;
+            expectedBalanceShareAllocation =
+                _expectedTreasuryBalanceShareAllocation(DEPOSITS_ID, address(onboarder.quoteAsset()), depositAmount);
 
-    function test_Deposits() public {}
+            if (expectedBalanceShareAllocation > 0) {
+                vm.expectEmit(true, true, false, true, address(executor));
+                emit Treasurer.BalanceShareAllocated(
+                    executor.balanceSharesManager(), DEPOSITS_ID, ONBOARDER.quoteAsset, expectedBalanceShareAllocation
+                );
+            }
+
+            vm.expectEmit(true, true, false, true, address(token));
+            emit IERC20.Transfer(address(0), account, expectedMintAmount);
+
+            vm.expectEmit(true, false, false, true, address(executor));
+            emit ITreasury.DepositRegistered(account, ONBOARDER.quoteAsset, depositAmount, expectedMintAmount);
+
+            vm.expectEmit(true, false, false, true, address(onboarder));
+            emit ISharesOnboarder.Deposit(account, depositAmount, expectedMintAmount, depositor);
+        }
+
+        vm.prank(depositor);
+    }
 
     function test_Revert_OutsideFundingPeriods() public {
-        bytes memory fundingNotActiveErr = abi.encodeWithSelector(ISharesOnboarder.FundingIsNotActive.selector);
+        bytes memory fundingNotActiveError = abi.encodeWithSelector(ISharesOnboarder.FundingIsNotActive.selector);
+        uint256 depositAmount = ONBOARDER.quoteAmount;
+        address depositor = users.gwart;
 
         vm.warp(ONBOARDER.fundingBeginsAt - 1);
-        _deposit(users.gwart, ONBOARDER.quoteAmount, fundingNotActiveErr);
+        (uint256 value,,) = _setupDepositExpectations(depositor, depositAmount, fundingNotActiveError);
+        onboarder.deposit{value: value}(depositAmount);
 
         vm.warp(ONBOARDER.fundingEndsAt);
-        _deposit(users.gwart, ONBOARDER.quoteAmount, fundingNotActiveErr);
+        (value,,) = _setupDepositExpectations(depositor, depositAmount, fundingNotActiveError);
+        onboarder.deposit{value: value}(depositAmount);
     }
 
     function test_Fuzz_SetSharePrices(uint256 quoteAmount, uint256 mintAmount) public {
-        vm.prank(onboarder.owner());
-
+        address owner = onboarder.owner();
         uint256 maxSharePrice = type(uint128).max;
         if (quoteAmount > maxSharePrice || mintAmount > maxSharePrice) {
             vm.expectRevert(
@@ -78,6 +95,8 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
                 )
             );
         }
+
+        vm.prank(owner);
         onboarder.setSharePrice(quoteAmount, mintAmount);
     }
 
@@ -104,9 +123,15 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
         vm.prank(owner);
         onboarder.setSharePrice(quoteAmount, mintAmount);
 
+        uint256 value;
+        address depositor = users.gwart;
+
         // Funding not active for zero values
         if (quoteAmount == 0 || mintAmount == 0) {
-            _deposit(users.gwart, depositAmount, abi.encodeWithSelector(ISharesOnboarder.FundingIsNotActive.selector));
+            (value,,) = _setupDepositExpectations(
+                depositor, depositAmount, abi.encodeWithSelector(ISharesOnboarder.FundingIsNotActive.selector)
+            );
+            onboarder.deposit{value: value}(depositAmount);
         }
 
         // Set values to minimum of 2 (modulus of 1 is always zero)
@@ -119,14 +144,10 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
         if (depositAmount % quoteAmount == 0) {
             depositAmount += 1;
         }
-        _deposit(
-            users.gwart, depositAmount, abi.encodeWithSelector(ISharesOnboarder.InvalidDepositAmountMultiple.selector)
+        _setupDepositExpectations(
+            depositor, depositAmount, abi.encodeWithSelector(ISharesOnboarder.InvalidDepositAmountMultiple.selector)
         );
-
-        // Test successful deposit amount multiple
-        depositAmount = quoteAmount * depositMultiple;
-        uint256 expectedMintAmount = depositAmount / quoteAmount * mintAmount;
-        assertEq(expectedMintAmount, _deposit(users.gwart, depositAmount, ""));
+        onboarder.deposit{value: value}(depositAmount);
     }
 
     function test_Fuzz_RandomDepositAmounts(uint128 depositAmount) public {
@@ -136,33 +157,24 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
         } else if (depositAmount % ONBOARDER.quoteAmount != 0) {
             err = abi.encodeWithSelector(ISharesOnboarder.InvalidDepositAmountMultiple.selector);
         }
-        _deposit(users.gwart, depositAmount, err);
+        (uint256 value, uint256 expectedMintAmount,) = _setupDepositExpectations(users.gwart, depositAmount, err);
+        uint256 mintAmount = onboarder.deposit{value: value}(depositAmount);
+
+        assertEq(expectedMintAmount, mintAmount);
+        assertEq(expectedMintAmount, token.balanceOf(users.gwart));
+        assertEq(expectedMintAmount, token.totalSupply());
     }
 
     function test_Fuzz_ValidDepositAmounts(uint8 depositMultiple) public {
         vm.assume(depositMultiple > 0);
         uint256 depositAmount = ONBOARDER.quoteAmount * depositMultiple;
-        uint256 expectedMintAmount = depositAmount / ONBOARDER.quoteAmount * ONBOARDER.mintAmount;
-        uint256 expectedBalanceShareAllocation =
-            _expectedTreasuryBalanceShareAllocation(DEPOSITS_ID, address(ONBOARDER.quoteAsset), depositAmount);
+        address depositor = users.gwart;
 
-        if (expectedBalanceShareAllocation > 0) {
-            vm.expectEmit(true, true, false, true, address(executor));
-            emit Treasurer.BalanceShareAllocated(
-                executor.balanceSharesManager(), DEPOSITS_ID, ONBOARDER.quoteAsset, expectedBalanceShareAllocation
-            );
-        }
+        (uint256 value, uint256 expectedMintAmount, uint256 expectedBalanceShareAllocation) =
+            _setupDepositExpectations(depositor, depositAmount, "");
+        uint256 mintAmount = onboarder.deposit{value: value}(depositAmount);
 
-        vm.expectEmit(true, true, false, true, address(token));
-        emit IERC20.Transfer(address(0), users.gwart, expectedMintAmount);
-
-        vm.expectEmit(true, false, false, true, address(executor));
-        emit ITreasury.DepositRegistered(users.gwart, ONBOARDER.quoteAsset, depositAmount, expectedMintAmount);
-
-        vm.expectEmit(true, false, false, true, address(onboarder));
-        emit ISharesOnboarder.Deposit(users.gwart, depositAmount, expectedMintAmount, users.gwart);
-
-        assertEq(expectedMintAmount, _deposit(users.gwart, depositAmount, ""));
+        assertEq(expectedMintAmount, mintAmount);
         assertEq(expectedMintAmount, token.balanceOf(users.gwart));
         assertEq(expectedMintAmount, token.totalSupply());
         assertEq(depositAmount - expectedBalanceShareAllocation, _quoteAssetBalanceOf(address(executor)));
@@ -172,29 +184,17 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
         // gwart deposits to mint shares for alice
         vm.assume(depositMultiple > 0);
         uint256 depositAmount = ONBOARDER.quoteAmount * depositMultiple;
-        uint256 expectedMintAmount = depositAmount / ONBOARDER.quoteAmount * ONBOARDER.mintAmount;
-        uint256 expectedBalanceShareAllocation =
-            _expectedTreasuryBalanceShareAllocation(DEPOSITS_ID, address(ONBOARDER.quoteAsset), depositAmount);
+        address depositor = users.gwart;
+        address account = users.alice;
 
-        if (expectedBalanceShareAllocation > 0) {
-            vm.expectEmit(true, true, false, true, address(executor));
-            emit Treasurer.BalanceShareAllocated(
-                executor.balanceSharesManager(), DEPOSITS_ID, ONBOARDER.quoteAsset, expectedBalanceShareAllocation
-            );
-        }
+        (uint256 value, uint256 expectedMintAmount, uint256 expectedBalanceShareAllocation) =
+            _setupDepositExpectations(depositor, account, depositAmount, "");
+        uint256 mintAmount = onboarder.depositFor{value: value}(account, depositAmount);
 
-        vm.expectEmit(true, true, false, true, address(token));
-        emit IERC20.Transfer(address(0), users.alice, expectedMintAmount);
-
-        vm.expectEmit(true, false, false, true, address(executor));
-        emit ITreasury.DepositRegistered(users.alice, ONBOARDER.quoteAsset, depositAmount, expectedMintAmount);
-
-        vm.expectEmit(true, false, false, true, address(onboarder));
-        emit ISharesOnboarder.Deposit(users.alice, depositAmount, expectedMintAmount, users.gwart);
-
-        assertEq(_quoteAssetBalanceOf(users.alice), 0); // Alice should not have any quote asset to deposit
-        assertEq(expectedMintAmount, _depositFor(users.alice, depositAmount, users.gwart, ""));
-        assertEq(expectedMintAmount, token.balanceOf(users.alice));
+        assertEq(_quoteAssetBalanceOf(account), 0); // Alice should not have any quote asset to deposit
+        assertEq(expectedMintAmount, mintAmount);
+        assertEq(expectedMintAmount, token.balanceOf(account));
+        assertEq(0, token.balanceOf(depositor));
         assertEq(expectedMintAmount, token.totalSupply());
         assertEq(depositAmount - expectedBalanceShareAllocation, _quoteAssetBalanceOf(address(executor)));
     }
@@ -203,16 +203,24 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
         // Equal to max supply should work fine
         uint256 maxSupply = TOKEN.maxSupply;
         uint256 depositMultiple = (maxSupply / ONBOARDER.mintAmount);
-        _deposit(users.gwart, ONBOARDER.quoteAmount * depositMultiple, "");
+        uint256 depositAmount = ONBOARDER.quoteAmount * depositMultiple;
+        address depositor = users.gwart;
+
+        (uint256 value, uint256 expectedMintAmount,) = _setupDepositExpectations(depositor, depositAmount, "");
+        uint256 mintAmount = onboarder.deposit{value: value}(depositAmount);
+        assertEq(expectedMintAmount, mintAmount);
+        assertEq(expectedMintAmount, token.balanceOf(depositor));
 
         // Expect revert due to overflow
-        _deposit(
-            users.gwart,
-            ONBOARDER.quoteAmount,
+        depositAmount = ONBOARDER.quoteAmount;
+        (value, expectedMintAmount,) = _setupDepositExpectations(
+            depositor,
+            depositAmount,
             abi.encodeWithSelector(
                 IERC20Snapshots.ERC20MaxSupplyOverflow.selector, maxSupply, maxSupply + ONBOARDER.mintAmount
             )
         );
+        onboarder.deposit{value: value}(depositAmount);
 
         // Increase max supply by mintAmount
         maxSupply += ONBOARDER.mintAmount;
@@ -220,15 +228,23 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
         token.setMaxSupply(maxSupply);
 
         // Now deposit should work
-        _deposit(users.gwart, ONBOARDER.quoteAmount, "");
+        (value, expectedMintAmount,) = _setupDepositExpectations(depositor, depositAmount, "");
+        mintAmount = onboarder.deposit{value: value}(depositAmount);
+        assertEq(expectedMintAmount, mintAmount);
 
         // But an additional deposit should again revert due to overflow
-        _deposit(
-            users.gwart,
-            ONBOARDER.quoteAmount,
+        (value,,) = _setupDepositExpectations(
+            depositor,
+            depositAmount,
             abi.encodeWithSelector(
                 IERC20Snapshots.ERC20MaxSupplyOverflow.selector, maxSupply, maxSupply + ONBOARDER.mintAmount
             )
         );
+        onboarder.deposit{value: value}(depositAmount);
+    }
+
+    function test_PauseFunding() public {
+        // Revert for non-admin
+        vm.prank(users.maliciousUser);
     }
 }
