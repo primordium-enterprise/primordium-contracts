@@ -103,7 +103,7 @@ abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
     /// @inheritdoc ISharesOnboarder
     function adminStatus(address account) public view virtual override returns (bool isAdmin, uint256 expiresAt) {
         expiresAt = _getSharesOnboarderStorage()._admins[account];
-        isAdmin = block.timestamp > expiresAt;
+        isAdmin = block.timestamp < expiresAt;
     }
 
     /// @inheritdoc ISharesOnboarder
@@ -188,7 +188,7 @@ abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
     /// @inheritdoc ISharesOnboarder
     function pauseFunding() external virtual override onlyOwnerOrAdmin {
         // Using zero value leaves the fundingBeginsAt unchanged
-        _setFundingPeriods(0, block.timestamp - 1);
+        _setFundingPeriods(0, block.timestamp);
         emit AdminPausedFunding(msg.sender);
     }
 
