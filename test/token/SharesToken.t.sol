@@ -197,6 +197,7 @@ contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
         uint256[2] expectedBalanceShareAllocations;
         uint256 expectedWithdrawerResultingShares;
         uint256 expectedTotalSupply;
+        bool expectedSuccess;
     }
 
     function _setupWithdrawExpectations(
@@ -242,6 +243,8 @@ contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
                 )
             );
         } else {
+            $.expectedSuccess = true;
+
             $.expectedPayouts[0] = Math.mulDiv($.treasuryAssetAmounts[0], $.withdrawAmount, $.expectedTotalSupply);
             $.expectedBalanceShareAllocations[0] =
                 _expectedTreasuryBalanceShareAllocation(DISTRIBUTIONS_ID, address(0), $.expectedPayouts[0]);
@@ -395,5 +398,6 @@ contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
         token.withdrawToBySig(owner, receiver, withdrawAmount, $.assets, deadline, signature);
 
         _defaultWithdrawAsserts($);
+        assertEq($.expectedSuccess ? nonce + 1 : nonce, token.nonces(owner));
     }
 }
