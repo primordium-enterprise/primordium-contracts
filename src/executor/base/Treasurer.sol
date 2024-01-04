@@ -472,10 +472,12 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                         revert(0, returndatasize())
                     }
 
-                    // emit BalanceShareAllocated(manager, balanceShareId, asset, amountAllocated)
-                     // Reuse call memory, where asset is already set, but change balanceIncreasedBy to amountAllocated
-                    mstore(add(dataStart, 0x44), amountAllocated)
-                    log3(add(dataStart, 0x24), 0x40, _BalanceShareAllocated_eventSelector, manager, balanceShareId)
+                    if gt(amountAllocated, 0) {
+                        // emit BalanceShareAllocated(manager, balanceShareId, asset, amountAllocated)
+                        // Reuse call memory, where asset is already set, change balanceIncreasedBy to amountAllocated
+                        mstore(add(dataStart, 0x44), amountAllocated)
+                        log3(add(dataStart, 0x24), 0x40, _BalanceShareAllocated_eventSelector, manager, balanceShareId)
+                    }
                 }
                 // manager.allocateToBalanceShareWithRemainder{value: msgValue}(
                 //     balanceShareId,

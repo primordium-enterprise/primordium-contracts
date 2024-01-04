@@ -290,12 +290,15 @@ abstract contract BaseTest is PRBTest, StdCheats, EIP712Utils {
         }
     }
 
-    function _quoteAssetBalanceOf(address account) internal view returns (uint256 balance) {
-        address quoteAsset = address(onboarder.quoteAsset());
-        if (quoteAsset == address(0)) {
+    function _balanceOf(address account, IERC20 asset) internal view returns (uint256 balance) {
+        if (address(asset) == address(0)) {
             balance = account.balance;
         } else {
-            balance = IERC20(quoteAsset).balanceOf(account);
+            balance = IERC20(asset).balanceOf(account);
         }
+    }
+
+    function _quoteAssetBalanceOf(address account) internal view returns (uint256 balance) {
+        balance = _balanceOf(account, onboarder.quoteAsset());
     }
 }

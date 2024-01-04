@@ -9,7 +9,7 @@ import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
-contract ERC165Contract is ERC165 { }
+contract ERC165Contract is ERC165 {}
 
 contract SharesOnboarderSettingsTest is BaseTest {
     function setUp() public virtual override {
@@ -19,7 +19,9 @@ contract SharesOnboarderSettingsTest is BaseTest {
     function test_SetTreasury() public {
         // Only owner can update treasury
         vm.prank(users.maliciousUser);
-        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, users.maliciousUser));
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, users.maliciousUser)
+        );
         onboarder.setTreasury(address(0x01));
 
         // Cannot set to self
@@ -35,7 +37,11 @@ contract SharesOnboarderSettingsTest is BaseTest {
         // Invalid interface support
         address erc165Contract = address(new ERC165Contract());
         vm.prank(onboarder.owner());
-        vm.expectRevert(abi.encodeWithSelector(ERC165Verifier.InvalidERC165InterfaceSupport.selector, erc165Contract, type(ITreasury).interfaceId));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ERC165Verifier.InvalidERC165InterfaceSupport.selector, erc165Contract, type(ITreasury).interfaceId
+            )
+        );
         onboarder.setTreasury(erc165Contract);
 
         // Valid treasury
@@ -53,7 +59,9 @@ contract SharesOnboarderSettingsTest is BaseTest {
 
         // Only owner can make updates
         vm.prank(users.maliciousUser);
-        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, users.maliciousUser));
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, users.maliciousUser)
+        );
         onboarder.setQuoteAsset(address(mockERC20));
 
         // Cannot set to self
@@ -88,7 +96,9 @@ contract SharesOnboarderSettingsTest is BaseTest {
 
         // Only owner
         vm.prank(users.maliciousUser);
-        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, users.maliciousUser));
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, users.maliciousUser)
+        );
         onboarder.setAdminExpirations(accounts, expiresAts);
 
         // Update admin for gwart
@@ -124,7 +134,9 @@ contract SharesOnboarderSettingsTest is BaseTest {
 
         // Another user cannot pause funding
         vm.prank(users.maliciousUser);
-        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, users.maliciousUser));
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, users.maliciousUser)
+        );
         onboarder.pauseFunding();
         (uint256 fundingBeginsAt, uint256 fundingEndsAt) = onboarder.fundingPeriods();
         assertEq(fundingBeginsAt, expectedFundingBeginsAt);
