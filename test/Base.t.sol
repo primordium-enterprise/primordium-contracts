@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {PRBTest} from "@prb/test/PRBTest.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
+import {StdUtils} from "forge-std/StdUtils.sol";
 import {PrimordiumExecutorV1} from "src/executor/PrimordiumExecutorV1.sol";
 import {PrimordiumGovernorV1} from "src/governor/PrimordiumGovernorV1.sol";
 import {PrimordiumSharesTokenV1} from "src/token/PrimordiumSharesTokenV1.sol";
@@ -19,7 +20,7 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 // Import console2 for easy import in other test files
 import {console2} from "forge-std/console2.sol";
 
-abstract contract BaseTest is PRBTest, StdCheats, EIP712Utils {
+abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     Users internal users;
 
     uint256 internal constant STARTING_TIMESTAMP = 1703487600;
@@ -300,5 +301,10 @@ abstract contract BaseTest is PRBTest, StdCheats, EIP712Utils {
 
     function _quoteAssetBalanceOf(address account) internal view returns (uint256 balance) {
         balance = _balanceOf(account, onboarder.quoteAsset());
+    }
+
+    function _giveTokenShares(address account, uint256 amount) internal {
+        vm.prank(token.owner());
+        token.mint(account, amount);
     }
 }
