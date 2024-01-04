@@ -11,11 +11,6 @@ import {Treasurer} from "src/executor/base/Treasurer.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
-    struct AssetAmounts {
-        uint256 ETH;
-        uint256 ERC20;
-    }
-
     uint256 gwartShares = 200;
     uint256 bobShares = 300;
     uint256 aliceShares = 500;
