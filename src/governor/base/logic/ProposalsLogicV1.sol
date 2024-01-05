@@ -649,6 +649,10 @@ library ProposalsLogicV1 {
         votingPeriod_ = $._votingPeriod;
     }
 
+    /**
+     * @dev Checks that the governance threshold of the token supply is met at the end of the voting period for the
+     * specified proposalId.
+     */
     function checkFoundingProposalGovernanceThreshold(uint256 proposalId) public view {
         GovernorBaseLogicV1.GovernorBaseStorage storage _governorBaseStorage =
             GovernorBaseLogicV1._getGovernorBaseStorage();
