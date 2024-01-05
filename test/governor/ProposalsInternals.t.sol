@@ -14,7 +14,7 @@ contract ProposalsHarness is Proposals {
     function aFunctionSignature(uint256 a) public pure {}
 }
 
-contract ProposalsTest is PRBTest {
+contract ProposalsInternalsTest is PRBTest {
     ProposalsHarness proposals;
 
     constructor() {
@@ -22,7 +22,7 @@ contract ProposalsTest is PRBTest {
     }
 
     /// forge-config: default.fuzz.runs = 512
-    function test_HashProposalActions(
+    function test_Fuzz_HashProposalActions(
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas
@@ -34,7 +34,7 @@ contract ProposalsTest is PRBTest {
         );
     }
 
-    function test_ValidateCalldataSignaturesFuzz(string[] memory signatures) public view {
+    function test_Fuzz_ValidateCalldataSignatures(string[] memory signatures) public view {
         // Test fuzz values
         bytes[] memory calldatas = new bytes[](signatures.length);
         for (uint256 i = 0; i < signatures.length; i++) {
@@ -46,7 +46,7 @@ contract ProposalsTest is PRBTest {
         proposals.validateCalldataSignatures(calldatas, signatures);
     }
 
-    function test_ValidateCalldataSignaturesReverts() public {
+    function test_Revert_InvalidCalldataSignatures() public {
         // Test specific signature
         bytes[] memory calldatas = new bytes[](2);
         string[] memory signatures = new string[](2);
