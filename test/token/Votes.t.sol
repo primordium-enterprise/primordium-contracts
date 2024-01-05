@@ -220,4 +220,59 @@ contract VotesTest is BaseTest {
         assertEq(0, token.getVotes(receiver));
         assertEq(receiverDelegatee == address(0) ? 0 : amount, token.getVotes(receiverDelegatee));
     }
+
+    function test_MultipleDelegates() public {
+        uint256 bobShares = 100;
+        uint256 aliceShares = 200;
+        uint256 gwartShares = 300;
+
+        uint8[3] memory timepoints = [10, 20, 30];
+        vm.roll(timepoints[0]);
+
+        vm.startPrank(token.owner());
+        token.mint(users.bob, bobShares);
+        token.mint(users.alice, aliceShares);
+        token.mint(users.gwart, gwartShares);
+        vm.stopPrank();
+
+        // First, bob delegates to gwart
+        vm.prank(users.bob);
+        token.delegate(users.gwart);
+
+        assertEq(0, token.getVotes(users.bob));
+        assertEq(bobShares, token.getVotes(users.gwart));
+
+        // Roll to next timepoint, alice delegates to gwart
+        vm.roll(timepoints[1]);
+        vm.prank(users.alice);
+        token.delegate(users.gwart);
+
+        assertEq(0, token.getVotes(users.bob));
+        assertEq(0, token.getVotes(users.alice));
+        assertEq(bobShares + aliceShares, token.getVotes(users.gwart));
+
+        // Roll to final timepoint, gwart delegates to self
+        vm.roll(timepoints[2]);
+        vm.prank(users.gwart);
+        token.delegate(users.gwart);
+
+        assertEq(0, token.getVotes(users.bob));
+        assertEq(0, token.getVotes(users.alice));
+        assertEq(bobShares + aliceShares + gwartShares, token.getVotes(users.gwart));
+
+        // Roll forward one more block, check past votes for each timepoint
+        vm.roll(timepoints[2] + 1);
+        uint256 i = 0;
+        uint256[4] memory gwartExpectedShares =
+            [0, bobShares, bobShares + aliceShares, bobShares + aliceShares + gwartShares];
+        for (uint256 t = 0;;) {
+            assertEq(gwartExpectedShares[i], token.getPastVotes(users.gwart, t));
+            t++;
+            if (t > timepoints[2]) {
+                break;
+            } else if (t == timepoints[i]) {
+                i++;
+            }
+        }
+    }
 }
