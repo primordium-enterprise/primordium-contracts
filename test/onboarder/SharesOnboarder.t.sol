@@ -6,6 +6,7 @@ import {BalanceSharesTestUtils} from "test/helpers/BalanceSharesTestUtils.sol";
 import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {Treasurer} from "src/executor/base/Treasurer.sol";
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
+import {ERC20Utils} from "src/libraries/ERC20Utils.sol";
 import {IERC20Snapshots} from "src/token/interfaces/IERC20Snapshots.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -148,6 +149,26 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
             depositor, depositAmount, abi.encodeWithSelector(ISharesOnboarder.InvalidDepositAmountMultiple.selector)
         );
         onboarder.deposit{value: value}(depositAmount);
+    }
+
+    function test_Fuzz_DepositMsgValues(uint8 depositMultiple, uint256 value) public {
+        vm.assume(depositMultiple > 0);
+        uint256 depositAmount = depositMultiple * ONBOARDER.quoteAmount;
+        uint256 expectedMintAmount = depositMultiple * ONBOARDER.mintAmount;
+        uint256 correctValue = _giveQuoteAsset(users.gwart, depositAmount);
+
+        // deal gwart the eth amount
+        vm.deal(users.gwart, value);
+
+        if (value != correctValue) {
+            vm.expectRevert(abi.encodeWithSelector(ERC20Utils.InvalidMsgValue.selector, correctValue, value));
+            expectedMintAmount = 0;
+        }
+        vm.prank(users.gwart);
+        uint256 mintAmount = onboarder.deposit{value: value}(depositAmount);
+
+        assertEq(expectedMintAmount, mintAmount);
+        assertEq(expectedMintAmount, token.balanceOf(users.gwart));
     }
 
     function test_Fuzz_RandomDepositAmounts(uint128 depositAmount) public {
