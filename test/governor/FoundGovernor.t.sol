@@ -3,13 +3,14 @@ pragma solidity ^0.8.20;
 
 import {BaseTest, console2} from "test/Base.t.sol";
 import {ProposalTestUtils} from "test/helpers/ProposalTestUtils.sol";
+import {BalanceSharesTestUtils} from "test/helpers/BalanceSharesTestUtils.sol";
 import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 import {IProposals} from "src/governor/interfaces/IProposals.sol";
 import {ExecutorBase} from "src/executor/base/ExecutorBase.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-contract FoundGovernorTest is BaseTest, ProposalTestUtils {
+contract FoundGovernorTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
     uint256 internal constant MAX_BPS = 10_000;
 
     function setUp() public virtual override {
@@ -145,12 +146,65 @@ contract FoundGovernorTest is BaseTest, ProposalTestUtils {
         // Invalid proposalId
         uint256 invalidProposalId = expectedProposalId + 1;
         invalidData = abi.encodeCall(governor.foundGovernor, invalidProposalId);
-        vm.expectRevert(abi.encodeWithSelector(IGovernorBase.GovernorInvalidFoundingProposalID.selector, expectedProposalId, invalidProposalId));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IGovernorBase.GovernorInvalidFoundingProposalID.selector, expectedProposalId, invalidProposalId
+            )
+        );
         _propose(users.gwart, correctTarget, value, invalidData, correctSignature, description);
 
         // Invalid signature
         string memory invalidSignature = "foundGovernor()";
         vm.expectRevert(abi.encodeWithSelector(IProposals.GovernorInvalidActionSignature.selector, 0));
         _propose(users.gwart, correctTarget, value, correctData, invalidSignature, description);
+    }
+
+    function test_FoundGovernor() public {
+        // With balance shares (not enabled by default)
+        _setupDefaultBalanceShares(false);
+
+        uint256 expectedProposalId = _expectedProposalId();
+
+        // Gwart deposits full threshold amount of shares
+        address proposer = users.gwart;
+        uint256 shares = governor.governanceFoundingVoteThreshold();
+        uint256 depositAmount = shares * ONBOARDER.quoteAmount / ONBOARDER.mintAmount;
+        _giveQuoteAsset(proposer, depositAmount);
+
+        vm.prank(proposer);
+        onboarder.deposit{value: depositAmount}(depositAmount);
+        assertEq(shares, token.balanceOf(proposer));
+
+        vm.prank(proposer);
+        token.delegate(proposer);
+
+        vm.roll(block.number + 1);
+        uint256 proposalId = _proposeFoundGovernor(proposer, expectedProposalId);
+
+        assertEq(proposalId, expectedProposalId, "proposalId not equal to expectedProposalId");
+        assertEq(proposalId, governor.proposalCount(), "proposalId not equal to proposalCount()");
+        assertEq(depositAmount, address(executor).balance, "invalid pre-execution treasury balance");
+        assertEq(false, governor.isFounded(), "governor should not be founded pre-execution");
+
+        // Pass the proposal through
+        vm.roll(governor.proposalSnapshot(proposalId) + 1);
+        vm.prank(proposer);
+        governor.castVote(proposalId, 1);
+
+        vm.roll(governor.proposalDeadline(proposalId) + 1);
+        _queueFoundGovernor(proposalId);
+
+        // Execute
+        vm.warp(governor.proposalEta(proposalId));
+        vm.expectEmit(true, false, false, false, address(governor));
+        emit IGovernorBase.GovernorFounded(proposalId);
+        _executeFoundGovernor(proposalId);
+
+        assertEq(true, governor.isFounded(), "governor should be founded post-execution");
+        assertEq(
+            depositAmount - _expectedTreasuryBalanceShareAllocation(DEPOSITS_ID, address(0), depositAmount),
+            address(executor).balance,
+            "invalid treasury balance post-execution (accounting for deposit balance shares)"
+        );
     }
 }

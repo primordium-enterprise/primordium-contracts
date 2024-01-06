@@ -10,6 +10,10 @@ contract BalanceSharesTestUtils is BaseTest, BalanceShareIds {
     uint256 defaultShareBPS;
 
     function _setupDefaultBalanceShares() internal {
+        _setupDefaultBalanceShares(true); // Defaults to enabling balance shares
+    }
+
+    function _setupDefaultBalanceShares(bool enableBalanceShares) internal {
         defaultShareBPS = 1000; // 10%
 
         address[] memory accounts = new address[](1);
@@ -19,7 +23,9 @@ contract BalanceSharesTestUtils is BaseTest, BalanceShareIds {
 
         vm.startPrank(address(executor));
         executor.setBalanceSharesManager(address(balanceSharesSingleton));
-        executor.enableBalanceShares(false);
+        if (enableBalanceShares) {
+            executor.enableBalanceShares(false);
+        }
         balanceSharesSingleton.setAccountSharesBps(DEPOSITS_ID, accounts, basisPoints);
         balanceSharesSingleton.setAccountSharesBps(DISTRIBUTIONS_ID, accounts, basisPoints);
         vm.stopPrank();
