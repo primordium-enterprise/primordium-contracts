@@ -55,14 +55,14 @@ contract SharesOnboarderSettingsTest is BaseTest {
 
     function test_SetQuoteAsset() public {
         address currentQuoteAsset = address(onboarder.quoteAsset());
-        address newQuoteAsset = address(mockERC20);
+        address newQuoteAsset = address(erc20Mock);
 
         // Only owner can make updates
         vm.prank(users.maliciousUser);
         vm.expectRevert(
             abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, users.maliciousUser)
         );
-        onboarder.setQuoteAsset(address(mockERC20));
+        onboarder.setQuoteAsset(address(erc20Mock));
 
         // Cannot set to self
         vm.prank(onboarder.owner());
@@ -73,7 +73,7 @@ contract SharesOnboarderSettingsTest is BaseTest {
         vm.prank(onboarder.owner());
         vm.expectEmit(false, false, false, true, address(onboarder));
         emit ISharesOnboarder.QuoteAssetChange(currentQuoteAsset, newQuoteAsset);
-        onboarder.setQuoteAsset(address(mockERC20));
+        onboarder.setQuoteAsset(address(erc20Mock));
         assertEq(newQuoteAsset, address(onboarder.quoteAsset()));
     }
 

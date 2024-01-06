@@ -9,6 +9,7 @@ ignored_error_codes = ['unused-param']
 
 [profile.lite]
 optimizer = false
+ignored_error_codes = ["code-size"]
 
 [fmt]
   bracket_spacing = false

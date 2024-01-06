@@ -4,15 +4,15 @@ pragma solidity ^0.8.20;
 import {PRBTest} from "@prb/test/PRBTest.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
-import {PrimordiumExecutorV1} from "src/executor/PrimordiumExecutorV1.sol";
-import {PrimordiumGovernorV1} from "src/governor/PrimordiumGovernorV1.sol";
-import {PrimordiumSharesTokenV1} from "src/token/PrimordiumSharesTokenV1.sol";
-import {PrimordiumSharesOnboarderV1} from "src/onboarder/PrimordiumSharesOnboarderV1.sol";
-import {Distributor} from "src/executor/extensions/Distributor.sol";
+import {ExecutorV1Harness} from "./harness/ExecutorV1Harness.sol";
+import {GovernorV1Harness} from "./harness/GovernorV1Harness.sol";
+import {SharesTokenV1Harness} from "./harness/SharesTokenV1Harness.sol";
+import {OnboarderV1Harness} from "./harness/OnboarderV1Harness.sol";
+import {DistributorV1Harness} from "./harness/DistributorV1Harness.sol";
 import {BalanceSharesSingleton} from "balance-shares-protocol/BalanceSharesSingleton.sol";
 import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {MockERC20} from "./helpers/MockERC20.sol";
+import {ERC20Mock} from "./helpers/ERC20Mock.sol";
 import {EIP712Utils} from "./helpers/EIP712Utils.sol";
 import {Users} from "./helpers/Types.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
@@ -30,10 +30,10 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
         MOCK CONTRACTS
     //////////////////////////////////////////////////////////*/
 
-    MockERC20 mockERC20;
+    ERC20Mock erc20Mock;
 
     function _dealMockERC20(address to, uint256 give) internal {
-        deal(address(mockERC20), to, give, true);
+        deal(address(erc20Mock), to, give, true);
     }
 
     /*//////////////////////////////////////////////////////////
@@ -48,7 +48,7 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     ExecutorParams EXECUTOR = ExecutorParams({minDelay: 2 days, distributionClaimPeriod: 60 days});
 
     address internal executorImpl;
-    PrimordiumExecutorV1 internal executor;
+    ExecutorV1Harness internal executor;
 
     struct TokenParams {
         string name;
@@ -59,7 +59,7 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     TokenParams internal TOKEN = TokenParams({name: "Primordium", symbol: "MUSHI", maxSupply: 100_000_000 ether});
 
     address internal tokenImpl;
-    PrimordiumSharesTokenV1 internal token;
+    SharesTokenV1Harness internal token;
 
     struct OnboarderParams {
         IERC20 quoteAsset;
@@ -78,7 +78,7 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     });
 
     address internal onboarderImpl;
-    PrimordiumSharesOnboarderV1 internal onboarder;
+    OnboarderV1Harness internal onboarder;
 
     struct GovernorParams {
         string name;
@@ -115,7 +115,7 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     });
 
     address internal governorImpl;
-    PrimordiumGovernorV1 internal governor;
+    GovernorV1Harness internal governor;
 
     address internal distributorImpl;
 
@@ -138,8 +138,8 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
             balanceSharesReceiver: _createUser("uBalanceSharesRecipient")
         });
 
-        mockERC20 = new MockERC20();
-        vm.label({account: address(mockERC20), newLabel: "MockERC20"});
+        erc20Mock = new ERC20Mock();
+        vm.label({account: address(erc20Mock), newLabel: "ERC20Mock"});
 
         balanceSharesSingleton = new BalanceSharesSingleton();
         vm.label({account: address(balanceSharesSingleton), newLabel: "BalanceSharesSingleton"});
@@ -150,23 +150,23 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     }
 
     function _deploy() internal {
-        executorImpl = address(new PrimordiumExecutorV1());
-        executor = PrimordiumExecutorV1(payable(address(new ERC1967Proxy(executorImpl, ""))));
+        executorImpl = address(new ExecutorV1Harness());
+        executor = ExecutorV1Harness(payable(address(new ERC1967Proxy(executorImpl, ""))));
         vm.label({account: address(executor), newLabel: "Executor"});
 
-        tokenImpl = address(new PrimordiumSharesTokenV1());
-        token = PrimordiumSharesTokenV1(address(new ERC1967Proxy(tokenImpl, "")));
+        tokenImpl = address(new SharesTokenV1Harness());
+        token = SharesTokenV1Harness(address(new ERC1967Proxy(tokenImpl, "")));
         vm.label({account: address(token), newLabel: "SharesToken"});
 
-        onboarderImpl = address(new PrimordiumSharesOnboarderV1());
-        onboarder = PrimordiumSharesOnboarderV1(address(new ERC1967Proxy(onboarderImpl, "")));
+        onboarderImpl = address(new OnboarderV1Harness());
+        onboarder = OnboarderV1Harness(address(new ERC1967Proxy(onboarderImpl, "")));
         vm.label({account: address(onboarder), newLabel: "SharesOnboarder"});
 
-        governorImpl = address(new PrimordiumGovernorV1());
-        governor = PrimordiumGovernorV1(address(new ERC1967Proxy(governorImpl, "")));
+        governorImpl = address(new GovernorV1Harness());
+        governor = GovernorV1Harness(address(new ERC1967Proxy(governorImpl, "")));
         vm.label({account: address(governor), newLabel: "Governor"});
 
-        distributorImpl = address(new Distributor());
+        distributorImpl = address(new DistributorV1Harness());
     }
 
     function _initializeDefaults() internal {

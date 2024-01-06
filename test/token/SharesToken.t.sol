@@ -218,14 +218,14 @@ contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
         $.treasuryAssetAmounts = treasuryAssetAmounts;
 
         deal($.treasury, $.treasuryAssetAmounts[0]);
-        deal(address(mockERC20), $.treasury, $.treasuryAssetAmounts[1]);
+        deal(address(erc20Mock), $.treasury, $.treasuryAssetAmounts[1]);
 
         $.expectedWithdrawerResultingShares = token.balanceOf($.withdrawer);
         $.expectedTotalSupply = token.totalSupply();
 
         $.assets = new IERC20[](2);
         $.assets[0] = IERC20(address(0)); // ETH
-        $.assets[1] = IERC20(address(mockERC20));
+        $.assets[1] = IERC20(address(erc20Mock));
 
         if (expectedRevertOverride.length > 0) {
             vm.expectRevert(expectedRevertOverride);
@@ -252,7 +252,7 @@ contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
 
             $.expectedPayouts[1] = Math.mulDiv($.treasuryAssetAmounts[1], $.withdrawAmount, $.expectedTotalSupply);
             $.expectedBalanceShareAllocations[1] =
-                _expectedTreasuryBalanceShareAllocation(DISTRIBUTIONS_ID, address(mockERC20), $.expectedPayouts[1]);
+                _expectedTreasuryBalanceShareAllocation(DISTRIBUTIONS_ID, address(erc20Mock), $.expectedPayouts[1]);
             $.expectedPayouts[1] -= $.expectedBalanceShareAllocations[1];
 
             $.expectedWithdrawerResultingShares = $.expectedWithdrawerResultingShares - $.withdrawAmount;
@@ -283,7 +283,7 @@ contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
                         emit Treasurer.BalanceShareAllocated(
                             address(balanceSharesSingleton),
                             DISTRIBUTIONS_ID,
-                            IERC20(address(mockERC20)),
+                            IERC20(address(erc20Mock)),
                             $.expectedBalanceShareAllocations[1]
                         );
                     }

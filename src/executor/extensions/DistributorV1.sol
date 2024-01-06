@@ -23,7 +23,7 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
-contract Distributor is
+contract DistributorV1 is
     ContextUpgradeable,
     UUPSUpgradeable,
     Ownable1Or2StepUpgradeable,
@@ -55,7 +55,7 @@ contract Distributor is
         mapping(address => bool) hasClaimed;
     }
 
-    /// @custom:storage-location erc7201:Distributor.Storage
+    /// @custom:storage-location erc7201:DistributorV1.Storage
     struct DistributorStorage {
         // Slot 0 (32 bytes)
         uint48 _claimPeriod;
@@ -70,7 +70,7 @@ contract Distributor is
         mapping(address holder => mapping(address account => bool isApprovedToClaim)) _claimDistributionsApproval;
     }
 
-    // keccak256(abi.encode(uint256(keccak256("Distributor.Storage")) - 1)) & ~bytes32(uint256(0xff));
+    // keccak256(abi.encode(uint256(keccak256("DistributorV1.Storage")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 private constant DISTRIBUTOR_STORAGE = 0x62b10fc09c55e175618e56747e3614a6f67f4f2e694c3dd05aa5dc47edf79c00;
 
     function _getDistributorStorage() private pure returns (DistributorStorage storage $) {
@@ -129,7 +129,7 @@ contract Distributor is
         DistributorStorage storage $ = _getDistributorStorage();
 
         __Ownable_init_unchained(msg.sender);
-        __EIP712_init("Distributor", "1");
+        __EIP712_init("DistributorV1", "1");
 
         token_.checkInterfaces([type(IERC20Snapshots).interfaceId, type(IERC6372).interfaceId]);
         $._token = IERC20Snapshots(token_);
