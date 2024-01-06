@@ -38,7 +38,7 @@ library ProposalsLogicV1 {
         address proposer; // 20 bytes
         uint48 voteStart; // 6 bytes
         uint32 voteDuration; // 4 bytes
-        bool executed; // 1 byte
+        bool queued; // 1 byte
         bool canceled; // 1 byte
     }
 
@@ -134,11 +134,11 @@ library ProposalsLogicV1 {
     }
 
     function _proposalEta(uint256 proposalId) internal view returns (uint256 eta) {
-        uint256 opNonce = _getProposalsStorage()._proposalOpNonces[proposalId];
-        if (opNonce == 0) {
-            return eta;
+        ProposalsStorage storage $ = _getProposalsStorage();
+        if ($._proposals[proposalId].queued) {
+            uint256 opNonce = $._proposalOpNonces[proposalId];
+            eta = GovernorBaseLogicV1._executor().getOperationExecutableAt(opNonce);
         }
-        eta = GovernorBaseLogicV1._executor().getOperationExecutableAt(opNonce);
     }
 
     function _proposalOpNonce(uint256 proposalId) internal view returns (uint256 opNonce) {
@@ -217,11 +217,22 @@ library ProposalsLogicV1 {
 
         // Single SLOAD
         ProposalCore storage proposal = $._proposals[proposalId];
-        bool proposalExecuted = proposal.executed;
+        bool proposalQueued = proposal.queued;
         bool proposalCanceled = proposal.canceled;
 
-        if (proposalExecuted) {
-            return IProposals.ProposalState.Executed;
+        if (proposalQueued) {
+            uint256 opNonce = $._proposalOpNonces[proposalId];
+            ITimelockAvatar.OperationStatus opStatus = GovernorBaseLogicV1._executor().getOperationStatus(opNonce);
+
+            if (opStatus == ITimelockAvatar.OperationStatus.Done) {
+                return IProposals.ProposalState.Executed;
+            } else if (opStatus == ITimelockAvatar.OperationStatus.Canceled) {
+                return IProposals.ProposalState.Canceled;
+            } else if (opStatus == ITimelockAvatar.OperationStatus.Expired) {
+                return IProposals.ProposalState.Expired;
+            }
+
+            return IProposals.ProposalState.Queued;
         }
 
         if (proposalCanceled) {
@@ -229,20 +240,17 @@ library ProposalsLogicV1 {
         }
 
         uint256 snapshot = _proposalSnapshot(proposalId);
-
         if (snapshot == 0) {
             revert IProposals.GovernorUnknownProposalId(proposalId);
         }
 
-        uint256 currentTimepoint = GovernorBaseLogicV1._clock();
-
-        if (snapshot >= currentTimepoint) {
+        uint256 currentClock = GovernorBaseLogicV1._clock();
+        if (currentClock < snapshot) {
             return IProposals.ProposalState.Pending;
         }
 
         uint256 deadline = _proposalDeadline(proposalId);
-
-        if (deadline >= currentTimepoint) {
+        if (currentClock < deadline) {
             return IProposals.ProposalState.Active;
         }
 
@@ -251,24 +259,12 @@ library ProposalsLogicV1 {
             return IProposals.ProposalState.Defeated;
         }
 
-        uint256 opNonce = $._proposalOpNonces[proposalId];
-        if (opNonce == 0) {
-            uint256 grace = _proposalGracePeriod();
-            if (deadline + grace >= currentTimepoint) {
-                return IProposals.ProposalState.Expired;
-            }
-            return IProposals.ProposalState.Succeeded;
-        }
-
-        ITimelockAvatar.OperationStatus opStatus = GovernorBaseLogicV1._executor().getOperationStatus(opNonce);
-        if (opStatus == ITimelockAvatar.OperationStatus.Done) {
-            return IProposals.ProposalState.Executed;
-        }
-        if (opStatus == ITimelockAvatar.OperationStatus.Expired) {
+        uint256 grace = _proposalGracePeriod();
+        if (currentClock > deadline + grace) {
             return IProposals.ProposalState.Expired;
         }
 
-        return IProposals.ProposalState.Queued;
+        return IProposals.ProposalState.Succeeded;
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -520,13 +516,15 @@ library ProposalsLogicV1 {
         public
         returns (uint256)
     {
-        ProposalsStorage storage $ = _getProposalsStorage();
-
         _validateStateBitmap(proposalId, _encodeStateBitmap(IProposals.ProposalState.Succeeded));
 
+        ProposalsStorage storage $ = _getProposalsStorage();
         if ($._proposalActionsHashes[proposalId] != hashProposalActions(targets, values, calldatas)) {
             revert IProposals.GovernorInvalidProposalActions(proposalId);
         }
+
+        // Set "queued" to true
+        $._proposals[proposalId].queued = true;
 
         ITimelockAvatar _executor = GovernorBaseLogicV1._executor();
         (address to, uint256 value, bytes memory data) =
@@ -552,12 +550,9 @@ library ProposalsLogicV1 {
         public
         returns (uint256)
     {
-        ProposalsStorage storage $ = _getProposalsStorage();
-
         _validateStateBitmap(proposalId, _encodeStateBitmap(IProposals.ProposalState.Queued));
 
         // NOTE: We don't check the actionsHash here because the TimelockAvatar's opHash will be checked
-        $._proposals[proposalId].executed = true;
 
         // before execute: queue any operations on self
         DoubleEndedQueue.Bytes32Deque storage governanceCall = GovernorBaseLogicV1._getGovernanceCallQueue();
@@ -639,11 +634,12 @@ library ProposalsLogicV1 {
         );
 
         ProposalsStorage storage $ = _getProposalsStorage();
-        $._proposals[proposalId].canceled = true;
+        ProposalCore storage proposal = $._proposals[proposalId];
+        proposal.canceled = true;
 
-        // Cancel the op if it exists (will revert if it cannot be cancelled)
-        uint256 opNonce = $._proposalOpNonces[proposalId];
-        if (opNonce != 0) {
+        // Cancel the op if the proposal has been queued (will revert if it cannot be cancelled)
+        if (proposal.queued) {
+            uint256 opNonce = $._proposalOpNonces[proposalId];
             GovernorBaseLogicV1._executor().cancelOperation(opNonce);
         }
 

@@ -210,21 +210,18 @@ abstract contract TimelockAvatar is
     /// @inheritdoc ITimelockAvatar
     function getOperationModule(uint256 opNonce) external view returns (address module) {
         TimelockStorage storage $ = _getTimelockStorage();
-        _checkOpNonce($, opNonce);
         module = $._operations[opNonce].module;
     }
 
     /// @inheritdoc ITimelockAvatar
     function getOperationHash(uint256 opNonce) external view returns (bytes32 opHash) {
         TimelockStorage storage $ = _getTimelockStorage();
-        _checkOpNonce($, opNonce);
         opHash = $._operations[opNonce].opHash;
     }
 
     /// @inheritdoc ITimelockAvatar
     function getOperationExecutableAt(uint256 opNonce) external view returns (uint256 executableAt) {
         TimelockStorage storage $ = _getTimelockStorage();
-        _checkOpNonce($, opNonce);
         executableAt = $._operations[opNonce].executableAt;
     }
 
@@ -235,7 +232,6 @@ abstract contract TimelockAvatar is
         returns (address module, uint256 executableAt, uint256 createdAt, bytes32 opHash)
     {
         TimelockStorage storage $ = _getTimelockStorage();
-        _checkOpNonce($, opNonce);
         Operation storage _op = $._operations[opNonce];
 
         module = _op.module;
@@ -470,7 +466,7 @@ abstract contract TimelockAvatar is
             revert InvalidOperationStatus(opStatus, OperationStatus.Pending);
         }
 
-        _op.executableAt = uint48(OperationStatus.Cancelled);
+        _op.executableAt = uint48(OperationStatus.Canceled);
 
         emit OperationCancelled(opNonce, module);
     }
@@ -537,12 +533,5 @@ abstract contract TimelockAvatar is
         returns (bytes32 opHash)
     {
         opHash = keccak256(abi.encode(to, value, data, operation));
-    }
-
-    /// @dev An internal utility function to revert if the provided operation nonce does not exist
-    function _checkOpNonce(TimelockStorage storage $, uint256 opNonce) internal view virtual {
-        if (opNonce >= $._opNonce) {
-            revert();
-        }
     }
 }
