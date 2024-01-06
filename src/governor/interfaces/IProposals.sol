@@ -89,7 +89,7 @@ interface IProposals {
      * @dev Thrown when the proposal description ends with `#proposer=0x???`, where `0x???` is a valid address, and the
      * msg.sender's address does not match this provided address.
      */
-    error GovernorRestrictedProposer(address proposer);
+    error GovernorRestrictedProposer();
 
     /**
      * @dev Thrown when the msg.sender is unauthorized to complete the current action.

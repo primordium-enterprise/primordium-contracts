@@ -11,8 +11,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract FoundGovernorTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
-    uint256 internal constant MAX_BPS = 10_000;
-
     function setUp() public virtual override {
         super.setUp();
     }

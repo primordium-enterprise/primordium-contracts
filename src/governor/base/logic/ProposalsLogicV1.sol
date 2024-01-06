@@ -391,7 +391,7 @@ library ProposalsLogicV1 {
     {
         // check description restriction
         if (!_isValidDescriptionForProposer(proposer, description)) {
-            revert IProposals.GovernorRestrictedProposer(proposer);
+            revert IProposals.GovernorRestrictedProposer();
         }
 
         // check founded status

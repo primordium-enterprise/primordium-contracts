@@ -26,6 +26,8 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     uint256 internal constant STARTING_TIMESTAMP = 1703487600;
     uint256 internal constant STARTING_BLOCK = 18861890;
 
+    uint256 internal constant MAX_BPS = 10_000;
+
     /*//////////////////////////////////////////////////////////
         MOCK CONTRACTS
     //////////////////////////////////////////////////////////*/
