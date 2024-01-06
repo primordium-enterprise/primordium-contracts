@@ -88,7 +88,7 @@ contract SharesOnboarderSettingsTest is BaseTest {
 
         // Prepare set admin call
         expectedIsAdmin = true;
-        expectedExpiresAt = block.timestamp + 1;
+        expectedExpiresAt = STARTING_TIMESTAMP + 1;
         address[] memory accounts = new address[](1);
         uint256[] memory expiresAts = new uint256[](1);
         accounts[0] = admin;
