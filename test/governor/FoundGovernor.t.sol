@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {BaseTest, console2} from "test/Base.t.sol";
 import {ProposalTestUtils} from "test/helpers/ProposalTestUtils.sol";
 import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
+import {IProposals} from "src/governor/interfaces/IProposals.sol";
 import {ExecutorBase} from "src/executor/base/ExecutorBase.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -40,6 +41,15 @@ contract FoundGovernorTest is BaseTest, ProposalTestUtils {
         return _execute(proposalId, address(governor), 0, abi.encodeCall(governor.foundGovernor, proposalId));
     }
 
+    function _setupGwartToFound(uint256 amount) internal {
+        _mintSharesForVoting(users.gwart, amount);
+        vm.roll(block.number + 1); // Roll forward to ensure votes count
+    }
+
+    function _setupGwartToFound() internal {
+        _setupGwartToFound(governor.governanceFoundingVoteThreshold());
+    }
+
     function test_GovernanceCanBeginAt() public {
         assertEq(governor.governanceCanBeginAt(), GOVERNOR.governanceCanBeginAt);
     }
@@ -68,10 +78,7 @@ contract FoundGovernorTest is BaseTest, ProposalTestUtils {
         uint256 amount = threshold - 1;
 
         // Mint for voting (delegates gwart shares to gwart)
-        _mintSharesForVoting(users.gwart, amount);
-
-        // Roll forward one block (proposals use clock() - 1 for vote supplies)
-        vm.roll(block.number + 1);
+        _setupGwartToFound(amount);
 
         bytes memory thresholdNotMetError =
             abi.encodeWithSelector(IGovernorBase.GovernorFoundingVoteThresholdNotMet.selector, threshold, amount);
@@ -108,5 +115,42 @@ contract FoundGovernorTest is BaseTest, ProposalTestUtils {
         assertEq(false, governor.isFounded());
     }
 
-    function test_RevertWhen_FoundGovernorActionIsInvalid() public {}
+    function test_RevertWhen_FoundGovernorActionIsInvalid() public {
+        uint256 expectedProposalId = _expectedProposalId();
+
+        _setupGwartToFound();
+
+        // Correct parameters for founding
+        address correctTarget = address(governor);
+        bytes memory correctData = abi.encodeCall(governor.foundGovernor, expectedProposalId);
+        uint256 value = 0;
+        string memory correctSignature = "foundGovernor(uint256)";
+        string memory description = "lego";
+
+        // Invalid target
+        address invalidTarget = address(0x01);
+        vm.expectRevert(IProposals.GovernorFoundingActionRequired.selector);
+        _propose(users.gwart, invalidTarget, value, correctData, correctSignature, description);
+
+        // Invalid data length
+        bytes memory invalidData = abi.encodePacked(governor.foundGovernor.selector, hex"1234");
+        vm.expectRevert(IProposals.GovernorFoundingActionRequired.selector);
+        _propose(users.gwart, correctTarget, value, invalidData, correctSignature, description);
+
+        // Invalid function selector
+        invalidData = abi.encodeCall(governor.proposalDeadline, expectedProposalId);
+        vm.expectRevert(IProposals.GovernorFoundingActionRequired.selector);
+        _propose(users.gwart, correctTarget, value, invalidData, "proposalDeadline(uint256)", description);
+
+        // Invalid proposalId
+        uint256 invalidProposalId = expectedProposalId + 1;
+        invalidData = abi.encodeCall(governor.foundGovernor, invalidProposalId);
+        vm.expectRevert(abi.encodeWithSelector(IGovernorBase.GovernorInvalidFoundingProposalID.selector, expectedProposalId, invalidProposalId));
+        _propose(users.gwart, correctTarget, value, invalidData, correctSignature, description);
+
+        // Invalid signature
+        string memory invalidSignature = "foundGovernor()";
+        vm.expectRevert(abi.encodeWithSelector(IProposals.GovernorInvalidActionSignature.selector, 0));
+        _propose(users.gwart, correctTarget, value, correctData, invalidSignature, description);
+    }
 }

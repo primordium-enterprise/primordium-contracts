@@ -440,7 +440,7 @@ library ProposalsLogicV1 {
                 targets.length != 1 ||
                 targets[0] != address(this) ||
                 bytes4(initData) != GovernorBase.foundGovernor.selector ||
-                initData.length != 36 // 4 selector bytes + 32 proposalId bytes
+                initData.length < 36 // 4 selector bytes + 32 proposalId bytes
             ) {
                 revert IProposals.GovernorFoundingActionRequired();
             }
