@@ -24,6 +24,7 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     Users internal users;
 
     uint256 internal constant STARTING_TIMESTAMP = 1703487600;
+    uint256 internal constant STARTING_BLOCK = 18861890;
 
     /*//////////////////////////////////////////////////////////
         MOCK CONTRACTS
@@ -122,6 +123,7 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
 
     constructor() {
         vm.warp(STARTING_TIMESTAMP);
+        vm.roll(STARTING_BLOCK);
 
         users = Users({
             proposer: _createUser("uProposer"),
@@ -303,8 +305,14 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
         balance = _balanceOf(account, onboarder.quoteAsset());
     }
 
-    function _giveTokenShares(address account, uint256 amount) internal {
+    function _mintShares(address account, uint256 amount) internal {
         vm.prank(token.owner());
         token.mint(account, amount);
+    }
+
+    function _mintSharesForVoting(address account, uint256 amount) internal {
+        _mintShares(account, amount);
+        vm.prank(account);
+        token.delegate(account);
     }
 }

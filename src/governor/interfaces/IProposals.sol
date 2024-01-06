@@ -78,7 +78,7 @@ interface IProposals {
     /**
      * @dev If governance has not been initialized, the only allowable proposal action is to initialize governance.
      */
-    error GovernanceInitializationActionRequired();
+    error GovernorFoundingActionRequired();
 
     /**
      * @dev Thrown when the provided `proposalId` does not match any known proposals.

@@ -279,9 +279,20 @@ library ProposalsLogicV1 {
         IGovernorToken _token = GovernorBaseLogicV1._token();
         uint256 proposalThresholdBps_ = _proposalThresholdBps();
 
-        // Use unchecked, overflow not a problem as long as the token's max supply <= type(uint224).max
-        proposalThreshold_ =
-            proposalThresholdBps_.bpsUnchecked(_token.getPastTotalSupply(GovernorBaseLogicV1._clock(_token) - 1));
+
+        // Only need to calculate against totalSupply if the BPS is greater than zero
+        if (proposalThresholdBps_ > 0) {
+            uint256 totalSupply = _token.getPastTotalSupply(GovernorBaseLogicV1._clock(_token) - 1);
+
+            // Block proposals if totalSupply is zero
+            if (totalSupply == 0) {
+                proposalThreshold_ = type(uint256).max;
+                return proposalThreshold_;
+            }
+
+            // Use unchecked, overflow not a problem as long as the token's max supply <= type(uint224).max
+            proposalThreshold_ = proposalThresholdBps_.bpsUnchecked(totalSupply);
+        }
     }
 
     function _proposalThresholdBps() internal view returns (uint256 proposalThresholdBps_) {
@@ -395,8 +406,7 @@ library ProposalsLogicV1 {
             assembly ("memory-safe") {
                 packedGovernorBaseStorage := sload(governorBaseStorageSlot)
                 _token := packedGovernorBaseStorage
-                // The _isFounded bool is at byte index 20 (after the 20 address bytes), so shift right 20 * 8 = 160
-                // bits
+                // The _isFounded bool is at byte index 20 (after 20 address bytes), so shift right 20 * 8 = 160 bits
                 isFounded := and(shr(160, packedGovernorBaseStorage), 0xff)
             }
         }
@@ -421,7 +431,7 @@ library ProposalsLogicV1 {
                 // Shift right by 20 address bytes + 1 bool byte + 5 uint40 bytes = 26 bytes * 8 = 208 bits
                 _governanceThresholdBps := and(shr(0xd0, packedGovernorBaseStorage), 0xffff)
             }
-            uint256 currentSupply = _token.totalSupply();
+            uint256 currentSupply = _token.getPastTotalSupply(currentClock - 1);
             uint256 threshold = _token.maxSupply().bpsUnchecked(_governanceThresholdBps);
             if (currentSupply < threshold) {
                 revert IGovernorBase.GovernorFoundingVoteThresholdNotMet(threshold, currentSupply);
@@ -436,7 +446,7 @@ library ProposalsLogicV1 {
                 bytes4(initData) != GovernorBase.foundGovernor.selector ||
                 initData.length != 36 // 4 selector bytes + 32 proposalId bytes
             ) {
-                revert IProposals.GovernanceInitializationActionRequired();
+                revert IProposals.GovernorFoundingActionRequired();
             }
 
             // Check that the provided proposalId is the expected proposalId

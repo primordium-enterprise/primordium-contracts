@@ -70,7 +70,7 @@ contract VotesTest is BaseTest {
         address owner = users.signer.addr;
 
         // Give owner tokens to delegate
-        _giveTokenShares(owner, amount);
+        _mintShares(owner, amount);
 
         (, string memory name, string memory version,,,,) = token.eip712Domain();
         uint256 nonce = token.nonces(owner);
@@ -145,7 +145,7 @@ contract VotesTest is BaseTest {
         address account = users.gwart;
 
         // Mint tokens to account
-        _giveTokenShares(account, amount);
+        _mintShares(account, amount);
 
         // At each timepoint, delegate to a different delegatee
         address[] memory delegatees = new address[](timepoints.length);
@@ -196,7 +196,7 @@ contract VotesTest is BaseTest {
 
         address account = users.gwart;
 
-        _giveTokenShares(account, amount);
+        _mintShares(account, amount);
 
         vm.prank(account);
         token.delegate(accountDelegatee);
