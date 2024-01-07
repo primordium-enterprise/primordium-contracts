@@ -204,6 +204,11 @@ library ProposalVotingLogicV1 {
          * percentToSucceed < (forVotes * 100) / (forVotes + againstVotes)
          */
 
+        // Avoid possible divide by zero error
+        if (againstVotes == 0) {
+            return forVotes > 0;
+        }
+
         uint256 numerator = forVotes * _MAX_PERCENT;
         uint256 denominator = againstVotes + forVotes;
 

@@ -34,4 +34,8 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
         // Success if proposer does propose
         _propose(proposer, target, value, data, signature, description);
     }
+
+    function test_ProposalThreshold() public {
+
+    }
 }

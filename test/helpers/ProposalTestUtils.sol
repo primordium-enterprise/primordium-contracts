@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {BaseTest} from "test/Base.t.sol";
+import {ExecutorBase} from "src/executor/base/ExecutorBase.sol";
 
 contract ProposalTestUtils is BaseTest {
     /// @dev Makes external call to governor for proposal count, so call this before any call expectations are set
@@ -16,7 +17,10 @@ contract ProposalTestUtils is BaseTest {
         bytes memory data,
         string memory signature,
         string memory description
-    ) internal returns (uint256 proposalId) {
+    )
+        internal
+        returns (uint256 proposalId)
+    {
         address[] memory targets = new address[](1);
         targets[0] = target;
         uint256[] memory values = new uint256[](1);
@@ -30,12 +34,7 @@ contract ProposalTestUtils is BaseTest {
         proposalId = governor.propose(targets, values, calldatas, signatures, description);
     }
 
-    function _queue(
-        uint256 proposalId,
-        address target,
-        uint256 value,
-        bytes memory data
-    ) internal returns (uint256) {
+    function _queue(uint256 proposalId, address target, uint256 value, bytes memory data) internal returns (uint256) {
         address[] memory targets = new address[](1);
         targets[0] = target;
         uint256[] memory values = new uint256[](1);
@@ -51,7 +50,10 @@ contract ProposalTestUtils is BaseTest {
         address target,
         uint256 value,
         bytes memory data
-    ) internal returns (uint256) {
+    )
+        internal
+        returns (uint256)
+    {
         address[] memory targets = new address[](1);
         targets[0] = target;
         uint256[] memory values = new uint256[](1);
@@ -60,5 +62,79 @@ contract ProposalTestUtils is BaseTest {
         calldatas[0] = data;
 
         return governor.execute(proposalId, targets, values, calldatas);
+    }
+
+    function _queueAndPassProposal(
+        uint256 proposalId,
+        address voter,
+        address target,
+        uint256 value,
+        bytes memory data
+    ) internal returns (uint256) {
+        vm.roll(governor.proposalSnapshot(proposalId) + 1);
+        vm.prank(voter);
+        governor.castVote(proposalId, 1);
+
+        vm.roll(governor.proposalDeadline(proposalId) + 1);
+        return _queue(proposalId, target, value, data);
+    }
+
+    function _executePassedProposal(
+        uint256 proposalId,
+        address target,
+        uint256 value,
+        bytes memory data,
+        bytes memory expectedExecutionError
+    ) internal returns (uint256) {
+        vm.warp(governor.proposalEta(proposalId));
+        if (expectedExecutionError.length > 0) {
+            vm.expectRevert(abi.encodeWithSelector(ExecutorBase.CallReverted.selector, expectedExecutionError));
+        }
+        return _execute(proposalId, target, value, data);
+    }
+
+    /// @dev Helper that finalizes the vote and execution for the provided proposalId
+    function _queueAndExecuteProposal(
+        uint256 proposalId,
+        address voter,
+        address target,
+        uint256 value,
+        bytes memory data,
+        bytes memory expectedExecutionError
+    ) internal returns (uint256) {
+        _queueAndPassProposal(proposalId, voter, target, value, data);
+        return _executePassedProposal(proposalId, target, value, data, expectedExecutionError);
+    }
+
+    /// @dev Helper to propose an only governance update (mints required votes to the "proposer" user)
+    function _proposeOnlyGovernanceUpdate(
+        bytes memory data,
+        string memory signature
+    )
+        internal
+        returns (uint256 proposalId)
+    {
+        uint256 requiredVoteShares = GOVERNOR.quorumBps * TOKEN.maxSupply / MAX_BPS;
+        _mintSharesForVoting(users.proposer, requiredVoteShares);
+        vm.roll(block.number + 1);
+
+        proposalId = _propose(users.proposer, address(governor), 0, data, signature, "updating a setting");
+    }
+
+    /// @dev Helper to queue and pass only governance update
+    function _queueAndPassOnlyGovernanceUpdate(
+        uint256 proposalId,
+        bytes memory data
+    ) internal returns (uint256) {
+        return _queueAndPassProposal(proposalId, users.proposer, address(governor), 0, data);
+    }
+
+    /// @dev Helper to execute only governance update
+    function _executeOnlyGovernanceUpdate(
+        uint256 proposalId,
+        bytes memory data,
+        bytes memory expectedExecutionError
+    ) internal returns (uint256) {
+        return _executePassedProposal(proposalId, address(governor), 0, data, expectedExecutionError);
     }
 }

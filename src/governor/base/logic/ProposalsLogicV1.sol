@@ -516,12 +516,12 @@ library ProposalsLogicV1 {
         public
         returns (uint256)
     {
-        _validateStateBitmap(proposalId, _encodeStateBitmap(IProposals.ProposalState.Succeeded));
-
         ProposalsStorage storage $ = _getProposalsStorage();
         if ($._proposalActionsHashes[proposalId] != hashProposalActions(targets, values, calldatas)) {
             revert IProposals.GovernorInvalidProposalActions(proposalId);
         }
+
+        _validateStateBitmap(proposalId, _encodeStateBitmap(IProposals.ProposalState.Succeeded));
 
         // Set "queued" to true
         $._proposals[proposalId].queued = true;
@@ -550,9 +550,12 @@ library ProposalsLogicV1 {
         public
         returns (uint256)
     {
-        _validateStateBitmap(proposalId, _encodeStateBitmap(IProposals.ProposalState.Queued));
+        ProposalsStorage storage $ = _getProposalsStorage();
+        if ($._proposalActionsHashes[proposalId] != hashProposalActions(targets, values, calldatas)) {
+            revert IProposals.GovernorInvalidProposalActions(proposalId);
+        }
 
-        // NOTE: We don't check the actionsHash here because the TimelockAvatar's opHash will be checked
+        _validateStateBitmap(proposalId, _encodeStateBitmap(IProposals.ProposalState.Queued));
 
         // before execute: queue any operations on self
         DoubleEndedQueue.Bytes32Deque storage governanceCall = GovernorBaseLogicV1._getGovernanceCallQueue();
