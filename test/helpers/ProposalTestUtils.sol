@@ -93,21 +93,8 @@ contract ProposalTestUtils is BaseTest {
         return _execute(proposalId, target, value, data);
     }
 
-    /// @dev Helper that finalizes the vote and execution for the provided proposalId
-    function _queueAndExecuteProposal(
-        uint256 proposalId,
-        address voter,
-        address target,
-        uint256 value,
-        bytes memory data,
-        bytes memory expectedExecutionError
-    ) internal returns (uint256) {
-        _queueAndPassProposal(proposalId, voter, target, value, data);
-        return _executePassedProposal(proposalId, target, value, data, expectedExecutionError);
-    }
-
     /// @dev Helper to propose an only governance update (mints required votes to the "proposer" user)
-    function _proposeOnlyGovernanceUpdate(
+    function _proposeQueueAndPassOnlyGovernanceUpdate(
         bytes memory data,
         string memory signature
     )
@@ -118,7 +105,10 @@ contract ProposalTestUtils is BaseTest {
         _mintSharesForVoting(users.proposer, requiredVoteShares);
         vm.roll(block.number + 1);
 
-        proposalId = _propose(users.proposer, address(governor), 0, data, signature, "updating a setting");
+        address target = address(governor);
+
+        proposalId = _propose(users.proposer, target, 0, data, signature, "updating a setting");
+        _queueAndPassProposal(proposalId, users.proposer, target, 0, data);
     }
 
     /// @dev Helper to queue and pass only governance update

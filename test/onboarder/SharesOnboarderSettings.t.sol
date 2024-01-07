@@ -7,9 +7,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {OwnableUpgradeable} from "src/utils/OwnableUpgradeable.sol";
 import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
-import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-
-contract ERC165Contract is ERC165 {}
 
 contract SharesOnboarderSettingsTest is BaseTest {
     function setUp() public virtual override {
@@ -35,14 +32,13 @@ contract SharesOnboarderSettingsTest is BaseTest {
         onboarder.setTreasury(address(0));
 
         // Invalid interface support
-        address erc165Contract = address(new ERC165Contract());
         vm.prank(onboarder.owner());
         vm.expectRevert(
             abi.encodeWithSelector(
-                ERC165Verifier.InvalidERC165InterfaceSupport.selector, erc165Contract, type(ITreasury).interfaceId
+                ERC165Verifier.InvalidERC165InterfaceSupport.selector, erc165Address, type(ITreasury).interfaceId
             )
         );
-        onboarder.setTreasury(erc165Contract);
+        onboarder.setTreasury(erc165Address);
 
         // Valid treasury
         address currentTreasury = address(onboarder.treasury());

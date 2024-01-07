@@ -16,6 +16,7 @@ import {ERC20Mock} from "./helpers/ERC20Mock.sol";
 import {EIP712Utils} from "./helpers/EIP712Utils.sol";
 import {Users} from "./helpers/Types.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {ERC165Contract} from "./helpers/ERC165Contract.sol";
 
 // Import console2 for easy import in other test files
 import {console2} from "forge-std/console2.sol";
@@ -33,6 +34,7 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     //////////////////////////////////////////////////////////*/
 
     ERC20Mock erc20Mock;
+    address erc165Address;
 
     function _dealMockERC20(address to, uint256 give) internal {
         deal(address(erc20Mock), to, give, true);
@@ -142,6 +144,9 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
 
         erc20Mock = new ERC20Mock();
         vm.label({account: address(erc20Mock), newLabel: "ERC20Mock"});
+
+        erc165Address = address(new ERC165Contract());
+        vm.label({account: address(erc165Address), newLabel: "ERC165"});
 
         balanceSharesSingleton = new BalanceSharesSingleton();
         vm.label({account: address(balanceSharesSingleton), newLabel: "BalanceSharesSingleton"});
