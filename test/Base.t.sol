@@ -106,7 +106,7 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
         version: "1",
         governanceCanBeginAt: STARTING_TIMESTAMP,
         governanceThresholdBps: 2000, // 20 %
-        proposalThresholdBps: 1000, // 10%
+        proposalThresholdBps: 2000, // 20%
         votingDelay: _secondsToBlocks(2 days),
         votingPeriod: _secondsToBlocks(3 days),
         gracePeriod: _secondsToBlocks(21 days),

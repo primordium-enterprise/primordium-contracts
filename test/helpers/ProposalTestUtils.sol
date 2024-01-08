@@ -127,4 +127,18 @@ contract ProposalTestUtils is BaseTest {
     ) internal returns (uint256) {
         return _executePassedProposal(proposalId, address(governor), 0, data, expectedExecutionError);
     }
+
+    function _updateGovernorSetting(address voter, string memory signature, uint256 value) internal {
+        uint256 currentClock = token.clock();
+        uint256 voterShares = token.getVotes(voter);
+        uint256 requiredShares = governor.quorum(currentClock - 1);
+        if (voterShares < requiredShares) {
+            _mintSharesForVoting(voter, requiredShares - voterShares);
+            vm.roll(currentClock + 1);
+        }
+        bytes memory data = abi.encodePacked(bytes4(keccak256(abi.encodePacked(signature))), value);
+        uint256 proposalId = _propose(users.proposer, address(governor), 0, data, signature, "update setting");
+        _queueAndPassProposal(proposalId, voter, address(governor), 0, data);
+        _executePassedProposal(proposalId, address(governor), 0, data, "");
+    }
 }
