@@ -12,13 +12,9 @@ abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions {
      * Proposals.sol
      */
 
-    error GovernorProposalThresholdBpsTooLarge(uint256 providedBps, uint256 maxBps);
     error GovernorVotingDelayOutOfRange(uint256 min, uint256 max);
     error GovernorVotingPeriodOutOfRange(uint256 min, uint256 max);
     error GovernorProposalGracePeriodOutOfRange(uint256 min, uint256 max);
-
-    /// @notice The maximum proposal threshold BPS value
-    uint256 public immutable MAX_PROPOSAL_THRESHOLD_BPS = 1000;
 
     /// @notice The minimum setable voting delay
     uint256 public immutable MIN_VOTING_DELAY = 1;
@@ -37,13 +33,6 @@ abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions {
 
     /// @notice The maximum setable proposal grace period
     uint256 public immutable MAX_PROPOSAL_GRACE_PERIOD = 12 weeks / 12;
-
-    function _setProposalThresholdBps(uint256 newProposalThresholdBps) internal virtual override {
-        if (newProposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS) {
-            revert GovernorProposalThresholdBpsTooLarge(newProposalThresholdBps, MAX_PROPOSAL_THRESHOLD_BPS);
-        }
-        super._setProposalThresholdBps(newProposalThresholdBps);
-    }
 
     function _setVotingDelay(uint256 newVotingDelay) internal virtual override {
         if (newVotingDelay < MIN_VOTING_DELAY || newVotingDelay > MAX_VOTING_DELAY) {
