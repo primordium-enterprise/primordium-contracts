@@ -170,8 +170,8 @@ library ProposalVotingLogicV1 {
         uint256 oldQuorumBps = $._quorumBpsCheckpoints.latest();
 
         // Set new quorum for future proposals
-        $._quorumBpsCheckpoints.push(GovernorBaseLogicV1._clock(), newQuorumBps.toBps()); // toBps() checks for out of
-            // range BPS value
+        // toBps() checks for out of range BPS value
+        $._quorumBpsCheckpoints.push(GovernorBaseLogicV1._clock(), newQuorumBps.toBps());
         emit IProposalVoting.QuorumBpsUpdate(oldQuorumBps, newQuorumBps);
     }
 

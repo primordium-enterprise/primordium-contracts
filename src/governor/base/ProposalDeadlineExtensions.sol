@@ -113,7 +113,7 @@ abstract contract ProposalDeadlineExtensions is ProposalVoting, IProposalDeadlin
 
     /// @inheritdoc IProposalDeadlineExtensions
     function extensionPercentDecay() public view virtual returns (uint256) {
-        return ProposalDeadlineExtensionsLogicV1._extensionDecayPeriod();
+        return ProposalDeadlineExtensionsLogicV1._extensionPercentDecay();
     }
 
     /// @inheritdoc IProposalDeadlineExtensions

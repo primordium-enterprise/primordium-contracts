@@ -7,10 +7,10 @@ import {IProposals} from "./IProposals.sol";
 
 interface IProposalDeadlineExtensions is IProposals {
     event ProposalDeadlineExtended(uint256 indexed proposalId, uint256 extendedDeadline);
-    event MaxDeadlineExtensionSet(uint256 oldMaxDeadlineExtension, uint256 newMaxDeadlineExtension);
-    event BaseDeadlineExtensionSet(uint256 oldBaseDeadlineExtension, uint256 newBaseDeadlineExtension);
-    event ExtensionDecayPeriodSet(uint256 oldDecayPeriod, uint256 newDecayPeriod);
-    event ExtensionPercentDecaySet(uint256 oldPercentDecay, uint256 newPercentDecay);
+    event MaxDeadlineExtensionUpdate(uint256 oldMaxDeadlineExtension, uint256 newMaxDeadlineExtension);
+    event BaseDeadlineExtensionUpdate(uint256 oldBaseDeadlineExtension, uint256 newBaseDeadlineExtension);
+    event ExtensionDecayPeriodUpdate(uint256 oldDecayPeriod, uint256 newDecayPeriod);
+    event ExtensionPercentDecayUpdate(uint256 oldPercentDecay, uint256 newPercentDecay);
 
     error GovernorExtensionDecayPeriodCannotBeZero();
     error GovernorExtensionPercentDecayOutOfRange(uint256 min, uint256 max);

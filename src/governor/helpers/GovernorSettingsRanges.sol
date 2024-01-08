@@ -63,7 +63,7 @@ abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions {
     error GovernorBaseDeadlineExtensionOutOfRange(uint256 min, uint256 max);
     error GovernorExtensionDecayPeriodOutOfRange(uint256 min, uint256 max);
 
-    /// @notice The absolute max amount that the deadline can be extended by
+    /// @notice The absolute max amount that the max deadline extension can be set to
     uint256 public immutable ABSOLUTE_MAX_DEADLINE_EXTENSION = 2 weeks / 12;
 
     /// @notice The minimum base extension period for extending votes

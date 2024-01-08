@@ -32,6 +32,9 @@ library ProposalDeadlineExtensionsLogicV1 {
     /// @notice Maximum percent decay
     uint256 private constant MAX_PERCENT_DECAY = 100;
 
+    uint256 private constant MASK_UINT64 = 0xffffffffffffffff;
+    uint256 private constant MASK_UINT8 = 0xff;
+
     /// @custom:storage-location erc7201:ProposalDeadlineExtensions.Storage
     struct ProposalDeadlineExtensionsStorage {
         // The max extension period for any given proposal
@@ -40,8 +43,7 @@ library ProposalDeadlineExtensionsLogicV1 {
         uint64 _baseDeadlineExtension;
         // Bbase extension amount decays by {percentDecay()} every period
         uint64 _decayPeriod;
-        // Store inverted (100% - percentDecay), saves a subtract op
-        uint64 _percentDecay;
+        uint8 _percentDecay;
         // Tracking the deadlines for a proposal
         mapping(uint256 => DeadlineData) _deadlineDatas;
     }
@@ -95,7 +97,7 @@ library ProposalDeadlineExtensionsLogicV1 {
 
     function setMaxDeadlineExtension(uint256 newMaxDeadlineExtension) public {
         ProposalDeadlineExtensionsStorage storage $ = _getProposalDeadlineExtensionsStorage();
-        emit IProposalDeadlineExtensions.MaxDeadlineExtensionSet($._maxDeadlineExtension, newMaxDeadlineExtension);
+        emit IProposalDeadlineExtensions.MaxDeadlineExtensionUpdate($._maxDeadlineExtension, newMaxDeadlineExtension);
         $._maxDeadlineExtension = newMaxDeadlineExtension.toUint64();
     }
 
@@ -105,7 +107,7 @@ library ProposalDeadlineExtensionsLogicV1 {
 
     function setBaseDeadlineExtension(uint256 newBaseDeadlineExtension) public {
         ProposalDeadlineExtensionsStorage storage $ = _getProposalDeadlineExtensionsStorage();
-        emit IProposalDeadlineExtensions.BaseDeadlineExtensionSet($._baseDeadlineExtension, newBaseDeadlineExtension);
+        emit IProposalDeadlineExtensions.BaseDeadlineExtensionUpdate($._baseDeadlineExtension, newBaseDeadlineExtension);
         $._baseDeadlineExtension = newBaseDeadlineExtension.toUint64();
     }
 
@@ -119,7 +121,7 @@ library ProposalDeadlineExtensionsLogicV1 {
         }
 
         ProposalDeadlineExtensionsStorage storage $ = _getProposalDeadlineExtensionsStorage();
-        emit IProposalDeadlineExtensions.ExtensionDecayPeriodSet($._decayPeriod, newDecayPeriod);
+        emit IProposalDeadlineExtensions.ExtensionDecayPeriodUpdate($._decayPeriod, newDecayPeriod);
         $._decayPeriod = newDecayPeriod.toUint64();
     }
 
@@ -135,16 +137,25 @@ library ProposalDeadlineExtensionsLogicV1 {
         }
 
         ProposalDeadlineExtensionsStorage storage $ = _getProposalDeadlineExtensionsStorage();
-        emit IProposalDeadlineExtensions.ExtensionPercentDecaySet($._percentDecay, newPercentDecay);
-        // SafeCast unnecessary here as long as the MAX_PERCENT_DECAY is less than type(uint64).max
-        $._percentDecay = uint64(newPercentDecay);
+        emit IProposalDeadlineExtensions.ExtensionPercentDecayUpdate($._percentDecay, newPercentDecay);
+        // SafeCast unnecessary here as long as the MAX_PERCENT_DECAY is less than type(uint8).max
+        $._percentDecay = uint8(newPercentDecay);
     }
 
     function processDeadlineExtensionOnVote(uint256 proposalId, uint256 voteWeight) public {
         ProposalDeadlineExtensionsStorage storage $ = _getProposalDeadlineExtensionsStorage();
 
+        // Copy the packed settings to stack for reads
+        bytes32 packedSettingsSlot;
+        assembly {
+            packedSettingsSlot := sload($.slot)
+        }
+
         // Grab the max deadline extension
-        uint256 maxDeadlineExtension_ = $._maxDeadlineExtension;
+        uint256 maxDeadlineExtension_;
+        assembly {
+            maxDeadlineExtension_ := and(MASK_UINT64, packedSettingsSlot)
+        }
 
         // If maxDeadlineExtension is set to zero, then no deadline updates needed, skip the rest to save gas
         if (maxDeadlineExtension_ == 0) {
@@ -189,10 +200,15 @@ library ProposalDeadlineExtensionsLogicV1 {
          * Additionally, this block scopes the storage variables to avoid "stack too deep" errors
          */
         unchecked {
-            // Read all three at once to reduce storage reads
-            uint256 baseDeadlineExtension_ = $._baseDeadlineExtension;
-            uint256 decayPeriod_ = $._decayPeriod;
-            uint256 percentDecay_ = $._percentDecay;
+            // Read rest of settings from the packed slot
+            uint256 baseDeadlineExtension_;
+            uint256 decayPeriod_;
+            uint256 percentDecay_;
+            assembly {
+                baseDeadlineExtension_ := and(MASK_UINT64, shr(64, packedSettingsSlot))
+                decayPeriod_ := and(MASK_UINT64, shr(128, packedSettingsSlot))
+                percentDecay_ := and(MASK_UINT8, shr(192, packedSettingsSlot))
+            }
 
             // Get the current distance from the deadline
             uint256 distanceFromDeadline = dd.currentDeadline - currentTimepoint;
