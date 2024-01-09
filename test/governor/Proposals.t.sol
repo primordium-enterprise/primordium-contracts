@@ -44,7 +44,6 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
 
         _mintSharesForVoting(users.bob, bobShares);
         _mintSharesForVoting(users.alice, aliceShares);
-        vm.roll(token.clock() + 1);
 
         // By default, bob should not have enough shares to submit a proposal
         vm.expectRevert(abi.encodeWithSelector(IProposals.GovernorUnauthorizedSender.selector, users.bob));
@@ -195,5 +194,36 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
         uint256 expectedEta = block.timestamp + executor.getMinDelay();
         _passAndQueueProposal(proposalId, users.proposer, target, value, data);
         assertEq(expectedEta, governor.proposalEta(proposalId));
+    }
+
+    function test_CancelProposal_Proposer() public {
+        uint256 shares = GOVERNOR.proposalThresholdBps * TOKEN.maxSupply / MAX_BPS;
+        _mintSharesForVoting(users.gwart, shares);
+
+        address target = address(0x01);
+        uint256 value = 0;
+
+        uint256 proposalId = _propose(users.gwart, target, value, "", "", "testing cancel proposal");
+        vm.roll(governor.proposalSnapshot(proposalId));
+
+        // Expect revert if not pending anymore
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IProposals.GovernorUnexpectedProposalState.selector,
+                proposalId,
+                IProposals.ProposalState.Active,
+                bytes32(1 << uint8(IProposals.ProposalState.Pending))
+            )
+        );
+        vm.prank(users.gwart);
+        _cancel(proposalId, target, value, "");
+
+        // Proposer can cancel during pending tho
+        vm.roll(governor.proposalSnapshot(proposalId) - 1);
+        vm.prank(users.gwart);
+        vm.expectEmit(true, false, false, false, address(governor));
+        emit IProposals.ProposalCanceled(proposalId);
+        _cancel(proposalId, target, value, "");
+
     }
 }

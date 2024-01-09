@@ -28,7 +28,7 @@ contract ProposalVotingTest is BaseTest, ProposalTestUtils {
     {
         accounts = [users.gwart, users.bob, users.alice];
         for (uint256 i = 0; i < accounts.length; i++) {
-            _mintSharesForVoting(accounts[i], shareAmounts[i]);
+            _mintSharesForVoting(accounts[i], shareAmounts[i], false);
             uint8 voteType = voteTypes[i] % (maxVoteType + 2);
             voteTypes[i] = voteType;
             if (voteType <= maxVoteType) {
@@ -127,7 +127,6 @@ contract ProposalVotingTest is BaseTest, ProposalTestUtils {
         address voter = users.signer.addr;
 
         _mintSharesForVoting(voter, shareAmount);
-        vm.roll(governor.clock() + 1);
 
         uint256 proposalId = _mockPropose(users.proposer);
         vm.roll(governor.proposalSnapshot(proposalId) + 1);
@@ -172,7 +171,6 @@ contract ProposalVotingTest is BaseTest, ProposalTestUtils {
         address voter = users.signer.addr;
 
         _mintSharesForVoting(voter, shareAmount);
-        vm.roll(governor.clock() + 1);
 
         uint256 proposalId = _mockPropose(users.proposer);
         vm.roll(governor.proposalSnapshot(proposalId) + 1);
@@ -228,7 +226,6 @@ contract ProposalVotingTest is BaseTest, ProposalTestUtils {
         for (uint256 i = 0; i < voters.length; i++) {
             _mintSharesForVoting(voters[i], voteAmounts[i]);
         }
-        vm.roll(governor.clock() + 1);
 
         uint256 proposalId = _mockPropose(users.proposer);
         vm.roll(governor.proposalSnapshot(proposalId) + 1);
@@ -254,7 +251,6 @@ contract ProposalVotingTest is BaseTest, ProposalTestUtils {
         for (uint256 i = 0; i < voteAmounts.length; i++) {
             _mintSharesForVoting(voters[i], voteAmounts[i]);
         }
-        vm.roll(governor.clock() + 1);
 
         percentMajority =
             MIN_PERCENT_MAJORITY + ((type(uint8).max - percentMajority) / (MAX_PERCENT_MAJORITY - MIN_PERCENT_MAJORITY));

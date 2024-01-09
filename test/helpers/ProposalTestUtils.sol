@@ -65,6 +65,25 @@ contract ProposalTestUtils is BaseTest {
         return governor.execute(proposalId, targets, values, calldatas);
     }
 
+    function _cancel(
+        uint256 proposalId,
+        address target,
+        uint256 value,
+        bytes memory data
+    )
+        internal
+        returns (uint256)
+    {
+        address[] memory targets = new address[](1);
+        targets[0] = target;
+        uint256[] memory values = new uint256[](1);
+        values[0] = value;
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = data;
+
+        return governor.cancel(proposalId, targets, values, calldatas);
+    }
+
     function _passAndQueueProposal(
         uint256 proposalId,
         address voter,
@@ -77,7 +96,6 @@ contract ProposalTestUtils is BaseTest {
         uint256 requiredShares = governor.quorumBps(currentClock) * token.maxSupply() / MAX_BPS;
         if (voterShares < requiredShares) {
             _mintSharesForVoting(voter, requiredShares - voterShares);
-            vm.roll(currentClock + 1);
         }
 
         vm.roll(governor.proposalSnapshot(proposalId) + 1);
@@ -112,7 +130,6 @@ contract ProposalTestUtils is BaseTest {
     {
         uint256 requiredVoteShares = GOVERNOR.quorumBps * TOKEN.maxSupply / MAX_BPS;
         _mintSharesForVoting(users.proposer, requiredVoteShares);
-        vm.roll(block.number + 1);
 
         address target = address(governor);
 

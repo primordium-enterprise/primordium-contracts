@@ -317,9 +317,18 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
         token.mint(account, amount);
     }
 
+    /// @dev Rolls forward the block.number by 1, ensuring votes count for proposal threshold if submitting a proposal
     function _mintSharesForVoting(address account, uint256 amount) internal {
+        _mintSharesForVoting(account, amount, true);
+    }
+
+    /// @dev Includes true/false option for rolling forward
+    function _mintSharesForVoting(address account, uint256 amount, bool rollForward) internal {
         _mintShares(account, amount);
         vm.prank(account);
         token.delegate(account);
+        if (rollForward) {
+            vm.roll(block.number + 1);
+        }
     }
 }

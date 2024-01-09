@@ -42,7 +42,6 @@ contract FoundGovernorTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtil
 
     function _setupGwartToFound(uint256 amount) internal {
         _mintSharesForVoting(users.gwart, amount);
-        vm.roll(block.number + 1); // Roll forward to ensure votes count
     }
 
     function _setupGwartToFound() internal {
