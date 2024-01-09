@@ -5,6 +5,7 @@ import {BaseTest, console2} from "test/Base.t.sol";
 import {ProposalTestUtils} from "test/helpers/ProposalTestUtils.sol";
 import {IProposals} from "src/governor/interfaces/IProposals.sol";
 import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract ProposalVotingTest is BaseTest, ProposalTestUtils {
     uint8 maxVoteType = uint8(type(IProposalVoting.VoteType).max);
@@ -282,5 +283,10 @@ contract ProposalVotingTest is BaseTest, ProposalTestUtils {
         }
 
         assertEq(expectedVoteSucceeded, governor.exposeVoteSucceeded(proposalId));
+
+        uint256 expectedVoteMargin = expectedVotes[FOR] > expectedVotes[AGAINST]
+            ? expectedVotes[FOR] - expectedVotes[AGAINST]
+            : expectedVotes[AGAINST] - expectedVotes[FOR];
+        assertEq(expectedVoteMargin, governor.exposeVoteMargin(proposalId));
     }
 }

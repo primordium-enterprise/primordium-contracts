@@ -25,4 +25,8 @@ contract GovernorV1Harness is PrimordiumGovernorV1 {
     function exposeVoteSucceeded(uint256 proposalId) public view returns (bool) {
         return ProposalVotingLogicV1._voteSucceeded(proposalId);
     }
+
+    function exposeVoteMargin(uint256 proposalId) public view returns (uint256) {
+        return ProposalVotingLogicV1._voteMargin(proposalId);
+    }
 }
