@@ -114,4 +114,102 @@ contract ProposalVotingTest is BaseTest, ProposalTestUtils {
 
         _checkVotes(proposalId, expectedVotes);
     }
+
+    function test_Fuzz_CastVoteBySig(uint16 shareAmount, uint8 voteType, address sender) public {
+        vm.assume(sender != address(0));
+        voteType = voteType % (maxVoteType + 2);
+
+        address voter = users.signer.addr;
+
+        _mintSharesForVoting(voter, shareAmount);
+        vm.roll(governor.clock() + 1);
+
+        uint256 proposalId = _mockPropose(users.proposer);
+        vm.roll(governor.proposalSnapshot(proposalId) + 1);
+
+        (, string memory name, string memory version,,,,) = governor.eip712Domain();
+        uint256 nonce = governor.nonces(voter);
+
+        bytes32 BALLOT_TYPEHASH = keccak256("Ballot(uint256 proposalId,uint8 support,address voter,uint256 nonce)");
+
+        bytes32 structHash = keccak256(abi.encode(BALLOT_TYPEHASH, proposalId, voteType, voter, nonce));
+        bytes32 dataHash = _hashTypedData(_buildEIP712DomainSeparator(name, version, address(governor)), structHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(users.signer.privateKey, dataHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        uint256[3] memory expectedVotes;
+        if (voteType > maxVoteType) {
+            vm.expectRevert(IProposalVoting.GovernorInvalidVoteValue.selector);
+        } else {
+            expectedVotes[voteType] += shareAmount;
+            vm.expectEmit(true, true, false, true);
+            emit IProposalVoting.VoteCast(voter, proposalId, voteType, shareAmount, "");
+        }
+        vm.prank(sender);
+        governor.castVoteBySig(proposalId, voteType, voter, signature);
+
+        _checkVotes(proposalId, expectedVotes);
+    }
+
+    function test_Fuzz_CastVoteWithReasonAndParamsBySig(
+        uint16 shareAmount,
+        uint8 voteType,
+        string memory reason,
+        bytes memory params,
+        address sender
+    )
+        public
+    {
+        vm.assume(sender != address(0));
+        voteType = voteType % (maxVoteType + 2);
+
+        address voter = users.signer.addr;
+
+        _mintSharesForVoting(voter, shareAmount);
+        vm.roll(governor.clock() + 1);
+
+        uint256 proposalId = _mockPropose(users.proposer);
+        vm.roll(governor.proposalSnapshot(proposalId) + 1);
+
+        (, string memory name, string memory version,,,,) = governor.eip712Domain();
+        uint256 nonce = governor.nonces(voter);
+
+        bytes32 EXTENDED_BALLOT_TYPEHASH = keccak256(
+            "ExtendedBallot(uint256 proposalId,uint8 support,address voter,uint256 nonce,string reason,bytes params)"
+        );
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                EXTENDED_BALLOT_TYPEHASH,
+                proposalId,
+                voteType,
+                voter,
+                nonce,
+                keccak256(bytes(reason)),
+                keccak256(params)
+            )
+        );
+        bytes32 dataHash = _hashTypedData(_buildEIP712DomainSeparator(name, version, address(governor)), structHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(users.signer.privateKey, dataHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        uint256[3] memory expectedVotes;
+        if (voteType > maxVoteType) {
+            vm.expectRevert(IProposalVoting.GovernorInvalidVoteValue.selector);
+        } else {
+            expectedVotes[voteType] += shareAmount;
+            vm.expectEmit(true, true, false, true);
+            if (params.length > 0) {
+                emit IProposalVoting.VoteCastWithParams(voter, proposalId, voteType, shareAmount, reason, params);
+            } else {
+                emit IProposalVoting.VoteCast(voter, proposalId, voteType, shareAmount, reason);
+            }
+        }
+        vm.prank(sender);
+        governor.castVoteWithReasonAndParamsBySig(proposalId, voteType, voter, reason, params, signature);
+
+        _checkVotes(proposalId, expectedVotes);
+    }
 }
