@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import {BaseTest} from "test/Base.t.sol";
+import {BaseTest, console2} from "test/Base.t.sol";
 import {ProposalTestUtils} from "test/helpers/ProposalTestUtils.sol";
 import {IProposals} from "src/governor/interfaces/IProposals.sol";
 import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
 
 contract ProposalVotingTest is BaseTest, ProposalTestUtils {
     uint8 maxVoteType = uint8(type(IProposalVoting.VoteType).max);
+
+    uint8 AGAINST = uint8(IProposalVoting.VoteType.Against);
+    uint8 FOR = uint8(IProposalVoting.VoteType.For);
+    uint8 ABSTAIN = uint8(IProposalVoting.VoteType.Abstain);
 
     function setUp() public virtual override {
         super.setUp();
@@ -37,9 +41,9 @@ contract ProposalVotingTest is BaseTest, ProposalTestUtils {
 
     function _checkVotes(uint256 proposalId, uint256[3] memory expectedVotes) internal {
         (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes) = governor.proposalVotes(proposalId);
-        assertEq(againstVotes, expectedVotes[0], "Invalid againstVotes");
-        assertEq(forVotes, expectedVotes[1], "Invalid forVotes");
-        assertEq(abstainVotes, expectedVotes[2], "Invalid abstainVotes");
+        assertEq(againstVotes, expectedVotes[AGAINST], "Invalid againstVotes");
+        assertEq(forVotes, expectedVotes[FOR], "Invalid forVotes");
+        assertEq(abstainVotes, expectedVotes[ABSTAIN], "Invalid abstainVotes");
     }
 
     function test_Fuzz_CastVote(uint16[3] memory shareAmounts, uint8[3] memory voteTypes) public {
@@ -237,5 +241,46 @@ contract ProposalVotingTest is BaseTest, ProposalTestUtils {
         bool expectedQuorumReached =
             uint256(voteAmounts[1]) + uint256(voteAmounts[2]) >= quorumBps * token.totalSupply() / MAX_BPS;
         assertEq(expectedQuorumReached, governor.exposeQuorumReached(proposalId));
+    }
+
+    /// forge-config: default.fuzz.runs = 512
+    /// forge-config: lite.fuzz.runs = 512
+    function test_Fuzz_PercentMajority(uint8 percentMajority, uint64[3] memory voteAmounts) public {
+        uint8 MIN_PERCENT_MAJORITY = 50;
+        uint8 MAX_PERCENT_MAJORITY = 66;
+
+        address payable[3] memory voters = [users.gwart, users.bob, users.alice];
+        for (uint256 i = 0; i < voteAmounts.length; i++) {
+            _mintSharesForVoting(voters[i], voteAmounts[i]);
+        }
+        vm.roll(governor.clock() + 1);
+
+        percentMajority =
+            MIN_PERCENT_MAJORITY + ((type(uint8).max - percentMajority) / (MAX_PERCENT_MAJORITY - MIN_PERCENT_MAJORITY));
+        governor.harnessSetPercentMajority(percentMajority);
+        uint256 proposalId = _mockPropose(users.proposer);
+        vm.roll(governor.proposalSnapshot(proposalId) + 1);
+
+        uint256[3] memory expectedVotes;
+        for (uint8 i = 0; i < voters.length; i++) {
+            uint8 voteType = i % maxVoteType + 1;
+            vm.prank(voters[i]);
+            governor.castVote(proposalId, voteType);
+            expectedVotes[voteType] += voteAmounts[i];
+        }
+
+        bool expectedVoteSucceeded;
+        uint256 numerator = expectedVotes[FOR] * 100;
+        uint256 denominator = expectedVotes[AGAINST] + expectedVotes[FOR];
+        if (expectedVotes[AGAINST] == 0) {
+            expectedVoteSucceeded = expectedVotes[FOR] > 0;
+        } else {
+            uint256 divResult = numerator / denominator;
+            if (divResult > percentMajority || (divResult == percentMajority && numerator % denominator > 0)) {
+                expectedVoteSucceeded = true;
+            }
+        }
+
+        assertEq(expectedVoteSucceeded, governor.exposeVoteSucceeded(proposalId));
     }
 }

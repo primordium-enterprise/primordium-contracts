@@ -254,6 +254,7 @@ contract SnapshotCheckpointsTest is PRBTest, StdUtils {
     }
 
     /// forge-config: default.fuzz.runs = 1048
+    /// forge-config: lite.fuzz.runs = 1048
     function test_Lookup(uint48[] memory keys, uint208[] memory values, uint48 lookup) public {
         vm.assume(values.length > 0 && values.length <= keys.length);
         _prepareKeys(keys, _KEY_MAX_GAP);

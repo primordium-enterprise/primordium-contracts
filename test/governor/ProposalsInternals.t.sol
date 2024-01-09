@@ -22,6 +22,7 @@ contract ProposalsInternalsTest is PRBTest {
     }
 
     /// forge-config: default.fuzz.runs = 512
+    /// forge-config: lite.fuzz.runs = 512
     function test_Fuzz_HashProposalActions(
         address[] calldata targets,
         uint256[] calldata values,

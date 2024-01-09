@@ -10,11 +10,19 @@ contract GovernorV1Harness is PrimordiumGovernorV1 {
         GovernorBaseLogicV1._getGovernorBaseStorage()._isFounded = true;
     }
 
-    function harnessSetQuorumBps(uint256 quorumBps) public {
-        _setQuorumBps(quorumBps);
+    function harnessSetQuorumBps(uint256 newQuorumBps) public {
+        _setQuorumBps(newQuorumBps);
+    }
+
+    function harnessSetPercentMajority(uint256 newPercentMajority) public {
+        _setPercentMajority(newPercentMajority);
     }
 
     function exposeQuorumReached(uint256 proposalId) public view returns (bool) {
         return ProposalVotingLogicV1._quorumReached(proposalId);
+    }
+
+    function exposeVoteSucceeded(uint256 proposalId) public view returns (bool) {
+        return ProposalVotingLogicV1._voteSucceeded(proposalId);
     }
 }

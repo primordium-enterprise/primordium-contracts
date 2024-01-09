@@ -136,7 +136,6 @@ contract VotesTest is BaseTest {
         }
     }
 
-    /// forge-config: default.fuzz.runs = 48
     function test_GetPastVotes(uint48[48] memory timepoints, uint16 amount) public {
         vm.assume(amount > 0);
 
