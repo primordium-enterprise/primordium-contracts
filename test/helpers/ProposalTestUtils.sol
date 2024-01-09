@@ -139,4 +139,17 @@ contract ProposalTestUtils is BaseTest {
         _passAndQueueProposal(proposalId, voter, address(governor), 0, data);
         _executePassedProposal(proposalId, address(governor), 0, data, "");
     }
+
+    /// @dev Quick mock proposal, provided the proposer address
+    function _mockPropose(address proposer) internal returns (uint256 proposalId) {
+        string memory signature = "testSignature()";
+        return _propose(
+            proposer,
+            address(0x01),
+            0,
+            abi.encodePacked(bytes4(keccak256(abi.encodePacked(signature)))),
+            signature,
+            "mock"
+        );
+    }
 }

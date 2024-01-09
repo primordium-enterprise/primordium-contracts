@@ -8,25 +8,10 @@ import {IProposals} from "src/governor/interfaces/IProposals.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
-    // uint256 defaultGwartShares = 100;
-
     function setUp() public virtual override {
         super.setUp();
         _setupDefaultBalanceShares();
         governor.harnessFoundGovernor();
-        // _mintSharesForVoting(users.gwart, defaultGwartShares);
-    }
-
-    function _mockPropose(address proposer) internal returns (uint256 proposalId) {
-        string memory signature = "testSignature()";
-        return _propose(
-            proposer,
-            address(0x01),
-            0,
-            abi.encodePacked(bytes4(keccak256(abi.encodePacked(signature)))),
-            signature,
-            "mock"
-        );
     }
 
     function test_ValidateProposerDescription() public {
