@@ -212,4 +212,30 @@ contract ProposalVotingTest is BaseTest, ProposalTestUtils {
 
         _checkVotes(proposalId, expectedVotes);
     }
+
+    function test_Fuzz_QuorumBps(uint16 quorumBps, uint64[3] memory voteAmounts) public {
+        while (quorumBps > MAX_BPS) {
+            quorumBps = quorumBps / 2;
+        }
+        governor.harnessSetQuorumBps(quorumBps);
+
+        address payable[3] memory voters = [users.gwart, users.bob, users.alice];
+        for (uint256 i = 0; i < voters.length; i++) {
+            _mintSharesForVoting(voters[i], voteAmounts[i]);
+        }
+        vm.roll(governor.clock() + 1);
+
+        uint256 proposalId = _mockPropose(users.proposer);
+        vm.roll(governor.proposalSnapshot(proposalId) + 1);
+
+        for (uint256 i = 0; i < voters.length; i++) {
+            vm.prank(voters[i]);
+            governor.castVote(proposalId, uint8(i));
+        }
+
+        // Abstain counts towards a quorum
+        bool expectedQuorumReached =
+            uint256(voteAmounts[1]) + uint256(voteAmounts[2]) >= quorumBps * token.totalSupply() / MAX_BPS;
+        assertEq(expectedQuorumReached, governor.exposeQuorumReached(proposalId));
+    }
 }
