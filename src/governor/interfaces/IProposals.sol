@@ -157,6 +157,8 @@ interface IProposals {
     /**
      * @notice Public accessor to check the operation nonce of a proposal queued on the Executor. Returns 0 for a
      * proposal that has not been queued. Also returns zero for a proposalId that does not exist.
+     * @dev If the proposal is the first operation on the executor, it is possible that the operation nonce is 0 and
+     * does in fact exist. The {proposalEta} can be additionally checked to determine if the operation exists.
      */
     function proposalOpNonce(uint256 proposalId) external view returns (uint256);
 

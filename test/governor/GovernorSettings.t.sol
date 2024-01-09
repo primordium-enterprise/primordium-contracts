@@ -36,7 +36,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
     )
         internal
     {
-        uint256 proposalId = _proposeQueueAndPassOnlyGovernanceUpdate(data, signature);
+        uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
         _executeOnlyGovernanceUpdate(proposalId, data, expectedExecutionError);
     }
 
@@ -118,7 +118,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         // Valid address
         newExecutor = address(new ERC1967Proxy(executorImpl, ""));
         bytes memory data = abi.encodeCall(governor.setExecutor, newExecutor);
-        uint256 proposalId = _proposeQueueAndPassOnlyGovernanceUpdate(data, signature);
+        uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
         vm.expectEmit(false, false, false, true, address(governor));
         emit IGovernorBase.ExecutorUpdate(address(executor), newExecutor);
         _executeOnlyGovernanceUpdate(proposalId, data, "");
@@ -141,7 +141,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
     function test_Fuzz_SetProposalThresholdBps(uint16 newProposalThresholdBps) public {
         bytes memory data = abi.encodeCall(governor.setProposalThresholdBps, newProposalThresholdBps);
         string memory signature = "setProposalThresholdBps(uint256)";
-        uint256 proposalId = _proposeQueueAndPassOnlyGovernanceUpdate(data, signature);
+        uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
         uint256 expectedProposalThresholdBps = GOVERNOR.proposalThresholdBps;
@@ -174,7 +174,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
 
         bytes memory data = abi.encodeCall(governor.setVotingDelay, newVotingDelay);
         string memory signature = "setVotingDelay(uint256)";
-        uint256 proposalId = _proposeQueueAndPassOnlyGovernanceUpdate(data, signature);
+        uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
         uint256 expectedVotingDelay = GOVERNOR.votingDelay;
@@ -206,7 +206,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
 
         bytes memory data = abi.encodeCall(governor.setVotingPeriod, newVotingPeriod);
         string memory signature = "setVotingPeriod(uint256)";
-        uint256 proposalId = _proposeQueueAndPassOnlyGovernanceUpdate(data, signature);
+        uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
         uint256 expectedVotingPeriod = GOVERNOR.votingPeriod;
@@ -238,7 +238,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
 
         bytes memory data = abi.encodeCall(governor.setProposalGracePeriod, newProposalGracePeriod);
         string memory signature = "setProposalGracePeriod(uint256)";
-        uint256 proposalId = _proposeQueueAndPassOnlyGovernanceUpdate(data, signature);
+        uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
         uint256 expectedProposalGracePeriod = GOVERNOR.gracePeriod;
@@ -274,7 +274,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
 
         bytes memory data = abi.encodeCall(governor.setPercentMajority, newPercentMajority);
         string memory signature = "setPercentMajority(uint256)";
-        uint256 proposalId = _proposeQueueAndPassOnlyGovernanceUpdate(data, signature);
+        uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
         uint256 expectedPercentMajority = GOVERNOR.percentMajority;
@@ -303,7 +303,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
     function test_Fuzz_SetQuorumBps(uint16 newQuorumBps) public {
         bytes memory data = abi.encodeCall(governor.setQuorumBps, newQuorumBps);
         string memory signature = "setQuorumBps(uint256)";
-        uint256 proposalId = _proposeQueueAndPassOnlyGovernanceUpdate(data, signature);
+        uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
         uint256 expectedQuorumBps = GOVERNOR.quorumBps;
@@ -342,7 +342,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
 
         bytes memory data = abi.encodeCall(governor.setMaxDeadlineExtension, newMaxDeadlineExtension);
         string memory signature = "setMaxDeadlineExtension(uint256)";
-        uint256 proposalId = _proposeQueueAndPassOnlyGovernanceUpdate(data, signature);
+        uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
         uint256 expectedMaxDeadlineExtension = GOVERNOR.maxDeadlineExtension;
@@ -376,7 +376,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
 
         bytes memory data = abi.encodeCall(governor.setBaseDeadlineExtension, newBaseDeadlineExtension);
         string memory signature = "setBaseDeadlineExtension(uint256)";
-        uint256 proposalId = _proposeQueueAndPassOnlyGovernanceUpdate(data, signature);
+        uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
         uint256 expectedBaseDeadlineExtension = GOVERNOR.baseDeadlineExtension;
@@ -412,7 +412,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
 
         bytes memory data = abi.encodeCall(governor.setExtensionDecayPeriod, newExtensionDecayPeriod);
         string memory signature = "setExtensionDecayPeriod(uint256)";
-        uint256 proposalId = _proposeQueueAndPassOnlyGovernanceUpdate(data, signature);
+        uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
         uint256 expectedExtensionDecayPeriod = GOVERNOR.extensionDecayPeriod;
@@ -447,7 +447,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
 
         bytes memory data = abi.encodeCall(governor.setExtensionPercentDecay, newExtensionPercentDecay);
         string memory signature = "setExtensionPercentDecay(uint256)";
-        uint256 proposalId = _proposeQueueAndPassOnlyGovernanceUpdate(data, signature);
+        uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
         uint256 expectedExtensionPercentDecay = GOVERNOR.extensionPercentDecay;

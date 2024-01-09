@@ -75,7 +75,140 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
         // Set proposalThresholdBps to zero, now anyone should be able to propose
         _updateGovernorSetting(users.gwart, "setProposalThresholdBps(uint256)", 0);
         vm.roll(token.clock() + 1);
-
         _mockPropose(users.maliciousUser);
+    }
+
+    function test_ProposerRole() public {
+        // Proposer can propose, even though they do not meet the proposalThreshold()
+        assertEq(true, governor.hasRole(governor.PROPOSER_ROLE(), users.proposer));
+        assertTrue(governor.proposalThreshold() > governor.getVotes(users.proposer, token.clock() - 1));
+        _mockPropose(users.proposer);
+
+        // Take away the role
+        bytes32[] memory roles = new bytes32[](1);
+        roles[0] = governor.PROPOSER_ROLE();
+        address[] memory accounts = new address[](1);
+        accounts[0] = users.proposer;
+        _runOnlyGovernanceUpdate(
+            users.gwart, abi.encodeCall(governor.revokeRoles, (roles, accounts)), "revokeRoles(bytes32[],address[])"
+        );
+
+        // Now no proposal allowed
+        assertEq(false, governor.hasRole(governor.PROPOSER_ROLE(), users.proposer));
+        assertTrue(governor.proposalThreshold() > governor.getVotes(users.proposer, token.clock() - 1));
+        vm.expectRevert(abi.encodeWithSelector(IProposals.GovernorUnauthorizedSender.selector, users.proposer));
+        _mockPropose(users.proposer);
+    }
+
+    function test_RevertWhen_ProposalActionSignatureInvalid() public {
+        address target = address(governor);
+        uint256 value = 0;
+        bytes memory data = abi.encodeCall(governor.foundGovernor, 1);
+        string memory signature = "invalidFoundGovernor(uint256)";
+
+        vm.expectRevert(abi.encodeWithSelector(IProposals.GovernorInvalidActionSignature.selector, 0));
+        _propose(users.proposer, target, value, data, signature, "failed signature");
+
+        // Valid signature will allow proposal to work
+        signature = "foundGovernor(uint256)";
+        uint256 expectedProposalId = _expectedProposalId();
+        uint256 proposalId = _propose(users.proposer, target, value, data, signature, "valid signature");
+        assertEq(expectedProposalId, proposalId);
+    }
+
+    function test_ProposalActionsHash() public {
+        address[] memory targets = new address[](1);
+        targets[0] = address(erc20Mock);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeCall(erc20Mock.transfer, (address(0x01), 100));
+        string[] memory signatures = new string[](1);
+        signatures[0] = "transfer(address,uint256)";
+
+        uint256 expectedProposalId = _expectedProposalId();
+        bytes32 expectedActionsHash = keccak256(abi.encode(targets, values, calldatas));
+        vm.prank(users.proposer);
+        uint256 proposalId = governor.propose(targets, values, calldatas, signatures, "transfer erc20");
+        assertEq(expectedProposalId, proposalId);
+        assertEq(expectedActionsHash, governor.proposalActionsHash(proposalId));
+    }
+
+    function test_ProposalProposer() public {
+        uint256 proposalId = _mockPropose(users.proposer);
+        assertEq(users.proposer, governor.proposalProposer(proposalId));
+    }
+
+    function test_ProposalSnapshot() public {
+        // Assert delay is valid
+        uint256 currentBlock = governor.clock();
+        uint256 proposalId = _mockPropose(users.proposer);
+        assertEq(GOVERNOR.votingDelay, governor.votingDelay(), "Unexpected initial votingDelay() on governor");
+        assertEq(currentBlock + GOVERNOR.votingDelay, governor.proposalSnapshot(proposalId));
+
+        // Change delay, then assert for new proposal
+        uint256 newVotingDelay = GOVERNOR.votingDelay * 2;
+        _updateGovernorSetting(users.proposer, "setVotingDelay(uint256)", newVotingDelay);
+        assertEq(newVotingDelay, governor.votingDelay());
+        currentBlock = governor.clock();
+        proposalId = _mockPropose(users.proposer);
+        assertEq(currentBlock + newVotingDelay, governor.proposalSnapshot(proposalId));
+    }
+
+    function test_ProposalDeadline() public {
+        assertEq(GOVERNOR.votingDelay, governor.votingDelay(), "Unexpected initial governor.votingDelay()");
+        assertEq(GOVERNOR.votingPeriod, governor.votingPeriod(), "Unexpected initial governor.votingPeriod()");
+
+        // Assert period is valid
+        uint256 currentBlock = governor.clock();
+        uint256 proposalId = _mockPropose(users.proposer);
+        assertEq(currentBlock + GOVERNOR.votingDelay + GOVERNOR.votingPeriod, governor.proposalDeadline(proposalId));
+
+        // Change period, then assert for new proposal
+        uint256 newVotingPeriod = GOVERNOR.votingPeriod * 2;
+        _updateGovernorSetting(users.proposer, "setVotingPeriod(uint256)", newVotingPeriod);
+        assertEq(newVotingPeriod, governor.votingPeriod());
+        currentBlock = governor.clock();
+        proposalId = _mockPropose(users.proposer);
+        assertEq(currentBlock + GOVERNOR.votingDelay + newVotingPeriod, governor.proposalDeadline(proposalId));
+    }
+
+    function test_ProposalOpNonce() public {
+        // Use an arbitrary proposal update
+        address target = address(governor);
+        uint256 value = 0;
+        bytes memory data = abi.encodeCall(governor.setProposalThresholdBps, GOVERNOR.proposalThresholdBps);
+        string memory signature = "setProposalThresholdBps(uint256)";
+
+        uint256 proposalId = _propose(users.proposer, target, value, data, signature, "arbitrary proposal");
+        assertEq(0, governor.proposalOpNonce(proposalId));
+
+        uint256 expectedOpNonce = executor.getNextOperationNonce();
+        _passAndQueueProposal(proposalId, users.proposer, target, value, data);
+
+        assertEq(expectedOpNonce, governor.proposalOpNonce(proposalId));
+
+        // Pass a second proposal to ensure it works for the next one as well
+        proposalId = _propose(users.proposer, target, value, data, signature, "arbitrary proposal 2");
+        assertEq(0, governor.proposalOpNonce(proposalId));
+
+        expectedOpNonce = executor.getNextOperationNonce();
+        _passAndQueueProposal(proposalId, users.proposer, target, value, data);
+
+        assertEq(expectedOpNonce, governor.proposalOpNonce(proposalId));
+    }
+
+    function test_ProposalEta() public {
+        // Use an arbitrary proposal update
+        address target = address(governor);
+        uint256 value = 0;
+        bytes memory data = abi.encodeCall(governor.setProposalThresholdBps, GOVERNOR.proposalThresholdBps);
+        string memory signature = "setProposalThresholdBps(uint256)";
+
+        uint256 proposalId = _propose(users.proposer, target, value, data, signature, "arbitrary proposal");
+        assertEq(0, governor.proposalEta(proposalId));
+
+        uint256 expectedEta = block.timestamp + executor.getMinDelay();
+        _passAndQueueProposal(proposalId, users.proposer, target, value, data);
+        assertEq(expectedEta, governor.proposalEta(proposalId));
     }
 }

@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {BaseTest} from "test/Base.t.sol";
 import {ExecutorBase} from "src/executor/base/ExecutorBase.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract ProposalTestUtils is BaseTest {
     /// @dev Makes external call to governor for proposal count, so call this before any call expectations are set
@@ -64,13 +65,21 @@ contract ProposalTestUtils is BaseTest {
         return governor.execute(proposalId, targets, values, calldatas);
     }
 
-    function _queueAndPassProposal(
+    function _passAndQueueProposal(
         uint256 proposalId,
         address voter,
         address target,
         uint256 value,
         bytes memory data
     ) internal returns (uint256) {
+        uint256 currentClock = token.clock();
+        uint256 voterShares = token.getPastVotes(voter, currentClock - 1);
+        uint256 requiredShares = governor.quorumBps(currentClock) * token.maxSupply() / MAX_BPS;
+        if (voterShares < requiredShares) {
+            _mintSharesForVoting(voter, requiredShares - voterShares);
+            vm.roll(currentClock + 1);
+        }
+
         vm.roll(governor.proposalSnapshot(proposalId) + 1);
         vm.prank(voter);
         governor.castVote(proposalId, 1);
@@ -94,7 +103,7 @@ contract ProposalTestUtils is BaseTest {
     }
 
     /// @dev Helper to propose an only governance update (mints required votes to the "proposer" user)
-    function _proposeQueueAndPassOnlyGovernanceUpdate(
+    function _proposePassAndQueueOnlyGovernanceUpdate(
         bytes memory data,
         string memory signature
     )
@@ -108,15 +117,7 @@ contract ProposalTestUtils is BaseTest {
         address target = address(governor);
 
         proposalId = _propose(users.proposer, target, 0, data, signature, "updating a setting");
-        _queueAndPassProposal(proposalId, users.proposer, target, 0, data);
-    }
-
-    /// @dev Helper to queue and pass only governance update
-    function _queueAndPassOnlyGovernanceUpdate(
-        uint256 proposalId,
-        bytes memory data
-    ) internal returns (uint256) {
-        return _queueAndPassProposal(proposalId, users.proposer, address(governor), 0, data);
+        _passAndQueueProposal(proposalId, users.proposer, target, 0, data);
     }
 
     /// @dev Helper to execute only governance update
@@ -129,16 +130,13 @@ contract ProposalTestUtils is BaseTest {
     }
 
     function _updateGovernorSetting(address voter, string memory signature, uint256 value) internal {
-        uint256 currentClock = token.clock();
-        uint256 voterShares = token.getVotes(voter);
-        uint256 requiredShares = governor.quorum(currentClock - 1);
-        if (voterShares < requiredShares) {
-            _mintSharesForVoting(voter, requiredShares - voterShares);
-            vm.roll(currentClock + 1);
-        }
         bytes memory data = abi.encodePacked(bytes4(keccak256(abi.encodePacked(signature))), value);
-        uint256 proposalId = _propose(users.proposer, address(governor), 0, data, signature, "update setting");
-        _queueAndPassProposal(proposalId, voter, address(governor), 0, data);
+        _runOnlyGovernanceUpdate(voter, data, signature);
+    }
+
+    function _runOnlyGovernanceUpdate(address voter, bytes memory data, string memory signature) internal {
+        uint256 proposalId = _propose(users.proposer, address(governor), 0, data, signature, "run governance update");
+        _passAndQueueProposal(proposalId, voter, address(governor), 0, data);
         _executePassedProposal(proposalId, address(governor), 0, data, "");
     }
 }
