@@ -94,7 +94,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
         // Set the balance shares manager, and call any initialization functions
         _setBalanceSharesManager(balanceSharesManager_);
         if (balanceSharesManager_ != address(0) && balanceShareInitCalldatas.length > 0) {
-            for (uint256 i = 0; i < balanceShareInitCalldatas.length;) {
+            for (uint256 i = 0; i < balanceShareInitCalldatas.length; ++i) {
                 balanceSharesManager_.functionCall(balanceShareInitCalldatas[i]);
             }
         }
