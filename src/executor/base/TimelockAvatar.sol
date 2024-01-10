@@ -368,7 +368,7 @@ abstract contract TimelockAvatar is
         if (delay == 0) {
             delay = minDelay;
         } else if (delay < minDelay) {
-            revert InsufficientDelay();
+            revert InsufficientDelay(minDelay);
         }
 
         // Set opNonce and increment

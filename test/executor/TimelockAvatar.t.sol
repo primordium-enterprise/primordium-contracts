@@ -104,4 +104,39 @@ contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
         (address[] memory enabledModules,) = executor.getModulesPaginated(MODULES_HEAD, 100);
         assertEq(_reverseModulesArray(expectedEnabledModules), enabledModules);
     }
+
+    function test_Fuzz_SetMinDelay(uint24 newMinDelay) public {
+        // Revert if not self
+        vm.prank(users.maliciousUser);
+        vm.expectRevert(SelfAuthorized.OnlySelfAuthorized.selector);
+        executor.setMinDelay(newMinDelay);
+
+        uint256 expectedMinDelay = EXECUTOR.minDelay;
+
+        uint256 min = executor.MIN_DELAY();
+        uint256 max = executor.MAX_DELAY();
+        if (newMinDelay < min || newMinDelay > max) {
+            vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.MinDelayOutOfRange.selector, min, max));
+        } else {
+            expectedMinDelay = newMinDelay;
+            vm.expectEmit(false, false, false, false, address(executor));
+            emit ITimelockAvatar.MinDelayUpdate(EXECUTOR.minDelay, newMinDelay);
+        }
+
+        vm.prank(address(executor));
+        executor.setMinDelay(newMinDelay);
+
+        assertEq(expectedMinDelay, executor.getMinDelay());
+
+        // Revert with insufficient delay
+        vm.prank(defaultModules[0]);
+        vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.InsufficientDelay.selector, expectedMinDelay));
+        executor.scheduleTransactionFromModuleReturnData(users.gwart, 0, "", Enum.Operation.Call, expectedMinDelay - 1);
+
+        // Operation delay should default to minDelay
+        vm.prank(defaultModules[0]);
+        (,bytes memory returnData) = executor.execTransactionFromModuleReturnData(users.gwart, 0, "", Enum.Operation.Call);
+        (uint256 opNonce) = abi.decode(returnData, (uint256));
+        assertEq(block.timestamp + expectedMinDelay, executor.getOperationExecutableAt(opNonce));
+    }
 }
