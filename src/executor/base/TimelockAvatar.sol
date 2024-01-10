@@ -258,7 +258,7 @@ abstract contract TimelockAvatar is
             revert ModuleAlreadyEnabled(module);
         }
 
-        $._modules[module] = MODULES_HEAD;
+        $._modules[module] = $._modules[MODULES_HEAD];
         $._modules[MODULES_HEAD] = module;
         emit EnabledModule(module);
     }

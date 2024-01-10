@@ -7,10 +7,11 @@ contract TimelockAvatarTestUtils is BaseTest {
     address[] internal defaultModules;
 
     constructor() {
-        // Modules default to this test contract, and gwart
-        defaultModules = new address[](2);
+        // Modules default to this test contract, gwart, and alice
+        defaultModules = new address[](3);
         defaultModules[0] = address(this);
         defaultModules[1] = users.gwart;
+        defaultModules[2] = users.alice;
     }
 
     function setUp() public virtual override {
@@ -18,5 +19,12 @@ contract TimelockAvatarTestUtils is BaseTest {
         _initializeToken();
         _initializeOnboarder();
         _initializeExecutor(defaultModules);
+    }
+
+    function _reverseModulesArray(address[] memory modules) internal pure returns (address[] memory reversedModules) {
+        reversedModules = new address[](modules.length);
+        for (uint256 i = 0; i < modules.length; i++) {
+            reversedModules[i] = modules[modules.length - (i + 1)];
+        }
     }
 }
