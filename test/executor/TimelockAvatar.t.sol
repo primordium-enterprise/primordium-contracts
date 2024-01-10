@@ -2,10 +2,11 @@
 pragma solidity ^0.8.20;
 
 import {BaseTest, console2} from "test/Base.t.sol";
+import {TimelockAvatarTestUtils} from "test/helpers/TimelockAvatarTestUtils.sol";
 import {Enum} from "src/common/Enum.sol";
 
-contract TimelockAvatarTest is BaseTest {
-    function setUp() public virtual override {
+contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
+    function setUp() public virtual override(BaseTest, TimelockAvatarTestUtils) {
         super.setUp();
     }
 

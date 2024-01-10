@@ -180,7 +180,10 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
         _initializeToken();
         _initializeOnboarder();
         _initializeGovernor();
-        _initializeExecutor();
+        // Governor is only module
+        address[] memory modules = new address[](1);
+        modules[0] = address(governor);
+        _initializeExecutor(modules);
     }
 
     function _deployAndInitializeDefaults() internal {
@@ -238,11 +241,7 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
         );
     }
 
-    function _initializeExecutor() internal {
-        // Governor is only module
-        address[] memory modules = new address[](1);
-        modules[0] = address(governor);
-
+    function _initializeExecutor(address[] memory modules) internal {
         bytes memory timelockAvatarInitParams = abi.encode(EXECUTOR.minDelay, modules);
 
         bytes memory treasurerInitParams = abi.encode(
