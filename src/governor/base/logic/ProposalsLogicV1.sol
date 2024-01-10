@@ -642,7 +642,7 @@ library ProposalsLogicV1 {
         ProposalCore storage proposal = $._proposals[proposalId];
         proposal.canceled = true;
 
-        // Cancel the op if the proposal has been queued (will revert if it cannot be cancelled)
+        // Cancel the op if the proposal has been queued (will revert if it cannot be canceled)
         if (proposal.queued) {
             uint256 opNonce = $._proposalOpNonces[proposalId];
             GovernorBaseLogicV1._executor().cancelOperation(opNonce);

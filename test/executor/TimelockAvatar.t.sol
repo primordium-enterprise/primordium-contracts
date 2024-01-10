@@ -340,4 +340,35 @@ contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
 
         assertEq(uint8(ITimelockAvatar.OperationStatus.Done), uint8(executor.getOperationStatus(opNonce)));
     }
+
+    function test_CancelOperation() public {
+        address to = address(this);
+        uint256 value = 0;
+        bytes memory data = abi.encodeCall(this.verifyExecutingModule, (address(this)));
+        Enum.Operation operation = Enum.Operation.Call;
+
+        (bool success, bytes memory returnData) =
+            executor.execTransactionFromModuleReturnData(to, value, data, operation);
+        assertEq(true, success);
+
+        (uint256 opNonce,,uint256 eta) = abi.decode(returnData, (uint256, bytes32, uint256));
+
+        // Cannot cancel if past pending period
+        vm.warp(eta);
+        vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.InvalidOperationStatus.selector, ITimelockAvatar.OperationStatus.Ready, ITimelockAvatar.OperationStatus.Pending));
+        executor.cancelOperation(opNonce);
+
+        // Only operation module can cancel
+        vm.warp(eta - 1);
+        vm.prank(users.alice);
+        vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.UnauthorizedModule.selector));
+        executor.cancelOperation(opNonce);
+
+        // Success
+        vm.expectEmit(true, true, false, false, address(executor));
+        emit ITimelockAvatar.OperationCanceled(opNonce, address(this));
+        executor.cancelOperation(opNonce);
+
+        assertEq(uint8(ITimelockAvatar.OperationStatus.Canceled), uint8(executor.getOperationStatus(opNonce)));
+    }
 }

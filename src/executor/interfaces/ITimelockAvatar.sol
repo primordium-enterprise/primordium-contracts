@@ -38,7 +38,7 @@ interface ITimelockAvatar is IAvatar {
 
     event OperationExecuted(uint256 indexed opNonce, address indexed module);
 
-    event OperationCancelled(uint256 indexed opNonce, address indexed module);
+    event OperationCanceled(uint256 indexed opNonce, address indexed module);
 
     error MinDelayOutOfRange(uint256 min, uint256 max);
     error DelayOutOfRange(uint256 min, uint256 max);

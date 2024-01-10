@@ -271,7 +271,7 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
         _cancel(proposalId, target, value, "");
         assertEq(uint8(IProposals.ProposalState.Canceled), uint8(governor.state(proposalId)));
 
-        // Don't allow cancellation for already cancelled proposal
+        // Don't allow cancellation for already canceled proposal
         vm.expectRevert(
             abi.encodeWithSelector(
                 IProposals.GovernorUnexpectedProposalState.selector,

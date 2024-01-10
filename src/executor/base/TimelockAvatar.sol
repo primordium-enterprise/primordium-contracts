@@ -196,7 +196,7 @@ abstract contract TimelockAvatar is
 
     /// @dev Internal utility to return the OperationStatus enum value based on the operation eta
     function _getOperationStatus(uint256 eta) internal view returns (OperationStatus opStatus) {
-        // ETA timestamp is equal to the enum value for NoOp, Cancelled, and Done
+        // ETA timestamp is equal to the enum value for NoOp, Canceled, and Done
         if (eta > uint256(OperationStatus.Done)) {
             if (block.timestamp >= eta) {
                 if (block.timestamp >= eta + GRACE_PERIOD) {
@@ -470,7 +470,7 @@ abstract contract TimelockAvatar is
 
         _op.executableAt = uint48(OperationStatus.Canceled);
 
-        emit OperationCancelled(opNonce, module);
+        emit OperationCanceled(opNonce, module);
     }
 
     /// @inheritdoc IAvatar
