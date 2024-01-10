@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {BaseTest} from "test/Base.t.sol";
+import {Enum} from "src/common/Enum.sol";
 
 contract TimelockAvatarTestUtils is BaseTest {
     address internal constant MODULES_HEAD = address(0x01);
@@ -28,5 +29,22 @@ contract TimelockAvatarTestUtils is BaseTest {
         for (uint256 i = 0; i < modules.length; i++) {
             reversedModules[i] = modules[modules.length - (i + 1)];
         }
+    }
+
+    function _randModuleSelection(uint256 seed, bool allowInvalidModule) internal view returns (address module) {
+        uint256 mod = defaultModules.length;
+        if (allowInvalidModule) {
+            mod += 1;
+        }
+        uint256 index = seed % mod;
+        if (index < defaultModules.length) {
+            module = defaultModules[index];
+        } else {
+            module = users.maliciousUser;
+        }
+    }
+
+    function _randEnumOperation(uint8 operationSeed) internal pure returns (Enum.Operation operation) {
+        operation = Enum.Operation(operationSeed % (uint8(type(Enum.Operation).max) + 1));
     }
 }

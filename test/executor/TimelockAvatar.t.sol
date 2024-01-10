@@ -13,13 +13,10 @@ contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
         super.setUp();
     }
 
-    function test_Fuzz_HashOperation(address to, uint256 value, bytes memory data, uint8 operation) public {
+    function test_Fuzz_HashOperation(address to, uint256 value, bytes memory data, uint8 operationSeed) public {
         // Operation must not be greater than type(Enum.Operation).max, or error will occur
-        operation = operation % (uint8(type(Enum.Operation).max) + 1);
-        assertEq(
-            executor.hashOperation(to, value, data, Enum.Operation(operation)),
-            keccak256(abi.encode(to, value, data, operation))
-        );
+        Enum.Operation operation = _randEnumOperation(operationSeed);
+        assertEq(executor.hashOperation(to, value, data, operation), keccak256(abi.encode(to, value, data, operation)));
     }
 
     function test_GetModulesPaginated() public {
@@ -62,12 +59,22 @@ contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
         }
     }
 
-    function test_Fuzz_DisableModule(uint256 index) public {
-        index = index % (defaultModules.length);
-        address moduleToRemove = defaultModules[index];
-
-        // Prev module is actually the next module, as the modules are listed in reverse
-        address prevModule = index < defaultModules.length - 1 ? defaultModules[index + 1] : MODULES_HEAD;
+    function test_Fuzz_DisableModule(uint256 moduleIndex) public {
+        address moduleToRemove = _randModuleSelection(moduleIndex, false);
+        address prevModule;
+        {
+            (address[] memory currentModules,) = executor.getModulesPaginated(MODULES_HEAD, 100);
+            for (uint256 i = 0; i < currentModules.length; i++) {
+                if (currentModules[i] == moduleToRemove) {
+                    if (i == 0) {
+                        prevModule = MODULES_HEAD;
+                    } else {
+                        prevModule = currentModules[i - 1];
+                    }
+                    break;
+                }
+            }
+        }
 
         // Revert if not self
         vm.prank(users.maliciousUser);
@@ -130,13 +137,156 @@ contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
 
         // Revert with insufficient delay
         vm.prank(defaultModules[0]);
-        vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.InsufficientDelay.selector, expectedMinDelay));
+        vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.DelayOutOfRange.selector, expectedMinDelay, max));
         executor.scheduleTransactionFromModuleReturnData(users.gwart, 0, "", Enum.Operation.Call, expectedMinDelay - 1);
 
         // Operation delay should default to minDelay
         vm.prank(defaultModules[0]);
-        (,bytes memory returnData) = executor.execTransactionFromModuleReturnData(users.gwart, 0, "", Enum.Operation.Call);
+        (, bytes memory returnData) =
+            executor.execTransactionFromModuleReturnData(users.gwart, 0, "", Enum.Operation.Call);
         (uint256 opNonce) = abi.decode(returnData, (uint256));
         assertEq(block.timestamp + expectedMinDelay, executor.getOperationExecutableAt(opNonce));
+    }
+
+    struct ExecTransactionFromModuleExpectations {
+        bool success;
+        uint256 nextOpNonce;
+        uint256 executableAt;
+        bytes32 opHash;
+        address module;
+        uint256 createdAt;
+        ITimelockAvatar.OperationStatus opStatus;
+    }
+
+    function _setupExecTransactionFromModule(
+        address module,
+        address to,
+        uint256 value,
+        bytes memory data,
+        Enum.Operation operation,
+        uint256 delay
+    )
+        internal
+        returns (uint256 opNonce, ExecTransactionFromModuleExpectations memory expectations)
+    {
+        opNonce = executor.getNextOperationNonce();
+        uint256 minDelay = executor.getMinDelay();
+        uint256 maxDelay = executor.MAX_DELAY();
+
+        // Zero value for delay will default to the minDelay
+        uint256 expectedDelay = delay == 0 ? minDelay : delay;
+
+        expectations.nextOpNonce = opNonce;
+        if (!executor.isModuleEnabled(module)) {
+            vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.ModuleNotEnabled.selector, module));
+        } else if (expectedDelay < minDelay || expectedDelay > maxDelay) {
+            vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.DelayOutOfRange.selector, minDelay, maxDelay));
+        } else {
+            expectations.success = true;
+            expectations.nextOpNonce = opNonce + 1;
+            expectations.executableAt = block.timestamp + expectedDelay;
+            expectations.opHash = keccak256(abi.encode(to, value, data, operation));
+            expectations.module = module;
+            expectations.createdAt = block.timestamp;
+            expectations.opStatus = ITimelockAvatar.OperationStatus.Pending;
+
+            vm.expectEmit(true, true, false, true, address(executor));
+            emit ITimelockAvatar.OperationScheduled(opNonce, module, to, value, data, operation, expectedDelay);
+        }
+    }
+
+    function _execTransactionFromModuleAsserts(
+        uint256 opNonce,
+        bool success,
+        bytes memory returnData,
+        ExecTransactionFromModuleExpectations memory expectations
+    )
+        internal
+    {
+        assertEq(expectations.success, success);
+        assertEq(expectations.nextOpNonce, executor.getNextOperationNonce());
+        assertEq(expectations.executableAt, executor.getOperationExecutableAt(opNonce));
+        assertEq(expectations.opHash, executor.getOperationHash(opNonce));
+        assertEq(expectations.module, executor.getOperationModule(opNonce));
+        assertEq(uint8(expectations.opStatus), uint8(executor.getOperationStatus(opNonce)));
+
+        if (returnData.length > 0) {
+            (uint256 rOpNonce, bytes32 rOpHash, uint256 rExecutableAt) =
+                abi.decode(returnData, (uint256, bytes32, uint256));
+            assertEq(opNonce, rOpNonce);
+            assertEq(expectations.opHash, rOpHash);
+            assertEq(expectations.executableAt, rExecutableAt);
+        }
+
+        (address _module, uint256 _executableAt, uint256 _createdAt, bytes32 _opHash) =
+            executor.getOperationDetails(opNonce);
+        assertEq(expectations.module, _module);
+        assertEq(expectations.executableAt, _executableAt);
+        assertEq(expectations.createdAt, _createdAt);
+        assertEq(expectations.opHash, _opHash);
+    }
+
+    function test_Fuzz_ExecTransactionFromModule(
+        uint256 moduleIndex,
+        address to,
+        uint256 value,
+        bytes memory data,
+        uint8 operationSeed
+    )
+        public
+    {
+        address module = _randModuleSelection(moduleIndex, true);
+        Enum.Operation operation = _randEnumOperation(operationSeed);
+
+        (uint256 opNonce, ExecTransactionFromModuleExpectations memory expectations) =
+            _setupExecTransactionFromModule(module, to, value, data, operation, executor.getMinDelay());
+
+        vm.prank(module);
+        bool success = executor.execTransactionFromModule(to, value, data, operation);
+
+        _execTransactionFromModuleAsserts(opNonce, success, "", expectations);
+    }
+
+    function test_Fuzz_ExecTransactionFromModuleReturnData(
+        uint256 moduleIndex,
+        address to,
+        uint256 value,
+        bytes memory data,
+        uint8 operationSeed
+    )
+        public
+    {
+        address module = _randModuleSelection(moduleIndex, true);
+        Enum.Operation operation = _randEnumOperation(operationSeed);
+
+        (uint256 opNonce, ExecTransactionFromModuleExpectations memory expectations) =
+            _setupExecTransactionFromModule(module, to, value, data, operation, executor.getMinDelay());
+
+        vm.prank(module);
+        (bool success, bytes memory returnData) = executor.execTransactionFromModuleReturnData(to, value, data, operation);
+
+        _execTransactionFromModuleAsserts(opNonce, success, returnData, expectations);
+    }
+
+    function test_Fuzz_ScheduleTransactionFromModuleReturnData(
+        uint256 moduleIndex,
+        address to,
+        uint256 value,
+        bytes memory data,
+        uint8 operationSeed,
+        uint24 delay
+    )
+        public
+    {
+        address module = _randModuleSelection(moduleIndex, true);
+        Enum.Operation operation = _randEnumOperation(operationSeed);
+
+        (uint256 opNonce, ExecTransactionFromModuleExpectations memory expectations) =
+            _setupExecTransactionFromModule(module, to, value, data, operation, delay);
+
+        vm.prank(module);
+        (bool success, bytes memory returnData) = executor.scheduleTransactionFromModuleReturnData(to, value, data, operation, delay);
+
+        _execTransactionFromModuleAsserts(opNonce, success, returnData, expectations);
     }
 }

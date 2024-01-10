@@ -367,8 +367,8 @@ abstract contract TimelockAvatar is
         uint256 minDelay = $._minDelay;
         if (delay == 0) {
             delay = minDelay;
-        } else if (delay < minDelay) {
-            revert InsufficientDelay(minDelay);
+        } else if (delay < minDelay || delay > MAX_DELAY) {
+            revert DelayOutOfRange(minDelay, MAX_DELAY);
         }
 
         // Set opNonce and increment
