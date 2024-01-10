@@ -7,6 +7,7 @@ import {TimelockAvatar} from "./TimelockAvatar.sol";
 import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {ISharesToken} from "src/token/interfaces/ISharesToken.sol";
 import {ITreasury} from "../interfaces/ITreasury.sol";
+import {ITreasurer} from "../interfaces/ITreasurer.sol";
 import {IDistributor} from "../interfaces/IDistributor.sol";
 import {IBalanceShareAllocations} from "balance-shares-protocol/interfaces/IBalanceShareAllocations.sol";
 import {BalanceShareIds} from "src/common/BalanceShareIds.sol";
@@ -21,7 +22,7 @@ import {ERC20Utils} from "src/libraries/ERC20Utils.sol";
 import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
+abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
     using ERC20Utils for IERC20;
     using ERC165Verifier for address;
     using Address for address;
@@ -47,28 +48,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
             $.slot := TREASURER_STORAGE
         }
     }
-
-    event SharesOnboarderUpdate(address oldSharesOnboarder, address newSharesOnboarder);
-    event BalanceSharesManagerUpdate(address oldBalanceSharesManager, address newBalanceSharesManager);
-    event BalanceSharesInitialized(address balanceSharesManager, uint256 totalDeposits, uint256 depositsAllocated);
-
-    event BalanceShareAllocated(
-        address indexed balanceSharesManager,
-        uint256 indexed balanceShareId,
-        IERC20 asset,
-        uint256 amountAllocated
-    );
-
-    error DistributorCreationFailed();
-    error BalanceSharesInitializationCallFailed(uint256 index, bytes data);
-    error OnlyToken();
-    error OnlySharesOnboarder();
-    error DepositSharesAlreadyInitialized();
-    error ETHTransferFailed();
-    error FailedToTransferBaseAsset(address to, uint256 amount);
-    error InsufficientBaseAssetFunds(uint256 balanceTransferAmount, uint256 currentBalance);
-    error InvalidBaseAssetOperation(address target, uint256 value, bytes data);
-    error InvalidDepositAmount();
 
     modifier onlyToken() {
         _onlyToken();
@@ -135,8 +114,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         // Create the proxy for the distributor
         address distributorProxy;
         assembly ("memory-safe") {
-            distributorProxy :=
-                create2(0, add(0x20, proxyDeploymentBytecode), mload(proxyDeploymentBytecode), 0)
+            distributorProxy := create2(0, add(0x20, proxyDeploymentBytecode), mload(proxyDeploymentBytecode), 0)
         }
 
         if (distributorProxy == address(0)) {
@@ -151,20 +129,21 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         // forgefmt: disable-next-item
         return
             interfaceId == type(ITreasury).interfaceId ||
+            interfaceId == type(ITreasurer).interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
-    /**
-     * Returns the address of the ERC20 token used for vote shares.
-     */
+    /// @inheritdoc ITreasurer
     function token() public view virtual returns (address _token) {
         _token = address(_getTreasurerStorage()._token);
     }
 
+    /// @inheritdoc ITreasurer
     function sharesOnboarder() public view virtual returns (ISharesOnboarder _sharesOnboarder) {
         _sharesOnboarder = _getTreasurerStorage()._sharesOnboarder;
     }
 
+    /// @inheritdoc ITreasurer
     function setSharesOnboarder(address newSharesOnboarder) public virtual onlySelf {
         _setSharesOnboarder(newSharesOnboarder);
     }
@@ -175,18 +154,12 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         $._sharesOnboarder = ISharesOnboarder(newSharesOnboarder);
     }
 
-    /**
-     * Returns the address of the contract used for distributions.
-     */
+    /// @inheritdoc ITreasurer
     function distributor() public view virtual returns (address _distributor) {
         return address(_getTreasurerStorage()._distributor);
     }
 
-    /**
-     * Creates a distribution on the distributor contract for the given amount. If there are existing balance share
-     * accounts for distributions, the BPS share will be subtracted from the amount and allocated to the balance share
-     * balanceSharesManager contract before initializing the distribution.
-     */
+    /// @inheritdoc ITreasurer
     function createDistribution(IERC20 asset, uint256 amount) external virtual onlySelf {
         _createDistribution(_getTreasurerStorage()._distributor, asset, amount);
     }
@@ -212,24 +185,17 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         _distributor.createDistribution{value: msgValue}(snapshotId, asset, amount);
     }
 
+    /// @inheritdoc ITreasurer
     function authorizeDistributorImplementation(address newImplementation) public view virtual {
         newImplementation.checkInterface(type(IDistributor).interfaceId);
     }
 
-    /**
-     * Returns the address of the contract used for balance shares management, or address(0) if no balance shares are
-     * currently being used.
-     */
+    /// @inheritdoc ITreasurer
     function balanceSharesManager() public view returns (address _balanceSharesManager) {
         _balanceSharesManager = address(_getTreasurerStorage()._balanceShares._balanceSharesManager);
     }
 
-    /**
-     * Sets the address for the balance shares manager contract.
-     * @notice Only callable by the Executor itself.
-     * @param newBalanceSharesManager The address of the new balance shares manager contract, which must implement the
-     * IBalanceShareAllocations interface.
-     */
+    /// @inheritdoc ITreasurer
     function setBalanceSharesManager(address newBalanceSharesManager) external onlySelf {
         _setBalanceSharesManager(newBalanceSharesManager);
     }
@@ -244,25 +210,20 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
         $._balanceSharesManager = IBalanceShareAllocations(newBalanceSharesManager);
     }
 
-    /**
-     * Returns true if balance shares are enabled for this contract.
-     */
-    function balanceSharesEnabled() external view returns (bool isBalanceSharesEnabled) {
+    /// @inheritdoc ITreasurer
+    function balanceSharesEnabled() external view virtual returns (bool isBalanceSharesEnabled) {
         BalanceShares storage $ = _getTreasurerStorage()._balanceShares;
         address manager = address($._balanceSharesManager);
         bool isEnabled = $._isEnabled;
         isBalanceSharesEnabled = isEnabled && manager != address(0);
     }
 
-    /**
-     * Enables the accounting for balance shares. Once enabled, it cannot be disabled except by setting the balance
-     * shares manager address to address(0).
-     * @notice This function is only callable by the Executor itself, or by an enabled module during that module's
-     * execution of an Executor operation.
-     * @param applyDepositSharesRetroactively If set to true, this will retroactively apply deposit share accounting to
-     * the total amount of deposits registered so far.
-     */
-    function enableBalanceShares(bool applyDepositSharesRetroactively) external onlySelfOrDuringModuleExecution {
+    /// @inheritdoc ITreasurer
+    function enableBalanceShares(bool applyDepositSharesRetroactively)
+        external
+        virtual
+        onlySelfOrDuringModuleExecution
+    {
         _enableBalanceShares(applyDepositSharesRetroactively);
     }
 
@@ -352,7 +313,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
 
     /**
      * @inheritdoc ITreasury
-     * @notice Only callable by the shares token contract.
+     * @dev Only callable by the shares token contract.
      */
     function processWithdrawal(
         address account,
@@ -447,11 +408,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                 amountAllocated := mload(0)
                 remainderIncreased := mload(0x20)
             }
-            // (amountAllocated, remainderIncreased) = manager.getBalanceShareAllocationWithRemainder(
-            //     balanceShareId,
-            //     address(asset),
-            //     balanceIncreasedBy
-            // );
 
             // Only need to continue if balance actually increased, meaning balance share total BPS > 0
             if (amountAllocated > 0 || remainderIncreased) {
@@ -459,14 +415,18 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                 uint256 msgValue = asset.approveForExternalCall(address(manager), amountAllocated);
 
                 // Allocate to the balance share
-                // manager.allocateToBalanceShareWithRemainder{value: msgValue}(balanceShareId, asset,
-                // balanceIncreasedBy)
+                // manager.allocateToBalanceShareWithRemainder{value: msgValue}(
+                //     balanceShareId, asset, balanceIncreasedBy
+                // )
                 selector = manager.allocateToBalanceShareWithRemainder.selector;
                 bytes32 _BalanceShareAllocated_eventSelector = BalanceShareAllocated.selector;
                 assembly ("memory-safe") {
                     // Update the selector
                     let oldSelector := mload(dataStart)
-                    mstore(dataStart, or(selector, and(oldSelector, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff)))
+                    mstore(
+                        dataStart,
+                        or(selector, and(oldSelector, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff))
+                    )
                     if iszero(call(gas(), manager, msgValue, dataStart, 0x64, 0, 0)) {
                         returndatacopy(0, 0, returndatasize())
                         revert(0, returndatasize())
@@ -479,18 +439,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasury, BalanceShareIds {
                         log3(add(dataStart, 0x24), 0x40, _BalanceShareAllocated_eventSelector, manager, balanceShareId)
                     }
                 }
-                // manager.allocateToBalanceShareWithRemainder{value: msgValue}(
-                //     balanceShareId,
-                //     address(asset),
-                //     balanceIncreasedBy
-                // );
-
-                // emit BalanceShareAllocated(manager, balanceShareId, asset, amountAllocated);
-                // bytes32 _BalanceShareAllocated_eventSelector = BalanceShareAllocated.selector;
-                // assembly ("memory-safe") {
-                //     mstore(0, balanceIncreasedBy)
-                //     log4(0, 0x20, _BalanceShareAllocated_eventSelector, manager, balanceShareId, balanceIncreasedBy)
-                // }
             }
         }
     }

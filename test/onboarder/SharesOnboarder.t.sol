@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {BaseTest} from "test/Base.t.sol";
 import {BalanceSharesTestUtils} from "test/helpers/BalanceSharesTestUtils.sol";
 import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
-import {Treasurer} from "src/executor/base/Treasurer.sol";
+import {ITreasurer} from "src/executor/interfaces/ITreasurer.sol";
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
 import {ERC20Utils} from "src/libraries/ERC20Utils.sol";
 import {IERC20Snapshots} from "src/token/interfaces/IERC20Snapshots.sol";
@@ -52,7 +52,7 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
 
             if (expectedBalanceShareAllocation > 0) {
                 vm.expectEmit(true, true, false, true, address(executor));
-                emit Treasurer.BalanceShareAllocated(
+                emit ITreasurer.BalanceShareAllocated(
                     executor.balanceSharesManager(), DEPOSITS_ID, ONBOARDER.quoteAsset, expectedBalanceShareAllocation
                 );
             }

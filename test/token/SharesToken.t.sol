@@ -7,7 +7,7 @@ import {ISharesToken} from "src/token/interfaces/ISharesToken.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
-import {Treasurer} from "src/executor/base/Treasurer.sol";
+import {ITreasurer} from "src/executor/interfaces/ITreasurer.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
@@ -265,7 +265,7 @@ contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
                 if ($.expectedPayouts[0] > 0) {
                     if ($.expectedBalanceShareAllocations[0] > 0) {
                         vm.expectEmit(true, true, false, true, $.treasury);
-                        emit Treasurer.BalanceShareAllocated(
+                        emit ITreasurer.BalanceShareAllocated(
                             address(balanceSharesSingleton),
                             DISTRIBUTIONS_ID,
                             IERC20(address(0)),
@@ -280,7 +280,7 @@ contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
                 if ($.expectedPayouts[1] > 0) {
                     if ($.expectedBalanceShareAllocations[1] > 0) {
                         vm.expectEmit(true, true, false, true, $.treasury);
-                        emit Treasurer.BalanceShareAllocated(
+                        emit ITreasurer.BalanceShareAllocated(
                             address(balanceSharesSingleton),
                             DISTRIBUTIONS_ID,
                             IERC20(address(erc20Mock)),

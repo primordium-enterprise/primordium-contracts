@@ -8,7 +8,7 @@ import {IGovernorToken} from "../../interfaces/IGovernorToken.sol";
 import {IAvatar} from "src/executor/interfaces/IAvatar.sol";
 import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
-import {Treasurer} from "src/executor/base/Treasurer.sol";
+import {ITreasurer} from "src/executor/interfaces/ITreasurer.sol";
 import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
 import {BasisPoints} from "src/libraries/BasisPoints.sol";
@@ -161,9 +161,9 @@ library GovernorBaseLogicV1 {
         }
 
         // Try enabling balance shares on the executor (continue if already enabled, revert otherwise)
-        try Treasurer(payable(address(_executor()))).enableBalanceShares(true) {}
+        try ITreasurer(payable(address(_executor()))).enableBalanceShares(true) {}
         catch (bytes memory errData) {
-            if (bytes4(errData) != Treasurer.DepositSharesAlreadyInitialized.selector) {
+            if (bytes4(errData) != ITreasurer.DepositSharesAlreadyInitialized.selector) {
                 assembly ("memory-safe") {
                     revert(add(errData, 0x20), mload(errData))
                 }
