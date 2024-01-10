@@ -15,7 +15,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {ERC20Mock} from "./helpers/ERC20Mock.sol";
 import {EIP712Utils} from "./helpers/EIP712Utils.sol";
 import {Users} from "./helpers/Types.sol";
-import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC165Contract} from "./helpers/ERC165Contract.sol";
 
 // Import console2 for easy import in other test files

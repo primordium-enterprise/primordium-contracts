@@ -4,7 +4,7 @@
 pragma solidity ^0.8.20;
 
 import {ITreasury} from "./ITreasury.sol";
-import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {IDistributor} from "./IDistributor.sol";
 
@@ -47,7 +47,7 @@ interface ITreasurer is ITreasury {
     /**
      * @notice Returns the address of the contract used for distributions.
      */
-    function distributor() external view returns (address _distributor);
+    function distributor() external view returns (IDistributor _distributor);
 
     /**
      * @notice Creates a distribution on the distributor contract for the given amount.

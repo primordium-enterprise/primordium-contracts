@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
 import {ISharesToken} from "src/token/interfaces/ISharesToken.sol";
-import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface ISharesOnboarder {
     struct SharePrice {

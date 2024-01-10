@@ -9,10 +9,10 @@ import {Enum} from "src/common/Enum.sol";
 import {SelfAuthorized} from "src/executor/base/SelfAuthorized.sol";
 import {ExecutorBase} from "src/executor/base/ExecutorBase.sol";
 
-contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
+contract TimelockAvatarTest is TimelockAvatarTestUtils {
     error InvalidExecutingModule(address executingModule);
 
-    function setUp() public virtual override(BaseTest, TimelockAvatarTestUtils) {
+    function setUp() public virtual override {
         super.setUp();
     }
 
@@ -312,15 +312,27 @@ contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
             executor.execTransactionFromModuleReturnData(to, value, data, operation);
         assertEq(true, success);
 
-        (uint256 opNonce,,uint256 eta) = abi.decode(returnData, (uint256, bytes32, uint256));
+        (uint256 opNonce,, uint256 eta) = abi.decode(returnData, (uint256, bytes32, uint256));
 
         // Revert if pre-eta
-        vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.InvalidOperationStatus.selector, ITimelockAvatar.OperationStatus.Pending, ITimelockAvatar.OperationStatus.Ready));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ITimelockAvatar.InvalidOperationStatus.selector,
+                ITimelockAvatar.OperationStatus.Pending,
+                ITimelockAvatar.OperationStatus.Ready
+            )
+        );
         executor.executeOperation(opNonce, to, value, data, operation);
 
         // Revert if expired
         vm.warp(eta + GRACE_PERIOD);
-        vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.InvalidOperationStatus.selector, ITimelockAvatar.OperationStatus.Expired, ITimelockAvatar.OperationStatus.Ready));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ITimelockAvatar.InvalidOperationStatus.selector,
+                ITimelockAvatar.OperationStatus.Expired,
+                ITimelockAvatar.OperationStatus.Ready
+            )
+        );
         executor.executeOperation(opNonce, to, value, data, operation);
 
         // Revert if call not coming from operation module
@@ -351,11 +363,17 @@ contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
             executor.execTransactionFromModuleReturnData(to, value, data, operation);
         assertEq(true, success);
 
-        (uint256 opNonce,,uint256 eta) = abi.decode(returnData, (uint256, bytes32, uint256));
+        (uint256 opNonce,, uint256 eta) = abi.decode(returnData, (uint256, bytes32, uint256));
 
         // Cannot cancel if past pending period
         vm.warp(eta);
-        vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.InvalidOperationStatus.selector, ITimelockAvatar.OperationStatus.Ready, ITimelockAvatar.OperationStatus.Pending));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ITimelockAvatar.InvalidOperationStatus.selector,
+                ITimelockAvatar.OperationStatus.Ready,
+                ITimelockAvatar.OperationStatus.Pending
+            )
+        );
         executor.cancelOperation(opNonce);
 
         // Only operation module can cancel

@@ -8,8 +8,8 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {AuthorizedInitializer} from "src/utils/AuthorizedInitializer.sol";
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
 
-contract AuthorizedInitializerTest is BaseTest, TimelockAvatarTestUtils {
-    function setUp() public virtual override(BaseTest, TimelockAvatarTestUtils) {
+contract AuthorizedInitializerTest is TimelockAvatarTestUtils {
+    function setUp() public virtual override {
         super.setUp();
         // Deploy the executor proxy with "gwart" user as the authorized initializer
         executor = ExecutorV1Harness(

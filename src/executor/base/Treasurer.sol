@@ -155,8 +155,8 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
     }
 
     /// @inheritdoc ITreasurer
-    function distributor() public view virtual returns (address _distributor) {
-        return address(_getTreasurerStorage()._distributor);
+    function distributor() public view virtual returns (IDistributor _distributor) {
+        return _getTreasurerStorage()._distributor;
     }
 
     /// @inheritdoc ITreasurer
@@ -244,13 +244,18 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
         if (applyDepositSharesRetroactively) {
             ISharesOnboarder _sharesOnboarder = $._sharesOnboarder;
 
+            // Allocate the deposit shares to the balance shares manager
+            IERC20 quoteAsset = _sharesOnboarder.quoteAsset();
+
             // Retrieve the deposit share amount
             uint256 totalSupply = $._token.totalSupply();
             (uint256 quoteAmount, uint256 mintAmount) = _sharesOnboarder.sharePrice();
-            totalDeposits = Math.mulDiv(totalSupply, quoteAmount, mintAmount);
+            // Total deposits is calculated as function of share price and total supply, but cannot exceed the balance
+            totalDeposits = Math.min(
+                quoteAsset.getBalanceOf(address(this)),
+                Math.mulDiv(totalSupply, quoteAmount, mintAmount)
+            );
 
-            // Allocate the deposit shares to the balance shares manager
-            IERC20 quoteAsset = _sharesOnboarder.quoteAsset();
             depositsAllocated = _allocateBalanceShare(manager, DEPOSITS_ID, quoteAsset, totalDeposits);
         }
 
