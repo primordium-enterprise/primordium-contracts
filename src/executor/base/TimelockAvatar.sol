@@ -532,6 +532,21 @@ abstract contract TimelockAvatar is
         virtual
         returns (bytes32 opHash)
     {
-        opHash = keccak256(abi.encode(to, value, data, operation));
+        // Gas optimized way to perform "keccak256(abi.encode(target, value, data, operation))"
+        assembly ("memory-safe") {
+            let start := mload(0x40) // Start at free memory pointer
+            let dataMem := add(start, 0x80) // bytes data will start after four 32 byte slots
+            mstore(start, to) // Store to
+            mstore(add(start, 0x20), value) // Store value
+            mstore(add(start, 0x40), 0x80) // Store pointer to data
+            mstore(add(start, 0x60), operation) // Store operation
+            let dataLengthPaddedTo32 := mul(0x20, div(add(data.length, 0x1f), 0x20))
+            mstore(add(dataMem, dataLengthPaddedTo32), 0) // Zero out padded bytes
+            mstore(dataMem, data.length) // Store data length
+            calldatacopy(add(dataMem, 0x20), data.offset, data.length) // Copy the byte data
+
+            // Hash the contents to return result
+            opHash := keccak256(start, add(0xa0, dataLengthPaddedTo32))
+        }
     }
 }
