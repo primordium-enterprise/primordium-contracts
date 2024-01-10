@@ -18,21 +18,21 @@ interface IAvatar {
      * Authorizes a new module to execute transactions on this avatar contract. Modules can only be enabled
      * by this contract itself.
      * @notice Enabled modules are stored as a linked list.
-     * @notice Can only be called by this contract itself.
+     * @dev Can only be called by this contract itself.
      * @param module The address of the module to enable.
      */
     function enableModule(address module) external;
 
     /**
      * Unauthorizes an enabled module.
-     * @notice Can only be called by this contract itself.
+     * @dev Can only be called by this contract itself.
      * @param prevModule Addres that pointed to the module to be removed in the linked list.
      * @param module The address of the module to disable.
      */
     function disableModule(address prevModule, address module) external;
 
     /// @dev Allows a Module to execute a transaction.
-    /// @notice Can only be called by an enabled module.
+    /// @dev Can only be called by an enabled module.
     /// @notice Must emit ExecutionFromModuleSuccess(address module) if successful.
     /// @notice Must emit ExecutionFromModuleFailure(address module) if unsuccessful.
     /// @param to Destination address of module transaction.

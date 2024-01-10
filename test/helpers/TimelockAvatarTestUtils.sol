@@ -4,6 +4,8 @@ pragma solidity ^0.8.20;
 import {BaseTest} from "test/Base.t.sol";
 
 contract TimelockAvatarTestUtils is BaseTest {
+    address internal constant MODULES_HEAD = address(0x01);
+
     address[] internal defaultModules;
 
     constructor() {

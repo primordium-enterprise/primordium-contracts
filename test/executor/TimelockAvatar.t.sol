@@ -26,7 +26,7 @@ contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
         for (uint256 i = 0; i < defaultModules.length; i++) {
             assertEq(true, executor.isModuleEnabled(defaultModules[i]));
         }
-        (address[] memory enabledModules,) = executor.getModulesPaginated(address(0x01), 100);
+        (address[] memory enabledModules,) = executor.getModulesPaginated(MODULES_HEAD, 100);
         assertEq(_reverseModulesArray(defaultModules), enabledModules);
     }
 
@@ -36,7 +36,7 @@ contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
         executor.enableModule(newModule);
 
         bool expectEnabled = false;
-        if (newModule == address(0) || newModule == address(0x01)) {
+        if (newModule == address(0) || newModule == MODULES_HEAD) {
             vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.InvalidModuleAddress.selector, newModule));
         } else if (executor.isModuleEnabled(newModule)) {
             vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.ModuleAlreadyEnabled.selector, newModule));
@@ -57,8 +57,51 @@ contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
             }
             expectedEnabledModules[expectedEnabledModules.length - 1] = newModule;
 
-            (address[] memory enabledModules,) = executor.getModulesPaginated(address(0x01), 100);
+            (address[] memory enabledModules,) = executor.getModulesPaginated(MODULES_HEAD, 100);
             assertEq(_reverseModulesArray(expectedEnabledModules), enabledModules);
         }
+    }
+
+    function test_Fuzz_DisableModule(uint256 index) public {
+        index = index % (defaultModules.length);
+        address moduleToRemove = defaultModules[index];
+
+        // Prev module is actually the next module, as the modules are listed in reverse
+        address prevModule = index < defaultModules.length - 1 ? defaultModules[index + 1] : MODULES_HEAD;
+
+        // Revert if not self
+        vm.prank(users.maliciousUser);
+        vm.expectRevert(SelfAuthorized.OnlySelfAuthorized.selector);
+        executor.disableModule(prevModule, moduleToRemove);
+
+        // Revert if module/prevModule is not valid
+        vm.prank(address(executor));
+        vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.InvalidPreviousModuleAddress.selector, prevModule));
+        executor.disableModule(prevModule, address(0x20));
+
+        vm.prank(address(executor));
+        vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.InvalidPreviousModuleAddress.selector, address(0x20)));
+        executor.disableModule(address(0x20), moduleToRemove);
+
+        // Success as executor
+        vm.prank(address(executor));
+        vm.expectEmit(true, false, false, false, address(executor));
+        emit IAvatar.DisabledModule(moduleToRemove);
+        executor.disableModule(prevModule, moduleToRemove);
+
+        // Verify paginated list
+        address[] memory expectedEnabledModules = new address[](defaultModules.length - 1);
+        bool skipped = false;
+        for (uint256 i = 0; i < defaultModules.length; i++) {
+            if (defaultModules[i] == moduleToRemove) {
+                skipped = true;
+                continue;
+            }
+
+            expectedEnabledModules[skipped ? i - 1 : i] = defaultModules[i];
+        }
+
+        (address[] memory enabledModules,) = executor.getModulesPaginated(MODULES_HEAD, 100);
+        assertEq(_reverseModulesArray(expectedEnabledModules), enabledModules);
     }
 }
