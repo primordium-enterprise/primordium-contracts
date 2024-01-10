@@ -5,6 +5,7 @@ import {BaseTest, console2} from "test/Base.t.sol";
 import {ProposalTestUtils} from "test/helpers/ProposalTestUtils.sol";
 import {BalanceSharesTestUtils} from "test/helpers/BalanceSharesTestUtils.sol";
 import {IProposals} from "src/governor/interfaces/IProposals.sol";
+import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
@@ -224,6 +225,100 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
         vm.expectEmit(true, false, false, false, address(governor));
         emit IProposals.ProposalCanceled(proposalId);
         _cancel(proposalId, target, value, "");
+        assertEq(uint8(IProposals.ProposalState.Canceled), uint8(governor.state(proposalId)));
+    }
 
+    function test_CancelProposal_CancelerRole() public {
+        address target = users.gwart;
+        uint256 value = 0;
+
+        uint256 proposalId = _propose(users.proposer, target, value, "", "", "testing cancel proposal");
+
+        // Expect revert for unauthorized canceler
+        vm.expectRevert(abi.encodeWithSelector(IProposals.GovernorUnauthorizedSender.selector, users.maliciousUser));
+        vm.prank(users.maliciousUser);
+        _cancel(proposalId, target, value, "");
+
+        // Expect revert for proposer after pending period
+        vm.roll(governor.proposalSnapshot(proposalId));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IProposals.GovernorUnexpectedProposalState.selector,
+                proposalId,
+                IProposals.ProposalState.Active,
+                bytes32(1 << uint8(IProposals.ProposalState.Pending))
+            )
+        );
+        vm.prank(users.proposer);
+        _cancel(proposalId, target, value, "");
+
+        uint256 snapshot = vm.snapshot();
+
+        // Allowed states are anything but Canceled, Expired, Executed
+        // forgefmt: disable-next-item
+        bytes32 allowedStates = bytes32(
+            (2 ** (uint8(type(IProposals.ProposalState).max) + 1)) - 1 ^
+            (1 << uint8(IProposals.ProposalState.Canceled)) ^
+            (1 << uint8(IProposals.ProposalState.Expired)) ^
+            (1 << uint8(IProposals.ProposalState.Executed))
+        );
+
+        // Allow one with "canceler" role to cancel
+        assertEq(true, governor.hasRole(governor.CANCELER_ROLE(), users.canceler));
+        vm.expectEmit(true, false, false, false, address(governor));
+        emit IProposals.ProposalCanceled(proposalId);
+        vm.prank(users.canceler);
+        _cancel(proposalId, target, value, "");
+        assertEq(uint8(IProposals.ProposalState.Canceled), uint8(governor.state(proposalId)));
+
+        // Don't allow cancellation for already cancelled proposal
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IProposals.GovernorUnexpectedProposalState.selector,
+                proposalId,
+                IProposals.ProposalState.Canceled,
+                allowedStates
+            )
+        );
+        vm.prank(users.canceler);
+        _cancel(proposalId, target, value, "");
+
+        // Revert back to pre-cancellation for following tests
+        vm.revertTo(snapshot);
+        snapshot = vm.snapshot();
+
+        // Don't allow cancellation for an expired proposal
+        _mintSharesForVoting(users.gwart, GOVERNOR.quorumBps * TOKEN.maxSupply / MAX_BPS);
+        vm.prank(users.gwart);
+        governor.castVote(proposalId, uint8(IProposalVoting.VoteType.For));
+
+        vm.roll(governor.proposalDeadline(proposalId) + governor.proposalGracePeriod() + 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IProposals.GovernorUnexpectedProposalState.selector,
+                proposalId,
+                IProposals.ProposalState.Expired,
+                allowedStates
+            )
+        );
+        vm.prank(users.canceler);
+        _cancel(proposalId, target, value, "");
+
+        // Don't allow cancellation for an executed proposal
+        vm.roll(governor.proposalDeadline(proposalId) + 1);
+        _queue(proposalId, target, value, "");
+        vm.warp(governor.proposalEta(proposalId));
+        _execute(proposalId, target, value, "");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IProposals.GovernorUnexpectedProposalState.selector,
+                proposalId,
+                IProposals.ProposalState.Executed,
+                allowedStates
+            )
+        );
+        vm.prank(users.canceler);
+        _cancel(proposalId, target, value, "");
     }
 }

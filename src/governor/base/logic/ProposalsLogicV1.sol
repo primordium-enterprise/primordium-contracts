@@ -629,11 +629,13 @@ library ProposalsLogicV1 {
      */
     function _cancel(uint256 proposalId) internal returns (uint256) {
         // Can cancel in any state other than Canceled, Expired, or Executed.
+        // forgefmt: disable-next-item
         _validateStateBitmap(
             proposalId,
-            ALL_PROPOSAL_STATES_BITMAP ^ _encodeStateBitmap(IProposals.ProposalState.Canceled)
-                ^ _encodeStateBitmap(IProposals.ProposalState.Expired)
-                ^ _encodeStateBitmap(IProposals.ProposalState.Executed)
+            ALL_PROPOSAL_STATES_BITMAP ^
+                _encodeStateBitmap(IProposals.ProposalState.Canceled) ^
+                _encodeStateBitmap(IProposals.ProposalState.Expired) ^
+                _encodeStateBitmap(IProposals.ProposalState.Executed)
         );
 
         ProposalsStorage storage $ = _getProposalsStorage();
