@@ -198,8 +198,10 @@ abstract contract TimelockAvatar is
     function _getOperationStatus(uint256 eta) internal view returns (OperationStatus opStatus) {
         // ETA timestamp is equal to the enum value for NoOp, Cancelled, and Done
         if (eta > uint256(OperationStatus.Done)) {
-            if (eta <= block.timestamp) {
-                if (eta + GRACE_PERIOD <= block.timestamp) return OperationStatus.Expired;
+            if (block.timestamp >= eta) {
+                if (block.timestamp >= eta + GRACE_PERIOD) {
+                    return OperationStatus.Expired;
+                }
                 return OperationStatus.Ready;
             }
             return OperationStatus.Pending;
@@ -443,7 +445,7 @@ abstract contract TimelockAvatar is
 
         _op.executableAt = uint48(OperationStatus.Done);
 
-        emit OperationExecuted(opNonce, module, to, value, data, operation);
+        emit OperationExecuted(opNonce, module);
     }
 
     function _setModuleExecution(address module) private {

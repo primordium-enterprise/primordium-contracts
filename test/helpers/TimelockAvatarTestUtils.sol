@@ -6,6 +6,7 @@ import {Enum} from "src/common/Enum.sol";
 
 contract TimelockAvatarTestUtils is BaseTest {
     address internal constant MODULES_HEAD = address(0x01);
+    uint256 internal constant GRACE_PERIOD = 14 days;
 
     address[] internal defaultModules;
 

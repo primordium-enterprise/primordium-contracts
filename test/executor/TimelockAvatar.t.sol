@@ -7,10 +7,20 @@ import {IAvatar} from "src/executor/interfaces/IAvatar.sol";
 import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
 import {Enum} from "src/common/Enum.sol";
 import {SelfAuthorized} from "src/executor/base/SelfAuthorized.sol";
+import {ExecutorBase} from "src/executor/base/ExecutorBase.sol";
 
 contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
+    error InvalidExecutingModule(address executingModule);
+
     function setUp() public virtual override(BaseTest, TimelockAvatarTestUtils) {
         super.setUp();
+    }
+
+    function verifyExecutingModule(address expectedModule) public view {
+        address executingModule = executor.executingModule();
+        if (expectedModule != executingModule) {
+            revert InvalidExecutingModule(executingModule);
+        }
     }
 
     function test_Fuzz_HashOperation(address to, uint256 value, bytes memory data, uint8 operationSeed) public {
@@ -263,7 +273,8 @@ contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
             _setupExecTransactionFromModule(module, to, value, data, operation, executor.getMinDelay());
 
         vm.prank(module);
-        (bool success, bytes memory returnData) = executor.execTransactionFromModuleReturnData(to, value, data, operation);
+        (bool success, bytes memory returnData) =
+            executor.execTransactionFromModuleReturnData(to, value, data, operation);
 
         _execTransactionFromModuleAsserts(opNonce, success, returnData, expectations);
     }
@@ -285,8 +296,48 @@ contract TimelockAvatarTest is BaseTest, TimelockAvatarTestUtils {
             _setupExecTransactionFromModule(module, to, value, data, operation, delay);
 
         vm.prank(module);
-        (bool success, bytes memory returnData) = executor.scheduleTransactionFromModuleReturnData(to, value, data, operation, delay);
+        (bool success, bytes memory returnData) =
+            executor.scheduleTransactionFromModuleReturnData(to, value, data, operation, delay);
 
         _execTransactionFromModuleAsserts(opNonce, success, returnData, expectations);
+    }
+
+    function test_ExecuteOperation() public {
+        address to = address(this);
+        uint256 value = 0;
+        bytes memory data = abi.encodeCall(this.verifyExecutingModule, (address(this)));
+        Enum.Operation operation = Enum.Operation.Call;
+
+        (bool success, bytes memory returnData) =
+            executor.execTransactionFromModuleReturnData(to, value, data, operation);
+        assertEq(true, success);
+
+        (uint256 opNonce,,uint256 eta) = abi.decode(returnData, (uint256, bytes32, uint256));
+
+        // Revert if pre-eta
+        vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.InvalidOperationStatus.selector, ITimelockAvatar.OperationStatus.Pending, ITimelockAvatar.OperationStatus.Ready));
+        executor.executeOperation(opNonce, to, value, data, operation);
+
+        // Revert if expired
+        vm.warp(eta + GRACE_PERIOD);
+        vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.InvalidOperationStatus.selector, ITimelockAvatar.OperationStatus.Expired, ITimelockAvatar.OperationStatus.Ready));
+        executor.executeOperation(opNonce, to, value, data, operation);
+
+        // Revert if call not coming from operation module
+        vm.warp(eta);
+        vm.prank(users.alice);
+        vm.expectRevert(abi.encodeWithSelector(ITimelockAvatar.UnauthorizedModule.selector));
+        executor.executeOperation(opNonce, to, value, data, operation);
+
+        // Success (checking executing module during execution)
+        assertEq(executor.executingModule(), MODULES_HEAD);
+        vm.expectEmit(true, false, false, true, address(executor));
+        emit ExecutorBase.CallExecuted(to, value, data, operation);
+        vm.expectEmit(true, true, false, false, address(executor));
+        emit ITimelockAvatar.OperationExecuted(opNonce, address(this));
+        executor.executeOperation(opNonce, to, value, data, operation);
+        assertEq(executor.executingModule(), MODULES_HEAD);
+
+        assertEq(uint8(ITimelockAvatar.OperationStatus.Done), uint8(executor.getOperationStatus(opNonce)));
     }
 }

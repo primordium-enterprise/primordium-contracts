@@ -36,9 +36,7 @@ interface ITimelockAvatar is IAvatar {
         uint256 delay
     );
 
-    event OperationExecuted(
-        uint256 indexed opNonce, address indexed module, address to, uint256 value, bytes data, Enum.Operation operation
-    );
+    event OperationExecuted(uint256 indexed opNonce, address indexed module);
 
     event OperationCancelled(uint256 indexed opNonce, address indexed module);
 
