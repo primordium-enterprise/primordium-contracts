@@ -4,6 +4,14 @@
 pragma solidity ^0.8.20;
 
 interface IProposals {
+    struct ProposalsInit {
+        uint256 proposalThresholdBps;
+        uint256 votingDelay;
+        uint256 votingPeriod;
+        uint256 gracePeriod;
+        bytes initGrantRoles;
+    }
+
     enum ProposalState {
         Pending,
         Active,

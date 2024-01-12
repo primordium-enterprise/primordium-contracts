@@ -1,15 +1,15 @@
 [profile.default]
-libs = ["node_modules", "lib"]
-sparse_mode = true
-solc = '0.8.23'
-optimizer = true
-optimizer_runs = 100000
-via_ir = true
-ignored_error_codes = ['unused-param']
+  libs = ["node_modules", "lib"]
+  sparse_mode = true
+  solc = '0.8.23'
+  optimizer = true
+  optimizer_runs = 100000
+  via_ir = true
+  ignored_error_codes = ['unused-param']
 
 [profile.lite]
-optimizer = false
-ignored_error_codes = ["code-size"]
+  optimizer = false
+  ignored_error_codes = ["code-size"]
 
 [fmt]
   bracket_spacing = false
@@ -20,5 +20,10 @@ ignored_error_codes = ["code-size"]
   quote_style = "double"
   tab_width = 4
   wrap_comments = true
+
+[rpc_endpoints]
+  localhost = "http://localhost:8545"
+  mainnet = "${RPC_URL_MAINNET}"
+  sepolia = "https://sepolia.infura.io/v3/${API_KEY_INFURA}"
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

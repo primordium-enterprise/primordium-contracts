@@ -12,20 +12,21 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeab
  * @notice The implementation contract for the first version of the Primordium executor.
  */
 contract PrimordiumExecutorV1 is Treasurer, UUPSUpgradeable {
+    struct ExecutorV1Init {
+        TimelockAvatarInit timelockAvatarInit;
+        TreasurerInit treasurerInit;
+    }
     constructor() {
         _disableInitializers();
     }
 
-    function setUp(
-        bytes memory timelockAvatarInitParams,
-        bytes memory treasurerInitParams
-    )
+    function setUp(ExecutorV1Init memory init)
         public
         virtual
         initializer
     {
-        __TimelockAvatar_init(timelockAvatarInitParams);
-        __Treasurer_init_unchained(treasurerInitParams);
+        __TimelockAvatar_init(init.timelockAvatarInit);
+        __Treasurer_init_unchained(init.treasurerInit);
     }
 
     /// @dev Only the executor itself can upgrade to a new implementation contract

@@ -59,23 +59,15 @@ abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
         _;
     }
 
-    function __SharesOnboarder_init_unchained(bytes memory sharesOnboarderInitParams)
+    function __SharesOnboarder_init_unchained(SharesOnboarderInit memory init)
         internal
         virtual
         onlyInitializing
     {
-        (
-            address treasury_,
-            address quoteAsset_,
-            SharePrice memory sharePrice_,
-            uint256 fundingBeginsAt_,
-            uint256 fundingEndsAt_
-        ) = abi.decode(sharesOnboarderInitParams, (address, address, SharePrice, uint256, uint256));
-
-        _setTreasury(treasury_);
-        _setQuoteAsset(quoteAsset_);
-        _setSharePrice(sharePrice_.quoteAmount, sharePrice_.mintAmount);
-        _setFundingPeriods(fundingBeginsAt_, fundingEndsAt_);
+        _setTreasury(init.treasury);
+        _setQuoteAsset(init.quoteAsset);
+        _setSharePrice(init.quoteAmount, init.mintAmount);
+        _setFundingPeriods(init.fundingBeginsAt, init.fundingEndsAt);
     }
 
     /// @inheritdoc ISharesOnboarder

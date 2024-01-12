@@ -89,22 +89,14 @@ library ProposalsLogicV1 {
         }
     }
 
-    function setUp(bytes memory proposalsInitParams) public {
-        (
-            uint256 proposalThresholdBps_,
-            uint256 votingDelay_,
-            uint256 votingPeriod_,
-            uint256 gracePeriod_,
-            bytes memory initGrantRoles
-        ) = abi.decode(proposalsInitParams, (uint256, uint256, uint256, uint256, bytes));
-
-        setProposalThresholdBps(proposalThresholdBps_);
-        setVotingDelay(votingDelay_);
-        setVotingPeriod(votingPeriod_);
-        setProposalGracePeriod(gracePeriod_);
+    function setUp(IProposals.ProposalsInit memory init) public {
+        setProposalThresholdBps(init.proposalThresholdBps);
+        setVotingDelay(init.votingDelay);
+        setVotingPeriod(init.votingPeriod);
+        setProposalGracePeriod(init.gracePeriod);
 
         (bytes32[] memory roles, address[] memory accounts, uint256[] memory expiresAts) =
-            abi.decode(initGrantRoles, (bytes32[], address[], uint256[]));
+            abi.decode(init.initGrantRoles, (bytes32[], address[], uint256[]));
         RolesLib._grantRoles(roles, accounts, expiresAts);
     }
 

@@ -52,11 +52,9 @@ library ProposalVotingLogicV1 {
         }
     }
 
-    function setUp(bytes memory proposalVotingInitParams) public {
-        (uint256 percentMajority_, uint256 quorumBps_) = abi.decode(proposalVotingInitParams, (uint256, uint256));
-
-        setPercentMajority(percentMajority_);
-        setQuorumBps(quorumBps_);
+    function setUp(IProposalVoting.ProposalVotingInit memory init) public {
+        setPercentMajority(init.percentMajority);
+        setQuorumBps(init.quorumBps);
     }
 
     /*//////////////////////////////////////////////////////////////////////////

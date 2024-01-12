@@ -10,7 +10,7 @@ contract SharesOnboarderERC20Test is SharesOnboarderTest {
     function setUp() public virtual override {
         _deploy();
         // Defaults to ERC20 quote asset
-        ONBOARDER.quoteAsset = IERC20(erc20Mock);
+        ONBOARDER.sharesOnboarderInit.quoteAsset = address(erc20Mock);
         // gwart defaults to unlimited spending by the onboarder
         vm.prank(users.gwart);
         erc20Mock.approve(address(onboarder), type(uint256).max);
@@ -33,7 +33,7 @@ contract SharesOnboarderERC20Test is SharesOnboarderTest {
             invalidSignerPrivateKey > 0
         );
 
-        uint256 depositAmount = ONBOARDER.quoteAmount * depositMultiple;
+        uint256 depositAmount = ONBOARDER.sharesOnboarderInit.quoteAmount * depositMultiple;
 
         (, string memory name, string memory version,,,,) = erc20Mock.eip712Domain();
 
@@ -47,7 +47,7 @@ contract SharesOnboarderERC20Test is SharesOnboarderTest {
 
         _dealMockERC20(owner, depositAmount);
 
-        uint256 expectedMintAmount = ONBOARDER.mintAmount * depositMultiple;
+        uint256 expectedMintAmount = ONBOARDER.sharesOnboarderInit.mintAmount * depositMultiple;
 
         uint8 v;
         bytes32 r;

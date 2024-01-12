@@ -9,6 +9,16 @@ import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {IDistributor} from "./IDistributor.sol";
 
 interface ITreasurer is ITreasury {
+    struct TreasurerInit {
+        address token;
+        address sharesOnboarder;
+        address balanceSharesManager;
+        bytes[] balanceSharesManagerCalldatas;
+        bytes erc1967CreationCode; // Passed as argument to reduce deployment size
+        address distributorImplementation;
+        uint256 distributionClaimPeriod;
+    }
+
     event SharesOnboarderUpdate(address oldSharesOnboarder, address newSharesOnboarder);
     event BalanceSharesManagerUpdate(address oldBalanceSharesManager, address newBalanceSharesManager);
     event BalanceSharesInitialized(address balanceSharesManager, uint256 totalDeposits, uint256 depositsAllocated);

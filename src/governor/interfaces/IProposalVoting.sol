@@ -4,6 +4,11 @@
 pragma solidity ^0.8.20;
 
 interface IProposalVoting {
+    struct ProposalVotingInit {
+        uint256 percentMajority;
+        uint256 quorumBps;
+    }
+
     /**
      * @dev Supported vote types. Matches GovernorBase Bravo ordering.
      */

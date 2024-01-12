@@ -4,14 +4,14 @@ pragma solidity ^0.8.20;
 
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
-import {PrimordiumSharesTokenV1} from "src/token/PrimordiumSharesTokenV1.sol";
+import {PrimordiumTokenV1} from "src/token/PrimordiumTokenV1.sol";
 import {PrimordiumSharesOnboarderV1} from "src/onboarder/PrimordiumSharesOnboarderV1.sol";
 import {PrimordiumGovernorV1} from "src/governor/PrimordiumGovernorV1.sol";
 import {PrimordiumExecutorV1} from "src/executor/PrimordiumExecutorV1.sol";
 import {DistributorV1} from "src/executor/extensions/DistributorV1.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-abstract contract BaseV1Script is Script {
-
+abstract contract BaseScriptV1 is Script {
     bytes32 deploySalt;
 
     constructor() {
@@ -25,24 +25,58 @@ abstract contract BaseV1Script is Script {
         vm.stopBroadcast();
     }
 
-    /******************************************************************************
-        PrimordiumSharesTokenV1
-    ******************************************************************************/
+    function _checkContractAlreadyExists(address addr) internal view returns (bool exists) {
+        uint256 codeSize;
+        assembly {
+            codeSize := extcodesize(addr)
+        }
 
-    function _address_implementation_SharesTokenV1() internal view returns (address) {
-        return computeCreate2Address(deploySalt, keccak256(type(PrimordiumSharesTokenV1).creationCode));
+        if (codeSize > 0) {
+            return true;
+        }
     }
 
-    function _deploy_implementation_SharesTokenV1() internal {
-        address deployed = address(new PrimordiumSharesTokenV1{salt: deploySalt}());
-        if (deployed != _address_implementation_SharesTokenV1()) {
+    function _getProxyInitCode(address implementation, bytes memory _data) internal pure returns (bytes memory) {
+        return abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(implementation, _data));
+    }
+
+    /*/////////////////////////////////////////////////////////////////////////////
+        PrimordiumTokenV1
+    /////////////////////////////////////////////////////////////////////////////*/
+
+    function _address_implementation_TokenV1() internal view returns (address) {
+        return computeCreate2Address(deploySalt, keccak256(type(PrimordiumTokenV1).creationCode));
+    }
+
+    function _deploy_implementation_TokenV1() internal {
+        address deployed = address(new PrimordiumTokenV1{salt: deploySalt}());
+        if (deployed != _address_implementation_TokenV1()) {
             revert("SharesToken: invalid deployment address");
         }
     }
 
-    /******************************************************************************
+    // function _initCode_proxy_TokenV1(
+    //     address executor,
+    //     SharesTokenSettings memory settings
+    // )
+    //     internal
+    //     view
+    //     returns (bytes memory initCode)
+    // {
+    //     address owner = executor;
+    //     SharesTokenInit memory $ = settings.sharesTokenInit;
+    //     bytes memory sharesTokenInit = abi.encode($.maxSupply, address(executor));
+    //     return _getProxyInitCode(
+    //         _address_implementation_TokenV1(),
+    //         abi.encodeCall(
+    //             PrimordiumTokenV1.setUp, (owner, settings.name, settings.symbol, sharesTokenInit)
+    //         )
+    //     );
+    // }
+
+    /*/////////////////////////////////////////////////////////////////////////////
         PrimordiumSharesOnboarderV1
-    ******************************************************************************/
+    /////////////////////////////////////////////////////////////////////////////*/
 
     function _address_implementation_SharesOnboarderV1() internal view returns (address) {
         return computeCreate2Address(deploySalt, keccak256(type(PrimordiumSharesOnboarderV1).creationCode));
@@ -55,9 +89,9 @@ abstract contract BaseV1Script is Script {
         }
     }
 
-    /******************************************************************************
+    /*/////////////////////////////////////////////////////////////////////////////
         PrimordiumGovernorV1
-    ******************************************************************************/
+    /////////////////////////////////////////////////////////////////////////////*/
 
     function _address_implementation_GovernorV1() internal view returns (address) {
         return computeCreate2Address(deploySalt, keccak256(type(PrimordiumGovernorV1).creationCode));
@@ -70,9 +104,9 @@ abstract contract BaseV1Script is Script {
         }
     }
 
-    /******************************************************************************
+    /*/////////////////////////////////////////////////////////////////////////////
         PrimordiumExecutorV1
-    ******************************************************************************/
+    /////////////////////////////////////////////////////////////////////////////*/
 
     function _address_implementation_ExecutorV1() internal view returns (address) {
         return computeCreate2Address(deploySalt, keccak256(type(PrimordiumExecutorV1).creationCode));
@@ -85,9 +119,9 @@ abstract contract BaseV1Script is Script {
         }
     }
 
-    /******************************************************************************
+    /*/////////////////////////////////////////////////////////////////////////////
         DistributorV1
-    ******************************************************************************/
+    /////////////////////////////////////////////////////////////////////////////*/
 
     function _address_implementation_DistributorV1() internal view returns (address) {
         return computeCreate2Address(deploySalt, keccak256(type(DistributorV1).creationCode));

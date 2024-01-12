@@ -12,6 +12,13 @@ import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
  * @dev Interface of the {GovernorBase} core.
  */
 interface IGovernorBase is IERC6372 {
+    struct GovernorBaseInit {
+        address executor;
+        address token;
+        uint256 governanceCanBeginAt;
+        uint256 governanceThresholdBps;
+    }
+
     event GovernorBaseInitialized(
         address executor, address token, uint256 governanceCanBeginAt, uint256 governanceThresholdBps, bool isFounded
     );

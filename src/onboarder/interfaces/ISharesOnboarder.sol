@@ -8,6 +8,15 @@ import {ISharesToken} from "src/token/interfaces/ISharesToken.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface ISharesOnboarder {
+    struct SharesOnboarderInit {
+        address treasury;
+        address quoteAsset;
+        uint128 quoteAmount;
+        uint128 mintAmount;
+        uint256 fundingBeginsAt;
+        uint256 fundingEndsAt;
+    }
+
     struct SharePrice {
         uint128 quoteAmount; // Minimum amount of quote asset tokens required to mint {mintAmount} amount of votes.
         uint128 mintAmount; // Number of votes that can be minted per {quoteAmount} count of quote asset.

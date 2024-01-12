@@ -108,14 +108,12 @@ abstract contract TimelockAvatar is
         return _getModuleExecutionStorage()._executingModule;
     }
 
-    function __TimelockAvatar_init(bytes memory timelockAvatarInitParams) internal onlyInitializing {
-        (uint256 minDelay_, address[] memory modules_) = abi.decode(timelockAvatarInitParams, (uint256, address[]));
-
+    function __TimelockAvatar_init(TimelockAvatarInit memory init) internal onlyInitializing {
         __SelfAuthorized_init();
         // Initialize the module execution to address(0x01) for cheaper gas updates
         _setModuleExecution(MODULES_HEAD);
-        _setMinDelay(minDelay_);
-        _setUpModules(modules_);
+        _setMinDelay(init.minDelay);
+        _setUpModules(init.modules);
     }
 
     function supportsInterface(bytes4 interfaceId)

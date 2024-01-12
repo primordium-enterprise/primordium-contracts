@@ -6,6 +6,13 @@ pragma solidity ^0.8.20;
 import {IProposals} from "./IProposals.sol";
 
 interface IProposalDeadlineExtensions is IProposals {
+    struct ProposalDeadlineExtensionsInit {
+        uint256 maxDeadlineExtension;
+        uint256 baseDeadlineExtension;
+        uint256 decayPeriod;
+        uint256 percentDecay;
+    }
+
     event ProposalDeadlineExtended(uint256 indexed proposalId, uint256 extendedDeadline);
     event MaxDeadlineExtensionUpdate(uint256 oldMaxDeadlineExtension, uint256 newMaxDeadlineExtension);
     event BaseDeadlineExtensionUpdate(uint256 oldBaseDeadlineExtension, uint256 newBaseDeadlineExtension);

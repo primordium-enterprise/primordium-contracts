@@ -53,7 +53,7 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
             if (expectedBalanceShareAllocation > 0) {
                 vm.expectEmit(true, true, false, true, address(executor));
                 emit ITreasurer.BalanceShareAllocated(
-                    executor.balanceSharesManager(), DEPOSITS_ID, ONBOARDER.quoteAsset, expectedBalanceShareAllocation
+                    executor.balanceSharesManager(), DEPOSITS_ID, IERC20(ONBOARDER.sharesOnboarderInit.quoteAsset), expectedBalanceShareAllocation
                 );
             }
 
@@ -61,7 +61,7 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
             emit IERC20.Transfer(address(0), account, expectedMintAmount);
 
             vm.expectEmit(true, false, false, true, address(executor));
-            emit ITreasury.DepositRegistered(account, ONBOARDER.quoteAsset, depositAmount, expectedMintAmount);
+            emit ITreasury.DepositRegistered(account, IERC20(ONBOARDER.sharesOnboarderInit.quoteAsset), depositAmount, expectedMintAmount);
 
             vm.expectEmit(true, false, false, true, address(onboarder));
             emit ISharesOnboarder.Deposit(account, depositAmount, expectedMintAmount, depositor);
@@ -72,14 +72,14 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
 
     function test_Revert_OutsideFundingPeriods() public {
         bytes memory fundingNotActiveError = abi.encodeWithSelector(ISharesOnboarder.FundingIsNotActive.selector);
-        uint256 depositAmount = ONBOARDER.quoteAmount;
+        uint256 depositAmount = ONBOARDER.sharesOnboarderInit.quoteAmount;
         address depositor = users.gwart;
 
-        vm.warp(ONBOARDER.fundingBeginsAt - 1);
+        vm.warp(ONBOARDER.sharesOnboarderInit.fundingBeginsAt - 1);
         (uint256 value,,) = _setupDepositExpectations(depositor, depositAmount, fundingNotActiveError);
         onboarder.deposit{value: value}(depositAmount);
 
-        vm.warp(ONBOARDER.fundingEndsAt);
+        vm.warp(ONBOARDER.sharesOnboarderInit.fundingEndsAt);
         (value,,) = _setupDepositExpectations(depositor, depositAmount, fundingNotActiveError);
         onboarder.deposit{value: value}(depositAmount);
     }
@@ -153,8 +153,8 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
 
     function test_Fuzz_DepositMsgValues(uint8 depositMultiple, uint256 value) public {
         vm.assume(depositMultiple > 0);
-        uint256 depositAmount = depositMultiple * ONBOARDER.quoteAmount;
-        uint256 expectedMintAmount = depositMultiple * ONBOARDER.mintAmount;
+        uint256 depositAmount = depositMultiple * ONBOARDER.sharesOnboarderInit.quoteAmount;
+        uint256 expectedMintAmount = depositMultiple * ONBOARDER.sharesOnboarderInit.mintAmount;
         uint256 correctValue = _giveQuoteAsset(users.gwart, depositAmount);
 
         // deal gwart the eth amount
@@ -175,7 +175,7 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
         bytes memory err;
         if (depositAmount == 0) {
             err = abi.encodeWithSelector(ISharesOnboarder.InvalidDepositAmount.selector);
-        } else if (depositAmount % ONBOARDER.quoteAmount != 0) {
+        } else if (depositAmount % ONBOARDER.sharesOnboarderInit.quoteAmount != 0) {
             err = abi.encodeWithSelector(ISharesOnboarder.InvalidDepositAmountMultiple.selector);
         }
         (uint256 value, uint256 expectedMintAmount,) = _setupDepositExpectations(users.gwart, depositAmount, err);
@@ -188,7 +188,7 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
 
     function test_Fuzz_ValidDepositAmounts(uint8 depositMultiple) public {
         vm.assume(depositMultiple > 0);
-        uint256 depositAmount = ONBOARDER.quoteAmount * depositMultiple;
+        uint256 depositAmount = ONBOARDER.sharesOnboarderInit.quoteAmount * depositMultiple;
         address depositor = users.gwart;
 
         (uint256 value, uint256 expectedMintAmount, uint256 expectedBalanceShareAllocation) =
@@ -204,7 +204,7 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
     function test_Fuzz_ValidDepositForAmounts(uint8 depositMultiple) public {
         // gwart deposits to mint shares for alice
         vm.assume(depositMultiple > 0);
-        uint256 depositAmount = ONBOARDER.quoteAmount * depositMultiple;
+        uint256 depositAmount = ONBOARDER.sharesOnboarderInit.quoteAmount * depositMultiple;
         address depositor = users.gwart;
         address account = users.alice;
 
@@ -222,9 +222,9 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
 
     function test_Revert_MaxSupplyOverflow() public {
         // Equal to max supply should work fine
-        uint256 maxSupply = TOKEN.maxSupply;
-        uint256 depositMultiple = (maxSupply / ONBOARDER.mintAmount);
-        uint256 depositAmount = ONBOARDER.quoteAmount * depositMultiple;
+        uint256 maxSupply = TOKEN.sharesTokenInit.maxSupply;
+        uint256 depositMultiple = (maxSupply / ONBOARDER.sharesOnboarderInit.mintAmount);
+        uint256 depositAmount = ONBOARDER.sharesOnboarderInit.quoteAmount * depositMultiple;
         address depositor = users.gwart;
 
         (uint256 value, uint256 expectedMintAmount,) = _setupDepositExpectations(depositor, depositAmount, "");
@@ -233,18 +233,18 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
         assertEq(expectedMintAmount, token.balanceOf(depositor));
 
         // Expect revert due to overflow
-        depositAmount = ONBOARDER.quoteAmount;
+        depositAmount = ONBOARDER.sharesOnboarderInit.quoteAmount;
         (value, expectedMintAmount,) = _setupDepositExpectations(
             depositor,
             depositAmount,
             abi.encodeWithSelector(
-                IERC20Snapshots.ERC20MaxSupplyOverflow.selector, maxSupply, maxSupply + ONBOARDER.mintAmount
+                IERC20Snapshots.ERC20MaxSupplyOverflow.selector, maxSupply, maxSupply + ONBOARDER.sharesOnboarderInit.mintAmount
             )
         );
         onboarder.deposit{value: value}(depositAmount);
 
         // Increase max supply by mintAmount
-        maxSupply += ONBOARDER.mintAmount;
+        maxSupply += ONBOARDER.sharesOnboarderInit.mintAmount;
         vm.prank(token.owner());
         token.setMaxSupply(maxSupply);
 
@@ -258,7 +258,7 @@ contract SharesOnboarderTest is BaseTest, BalanceSharesTestUtils {
             depositor,
             depositAmount,
             abi.encodeWithSelector(
-                IERC20Snapshots.ERC20MaxSupplyOverflow.selector, maxSupply, maxSupply + ONBOARDER.mintAmount
+                IERC20Snapshots.ERC20MaxSupplyOverflow.selector, maxSupply, maxSupply + ONBOARDER.sharesOnboarderInit.mintAmount
             )
         );
         onboarder.deposit{value: value}(depositAmount);

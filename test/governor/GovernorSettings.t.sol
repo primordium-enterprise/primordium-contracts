@@ -26,7 +26,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         super.setUp();
         governor.harnessFoundGovernor();
         // Mint tokens to create total supply
-        _mintSharesForVoting(users.gwart, GOVERNOR.governanceThresholdBps * TOKEN.maxSupply / MAX_BPS);
+        _mintSharesForVoting(users.gwart, GOVERNOR.governorBaseInit.governanceThresholdBps * TOKEN.sharesTokenInit.maxSupply / MAX_BPS);
     }
 
     function _proposeAndExecuteUpdate(
@@ -131,11 +131,11 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
     function test_Revert_SetProposalThresholdBps_OnlyGovernance() public {
         vm.prank(address(executor));
         vm.expectRevert(DoubleEndedQueue.QueueEmpty.selector);
-        governor.setProposalThresholdBps(GOVERNOR.proposalThresholdBps);
+        governor.setProposalThresholdBps(GOVERNOR.proposalsInit.proposalThresholdBps);
 
         vm.prank(users.maliciousUser);
         vm.expectRevert(IGovernorBase.OnlyGovernance.selector);
-        governor.setProposalThresholdBps(GOVERNOR.proposalThresholdBps);
+        governor.setProposalThresholdBps(GOVERNOR.proposalsInit.proposalThresholdBps);
     }
 
     function test_Fuzz_SetProposalThresholdBps(uint16 newProposalThresholdBps) public {
@@ -144,13 +144,13 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
-        uint256 expectedProposalThresholdBps = GOVERNOR.proposalThresholdBps;
+        uint256 expectedProposalThresholdBps = GOVERNOR.proposalsInit.proposalThresholdBps;
         if (newProposalThresholdBps > MAX_BPS) {
             err = abi.encodeWithSelector(BasisPoints.BPSValueTooLarge.selector, newProposalThresholdBps);
         } else {
             expectedProposalThresholdBps = newProposalThresholdBps;
             vm.expectEmit(false, false, false, true, address(governor));
-            emit IProposals.ProposalThresholdBPSUpdate(GOVERNOR.proposalThresholdBps, newProposalThresholdBps);
+            emit IProposals.ProposalThresholdBPSUpdate(GOVERNOR.proposalsInit.proposalThresholdBps, newProposalThresholdBps);
         }
 
         _executeOnlyGovernanceUpdate(proposalId, data, err);
@@ -161,11 +161,11 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
     function test_Revert_SetVotingDelay_OnlyGovernance() public {
         vm.prank(address(executor));
         vm.expectRevert(DoubleEndedQueue.QueueEmpty.selector);
-        governor.setVotingDelay(GOVERNOR.votingDelay);
+        governor.setVotingDelay(GOVERNOR.proposalsInit.votingDelay);
 
         vm.prank(users.maliciousUser);
         vm.expectRevert(IGovernorBase.OnlyGovernance.selector);
-        governor.setVotingDelay(GOVERNOR.votingDelay);
+        governor.setVotingDelay(GOVERNOR.proposalsInit.votingDelay);
     }
 
     function test_Fuzz_SetVotingDelay(uint32 newVotingDelay) public {
@@ -177,13 +177,13 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
-        uint256 expectedVotingDelay = GOVERNOR.votingDelay;
+        uint256 expectedVotingDelay = GOVERNOR.proposalsInit.votingDelay;
         if (newVotingDelay < min || newVotingDelay > max) {
             err = abi.encodeWithSelector(GovernorSettingsRanges.GovernorVotingDelayOutOfRange.selector, min, max);
         } else {
             expectedVotingDelay = newVotingDelay;
             vm.expectEmit(false, false, false, true);
-            emit IProposals.VotingDelayUpdate(GOVERNOR.votingDelay, newVotingDelay);
+            emit IProposals.VotingDelayUpdate(GOVERNOR.proposalsInit.votingDelay, newVotingDelay);
         }
 
         _executeOnlyGovernanceUpdate(proposalId, data, err);
@@ -193,11 +193,11 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
     function test_Revert_SetVotingPeriod_OnlyGovernance() public {
         vm.prank(address(executor));
         vm.expectRevert(DoubleEndedQueue.QueueEmpty.selector);
-        governor.setVotingPeriod(GOVERNOR.votingPeriod);
+        governor.setVotingPeriod(GOVERNOR.proposalsInit.votingPeriod);
 
         vm.prank(users.maliciousUser);
         vm.expectRevert(IGovernorBase.OnlyGovernance.selector);
-        governor.setVotingPeriod(GOVERNOR.votingPeriod);
+        governor.setVotingPeriod(GOVERNOR.proposalsInit.votingPeriod);
     }
 
     function test_Fuzz_SetVotingPeriod(uint32 newVotingPeriod) public {
@@ -209,13 +209,13 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
-        uint256 expectedVotingPeriod = GOVERNOR.votingPeriod;
+        uint256 expectedVotingPeriod = GOVERNOR.proposalsInit.votingPeriod;
         if (newVotingPeriod < min || newVotingPeriod > max) {
             err = abi.encodeWithSelector(GovernorSettingsRanges.GovernorVotingPeriodOutOfRange.selector, min, max);
         } else {
             expectedVotingPeriod = newVotingPeriod;
             vm.expectEmit(false, false, false, true);
-            emit IProposals.VotingPeriodUpdate(GOVERNOR.votingPeriod, newVotingPeriod);
+            emit IProposals.VotingPeriodUpdate(GOVERNOR.proposalsInit.votingPeriod, newVotingPeriod);
         }
 
         _executeOnlyGovernanceUpdate(proposalId, data, err);
@@ -225,11 +225,11 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
     function test_Revert_SetProposalGracePeriod_OnlyGovernance() public {
         vm.prank(address(executor));
         vm.expectRevert(DoubleEndedQueue.QueueEmpty.selector);
-        governor.setProposalGracePeriod(GOVERNOR.gracePeriod);
+        governor.setProposalGracePeriod(GOVERNOR.proposalsInit.gracePeriod);
 
         vm.prank(users.maliciousUser);
         vm.expectRevert(IGovernorBase.OnlyGovernance.selector);
-        governor.setProposalGracePeriod(GOVERNOR.gracePeriod);
+        governor.setProposalGracePeriod(GOVERNOR.proposalsInit.gracePeriod);
     }
 
     function test_Fuzz_SetProposalGracePeriod(uint48 newProposalGracePeriod) public {
@@ -241,14 +241,14 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
-        uint256 expectedProposalGracePeriod = GOVERNOR.gracePeriod;
+        uint256 expectedProposalGracePeriod = GOVERNOR.proposalsInit.gracePeriod;
         if (newProposalGracePeriod < min || newProposalGracePeriod > max) {
             err =
                 abi.encodeWithSelector(GovernorSettingsRanges.GovernorProposalGracePeriodOutOfRange.selector, min, max);
         } else {
             expectedProposalGracePeriod = newProposalGracePeriod;
             vm.expectEmit(false, false, false, true);
-            emit IProposals.ProposalGracePeriodUpdate(GOVERNOR.gracePeriod, newProposalGracePeriod);
+            emit IProposals.ProposalGracePeriodUpdate(GOVERNOR.proposalsInit.gracePeriod, newProposalGracePeriod);
         }
 
         _executeOnlyGovernanceUpdate(proposalId, data, err);
@@ -261,11 +261,11 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
     function test_Revert_SetPercentMajority_OnlyGovernance() public {
         vm.prank(address(executor));
         vm.expectRevert(DoubleEndedQueue.QueueEmpty.selector);
-        governor.setPercentMajority(GOVERNOR.percentMajority);
+        governor.setPercentMajority(GOVERNOR.proposalVotingInit.percentMajority);
 
         vm.prank(users.maliciousUser);
         vm.expectRevert(IGovernorBase.OnlyGovernance.selector);
-        governor.setPercentMajority(GOVERNOR.percentMajority);
+        governor.setPercentMajority(GOVERNOR.proposalVotingInit.percentMajority);
     }
 
     function test_Fuzz_SetPercentMajority(uint8 newPercentMajority) public {
@@ -277,13 +277,13 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
-        uint256 expectedPercentMajority = GOVERNOR.percentMajority;
+        uint256 expectedPercentMajority = GOVERNOR.proposalVotingInit.percentMajority;
         if (newPercentMajority < min || newPercentMajority > max) {
             err = abi.encodeWithSelector(IProposalVoting.GovernorPercentMajorityOutOfRange.selector, min, max);
         } else {
             expectedPercentMajority = newPercentMajority;
             vm.expectEmit(false, false, false, true);
-            emit IProposalVoting.PercentMajorityUpdate(GOVERNOR.percentMajority, newPercentMajority);
+            emit IProposalVoting.PercentMajorityUpdate(GOVERNOR.proposalVotingInit.percentMajority, newPercentMajority);
         }
 
         _executeOnlyGovernanceUpdate(proposalId, data, err);
@@ -293,11 +293,11 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
     function test_Revert_SetQuorumBps_OnlyGovernance() public {
         vm.prank(address(executor));
         vm.expectRevert(DoubleEndedQueue.QueueEmpty.selector);
-        governor.setQuorumBps(GOVERNOR.quorumBps);
+        governor.setQuorumBps(GOVERNOR.proposalVotingInit.quorumBps);
 
         vm.prank(users.maliciousUser);
         vm.expectRevert(IGovernorBase.OnlyGovernance.selector);
-        governor.setQuorumBps(GOVERNOR.quorumBps);
+        governor.setQuorumBps(GOVERNOR.proposalVotingInit.quorumBps);
     }
 
     function test_Fuzz_SetQuorumBps(uint16 newQuorumBps) public {
@@ -306,13 +306,13 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
-        uint256 expectedQuorumBps = GOVERNOR.quorumBps;
+        uint256 expectedQuorumBps = GOVERNOR.proposalVotingInit.quorumBps;
         if (newQuorumBps > MAX_BPS) {
             err = abi.encodeWithSelector(BasisPoints.BPSValueTooLarge.selector, newQuorumBps);
         } else {
             expectedQuorumBps = newQuorumBps;
             vm.expectEmit(false, false, false, true);
-            emit IProposalVoting.QuorumBpsUpdate(GOVERNOR.quorumBps, newQuorumBps);
+            emit IProposalVoting.QuorumBpsUpdate(GOVERNOR.proposalVotingInit.quorumBps, newQuorumBps);
         }
 
         _executeOnlyGovernanceUpdate(proposalId, data, err);
@@ -330,11 +330,11 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
     function test_Revert_SetMaxDeadlineExtension_OnlyGovernance() public {
         vm.prank(address(executor));
         vm.expectRevert(DoubleEndedQueue.QueueEmpty.selector);
-        governor.setMaxDeadlineExtension(GOVERNOR.maxDeadlineExtension);
+        governor.setMaxDeadlineExtension(GOVERNOR.proposalDeadlineExtensionsInit.maxDeadlineExtension);
 
         vm.prank(users.maliciousUser);
         vm.expectRevert(IGovernorBase.OnlyGovernance.selector);
-        governor.setMaxDeadlineExtension(GOVERNOR.maxDeadlineExtension);
+        governor.setMaxDeadlineExtension(GOVERNOR.proposalDeadlineExtensionsInit.maxDeadlineExtension);
     }
 
     function test_Fuzz_SetMaxDeadlineExtension(uint32 newMaxDeadlineExtension) public {
@@ -345,14 +345,14 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
-        uint256 expectedMaxDeadlineExtension = GOVERNOR.maxDeadlineExtension;
+        uint256 expectedMaxDeadlineExtension = GOVERNOR.proposalDeadlineExtensionsInit.maxDeadlineExtension;
         if (newMaxDeadlineExtension > max) {
             err = abi.encodeWithSelector(GovernorSettingsRanges.GovernorMaxDeadlineExtensionTooLarge.selector, max);
         } else {
             expectedMaxDeadlineExtension = newMaxDeadlineExtension;
             vm.expectEmit(false, false, false, true);
             emit IProposalDeadlineExtensions.MaxDeadlineExtensionUpdate(
-                GOVERNOR.maxDeadlineExtension, newMaxDeadlineExtension
+                GOVERNOR.proposalDeadlineExtensionsInit.maxDeadlineExtension, newMaxDeadlineExtension
             );
         }
 
@@ -363,11 +363,11 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
     function test_Revert_SetBaseDeadlineExtension_OnlyGovernance() public {
         vm.prank(address(executor));
         vm.expectRevert(DoubleEndedQueue.QueueEmpty.selector);
-        governor.setBaseDeadlineExtension(GOVERNOR.baseDeadlineExtension);
+        governor.setBaseDeadlineExtension(GOVERNOR.proposalDeadlineExtensionsInit.baseDeadlineExtension);
 
         vm.prank(users.maliciousUser);
         vm.expectRevert(IGovernorBase.OnlyGovernance.selector);
-        governor.setBaseDeadlineExtension(GOVERNOR.baseDeadlineExtension);
+        governor.setBaseDeadlineExtension(GOVERNOR.proposalDeadlineExtensionsInit.baseDeadlineExtension);
     }
 
     function test_Fuzz_SetBaseDeadlineExtension(uint32 newBaseDeadlineExtension) public {
@@ -379,7 +379,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
-        uint256 expectedBaseDeadlineExtension = GOVERNOR.baseDeadlineExtension;
+        uint256 expectedBaseDeadlineExtension = GOVERNOR.proposalDeadlineExtensionsInit.baseDeadlineExtension;
         if (newBaseDeadlineExtension < min || newBaseDeadlineExtension > max) {
             err = abi.encodeWithSelector(
                 GovernorSettingsRanges.GovernorBaseDeadlineExtensionOutOfRange.selector, min, max
@@ -388,7 +388,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
             expectedBaseDeadlineExtension = newBaseDeadlineExtension;
             vm.expectEmit(false, false, false, true);
             emit IProposalDeadlineExtensions.BaseDeadlineExtensionUpdate(
-                GOVERNOR.baseDeadlineExtension, newBaseDeadlineExtension
+                GOVERNOR.proposalDeadlineExtensionsInit.baseDeadlineExtension, newBaseDeadlineExtension
             );
         }
 
@@ -399,11 +399,11 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
     function test_Revert_SetExtensionDecayPeriod_OnlyGovernance() public {
         vm.prank(address(executor));
         vm.expectRevert(DoubleEndedQueue.QueueEmpty.selector);
-        governor.setExtensionDecayPeriod(GOVERNOR.extensionDecayPeriod);
+        governor.setExtensionDecayPeriod(GOVERNOR.proposalDeadlineExtensionsInit.decayPeriod);
 
         vm.prank(users.maliciousUser);
         vm.expectRevert(IGovernorBase.OnlyGovernance.selector);
-        governor.setExtensionDecayPeriod(GOVERNOR.extensionDecayPeriod);
+        governor.setExtensionDecayPeriod(GOVERNOR.proposalDeadlineExtensionsInit.decayPeriod);
     }
 
     function test_Fuzz_SetExtensionDecayPeriod(uint32 newExtensionDecayPeriod) public {
@@ -415,7 +415,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
-        uint256 expectedExtensionDecayPeriod = GOVERNOR.extensionDecayPeriod;
+        uint256 expectedExtensionDecayPeriod = GOVERNOR.proposalDeadlineExtensionsInit.decayPeriod;
         if (newExtensionDecayPeriod < min || newExtensionDecayPeriod > max) {
             err =
                 abi.encodeWithSelector(GovernorSettingsRanges.GovernorExtensionDecayPeriodOutOfRange.selector, min, max);
@@ -423,7 +423,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
             expectedExtensionDecayPeriod = newExtensionDecayPeriod;
             vm.expectEmit(false, false, false, true);
             emit IProposalDeadlineExtensions.ExtensionDecayPeriodUpdate(
-                GOVERNOR.extensionDecayPeriod, newExtensionDecayPeriod
+                GOVERNOR.proposalDeadlineExtensionsInit.decayPeriod, newExtensionDecayPeriod
             );
         }
 
@@ -434,11 +434,11 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
     function test_Revert_SetExtensionPercentDecay_OnlyGovernance() public {
         vm.prank(address(executor));
         vm.expectRevert(DoubleEndedQueue.QueueEmpty.selector);
-        governor.setExtensionPercentDecay(GOVERNOR.extensionPercentDecay);
+        governor.setExtensionPercentDecay(GOVERNOR.proposalDeadlineExtensionsInit.percentDecay);
 
         vm.prank(users.maliciousUser);
         vm.expectRevert(IGovernorBase.OnlyGovernance.selector);
-        governor.setExtensionPercentDecay(GOVERNOR.extensionPercentDecay);
+        governor.setExtensionPercentDecay(GOVERNOR.proposalDeadlineExtensionsInit.percentDecay);
     }
 
     function test_Fuzz_SetExtensionPercentDecay(uint32 newExtensionPercentDecay) public {
@@ -450,7 +450,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         uint256 proposalId = _proposePassAndQueueOnlyGovernanceUpdate(data, signature);
 
         bytes memory err;
-        uint256 expectedExtensionPercentDecay = GOVERNOR.extensionPercentDecay;
+        uint256 expectedExtensionPercentDecay = GOVERNOR.proposalDeadlineExtensionsInit.percentDecay;
         if (newExtensionPercentDecay < min || newExtensionPercentDecay > max) {
             err = abi.encodeWithSelector(
                 IProposalDeadlineExtensions.GovernorExtensionPercentDecayOutOfRange.selector, min, max
@@ -459,7 +459,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
             expectedExtensionPercentDecay = newExtensionPercentDecay;
             vm.expectEmit(false, false, false, true);
             emit IProposalDeadlineExtensions.ExtensionPercentDecayUpdate(
-                GOVERNOR.extensionPercentDecay, newExtensionPercentDecay
+                GOVERNOR.proposalDeadlineExtensionsInit.percentDecay, newExtensionPercentDecay
             );
         }
 

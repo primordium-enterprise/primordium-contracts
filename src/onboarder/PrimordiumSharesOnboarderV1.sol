@@ -12,13 +12,18 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeab
  * @notice The implementation contract for the first version of the Primordium shares onboarder.
  */
 contract PrimordiumSharesOnboarderV1 is SharesOnboarder, UUPSUpgradeable {
+    struct SharesOnboarderV1Init {
+        address owner;
+        SharesOnboarderInit sharesOnboarderInit;
+    }
+
     constructor() {
         _disableInitializers();
     }
 
-    function setUp(address owner_, bytes memory sharesOnboarderInitParams) public virtual initializer {
-        __Ownable_init_unchained(owner_);
-        __SharesOnboarder_init_unchained(sharesOnboarderInitParams);
+    function setUp(SharesOnboarderV1Init memory init) public virtual initializer {
+        __Ownable_init_unchained(init.owner);
+        __SharesOnboarder_init_unchained(init.sharesOnboarderInit);
     }
 
     /// @dev Upgrading to new implementation is an only-owner operation

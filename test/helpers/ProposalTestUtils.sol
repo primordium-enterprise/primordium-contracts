@@ -128,7 +128,7 @@ contract ProposalTestUtils is BaseTest {
         internal
         returns (uint256 proposalId)
     {
-        uint256 requiredVoteShares = GOVERNOR.quorumBps * TOKEN.maxSupply / MAX_BPS;
+        uint256 requiredVoteShares = GOVERNOR.proposalVotingInit.quorumBps * TOKEN.sharesTokenInit.maxSupply / MAX_BPS;
         _mintSharesForVoting(users.proposer, requiredVoteShares);
 
         address target = address(governor);

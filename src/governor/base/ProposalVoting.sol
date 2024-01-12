@@ -21,11 +21,9 @@ abstract contract ProposalVoting is Proposals, IProposalVoting {
         "ExtendedBallot(uint256 proposalId,uint8 support,address voter,uint256 nonce,string reason,bytes params)"
     );
 
-    function __ProposalVoting_init_unchained(bytes memory proposalVotingInitParams) internal virtual onlyInitializing {
-        (uint256 percentMajority_, uint256 quorumBps_) = abi.decode(proposalVotingInitParams, (uint256, uint256));
-
-        _setPercentMajority(percentMajority_);
-        _setQuorumBps(quorumBps_);
+    function __ProposalVoting_init_unchained(ProposalVotingInit memory init) internal virtual onlyInitializing {
+        _setPercentMajority(init.percentMajority);
+        _setQuorumBps(init.quorumBps);
     }
 
     /*//////////////////////////////////////////////////////////////////////////

@@ -45,12 +45,12 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  * deadlineExtension = ( E - distanceFromDeadline ) * min(1.25, [ voteWeight / ( abs(ForVotes - AgainstVotes) + 1 ) ])
  */
 abstract contract ProposalDeadlineExtensions is ProposalVoting, IProposalDeadlineExtensions {
-    function __ProposalDeadlineExtensions_init_unchained(bytes memory proposalDeadlineExtensionsInitParams)
+    function __ProposalDeadlineExtensions_init_unchained(ProposalDeadlineExtensionsInit memory init)
         internal
         virtual
         onlyInitializing
     {
-        ProposalDeadlineExtensionsLogicV1.setUp(proposalDeadlineExtensionsInitParams);
+        ProposalDeadlineExtensionsLogicV1.setUp(init);
     }
 
     /// @inheritdoc IProposalDeadlineExtensions

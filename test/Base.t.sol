@@ -5,10 +5,17 @@ import {PRBTest} from "@prb/test/PRBTest.sol";
 import {Vm} from "@prb/test/Vm.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
-import {ExecutorV1Harness} from "./harness/ExecutorV1Harness.sol";
-import {GovernorV1Harness} from "./harness/GovernorV1Harness.sol";
-import {SharesTokenV1Harness} from "./harness/SharesTokenV1Harness.sol";
-import {OnboarderV1Harness} from "./harness/OnboarderV1Harness.sol";
+import {ExecutorV1Harness, PrimordiumExecutorV1} from "./harness/ExecutorV1Harness.sol";
+import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
+import {ITreasurer} from "src/executor/interfaces/ITreasurer.sol";
+import {GovernorV1Harness, PrimordiumGovernorV1} from "./harness/GovernorV1Harness.sol";
+import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
+import {IProposals} from "src/governor/interfaces/IProposals.sol";
+import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
+import {IProposalDeadlineExtensions} from "src/governor/interfaces/IProposalDeadlineExtensions.sol";
+import {TokenV1Harness, PrimordiumTokenV1} from "./harness/TokenV1Harness.sol";
+import {ISharesToken} from "src/token/interfaces/ISharesToken.sol";
+import {OnboarderV1Harness, PrimordiumSharesOnboarderV1} from "./harness/OnboarderV1Harness.sol";
 import {DistributorV1Harness} from "./harness/DistributorV1Harness.sol";
 import {BalanceSharesSingleton} from "balance-shares-protocol/BalanceSharesSingleton.sol";
 import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
@@ -45,78 +52,78 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
         IMPLEMENTATION CONTRACTS
     //////////////////////////////////////////////////////////*/
 
-    struct ExecutorParams {
-        uint256 minDelay;
-        uint256 distributionClaimPeriod;
-    }
-
-    ExecutorParams EXECUTOR = ExecutorParams({minDelay: 2 days, distributionClaimPeriod: 60 days});
+    PrimordiumExecutorV1.ExecutorV1Init EXECUTOR = PrimordiumExecutorV1.ExecutorV1Init({
+        timelockAvatarInit: ITimelockAvatar.TimelockAvatarInit({
+            minDelay: 2 days,
+            modules: new address[](0)
+        }),
+        treasurerInit: ITreasurer.TreasurerInit({
+            token: address(0),
+            sharesOnboarder: address(0),
+            balanceSharesManager: address(0),
+            balanceSharesManagerCalldatas: new bytes[](0),
+            erc1967CreationCode: type(ERC1967Proxy).creationCode,
+            distributorImplementation: address(0),
+            distributionClaimPeriod: 60 days
+        })
+    });
 
     address internal executorImpl;
     ExecutorV1Harness internal executor;
 
-    struct TokenParams {
-        string name;
-        string symbol;
-        uint256 maxSupply;
-    }
-
-    TokenParams internal TOKEN = TokenParams({name: "Primordium", symbol: "MUSHI", maxSupply: 100_000_000 ether});
+    PrimordiumTokenV1.TokenV1Init internal TOKEN = PrimordiumTokenV1.TokenV1Init({
+        owner: address(0),
+        name: "Primordium",
+        symbol: "MUSHI",
+        sharesTokenInit: ISharesToken.SharesTokenInit({
+            treasury: address(0),
+            maxSupply: 100_000_000 ether
+        })
+    });
 
     address internal tokenImpl;
-    SharesTokenV1Harness internal token;
+    TokenV1Harness internal token;
 
-    struct OnboarderParams {
-        IERC20 quoteAsset;
-        uint256 quoteAmount;
-        uint256 mintAmount;
-        uint256 fundingBeginsAt;
-        uint256 fundingEndsAt;
-    }
-
-    OnboarderParams internal ONBOARDER = OnboarderParams({
-        quoteAsset: IERC20(address(0)),
-        quoteAmount: 10 gwei,
-        mintAmount: 1 gwei,
-        fundingBeginsAt: STARTING_TIMESTAMP,
-        fundingEndsAt: STARTING_TIMESTAMP + 30 days
+    PrimordiumSharesOnboarderV1.SharesOnboarderV1Init internal ONBOARDER = PrimordiumSharesOnboarderV1.SharesOnboarderV1Init({
+        owner: address(0),
+        sharesOnboarderInit: ISharesOnboarder.SharesOnboarderInit({
+            treasury: address(0),
+            quoteAsset: address(0),
+            quoteAmount: 10 gwei,
+            mintAmount: 1 gwei,
+            fundingBeginsAt: STARTING_TIMESTAMP,
+            fundingEndsAt: STARTING_TIMESTAMP + 30 days
+        })
     });
 
     address internal onboarderImpl;
     OnboarderV1Harness internal onboarder;
 
-    struct GovernorParams {
-        string name;
-        string version;
-        uint256 governanceCanBeginAt;
-        uint256 governanceThresholdBps;
-        uint256 proposalThresholdBps;
-        uint256 votingDelay;
-        uint256 votingPeriod;
-        uint256 gracePeriod;
-        uint256 percentMajority;
-        uint256 quorumBps;
-        uint256 maxDeadlineExtension;
-        uint256 baseDeadlineExtension;
-        uint256 extensionDecayPeriod;
-        uint256 extensionPercentDecay;
-    }
-
-    GovernorParams internal GOVERNOR = GovernorParams({
+    PrimordiumGovernorV1.GovernorV1Init internal GOVERNOR = PrimordiumGovernorV1.GovernorV1Init({
         name: "Primordium Governor",
-        version: "1",
-        governanceCanBeginAt: STARTING_TIMESTAMP,
-        governanceThresholdBps: 2000, // 20 %
-        proposalThresholdBps: 2000, // 20%
-        votingDelay: _secondsToBlocks(2 days),
-        votingPeriod: _secondsToBlocks(3 days),
-        gracePeriod: _secondsToBlocks(21 days),
-        percentMajority: 50,
-        quorumBps: 100, // 0.1%
-        maxDeadlineExtension: _secondsToBlocks(10 days),
-        baseDeadlineExtension: _secondsToBlocks(2 days),
-        extensionDecayPeriod: _secondsToBlocks(4 hours),
-        extensionPercentDecay: 10 // base extension decays by 10% every decay period past original deadline
+        governorBaseInit: IGovernorBase.GovernorBaseInit({
+            executor: address(0),
+            token: address(0),
+            governanceCanBeginAt: STARTING_TIMESTAMP,
+            governanceThresholdBps: 2000 // 20 %
+        }),
+        proposalsInit: IProposals.ProposalsInit({
+            proposalThresholdBps: 2000, // 20%
+            votingDelay: _secondsToBlocks(2 days),
+            votingPeriod: _secondsToBlocks(3 days),
+            gracePeriod: _secondsToBlocks(21 days),
+            initGrantRoles: ""
+        }),
+        proposalVotingInit: IProposalVoting.ProposalVotingInit({
+            percentMajority: 50,
+            quorumBps: 100 // 0.1%
+        }),
+        proposalDeadlineExtensionsInit: IProposalDeadlineExtensions.ProposalDeadlineExtensionsInit({
+            maxDeadlineExtension: _secondsToBlocks(10 days),
+            baseDeadlineExtension: _secondsToBlocks(2 days),
+            decayPeriod: _secondsToBlocks(4 hours),
+            percentDecay: 10 // base extension decays by 10% every decay period past original deadline
+        })
     });
 
     address internal governorImpl;
@@ -162,8 +169,8 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
         executor = ExecutorV1Harness(payable(address(new ERC1967Proxy(executorImpl, ""))));
         vm.label({account: address(executor), newLabel: "Executor"});
 
-        tokenImpl = address(new SharesTokenV1Harness());
-        token = SharesTokenV1Harness(address(new ERC1967Proxy(tokenImpl, "")));
+        tokenImpl = address(new TokenV1Harness());
+        token = TokenV1Harness(address(new ERC1967Proxy(tokenImpl, "")));
         vm.label({account: address(token), newLabel: "SharesToken"});
 
         onboarderImpl = address(new OnboarderV1Harness());
@@ -193,69 +200,30 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     }
 
     function _initializeToken() internal {
-        bytes memory sharesTokenInitParams = abi.encode(TOKEN.maxSupply, address(executor));
-        token.setUp(address(executor), TOKEN.name, TOKEN.symbol, sharesTokenInitParams);
+        TOKEN.owner = address(executor);
+        TOKEN.sharesTokenInit.treasury = address(executor);
+        token.setUp(TOKEN);
     }
 
     function _initializeOnboarder() internal {
-        bytes memory sharesOnboarderInitParams = abi.encode(
-            address(executor),
-            ONBOARDER.quoteAsset,
-            ISharesOnboarder.SharePrice({
-                quoteAmount: uint128(ONBOARDER.quoteAmount),
-                mintAmount: uint128(ONBOARDER.mintAmount)
-            }),
-            ONBOARDER.fundingBeginsAt,
-            ONBOARDER.fundingEndsAt
-        );
-        onboarder.setUp(address(executor), sharesOnboarderInitParams);
+        ONBOARDER.owner = address(executor);
+        ONBOARDER.sharesOnboarderInit.treasury = address(executor);
+        onboarder.setUp(ONBOARDER);
     }
 
     function _initializeGovernor() internal {
-        bytes memory governorBaseInitParams = abi.encode(
-            address(executor), address(token), GOVERNOR.governanceCanBeginAt, GOVERNOR.governanceThresholdBps
-        );
-
-        bytes memory proposalsInitParams = abi.encode(
-            GOVERNOR.proposalThresholdBps,
-            GOVERNOR.votingDelay,
-            GOVERNOR.votingPeriod,
-            GOVERNOR.gracePeriod,
-            _getDefaultGovernorRoles()
-        );
-
-        bytes memory proposalVotingInitParams = abi.encode(GOVERNOR.percentMajority, GOVERNOR.quorumBps);
-
-        bytes memory proposalDeadlineExtensionsInitParams = abi.encode(
-            GOVERNOR.maxDeadlineExtension,
-            GOVERNOR.baseDeadlineExtension,
-            GOVERNOR.extensionDecayPeriod,
-            GOVERNOR.extensionPercentDecay
-        );
-
-        governor.setUp(
-            GOVERNOR.name,
-            governorBaseInitParams,
-            proposalsInitParams,
-            proposalVotingInitParams,
-            proposalDeadlineExtensionsInitParams
-        );
+        GOVERNOR.governorBaseInit.executor = address(executor);
+        GOVERNOR.governorBaseInit.token = address(token);
+        GOVERNOR.proposalsInit.initGrantRoles = _getDefaultGovernorRoles();
+        governor.setUp(GOVERNOR);
     }
 
     function _initializeExecutor(address[] memory modules) internal {
-        bytes memory timelockAvatarInitParams = abi.encode(EXECUTOR.minDelay, modules);
-
-        bytes memory treasurerInitParams = abi.encode(
-            address(token),
-            address(onboarder),
-            address(0),
-            "",
-            type(ERC1967Proxy).creationCode,
-            distributorImpl,
-            EXECUTOR.distributionClaimPeriod
-        );
-
-        executor.setUp(timelockAvatarInitParams, treasurerInitParams);
+        EXECUTOR.timelockAvatarInit.modules = modules;
+        EXECUTOR.treasurerInit.token = address(token);
+        EXECUTOR.treasurerInit.sharesOnboarder = address(onboarder);
+        EXECUTOR.treasurerInit.distributorImplementation = address(distributorImpl);
+        executor.setUp(EXECUTOR);
     }
 
     function _getDefaultGovernorRoles() internal view returns (bytes memory) {

@@ -7,29 +7,33 @@ import {SharesToken} from "./base/SharesToken.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 /**
- * @title PrimordiumSharesTokenV1
+ * @title PrimordiumTokenV1
  * @author Ben Jett - @BCJdevelopment
  * @notice The implementation contract for the first version of the Primordium shares token.
  */
-contract PrimordiumSharesTokenV1 is SharesToken, UUPSUpgradeable {
+contract PrimordiumTokenV1 is SharesToken, UUPSUpgradeable {
+    struct TokenV1Init {
+        address owner;
+        string name;
+        string symbol;
+        SharesTokenInit sharesTokenInit;
+    }
+
     constructor() {
         _disableInitializers();
     }
 
     function setUp(
-        address owner_,
-        string memory name,
-        string memory symbol,
-        bytes memory sharesTokenInitParams
+        TokenV1Init memory init
     )
         public
         virtual
         initializer
     {
-        __ERC20_init_unchained(name, symbol);
-        __EIP712_init_unchained(name, "1");
-        __Ownable_init_unchained(owner_);
-        __SharesToken_init_unchained(sharesTokenInitParams);
+        __ERC20_init_unchained(init.name, init.symbol);
+        __EIP712_init_unchained(init.name, "1");
+        __Ownable_init_unchained(init.owner);
+        __SharesToken_init_unchained(init.sharesTokenInit);
     }
 
     /// @dev Upgrading to new implementation is an only-owner operation

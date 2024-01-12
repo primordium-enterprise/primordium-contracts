@@ -49,7 +49,7 @@ contract FoundGovernorTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtil
     }
 
     function test_GovernanceCanBeginAt() public {
-        assertEq(governor.governanceCanBeginAt(), GOVERNOR.governanceCanBeginAt);
+        assertEq(governor.governanceCanBeginAt(), GOVERNOR.governorBaseInit.governanceCanBeginAt);
     }
 
     function test_RevertBefore_GovernanceCanBeginAt() public {
@@ -57,13 +57,13 @@ contract FoundGovernorTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtil
 
         vm.warp(block.timestamp - 1);
         vm.expectRevert(
-            abi.encodeWithSelector(IGovernorBase.GovernorCannotBeFoundedYet.selector, GOVERNOR.governanceCanBeginAt)
+            abi.encodeWithSelector(IGovernorBase.GovernorCannotBeFoundedYet.selector, GOVERNOR.governorBaseInit.governanceCanBeginAt)
         );
         _proposeFoundGovernor(users.gwart, expectedProposalId);
     }
 
     function test_GovernanceFoundingVoteThreshold() public {
-        uint256 expectedThreshold = Math.mulDiv(TOKEN.maxSupply, GOVERNOR.governanceThresholdBps, 10_000);
+        uint256 expectedThreshold = Math.mulDiv(TOKEN.sharesTokenInit.maxSupply, GOVERNOR.governorBaseInit.governanceThresholdBps, 10_000);
         uint256 threshold = governor.governanceFoundingVoteThreshold();
         assertEq(threshold, expectedThreshold);
     }
@@ -165,7 +165,7 @@ contract FoundGovernorTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtil
         // Gwart deposits full threshold amount of shares
         address proposer = users.gwart;
         uint256 shares = governor.governanceFoundingVoteThreshold();
-        uint256 depositAmount = shares * ONBOARDER.quoteAmount / ONBOARDER.mintAmount;
+        uint256 depositAmount = shares * ONBOARDER.sharesOnboarderInit.quoteAmount / ONBOARDER.sharesOnboarderInit.mintAmount;
         _giveQuoteAsset(proposer, depositAmount);
 
         vm.prank(proposer);

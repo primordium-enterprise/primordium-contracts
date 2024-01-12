@@ -44,11 +44,9 @@ abstract contract SharesToken is OwnableUpgradeable, ERC20VotesUpgradeable, ISha
         }
     }
 
-    function __SharesToken_init_unchained(bytes memory sharesTokenInitParams) internal virtual onlyInitializing {
-        (uint256 maxSupply_, address treasury_) = abi.decode(sharesTokenInitParams, (uint256, address));
-
-        _setMaxSupply(maxSupply_);
-        _setTreasury(treasury_);
+    function __SharesToken_init_unchained(SharesTokenInit memory init) internal virtual onlyInitializing {
+        _setTreasury(init.treasury);
+        _setMaxSupply(init.maxSupply);
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {

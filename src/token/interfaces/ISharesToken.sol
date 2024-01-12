@@ -9,6 +9,11 @@ import {IERC20Snapshots} from "./IERC20Snapshots.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface ISharesToken is IERC20Snapshots {
+    struct SharesTokenInit {
+        address treasury;
+        uint256 maxSupply;
+    }
+
     /**
      * @notice Emitted when the address of the shares onboarder is updated.
      */

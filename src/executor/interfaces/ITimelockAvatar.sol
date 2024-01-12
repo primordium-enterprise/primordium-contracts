@@ -7,6 +7,11 @@ import {Enum} from "src/common/Enum.sol";
 import {IAvatar} from "./IAvatar.sol";
 
 interface ITimelockAvatar is IAvatar {
+    struct TimelockAvatarInit {
+        uint256 minDelay;
+        address[] modules;
+    }
+
     enum OperationStatus {
         NoOp, // NoOp when executableAt == 0
         Canceled, // Canceled when executableAt == 1

@@ -64,28 +64,25 @@ library GovernorBaseLogicV1 {
         }
     }
 
-    function setUp(bytes memory governorBaseInitParams) public {
-        (address executor_, address token_, uint256 governanceCanBeginAt_, uint256 governanceThresholdBps_) =
-            abi.decode(governorBaseInitParams, (address, address, uint256, uint256));
-
-        if (governanceThresholdBps_ > BasisPoints.MAX_BPS) {
-            revert BasisPoints.BPSValueTooLarge(governanceThresholdBps_);
+    function setUp(IGovernorBase.GovernorBaseInit memory init) public {
+        if (init.governanceThresholdBps > BasisPoints.MAX_BPS) {
+            revert BasisPoints.BPSValueTooLarge(init.governanceThresholdBps);
         }
 
         // Initialize executor
         if (address(_executor()) != address(0)) {
             revert IGovernorBase.GovernorExecutorAlreadyInitialized();
         }
-        setExecutor(executor_);
+        setExecutor(init.executor);
 
         GovernorBaseStorage storage $ = _getGovernorBaseStorage();
-        $._token = IGovernorToken(token_);
-        $._governanceCanBeginAt = SafeCast.toUint40(governanceCanBeginAt_);
+        $._token = IGovernorToken(init.token);
+        $._governanceCanBeginAt = SafeCast.toUint40(init.governanceCanBeginAt);
         // If it is less than the MAX_BPS (10_000), it fits into uint16 without SafeCast
-        $._governanceThresholdBps = uint16(governanceThresholdBps_);
+        $._governanceThresholdBps = uint16(init.governanceThresholdBps);
 
         emit IGovernorBase.GovernorBaseInitialized(
-            executor_, token_, governanceCanBeginAt_, governanceThresholdBps_, $._isFounded
+            init.executor, init.token, init.governanceCanBeginAt, init.governanceThresholdBps, $._isFounded
         );
     }
 

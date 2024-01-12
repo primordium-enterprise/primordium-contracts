@@ -32,7 +32,7 @@ abstract contract Proposals is GovernorBase, IProposals, Roles {
     using BasisPoints for uint256;
     using Checkpoints for Checkpoints.Trace208;
 
-    function __Proposals_init_unchained(bytes memory proposalsInitParams) internal virtual onlyInitializing {
+    function __Proposals_init_unchained(ProposalsInit memory proposalsInitParams) internal virtual onlyInitializing {
         ProposalsLogicV1.setUp(proposalsInitParams);
     }
 

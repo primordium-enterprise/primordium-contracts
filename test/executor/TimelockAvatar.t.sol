@@ -128,7 +128,7 @@ contract TimelockAvatarTest is TimelockAvatarTestUtils {
         vm.expectRevert(SelfAuthorized.OnlySelfAuthorized.selector);
         executor.setMinDelay(newMinDelay);
 
-        uint256 expectedMinDelay = EXECUTOR.minDelay;
+        uint256 expectedMinDelay = EXECUTOR.timelockAvatarInit.minDelay;
 
         uint256 min = executor.MIN_DELAY();
         uint256 max = executor.MAX_DELAY();
@@ -137,7 +137,7 @@ contract TimelockAvatarTest is TimelockAvatarTestUtils {
         } else {
             expectedMinDelay = newMinDelay;
             vm.expectEmit(false, false, false, false, address(executor));
-            emit ITimelockAvatar.MinDelayUpdate(EXECUTOR.minDelay, newMinDelay);
+            emit ITimelockAvatar.MinDelayUpdate(EXECUTOR.timelockAvatarInit.minDelay, newMinDelay);
         }
 
         vm.prank(address(executor));

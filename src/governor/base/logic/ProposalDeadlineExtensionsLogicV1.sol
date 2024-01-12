@@ -68,14 +68,11 @@ library ProposalDeadlineExtensionsLogicV1 {
     /// @dev Max 1.25 multiple on the vote weight
     uint256 private constant FRACTION_MULTIPLE_MAX = FRACTION_MULTIPLE * 5 / 4;
 
-    function setUp(bytes memory proposalDeadlineExtensionsInitParams) public {
-        (uint256 maxDeadlineExtension_, uint256 baseDeadlineExtension_, uint256 decayPeriod_, uint256 percentDecay_) =
-            abi.decode(proposalDeadlineExtensionsInitParams, (uint256, uint256, uint256, uint256));
-
-        setMaxDeadlineExtension(maxDeadlineExtension_);
-        setBaseDeadlineExtension(baseDeadlineExtension_);
-        setExtensionDecayPeriod(decayPeriod_);
-        setExtensionPercentDecay(percentDecay_);
+    function setUp(IProposalDeadlineExtensions.ProposalDeadlineExtensionsInit memory init) public {
+        setMaxDeadlineExtension(init.maxDeadlineExtension);
+        setBaseDeadlineExtension(init.baseDeadlineExtension);
+        setExtensionDecayPeriod(init.decayPeriod);
+        setExtensionPercentDecay(init.percentDecay);
     }
 
     function _proposalDeadline(uint256 proposalId) internal view returns (uint256) {

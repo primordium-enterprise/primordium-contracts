@@ -57,8 +57,8 @@ abstract contract GovernorBase is
         while ($._governanceCall.popFront() != msgDataHash) {}
     }
 
-    function __GovernorBase_init_unchained(bytes memory governorBaseInitParams) internal virtual onlyInitializing {
-        GovernorBaseLogicV1.setUp(governorBaseInitParams);
+    function __GovernorBase_init_unchained(GovernorBaseInit memory init) internal virtual onlyInitializing {
+        GovernorBaseLogicV1.setUp(init);
     }
 
     /// @inheritdoc IGovernorBase

@@ -33,12 +33,12 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
     }
 
     function test_ProposalThreshold() public {
-        uint256 gwartShares = GOVERNOR.governanceThresholdBps * TOKEN.maxSupply / MAX_BPS;
+        uint256 gwartShares = GOVERNOR.governorBaseInit.governanceThresholdBps * TOKEN.sharesTokenInit.maxSupply / MAX_BPS;
         _mintSharesForVoting(users.gwart, gwartShares);
 
         // The amount of shares, when added to gwartShares, will meet the proposalThreshold
         uint256 thresholdShares =
-            gwartShares * GOVERNOR.proposalThresholdBps / (MAX_BPS - GOVERNOR.proposalThresholdBps);
+            gwartShares * GOVERNOR.proposalsInit.proposalThresholdBps / (MAX_BPS - GOVERNOR.proposalsInit.proposalThresholdBps);
 
         uint256 bobShares = thresholdShares - 1;
         uint256 aliceShares = thresholdShares - bobShares;
@@ -127,11 +127,11 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
         // Assert delay is valid
         uint256 currentBlock = governor.clock();
         uint256 proposalId = _mockPropose(users.proposer);
-        assertEq(GOVERNOR.votingDelay, governor.votingDelay(), "Unexpected initial votingDelay() on governor");
-        assertEq(currentBlock + GOVERNOR.votingDelay, governor.proposalSnapshot(proposalId));
+        assertEq(GOVERNOR.proposalsInit.votingDelay, governor.votingDelay(), "Unexpected initial votingDelay() on governor");
+        assertEq(currentBlock + GOVERNOR.proposalsInit.votingDelay, governor.proposalSnapshot(proposalId));
 
         // Change delay, then assert for new proposal
-        uint256 newVotingDelay = GOVERNOR.votingDelay * 2;
+        uint256 newVotingDelay = GOVERNOR.proposalsInit.votingDelay * 2;
         _updateGovernorSetting(users.proposer, "setVotingDelay(uint256)", newVotingDelay);
         assertEq(newVotingDelay, governor.votingDelay());
         currentBlock = governor.clock();
@@ -140,28 +140,28 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
     }
 
     function test_ProposalDeadline() public {
-        assertEq(GOVERNOR.votingDelay, governor.votingDelay(), "Unexpected initial governor.votingDelay()");
-        assertEq(GOVERNOR.votingPeriod, governor.votingPeriod(), "Unexpected initial governor.votingPeriod()");
+        assertEq(GOVERNOR.proposalsInit.votingDelay, governor.votingDelay(), "Unexpected initial governor.votingDelay()");
+        assertEq(GOVERNOR.proposalsInit.votingPeriod, governor.votingPeriod(), "Unexpected initial governor.votingPeriod()");
 
         // Assert period is valid
         uint256 currentBlock = governor.clock();
         uint256 proposalId = _mockPropose(users.proposer);
-        assertEq(currentBlock + GOVERNOR.votingDelay + GOVERNOR.votingPeriod, governor.proposalDeadline(proposalId));
+        assertEq(currentBlock + GOVERNOR.proposalsInit.votingDelay + GOVERNOR.proposalsInit.votingPeriod, governor.proposalDeadline(proposalId));
 
         // Change period, then assert for new proposal
-        uint256 newVotingPeriod = GOVERNOR.votingPeriod * 2;
+        uint256 newVotingPeriod = GOVERNOR.proposalsInit.votingPeriod * 2;
         _updateGovernorSetting(users.proposer, "setVotingPeriod(uint256)", newVotingPeriod);
         assertEq(newVotingPeriod, governor.votingPeriod());
         currentBlock = governor.clock();
         proposalId = _mockPropose(users.proposer);
-        assertEq(currentBlock + GOVERNOR.votingDelay + newVotingPeriod, governor.proposalDeadline(proposalId));
+        assertEq(currentBlock + GOVERNOR.proposalsInit.votingDelay + newVotingPeriod, governor.proposalDeadline(proposalId));
     }
 
     function test_ProposalOpNonce() public {
         // Use an arbitrary proposal update
         address target = address(governor);
         uint256 value = 0;
-        bytes memory data = abi.encodeCall(governor.setProposalThresholdBps, GOVERNOR.proposalThresholdBps);
+        bytes memory data = abi.encodeCall(governor.setProposalThresholdBps, GOVERNOR.proposalsInit.proposalThresholdBps);
         string memory signature = "setProposalThresholdBps(uint256)";
 
         uint256 proposalId = _propose(users.proposer, target, value, data, signature, "arbitrary proposal");
@@ -186,7 +186,7 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
         // Use an arbitrary proposal update
         address target = address(governor);
         uint256 value = 0;
-        bytes memory data = abi.encodeCall(governor.setProposalThresholdBps, GOVERNOR.proposalThresholdBps);
+        bytes memory data = abi.encodeCall(governor.setProposalThresholdBps, GOVERNOR.proposalsInit.proposalThresholdBps);
         string memory signature = "setProposalThresholdBps(uint256)";
 
         uint256 proposalId = _propose(users.proposer, target, value, data, signature, "arbitrary proposal");
@@ -198,7 +198,7 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
     }
 
     function test_CancelProposal_Proposer() public {
-        uint256 shares = GOVERNOR.proposalThresholdBps * TOKEN.maxSupply / MAX_BPS;
+        uint256 shares = GOVERNOR.proposalsInit.proposalThresholdBps * TOKEN.sharesTokenInit.maxSupply / MAX_BPS;
         _mintSharesForVoting(users.gwart, shares);
 
         address target = address(0x01);
@@ -288,7 +288,7 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
         snapshot = vm.snapshot();
 
         // Don't allow cancellation for an expired proposal
-        _mintSharesForVoting(users.gwart, GOVERNOR.quorumBps * TOKEN.maxSupply / MAX_BPS);
+        _mintSharesForVoting(users.gwart, GOVERNOR.proposalVotingInit.quorumBps * TOKEN.sharesTokenInit.maxSupply / MAX_BPS);
         vm.prank(users.gwart);
         governor.castVote(proposalId, uint8(IProposalVoting.VoteType.For));
 

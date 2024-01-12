@@ -71,43 +71,33 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
      * @dev The erc1967CreationCode must use the OpenZeppelin ERC1967Proxy.sol contract creation code, from version
      * v5.0.0, or else this initialization will fail. (This is used to reduce deployment bytecode size).
      */
-    function __Treasurer_init_unchained(bytes memory treasurerInitParams) internal onlyInitializing {
-        (
-            address token_,
-            address sharesOnboarder_,
-            address balanceSharesManager_,
-            bytes[] memory balanceShareInitCalldatas,
-            bytes memory erc1967CreationCode, // Passed as argument to reduce deployment size
-            address distributorImplementation_,
-            uint256 distributionClaimPeriod_
-        ) = abi.decode(treasurerInitParams, (address, address, address, bytes[], bytes, address, uint256));
-
+    function __Treasurer_init_unchained(TreasurerInit memory init) internal onlyInitializing {
         TreasurerStorage storage $ = _getTreasurerStorage();
 
         // Token cannot be reset later, must be correct token on initialization
-        token_.checkInterfaces([type(ISharesToken).interfaceId, type(IERC20).interfaceId]);
-        $._token = ISharesToken(token_);
+        init.token.checkInterfaces([type(ISharesToken).interfaceId, type(IERC20).interfaceId]);
+        $._token = ISharesToken(init.token);
 
         // Set the shares onboarder
-        _setSharesOnboarder(sharesOnboarder_);
+        _setSharesOnboarder(init.sharesOnboarder);
 
         // Set the balance shares manager, and call any initialization functions
-        _setBalanceSharesManager(balanceSharesManager_);
-        if (balanceSharesManager_ != address(0) && balanceShareInitCalldatas.length > 0) {
-            for (uint256 i = 0; i < balanceShareInitCalldatas.length; ++i) {
-                balanceSharesManager_.functionCall(balanceShareInitCalldatas[i]);
+        _setBalanceSharesManager(init.balanceSharesManager);
+        if (init.balanceSharesManager != address(0) && init.balanceSharesManagerCalldatas.length > 0) {
+            for (uint256 i = 0; i < init.balanceSharesManagerCalldatas.length; ++i) {
+                init.balanceSharesManager.functionCall(init.balanceSharesManagerCalldatas[i]);
             }
         }
 
         // Check distributor implementation interface
-        authorizeDistributorImplementation(distributorImplementation_);
+        authorizeDistributorImplementation(init.distributorImplementation);
 
         // Pack the proxy deployment bytecode with the constructor arguments
         bytes memory proxyDeploymentBytecode = abi.encodePacked(
-            erc1967CreationCode,
+            init.erc1967CreationCode,
             abi.encode(
-                uint256(uint160(distributorImplementation_)),
-                abi.encodeCall(IDistributor.setUp, (token_, distributionClaimPeriod_))
+                uint256(uint160(init.distributorImplementation)),
+                abi.encodeCall(IDistributor.setUp, (init.token, init.distributionClaimPeriod))
             )
         );
 

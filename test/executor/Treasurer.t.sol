@@ -28,7 +28,7 @@ contract TreasurerTest is BalanceSharesTestUtils, TimelockAvatarTestUtils {
         bytes memory bytecode = abi.encodePacked(
             type(ERC1967Proxy).creationCode,
             abi.encode(
-                distributorImpl, abi.encodeCall(IDistributor.setUp, (address(token), EXECUTOR.distributionClaimPeriod))
+                distributorImpl, abi.encodeCall(IDistributor.setUp, (address(token), EXECUTOR.treasurerInit.distributionClaimPeriod))
             )
         );
 
@@ -45,37 +45,31 @@ contract TreasurerTest is BalanceSharesTestUtils, TimelockAvatarTestUtils {
     }
 
     function test_InitBalanceShares() public {
+        // Create a new executor proxy for re-initialization
         executor = ExecutorV1Harness(payable(address(new ERC1967Proxy(executorImpl, ""))));
         vm.label({account: address(executor), newLabel: "NewExecutor"});
 
-        bytes memory timelockAvatarInitParams = abi.encode(EXECUTOR.minDelay, defaultModules);
+        address balanceSharesManager = address(balanceSharesSingleton);
 
         // Setup the default balance shares
         (address[] memory accounts, uint256[] memory basisPoints) = _getDefaultBalanceShareAccounts();
-        bytes[] memory balanceShareInitCalldatas = new bytes[](2);
-        balanceShareInitCalldatas[0] =
+        bytes[] memory balanceSharesManagerCalldatas = new bytes[](2);
+        balanceSharesManagerCalldatas[0] =
             abi.encodeCall(balanceSharesSingleton.setAccountSharesBps, (DEPOSITS_ID, accounts, basisPoints));
-        balanceShareInitCalldatas[1] =
+        balanceSharesManagerCalldatas[1] =
             abi.encodeCall(balanceSharesSingleton.setAccountSharesBps, (DISTRIBUTIONS_ID, accounts, basisPoints));
-
-        address balanceSharesManager = address(balanceSharesSingleton);
-
-        bytes memory treasurerInitParams = abi.encode(
-            address(token),
-            address(onboarder),
-            balanceSharesManager,
-            balanceShareInitCalldatas,
-            type(ERC1967Proxy).creationCode,
-            distributorImpl,
-            EXECUTOR.distributionClaimPeriod
-        );
 
         // Before setup, should be uninitialized
         assertEq(address(0), address(executor.balanceSharesManager()));
 
+        // Update initialization params
+        EXECUTOR.treasurerInit.balanceSharesManager = balanceSharesManager;
+        EXECUTOR.treasurerInit.balanceSharesManagerCalldatas = balanceSharesManagerCalldatas;
+
+        // Initialize executor
         vm.expectEmit(false, false, false, true, address(executor));
         emit ITreasurer.BalanceSharesManagerUpdate(address(0), balanceSharesManager);
-        executor.setUp(timelockAvatarInitParams, treasurerInitParams);
+        executor.setUp(EXECUTOR);
 
         // After setup, should be the new address
         assertEq(balanceSharesManager, address(executor.balanceSharesManager()));
@@ -108,7 +102,7 @@ contract TreasurerTest is BalanceSharesTestUtils, TimelockAvatarTestUtils {
         // Now only gwart can call registerDeposit()
         vm.prank(address(onboarder));
         vm.expectRevert(ITreasurer.OnlySharesOnboarder.selector);
-        executor.registerDeposit(users.bob, ONBOARDER.quoteAsset, ONBOARDER.quoteAmount, ONBOARDER.mintAmount);
+        executor.registerDeposit(users.bob, IERC20(ONBOARDER.sharesOnboarderInit.quoteAsset), ONBOARDER.sharesOnboarderInit.quoteAmount, ONBOARDER.sharesOnboarderInit.mintAmount);
     }
 
     function test_SetBalanceSharesManager() public {
@@ -159,7 +153,7 @@ contract TreasurerTest is BalanceSharesTestUtils, TimelockAvatarTestUtils {
 
         vm.prank(users.maliciousUser);
         vm.expectRevert(ITreasurer.OnlySharesOnboarder.selector);
-        executor.registerDeposit(users.bob, ONBOARDER.quoteAsset, ONBOARDER.quoteAmount, ONBOARDER.mintAmount);
+        executor.registerDeposit(users.bob, IERC20(ONBOARDER.sharesOnboarderInit.quoteAsset), ONBOARDER.sharesOnboarderInit.quoteAmount, ONBOARDER.sharesOnboarderInit.mintAmount);
     }
 
     function test_RevertWhen_ProcessWithdrawal_IsNotSentFromToken() public {

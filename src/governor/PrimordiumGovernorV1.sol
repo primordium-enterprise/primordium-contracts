@@ -12,26 +12,30 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeab
  * @notice The implementation contract for the first version of the Primordium Governor.
  */
 contract PrimordiumGovernorV1 is GovernorSettingsRanges, UUPSUpgradeable {
+    struct GovernorV1Init {
+        string name;
+        GovernorBaseInit governorBaseInit;
+        ProposalsInit proposalsInit;
+        ProposalVotingInit proposalVotingInit;
+        ProposalDeadlineExtensionsInit proposalDeadlineExtensionsInit;
+    }
+
     constructor() {
         _disableInitializers();
     }
 
     function setUp(
-        string memory name_,
-        bytes memory governorBaseInitParams,
-        bytes memory proposalsInitParams,
-        bytes memory proposalVotingInitParams,
-        bytes memory proposalDeadlineExtensionsInitParams
+        GovernorV1Init memory init
     )
         public
         virtual
         initializer
     {
-        __EIP712_init_unchained(name_, version());
-        __GovernorBase_init_unchained(governorBaseInitParams);
-        __Proposals_init_unchained(proposalsInitParams);
-        __ProposalVoting_init_unchained(proposalVotingInitParams);
-        __ProposalDeadlineExtensions_init_unchained(proposalDeadlineExtensionsInitParams);
+        __EIP712_init_unchained(init.name, version());
+        __GovernorBase_init_unchained(init.governorBaseInit);
+        __Proposals_init_unchained(init.proposalsInit);
+        __ProposalVoting_init_unchained(init.proposalVotingInit);
+        __ProposalDeadlineExtensions_init_unchained(init.proposalDeadlineExtensionsInit);
     }
 
     /// @dev Upgrading to new implementation is an only-governance operation
