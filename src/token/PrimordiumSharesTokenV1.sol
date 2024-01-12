@@ -22,7 +22,8 @@ contract PrimordiumSharesTokenV1 is SharesToken, UUPSUpgradeable {
         string memory symbol,
         bytes memory sharesTokenInitParams
     )
-        external
+        public
+        virtual
         initializer
     {
         __ERC20_init_unchained(name, symbol);

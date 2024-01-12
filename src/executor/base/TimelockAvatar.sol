@@ -69,7 +69,7 @@ abstract contract TimelockAvatar is
         }
     }
 
-    address internal constant MODULES_HEAD = address(0x1);
+    address internal constant MODULES_HEAD = address(0x01);
 
     uint256 public constant GRACE_PERIOD = 14 days;
     uint256 public constant MIN_DELAY = 2 days;

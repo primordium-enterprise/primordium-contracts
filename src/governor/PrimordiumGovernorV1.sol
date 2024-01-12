@@ -23,7 +23,8 @@ contract PrimordiumGovernorV1 is GovernorSettingsRanges, UUPSUpgradeable {
         bytes memory proposalVotingInitParams,
         bytes memory proposalDeadlineExtensionsInitParams
     )
-        external
+        public
+        virtual
         initializer
     {
         __EIP712_init_unchained(name_, version());

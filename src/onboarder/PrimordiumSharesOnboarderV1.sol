@@ -16,7 +16,7 @@ contract PrimordiumSharesOnboarderV1 is SharesOnboarder, UUPSUpgradeable {
         _disableInitializers();
     }
 
-    function setUp(address owner_, bytes memory sharesOnboarderInitParams) external initializer {
+    function setUp(address owner_, bytes memory sharesOnboarderInitParams) public virtual initializer {
         __Ownable_init_unchained(owner_);
         __SharesOnboarder_init_unchained(sharesOnboarderInitParams);
     }

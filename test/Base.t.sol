@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {PRBTest} from "@prb/test/PRBTest.sol";
+import {Vm} from "@prb/test/Vm.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
 import {ExecutorV1Harness} from "./harness/ExecutorV1Harness.sol";
