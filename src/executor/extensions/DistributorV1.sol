@@ -23,6 +23,13 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
+/**
+ * @title DistributorV1
+ * @author Ben Jett - @BCJdevelopment
+ * @notice An extension implementation contract for use with the Executor. Allows creating distributions for share
+ * holders using any given ERC20 asset. The share holder token must implement balance snapshots to allow this contract
+ * to calculate distribution claims.
+ */
 contract DistributorV1 is
     ContextUpgradeable,
     UUPSUpgradeable,
