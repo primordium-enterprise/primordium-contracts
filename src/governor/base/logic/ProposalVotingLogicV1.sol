@@ -4,8 +4,7 @@
 pragma solidity ^0.8.20;
 
 import {GovernorBaseLogicV1} from "./GovernorBaseLogicV1.sol";
-import {ProposalsLogicV1} from "./ProposalsLogicV1.sol";
-import {IProposals} from "../../interfaces/IProposals.sol";
+import {IGovernorBase} from "../../interfaces/IGovernorBase.sol";
 import {IProposalVoting} from "../../interfaces/IProposalVoting.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
@@ -181,7 +180,7 @@ library ProposalVotingLogicV1 {
 
         // We use unchecked, expected behavior is no possible overflow, as each account can only vote once
         unchecked {
-            isQuorumReached = _quorum(ProposalsLogicV1._proposalSnapshot(proposalId))
+            isQuorumReached = _quorum(GovernorBaseLogicV1._proposalSnapshot(proposalId))
                 <= proposalVote.forVotes + proposalVote.abstainVotes;
         }
     }
@@ -191,7 +190,7 @@ library ProposalVotingLogicV1 {
      * snapshot.
      */
     function _voteSucceeded(uint256 proposalId) internal view returns (bool) {
-        uint256 percentToSucceed = _percentMajority(ProposalsLogicV1._proposalSnapshot(proposalId));
+        uint256 percentToSucceed = _percentMajority(GovernorBaseLogicV1._proposalSnapshot(proposalId));
         ProposalVote storage _proposalVote = _getProposalVoteStorageRef(proposalId);
         uint256 againstVotes = _proposalVote.againstVotes;
         uint256 forVotes = _proposalVote.forVotes;
@@ -238,7 +237,7 @@ library ProposalVotingLogicV1 {
             return forVotes;
         }
 
-        uint256 percentToSucceed = _percentMajority(ProposalsLogicV1._proposalSnapshot(proposalId));
+        uint256 percentToSucceed = _percentMajority(GovernorBaseLogicV1._proposalSnapshot(proposalId));
 
         /**
          * forVotesToSucceed / (forVotesToSucceed + againstVotes) = percentToSucceed / 100
@@ -276,11 +275,11 @@ library ProposalVotingLogicV1 {
         public
         returns (uint256 weight)
     {
-        ProposalsLogicV1._validateStateBitmap(
-            proposalId, ProposalsLogicV1._encodeStateBitmap(IProposals.ProposalState.Active)
+        GovernorBaseLogicV1._validateStateBitmap(
+            proposalId, GovernorBaseLogicV1._encodeStateBitmap(IGovernorBase.ProposalState.Active)
         );
 
-        ProposalsLogicV1.ProposalCore storage proposal = ProposalsLogicV1._getProposalsStorage()._proposals[proposalId];
+        IGovernorBase.ProposalCore storage proposal = GovernorBaseLogicV1._getProposalsStorage()._proposals[proposalId];
 
         weight = GovernorBaseLogicV1._getVotes(account, proposal.voteStart, params);
         _countVote(proposalId, account, support, weight, params);

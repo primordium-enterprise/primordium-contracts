@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Primordium Contracts
 // Based on OpenZeppelin Contracts (last updated v5.0.0) (Governor.sol)
-// Based on OpenZeppelin Contracts (last updated v5.0.0) (GovernorVotes.sol)
 
 pragma solidity ^0.8.20;
 
@@ -17,13 +16,14 @@ import {IGovernorToken} from "../interfaces/IGovernorToken.sol";
 import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {BasisPoints} from "src/libraries/BasisPoints.sol";
 import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
+import {Roles} from "src/utils/Roles.sol";
+import {RolesLib} from "src/libraries/RolesLib.sol";
 
 /**
  * @title GovernorBase
  * @author Ben Jett - @BCJdevelopment
- * @notice The base governance storage for the Governor (token and executor addresses, founding parameters)
+ * @notice The base governance storage for the Governor, and the base proposal logic.
  * @dev Uses the zodiac-based TimelockAvatar contract as the executor, and uses an IERC5805 vote token for tracking
  * voting weights.
  */
@@ -32,7 +32,8 @@ abstract contract GovernorBase is
     ContextUpgradeable,
     EIP712Upgradeable,
     NoncesUpgradeable,
-    IGovernorBase
+    IGovernorBase,
+    Roles
 {
     using SafeCast for uint256;
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
@@ -60,6 +61,10 @@ abstract contract GovernorBase is
     function __GovernorBase_init_unchained(GovernorBaseInit memory init) internal virtual onlyInitializing {
         GovernorBaseLogicV1.setUp(init);
     }
+
+    /*//////////////////////////////////////////////////////////////////////////
+        BASE GOVERNOR SETTINGS
+    //////////////////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IGovernorBase
     function name() public view virtual override returns (string memory) {
@@ -95,10 +100,6 @@ abstract contract GovernorBase is
         return GovernorBaseLogicV1._clock();
     }
 
-    // function _clock(IGovernorToken _token) internal view virtual returns (uint48) {
-    //     return GovernorBaseLogicV1._clock(_token);
-    // }
-
     /// @inheritdoc IERC6372
     // solhint-disable-next-line func-name-mixedcase
     function CLOCK_MODE() public view virtual override returns (string memory) {
@@ -126,12 +127,61 @@ abstract contract GovernorBase is
 
     /// @dev The proposalId will be verified when the proposal is created.
     function _foundGovernor(uint256 proposalId) internal virtual {
-        GovernorBaseLogicV1._foundGovernor(proposalId);
+        GovernorBaseLogicV1.foundGovernor(proposalId);
     }
 
     /// @inheritdoc IGovernorBase
     function isFounded() public view virtual returns (bool _isFounded) {
         _isFounded = GovernorBaseLogicV1._isFounded();
+    }
+
+    /*//////////////////////////////////////////////////////////////////////////
+        PROPOSAL GETTERS
+    //////////////////////////////////////////////////////////////////////////*/
+
+    /// @inheritdoc IGovernorBase
+    function PROPOSER_ROLE() external pure virtual returns (bytes32) {
+        return GovernorBaseLogicV1._PROPOSER_ROLE;
+    }
+
+    /// @inheritdoc IGovernorBase
+    function CANCELER_ROLE() external pure virtual returns (bytes32) {
+        return GovernorBaseLogicV1._CANCELER_ROLE;
+    }
+
+    /// @inheritdoc IGovernorBase
+    function proposalCount() public view virtual returns (uint256 count) {
+        return GovernorBaseLogicV1._proposalCount();
+    }
+
+    /// @inheritdoc IGovernorBase
+    function proposalSnapshot(uint256 proposalId) public view virtual returns (uint256 snapshot) {
+        return GovernorBaseLogicV1._proposalSnapshot(proposalId);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function proposalDeadline(uint256 proposalId) public view virtual returns (uint256 deadline) {
+        return GovernorBaseLogicV1._proposalDeadline(proposalId);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function proposalProposer(uint256 proposalId) public view virtual returns (address proposer) {
+        return GovernorBaseLogicV1._proposalProposer(proposalId);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function proposalActionsHash(uint256 proposalId) public view virtual returns (bytes32 actionsHash) {
+        return GovernorBaseLogicV1._proposalActionsHash(proposalId);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function proposalEta(uint256 proposalId) public view virtual returns (uint256 eta) {
+        return GovernorBaseLogicV1._proposalEta(proposalId);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function proposalOpNonce(uint256 proposalId) public view virtual returns (uint256 opNonce) {
+        return GovernorBaseLogicV1._proposalOpNonce(proposalId);
     }
 
     /// @inheritdoc IGovernorBase
@@ -152,6 +202,169 @@ abstract contract GovernorBase is
         returns (uint256)
     {
         return GovernorBaseLogicV1._getVotes(account, timepoint, params);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function hashProposalActions(
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
+    )
+        public
+        pure
+        virtual
+        returns (bytes32 actionsHash)
+    {
+        actionsHash = GovernorBaseLogicV1.hashProposalActions(targets, values, calldatas);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function state(uint256 proposalId) public view virtual override returns (ProposalState) {
+        return GovernorBaseLogicV1.state(proposalId);
+    }
+
+    /*//////////////////////////////////////////////////////////////////////////
+        PROPOSAL SETTINGS
+    //////////////////////////////////////////////////////////////////////////*/
+
+    /// @inheritdoc IGovernorBase
+    function proposalThreshold() public view virtual returns (uint256 _proposalThreshold) {
+        return GovernorBaseLogicV1.proposalThreshold();
+    }
+
+    /// @inheritdoc IGovernorBase
+    function proposalThresholdBps() public view virtual returns (uint256 _proposalThresholdBps) {
+        return GovernorBaseLogicV1._proposalThresholdBps();
+    }
+
+    /// @inheritdoc IGovernorBase
+    function setProposalThresholdBps(uint256 newProposalThresholdBps) public virtual onlyGovernance {
+        _setProposalThresholdBps(newProposalThresholdBps);
+    }
+
+    function _setProposalThresholdBps(uint256 newProposalThresholdBps) internal virtual {
+        GovernorBaseLogicV1.setProposalThresholdBps(newProposalThresholdBps);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function votingDelay() public view virtual returns (uint256 _votingDelay) {
+        return GovernorBaseLogicV1._votingDelay();
+    }
+
+    /// @inheritdoc IGovernorBase
+    function setVotingDelay(uint256 newVotingDelay) public virtual onlyGovernance {
+        _setVotingDelay(newVotingDelay);
+    }
+
+    function _setVotingDelay(uint256 newVotingDelay) internal virtual {
+        GovernorBaseLogicV1.setVotingDelay(newVotingDelay);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function votingPeriod() public view virtual returns (uint256 _votingPeriod) {
+        return GovernorBaseLogicV1._votingPeriod();
+    }
+
+    /// @inheritdoc IGovernorBase
+    function setVotingPeriod(uint256 newVotingPeriod) public virtual onlyGovernance {
+        _setVotingPeriod(newVotingPeriod);
+    }
+
+    function _setVotingPeriod(uint256 newVotingPeriod) internal virtual {
+        GovernorBaseLogicV1.setVotingPeriod(newVotingPeriod);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function proposalGracePeriod() public view virtual returns (uint256 _gracePeriod) {
+        return GovernorBaseLogicV1._proposalGracePeriod();
+    }
+
+    /// @inheritdoc IGovernorBase
+    function setProposalGracePeriod(uint256 newGracePeriod) public virtual onlyGovernance {
+        _setProposalGracePeriod(newGracePeriod);
+    }
+
+    function _setProposalGracePeriod(uint256 newGracePeriod) internal virtual {
+        GovernorBaseLogicV1.setProposalGracePeriod(newGracePeriod);
+    }
+
+    /*//////////////////////////////////////////////////////////////////////////
+        PROPOSAL CREATION/EXECUTION LOGIC
+    //////////////////////////////////////////////////////////////////////////*/
+
+    /// @inheritdoc IGovernorBase
+    function propose(
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas,
+        string[] memory signatures,
+        string calldata description
+    )
+        public
+        virtual
+        returns (uint256 proposalId)
+    {
+        proposalId = GovernorBaseLogicV1.propose(targets, values, calldatas, signatures, description, _msgSender());
+    }
+
+    /// @inheritdoc IGovernorBase
+    function queue(
+        uint256 proposalId,
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
+    )
+        public
+        virtual
+        returns (uint256)
+    {
+        return GovernorBaseLogicV1.queue(proposalId, targets, values, calldatas);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function execute(
+        uint256 proposalId,
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
+    )
+        public
+        virtual
+        returns (uint256)
+    {
+        return GovernorBaseLogicV1.execute(proposalId, targets, values, calldatas);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function cancel(
+        uint256 proposalId,
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
+    )
+        public
+        returns (uint256)
+    {
+        return GovernorBaseLogicV1.cancel(proposalId, targets, values, calldatas);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function grantRoles(
+        bytes32[] memory roles,
+        address[] memory accounts,
+        uint256[] memory expiresAts
+    )
+        public
+        virtual
+        override
+        onlyGovernance
+    {
+        RolesLib._grantRoles(roles, accounts, expiresAts);
+    }
+
+    /// @inheritdoc IGovernorBase
+    function revokeRoles(bytes32[] memory roles, address[] memory accounts) public virtual override onlyGovernance {
+        RolesLib._revokeRoles(roles, accounts);
     }
 
     /**

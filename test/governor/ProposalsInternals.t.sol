@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {PRBTest} from "@prb/test/PRBTest.sol";
 import {ProposalsLogicV1} from "src/governor/base/logic/ProposalsLogicV1.sol";
 import {Proposals} from "src/governor/base/Proposals.sol";
-import {IProposals} from "src/governor/interfaces/IProposals.sol";
+import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 
 contract ProposalsHarness is Proposals {
     function validateCalldataSignatures(bytes[] calldata calldatas, string[] memory signatures) public pure {
@@ -59,12 +59,12 @@ contract ProposalsInternalsTest is PRBTest {
 
         // Test signature is incorrect
         signatures[1] = "incorrectSignature(uint256)";
-        vm.expectRevert(abi.encodeWithSelector(IProposals.GovernorInvalidActionSignature.selector, (1)));
+        vm.expectRevert(abi.encodeWithSelector(IGovernorBase.GovernorInvalidActionSignature.selector, (1)));
         proposals.validateCalldataSignatures(calldatas, signatures);
 
         // Test missing signature
         signatures[0] = "";
-        vm.expectRevert(abi.encodeWithSelector(IProposals.GovernorInvalidActionSignature.selector, (0)));
+        vm.expectRevert(abi.encodeWithSelector(IGovernorBase.GovernorInvalidActionSignature.selector, (0)));
         proposals.validateCalldataSignatures(calldatas, signatures);
     }
 }

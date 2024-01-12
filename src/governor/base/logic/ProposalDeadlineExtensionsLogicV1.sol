@@ -4,7 +4,6 @@
 pragma solidity ^0.8.20;
 
 import {GovernorBaseLogicV1} from "./GovernorBaseLogicV1.sol";
-import {ProposalsLogicV1} from "./ProposalsLogicV1.sol";
 import {ProposalVotingLogicV1} from "./ProposalVotingLogicV1.sol";
 import {IProposalDeadlineExtensions} from "../../interfaces/IProposalDeadlineExtensions.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -85,7 +84,7 @@ library ProposalDeadlineExtensionsLogicV1 {
     }
 
     function _originalProposalDeadline(uint256 proposalId) internal view returns (uint256) {
-        return ProposalsLogicV1._proposalDeadline(proposalId);
+        return GovernorBaseLogicV1._proposalDeadline(proposalId);
     }
 
     function _maxDeadlineExtension() internal view returns (uint256) {

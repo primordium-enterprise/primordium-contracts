@@ -3,10 +3,9 @@
 
 pragma solidity ^0.8.20;
 
-import {ProposalsLogicV1} from "./logic/ProposalsLogicV1.sol";
 import {ProposalVotingLogicV1} from "./logic/ProposalVotingLogicV1.sol";
 import {ProposalDeadlineExtensionsLogicV1} from "./logic/ProposalDeadlineExtensionsLogicV1.sol";
-import {Proposals} from "./Proposals.sol";
+import {GovernorBase} from "./GovernorBase.sol";
 import {ProposalVoting} from "./ProposalVoting.sol";
 import {IProposalDeadlineExtensions} from "../interfaces/IProposalDeadlineExtensions.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -58,7 +57,7 @@ abstract contract ProposalDeadlineExtensions is ProposalVoting, IProposalDeadlin
         public
         view
         virtual
-        override(Proposals, IProposalDeadlineExtensions)
+        override(GovernorBase, IProposalDeadlineExtensions)
         returns (uint256)
     {
         return ProposalDeadlineExtensionsLogicV1._proposalDeadline(proposalId);

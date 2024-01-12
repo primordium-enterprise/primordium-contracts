@@ -4,12 +4,11 @@
 pragma solidity ^0.8.20;
 
 import {GovernorBase} from "../base/GovernorBase.sol";
-import {Proposals} from "../base/Proposals.sol";
 import {ProposalDeadlineExtensions} from "../base/ProposalDeadlineExtensions.sol";
 
 abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions {
     /**
-     * Proposals.sol
+     * GovernorBase.sol
      */
 
     error GovernorVotingDelayOutOfRange(uint256 min, uint256 max);

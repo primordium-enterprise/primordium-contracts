@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {BaseTest, console2} from "test/Base.t.sol";
 import {ProposalTestUtils} from "test/helpers/ProposalTestUtils.sol";
-import {IProposals} from "src/governor/interfaces/IProposals.sol";
+import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 

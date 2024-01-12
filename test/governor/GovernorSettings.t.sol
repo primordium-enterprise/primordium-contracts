@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {BaseTest, ERC165Contract, console2} from "test/Base.t.sol";
 import {ProposalTestUtils} from "test/helpers/ProposalTestUtils.sol";
 import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
-import {IProposals} from "src/governor/interfaces/IProposals.sol";
+import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
 import {IProposalDeadlineExtensions} from "src/governor/interfaces/IProposalDeadlineExtensions.sol";
 import {BasisPoints} from "src/libraries/BasisPoints.sol";
@@ -150,7 +150,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         } else {
             expectedProposalThresholdBps = newProposalThresholdBps;
             vm.expectEmit(false, false, false, true, address(governor));
-            emit IProposals.ProposalThresholdBPSUpdate(GOVERNOR.proposalsInit.proposalThresholdBps, newProposalThresholdBps);
+            emit IGovernorBase.ProposalThresholdBPSUpdate(GOVERNOR.proposalsInit.proposalThresholdBps, newProposalThresholdBps);
         }
 
         _executeOnlyGovernanceUpdate(proposalId, data, err);
@@ -183,7 +183,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         } else {
             expectedVotingDelay = newVotingDelay;
             vm.expectEmit(false, false, false, true);
-            emit IProposals.VotingDelayUpdate(GOVERNOR.proposalsInit.votingDelay, newVotingDelay);
+            emit IGovernorBase.VotingDelayUpdate(GOVERNOR.proposalsInit.votingDelay, newVotingDelay);
         }
 
         _executeOnlyGovernanceUpdate(proposalId, data, err);
@@ -215,7 +215,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         } else {
             expectedVotingPeriod = newVotingPeriod;
             vm.expectEmit(false, false, false, true);
-            emit IProposals.VotingPeriodUpdate(GOVERNOR.proposalsInit.votingPeriod, newVotingPeriod);
+            emit IGovernorBase.VotingPeriodUpdate(GOVERNOR.proposalsInit.votingPeriod, newVotingPeriod);
         }
 
         _executeOnlyGovernanceUpdate(proposalId, data, err);
@@ -248,7 +248,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         } else {
             expectedProposalGracePeriod = newProposalGracePeriod;
             vm.expectEmit(false, false, false, true);
-            emit IProposals.ProposalGracePeriodUpdate(GOVERNOR.proposalsInit.gracePeriod, newProposalGracePeriod);
+            emit IGovernorBase.ProposalGracePeriodUpdate(GOVERNOR.proposalsInit.gracePeriod, newProposalGracePeriod);
         }
 
         _executeOnlyGovernanceUpdate(proposalId, data, err);

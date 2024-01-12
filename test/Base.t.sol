@@ -10,7 +10,7 @@ import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
 import {ITreasurer} from "src/executor/interfaces/ITreasurer.sol";
 import {GovernorV1Harness, PrimordiumGovernorV1} from "./harness/GovernorV1Harness.sol";
 import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
-import {IProposals} from "src/governor/interfaces/IProposals.sol";
+import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
 import {IProposalDeadlineExtensions} from "src/governor/interfaces/IProposalDeadlineExtensions.sol";
 import {TokenV1Harness, PrimordiumTokenV1} from "./harness/TokenV1Harness.sol";
@@ -105,9 +105,7 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
             executor: address(0),
             token: address(0),
             governanceCanBeginAt: STARTING_TIMESTAMP,
-            governanceThresholdBps: 2000 // 20 %
-        }),
-        proposalsInit: IProposals.ProposalsInit({
+            governanceThresholdBps: 2000, // 20 %
             proposalThresholdBps: 2000, // 20%
             votingDelay: _secondsToBlocks(2 days),
             votingPeriod: _secondsToBlocks(3 days),
@@ -214,7 +212,7 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     function _initializeGovernor() internal {
         GOVERNOR.governorBaseInit.executor = address(executor);
         GOVERNOR.governorBaseInit.token = address(token);
-        GOVERNOR.proposalsInit.initGrantRoles = _getDefaultGovernorRoles();
+        GOVERNOR.governorBaseInit.initGrantRoles = _getDefaultGovernorRoles();
         governor.setUp(GOVERNOR);
     }
 

@@ -5,16 +5,15 @@
 
 pragma solidity ^0.8.20;
 
-import {ProposalsLogicV1} from "./logic/ProposalsLogicV1.sol";
 import {ProposalVotingLogicV1} from "./logic/ProposalVotingLogicV1.sol";
-import {Proposals} from "./Proposals.sol";
+import {GovernorBase} from "./GovernorBase.sol";
 import {IProposalVoting} from "../interfaces/IProposalVoting.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import {BasisPoints} from "src/libraries/BasisPoints.sol";
 
-abstract contract ProposalVoting is Proposals, IProposalVoting {
+abstract contract ProposalVoting is GovernorBase, IProposalVoting {
     bytes32 private immutable BALLOT_TYPEHASH =
         keccak256("Ballot(uint256 proposalId,uint8 support,address voter,uint256 nonce)");
     bytes32 private immutable EXTENDED_BALLOT_TYPEHASH = keccak256(

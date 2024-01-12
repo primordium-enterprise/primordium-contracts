@@ -3,9 +3,9 @@
 
 pragma solidity ^0.8.20;
 
-import {IProposals} from "./IProposals.sol";
+import {IGovernorBase} from "./IGovernorBase.sol";
 
-interface IProposalDeadlineExtensions is IProposals {
+interface IProposalDeadlineExtensions is IGovernorBase {
     struct ProposalDeadlineExtensionsInit {
         uint256 maxDeadlineExtension;
         uint256 baseDeadlineExtension;
@@ -23,7 +23,7 @@ interface IProposalDeadlineExtensions is IProposals {
     error GovernorExtensionPercentDecayOutOfRange(uint256 min, uint256 max);
 
     /**
-     * @inheritdoc IProposals
+     * @inheritdoc IGovernorBase
      * @dev The proposal deadline can be dynamically extended on each vote according to the proposal deadline extension
      * parameters.
      */

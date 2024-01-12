@@ -5,7 +5,7 @@ import {BaseTest, console2} from "test/Base.t.sol";
 import {ProposalTestUtils} from "test/helpers/ProposalTestUtils.sol";
 import {BalanceSharesTestUtils} from "test/helpers/BalanceSharesTestUtils.sol";
 import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
-import {IProposals} from "src/governor/interfaces/IProposals.sol";
+import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 import {ExecutorBase} from "src/executor/base/ExecutorBase.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -127,17 +127,17 @@ contract FoundGovernorTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtil
 
         // Invalid target
         address invalidTarget = address(0x01);
-        vm.expectRevert(IProposals.GovernorFoundingActionRequired.selector);
+        vm.expectRevert(IGovernorBase.GovernorFoundingActionRequired.selector);
         _propose(users.gwart, invalidTarget, value, correctData, correctSignature, description);
 
         // Invalid data length
         bytes memory invalidData = abi.encodePacked(governor.foundGovernor.selector, hex"1234");
-        vm.expectRevert(IProposals.GovernorFoundingActionRequired.selector);
+        vm.expectRevert(IGovernorBase.GovernorFoundingActionRequired.selector);
         _propose(users.gwart, correctTarget, value, invalidData, correctSignature, description);
 
         // Invalid function selector
         invalidData = abi.encodeCall(governor.proposalDeadline, expectedProposalId);
-        vm.expectRevert(IProposals.GovernorFoundingActionRequired.selector);
+        vm.expectRevert(IGovernorBase.GovernorFoundingActionRequired.selector);
         _propose(users.gwart, correctTarget, value, invalidData, "proposalDeadline(uint256)", description);
 
         // Invalid proposalId
@@ -152,7 +152,7 @@ contract FoundGovernorTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtil
 
         // Invalid signature
         string memory invalidSignature = "foundGovernor()";
-        vm.expectRevert(abi.encodeWithSelector(IProposals.GovernorInvalidActionSignature.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(IGovernorBase.GovernorInvalidActionSignature.selector, 0));
         _propose(users.gwart, correctTarget, value, correctData, invalidSignature, description);
     }
 

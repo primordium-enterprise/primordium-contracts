@@ -15,7 +15,6 @@ contract PrimordiumGovernorV1 is GovernorSettingsRanges, UUPSUpgradeable {
     struct GovernorV1Init {
         string name;
         GovernorBaseInit governorBaseInit;
-        ProposalsInit proposalsInit;
         ProposalVotingInit proposalVotingInit;
         ProposalDeadlineExtensionsInit proposalDeadlineExtensionsInit;
     }
@@ -33,7 +32,6 @@ contract PrimordiumGovernorV1 is GovernorSettingsRanges, UUPSUpgradeable {
     {
         __EIP712_init_unchained(init.name, version());
         __GovernorBase_init_unchained(init.governorBaseInit);
-        __Proposals_init_unchained(init.proposalsInit);
         __ProposalVoting_init_unchained(init.proposalVotingInit);
         __ProposalDeadlineExtensions_init_unchained(init.proposalDeadlineExtensionsInit);
     }
