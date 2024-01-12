@@ -4,9 +4,9 @@
 pragma solidity ^0.8.20;
 
 import {GovernorBase} from "../base/GovernorBase.sol";
-import {ProposalDeadlineExtensions} from "../base/ProposalDeadlineExtensions.sol";
+import {ProposalVoting} from "../base/ProposalVoting.sol";
 
-abstract contract GovernorSettingsRanges is ProposalDeadlineExtensions {
+abstract contract GovernorSettingsRanges is ProposalVoting {
     /**
      * GovernorBase.sol
      */

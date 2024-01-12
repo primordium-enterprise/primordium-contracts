@@ -2,13 +2,13 @@
 pragma solidity ^0.8.20;
 
 import {PRBTest} from "@prb/test/PRBTest.sol";
-import {ProposalsLogicV1} from "src/governor/base/logic/ProposalsLogicV1.sol";
-import {Proposals} from "src/governor/base/Proposals.sol";
+import {GovernorBaseLogicV1} from "src/governor/base/logic/GovernorBaseLogicV1.sol";
+import {GovernorBase} from "src/governor/base/GovernorBase.sol";
 import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 
-contract ProposalsHarness is Proposals {
+contract ProposalsHarness is GovernorBase {
     function validateCalldataSignatures(bytes[] calldata calldatas, string[] memory signatures) public pure {
-        ProposalsLogicV1._validateCalldataSignatures(calldatas, signatures);
+        GovernorBaseLogicV1._validateCalldataSignatures(calldatas, signatures);
     }
 
     function aFunctionSignature(uint256 a) public pure {}

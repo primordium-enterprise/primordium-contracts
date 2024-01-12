@@ -104,7 +104,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
         // Create the proxy for the distributor
         address distributorProxy;
         assembly ("memory-safe") {
-            distributorProxy := create(0, add(0x20, proxyDeploymentBytecode), mload(proxyDeploymentBytecode))
+            distributorProxy := create2(0, add(0x20, proxyDeploymentBytecode), mload(proxyDeploymentBytecode), 0)
         }
 
         if (distributorProxy == address(0)) {

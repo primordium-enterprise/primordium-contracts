@@ -12,7 +12,7 @@ import {GovernorV1Harness, PrimordiumGovernorV1} from "./harness/GovernorV1Harne
 import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
-import {IProposalDeadlineExtensions} from "src/governor/interfaces/IProposalDeadlineExtensions.sol";
+import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
 import {TokenV1Harness, PrimordiumTokenV1} from "./harness/TokenV1Harness.sol";
 import {ISharesToken} from "src/token/interfaces/ISharesToken.sol";
 import {OnboarderV1Harness, PrimordiumSharesOnboarderV1} from "./harness/OnboarderV1Harness.sol";
@@ -114,9 +114,7 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
         }),
         proposalVotingInit: IProposalVoting.ProposalVotingInit({
             percentMajority: 50,
-            quorumBps: 100 // 0.1%
-        }),
-        proposalDeadlineExtensionsInit: IProposalDeadlineExtensions.ProposalDeadlineExtensionsInit({
+            quorumBps: 100, // 0.1%
             maxDeadlineExtension: _secondsToBlocks(10 days),
             baseDeadlineExtension: _secondsToBlocks(2 days),
             decayPeriod: _secondsToBlocks(4 hours),

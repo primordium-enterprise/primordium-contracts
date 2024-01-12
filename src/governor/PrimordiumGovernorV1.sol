@@ -16,7 +16,6 @@ contract PrimordiumGovernorV1 is GovernorSettingsRanges, UUPSUpgradeable {
         string name;
         GovernorBaseInit governorBaseInit;
         ProposalVotingInit proposalVotingInit;
-        ProposalDeadlineExtensionsInit proposalDeadlineExtensionsInit;
     }
 
     constructor() {
@@ -33,7 +32,6 @@ contract PrimordiumGovernorV1 is GovernorSettingsRanges, UUPSUpgradeable {
         __EIP712_init_unchained(init.name, version());
         __GovernorBase_init_unchained(init.governorBaseInit);
         __ProposalVoting_init_unchained(init.proposalVotingInit);
-        __ProposalDeadlineExtensions_init_unchained(init.proposalDeadlineExtensionsInit);
     }
 
     /// @dev Upgrading to new implementation is an only-governance operation
