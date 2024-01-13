@@ -5,13 +5,14 @@ pragma solidity ^0.8.20;
 
 import {Treasurer} from "./base/Treasurer.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {AuthorizedInitializer} from "src/utils/AuthorizedInitializer.sol";
 
 /**
  * @title PrimordiumExecutorV1
  * @author Ben Jett - @BCJdevelopment
  * @notice The implementation contract for the first version of the Primordium executor.
  */
-contract PrimordiumExecutorV1 is Treasurer, UUPSUpgradeable {
+contract PrimordiumExecutorV1 is Treasurer, UUPSUpgradeable, AuthorizedInitializer {
     struct ExecutorV1Init {
         TimelockAvatarInit timelockAvatarInit;
         TreasurerInit treasurerInit;
@@ -23,6 +24,7 @@ contract PrimordiumExecutorV1 is Treasurer, UUPSUpgradeable {
     function setUp(ExecutorV1Init memory init)
         public
         virtual
+        authorizeInitializer
         initializer
     {
         __TimelockAvatar_init(init.timelockAvatarInit);
