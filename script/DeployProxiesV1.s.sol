@@ -13,7 +13,7 @@ import {DistributorV1} from "src/executor/extensions/DistributorV1.sol";
 contract DeployProxiesV1 is BaseScriptV1 {
     function run() public virtual {
 
-        // address computedExecutorAddress;
+        // address executor;
 
         // SharesTokenSettings memory sharesTokenSettings = SharesTokenSettings({
         //     owner: computedExecutorAddress,

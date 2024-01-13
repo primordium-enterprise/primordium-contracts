@@ -118,6 +118,7 @@ forge-cache
 out
 test/.*/**
 .test
+broadcast/**/31337
 
 # VS Code
 .vscode

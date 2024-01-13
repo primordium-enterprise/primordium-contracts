@@ -12,11 +12,39 @@ import {DistributorV1} from "src/executor/extensions/DistributorV1.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 abstract contract BaseScriptV1 is Script {
+    /// @dev The create2 salt used for deployments, hashed using the $DEPLOY_SALT_STRING env variable
     bytes32 deploySalt;
 
+    /// @dev Used as default if no $MNEMONIC env variable is defined
+    string internal constant TEST_MNEMONIC = "test test test test test test test test test test test junk";
+
+    /// @dev The address of the transaction broadcaster
+    address internal broadcaster;
+
+    /// @dev Used to derive the broadcaster's address if $BROADCASTER is not defined
+    string internal mnemonic;
+
+    /**
+     * @dev Initializes the `deploySaltString` for create2 deployments, and the address of the `broadcaster`.
+     *
+     * The `deploySaltString` defaults to bytes32(0) if there is no $DEPLOY_SALT_STRING env variable.
+     *
+     * Sets the `broadcaster` equal to the $BROADCASTER env variable, or if that doesn't exist, the address of the
+     * $MNEMONIC env variable (which defaults to the test mnemonic).
+     */
     constructor() {
-        string memory deploySaltString = vm.envString("DEPLOY_SALT_STRING");
-        deploySalt = keccak256(abi.encodePacked(deploySaltString));
+        string memory deploySaltString = vm.envOr("DEPLOY_SALT_STRING", string(""));
+        if (bytes(deploySaltString).length > 0) {
+            deploySalt = keccak256(abi.encodePacked(deploySaltString));
+        }
+
+        address envBroadcaster = vm.envOr("BROADCASTER", address(0));
+        if (envBroadcaster != address(0)) {
+            broadcaster = envBroadcaster;
+        } else {
+            mnemonic = vm.envOr("MNEMONIC", TEST_MNEMONIC);
+            (broadcaster,) = deriveRememberKey({ mnemonic: mnemonic, index: 0 });
+        }
     }
 
     modifier broadcast() {

@@ -23,7 +23,7 @@
 
 [rpc_endpoints]
   localhost = "http://localhost:8545"
-  mainnet = "${RPC_URL_MAINNET}"
-  sepolia = "https://sepolia.infura.io/v3/${API_KEY_INFURA}"
+  mainnet = "https://eth-mainnet.g.alchemy.com/v2/${API_KEY_ALCHEMY}"
+  sepolia = "https://eth-sepolia.g.alchemy.com/v2/${API_KEY_ALCHEMY}"
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
