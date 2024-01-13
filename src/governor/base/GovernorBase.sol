@@ -19,6 +19,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import {Roles} from "src/utils/Roles.sol";
 import {RolesLib} from "src/libraries/RolesLib.sol";
+import {BasisPoints} from "src/libraries/BasisPoints.sol";
 
 /**
  * @title GovernorBase
@@ -59,7 +60,36 @@ abstract contract GovernorBase is
     }
 
     function __GovernorBase_init_unchained(GovernorBaseInit memory init) internal virtual onlyInitializing {
-        GovernorBaseLogicV1.setUp(init);
+        if (init.governanceThresholdBps > BasisPoints.MAX_BPS) {
+            revert BasisPoints.BPSValueTooLarge(init.governanceThresholdBps);
+        }
+
+        // Initialize executor
+        if (address(executor()) != address(0)) {
+            revert IGovernorBase.GovernorExecutorAlreadyInitialized();
+        }
+        _setExecutor(init.executor);
+
+        GovernorBaseLogicV1.GovernorBaseStorage storage $ = GovernorBaseLogicV1._getGovernorBaseStorage();
+        $._token = IGovernorToken(init.token);
+        $._governanceCanBeginAt = SafeCast.toUint40(init.governanceCanBeginAt);
+        // If it is less than the MAX_BPS (10_000), it fits into uint16 without SafeCast
+        $._governanceThresholdBps = uint16(init.governanceThresholdBps);
+
+        _setProposalThresholdBps(init.proposalThresholdBps);
+        _setVotingDelay(init.votingDelay);
+        _setVotingPeriod(init.votingPeriod);
+        _setProposalGracePeriod(init.gracePeriod);
+
+        if (init.grantRoles.length > 0) {
+            (bytes32[] memory roles, address[] memory accounts, uint256[] memory expiresAts) =
+                abi.decode(init.grantRoles, (bytes32[], address[], uint256[]));
+            RolesLib._grantRoles(roles, accounts, expiresAts);
+        }
+
+        emit IGovernorBase.GovernorBaseInitialized(
+            init.executor, init.token, init.governanceCanBeginAt, init.governanceThresholdBps, $._isFounded
+        );
     }
 
     /*//////////////////////////////////////////////////////////////////////////

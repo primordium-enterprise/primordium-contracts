@@ -122,37 +122,6 @@ library GovernorBaseLogicV1 {
         }
     }
 
-    function setUp(IGovernorBase.GovernorBaseInit memory init) public {
-        if (init.governanceThresholdBps > BasisPoints.MAX_BPS) {
-            revert BasisPoints.BPSValueTooLarge(init.governanceThresholdBps);
-        }
-
-        // Initialize executor
-        if (address(_executor()) != address(0)) {
-            revert IGovernorBase.GovernorExecutorAlreadyInitialized();
-        }
-        setExecutor(init.executor);
-
-        GovernorBaseStorage storage $ = _getGovernorBaseStorage();
-        $._token = IGovernorToken(init.token);
-        $._governanceCanBeginAt = SafeCast.toUint40(init.governanceCanBeginAt);
-        // If it is less than the MAX_BPS (10_000), it fits into uint16 without SafeCast
-        $._governanceThresholdBps = uint16(init.governanceThresholdBps);
-
-        setProposalThresholdBps(init.proposalThresholdBps);
-        setVotingDelay(init.votingDelay);
-        setVotingPeriod(init.votingPeriod);
-        setProposalGracePeriod(init.gracePeriod);
-
-        (bytes32[] memory roles, address[] memory accounts, uint256[] memory expiresAts) =
-            abi.decode(init.initGrantRoles, (bytes32[], address[], uint256[]));
-        RolesLib._grantRoles(roles, accounts, expiresAts);
-
-        emit IGovernorBase.GovernorBaseInitialized(
-            init.executor, init.token, init.governanceCanBeginAt, init.governanceThresholdBps, $._isFounded
-        );
-    }
-
     /**
      * @dev Get the governance call dequeuer for governance operations.
      */

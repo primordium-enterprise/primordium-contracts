@@ -55,7 +55,13 @@ abstract contract ProposalVoting is GovernorBase, IProposalVoting {
     );
 
     function __ProposalVoting_init_unchained(ProposalVotingInit memory init) internal virtual onlyInitializing {
-        ProposalVotingLogicV1.setUp(init);
+        _setPercentMajority(init.percentMajority);
+        _setQuorumBps(init.quorumBps);
+
+        _setMaxDeadlineExtension(init.maxDeadlineExtension);
+        _setBaseDeadlineExtension(init.baseDeadlineExtension);
+        _setExtensionDecayPeriod(init.decayPeriod);
+        _setExtensionPercentDecay(init.percentDecay);
     }
 
     /*//////////////////////////////////////////////////////////////////////////

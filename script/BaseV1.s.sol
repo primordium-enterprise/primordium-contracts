@@ -48,7 +48,7 @@ abstract contract BaseScriptV1 is Script {
     }
 
     modifier broadcast() {
-        vm.startBroadcast();
+        vm.startBroadcast(broadcaster);
         _;
         vm.stopBroadcast();
     }
@@ -68,6 +68,27 @@ abstract contract BaseScriptV1 is Script {
         return abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(implementation, _data));
     }
 
+    function _deployProxy(bytes memory initCode) internal returns (address deployed) {
+        assembly {
+            deployed := create2(0, add(initCode, 0x20), mload(initCode), sload(deploySalt.slot))
+        }
+    }
+
+    /*/////////////////////////////////////////////////////////////////////////////
+        PrimordiumExecutorV1
+    /////////////////////////////////////////////////////////////////////////////*/
+
+    function _address_implementation_ExecutorV1() internal view returns (address) {
+        return computeCreate2Address(deploySalt, keccak256(type(PrimordiumExecutorV1).creationCode));
+    }
+
+    function _deploy_implementation_ExecutorV1() internal {
+        address deployed = address(new PrimordiumExecutorV1{salt: deploySalt}());
+        if (deployed != _address_implementation_ExecutorV1()) {
+            revert("Executor: invalid implementation deployment address");
+        }
+    }
+
     /*/////////////////////////////////////////////////////////////////////////////
         PrimordiumTokenV1
     /////////////////////////////////////////////////////////////////////////////*/
@@ -82,25 +103,6 @@ abstract contract BaseScriptV1 is Script {
             revert("SharesToken: invalid deployment address");
         }
     }
-
-    // function _initCode_proxy_TokenV1(
-    //     address executor,
-    //     SharesTokenSettings memory settings
-    // )
-    //     internal
-    //     view
-    //     returns (bytes memory initCode)
-    // {
-    //     address owner = executor;
-    //     SharesTokenInit memory $ = settings.sharesTokenInit;
-    //     bytes memory sharesTokenInit = abi.encode($.maxSupply, address(executor));
-    //     return _getProxyInitCode(
-    //         _address_implementation_TokenV1(),
-    //         abi.encodeCall(
-    //             PrimordiumTokenV1.setUp, (owner, settings.name, settings.symbol, sharesTokenInit)
-    //         )
-    //     );
-    // }
 
     /*/////////////////////////////////////////////////////////////////////////////
         PrimordiumSharesOnboarderV1
@@ -129,21 +131,6 @@ abstract contract BaseScriptV1 is Script {
         address deployed = address(new PrimordiumGovernorV1{salt: deploySalt}());
         if (deployed != _address_implementation_GovernorV1()) {
             revert("Governor: invalid deployment address");
-        }
-    }
-
-    /*/////////////////////////////////////////////////////////////////////////////
-        PrimordiumExecutorV1
-    /////////////////////////////////////////////////////////////////////////////*/
-
-    function _address_implementation_ExecutorV1() internal view returns (address) {
-        return computeCreate2Address(deploySalt, keccak256(type(PrimordiumExecutorV1).creationCode));
-    }
-
-    function _deploy_implementation_ExecutorV1() internal {
-        address deployed = address(new PrimordiumExecutorV1{salt: deploySalt}());
-        if (deployed != _address_implementation_ExecutorV1()) {
-            revert("Executor: invalid deployment address");
         }
     }
 

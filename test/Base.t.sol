@@ -110,7 +110,7 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
             votingDelay: _secondsToBlocks(2 days),
             votingPeriod: _secondsToBlocks(3 days),
             gracePeriod: _secondsToBlocks(21 days),
-            initGrantRoles: ""
+            grantRoles: ""
         }),
         proposalVotingInit: IProposalVoting.ProposalVotingInit({
             percentMajority: 50,
@@ -210,7 +210,7 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     function _initializeGovernor() internal {
         GOVERNOR.governorBaseInit.executor = address(executor);
         GOVERNOR.governorBaseInit.token = address(token);
-        GOVERNOR.governorBaseInit.initGrantRoles = _getDefaultGovernorRoles();
+        GOVERNOR.governorBaseInit.grantRoles = _getDefaultGovernorRoles();
         governor.setUp(GOVERNOR);
     }
 

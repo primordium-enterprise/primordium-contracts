@@ -99,16 +99,6 @@ library ProposalVotingLogicV1 {
         }
     }
 
-    function setUp(IProposalVoting.ProposalVotingInit memory init) public {
-        setPercentMajority(init.percentMajority);
-        setQuorumBps(init.quorumBps);
-
-        setMaxDeadlineExtension(init.maxDeadlineExtension);
-        setBaseDeadlineExtension(init.baseDeadlineExtension);
-        setExtensionDecayPeriod(init.decayPeriod);
-        setExtensionPercentDecay(init.percentDecay);
-    }
-
     /*//////////////////////////////////////////////////////////////////////////
         VOTE COUNTING
     //////////////////////////////////////////////////////////////////////////*/

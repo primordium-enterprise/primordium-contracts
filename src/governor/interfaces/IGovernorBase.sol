@@ -21,7 +21,7 @@ interface IGovernorBase is IERC6372 {
         uint256 votingDelay;
         uint256 votingPeriod;
         uint256 gracePeriod;
-        bytes initGrantRoles;
+        bytes grantRoles;
     }
 
     enum ProposalState {
