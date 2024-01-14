@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.20;
 
-import {BaseScriptV1} from "../BaseV1.s.sol";
+import {BaseScriptV1, console2} from "../BaseV1.s.sol";
 import {PrimordiumTokenV1} from "src/token/PrimordiumTokenV1.sol";
 import {PrimordiumSharesOnboarderV1} from "src/onboarder/PrimordiumSharesOnboarderV1.sol";
 import {PrimordiumGovernorV1} from "src/governor/PrimordiumGovernorV1.sol";
@@ -17,6 +17,28 @@ import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
 
 abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
+    function _deployAndSetupAllProxies() internal returns (
+        PrimordiumExecutorV1 executor,
+        PrimordiumTokenV1 token,
+        PrimordiumSharesOnboarderV1 sharesOnboarder,
+        PrimordiumGovernorV1 governor
+    ) {
+        executor = _deploy_ExecutorV1();
+        console2.log("Executor:", address(executor));
+
+        token = _deploy_TokenV1();
+        console2.log("Token:", address(token));
+
+        sharesOnboarder = _deploy_SharesOnboarderV1();
+        console2.log("Shares Onboarder:", address(sharesOnboarder));
+
+        governor = _deploy_GovernorV1();
+        console2.log("Governor:", address(governor));
+
+        // Still need to setup the executor
+        PrimordiumExecutorV1(payable(executor)).setUp(_getExecutorV1InitParams());
+    }
+
     /*/////////////////////////////////////////////////////////////////////////////
         PrimordiumExecutorV1
     /////////////////////////////////////////////////////////////////////////////*/
@@ -58,9 +80,9 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
         return computeCreate2Address(deploySalt, keccak256(_getExecutorV1InitCode()));
     }
 
-    function _deploy_ExecutorV1() internal returns (address deployed) {
-        deployed = _deployProxy(_getExecutorV1InitCode());
-        require(deployed == _address_ExecutorV1(), "Executor: invalid proxy deployment address");
+    function _deploy_ExecutorV1() internal returns (PrimordiumExecutorV1 deployed) {
+        deployed = PrimordiumExecutorV1(payable(_deployProxy(_getExecutorV1InitCode())));
+        require(address(deployed) == _address_ExecutorV1(), "Executor: invalid proxy deployment address");
     }
 
     /*/////////////////////////////////////////////////////////////////////////////
@@ -87,9 +109,9 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
         return computeCreate2Address(deploySalt, keccak256(_getTokenV1InitCode()));
     }
 
-    function _deploy_TokenV1() internal returns (address deployed) {
-        deployed = _deployProxy(_getTokenV1InitCode());
-        require(deployed == _address_TokenV1(), "Token: invalid proxy deployment address");
+    function _deploy_TokenV1() internal returns (PrimordiumTokenV1 deployed) {
+        deployed = PrimordiumTokenV1(_deployProxy(_getTokenV1InitCode()));
+        require(address(deployed) == _address_TokenV1(), "Token: invalid proxy deployment address");
     }
 
     /*/////////////////////////////////////////////////////////////////////////////
@@ -126,9 +148,9 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
         return computeCreate2Address(deploySalt, keccak256(_getSharesOnboarderV1InitCode()));
     }
 
-    function _deploy_SharesOnboarderV1() internal returns (address deployed) {
-        deployed = _deployProxy(_getSharesOnboarderV1InitCode());
-        require(deployed == _address_SharesOnboarderV1(), "Shares Onboarder: invalid proxy deployment address");
+    function _deploy_SharesOnboarderV1() internal returns (PrimordiumSharesOnboarderV1 deployed) {
+        deployed = PrimordiumSharesOnboarderV1(_deployProxy(_getSharesOnboarderV1InitCode()));
+        require(address(deployed) == _address_SharesOnboarderV1(), "Shares Onboarder: invalid proxy deployment address");
     }
 
     /*/////////////////////////////////////////////////////////////////////////////
@@ -173,8 +195,8 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
         return computeCreate2Address(deploySalt, keccak256(_getGovernorV1InitCode()));
     }
 
-    function _deploy_GovernorV1() internal returns (address deployed) {
-        deployed = _deployProxy(_getGovernorV1InitCode());
-        require(deployed == _address_GovernorV1(), "Governor: invalid proxy deployment address");
+    function _deploy_GovernorV1() internal returns (PrimordiumGovernorV1 deployed) {
+        deployed = PrimordiumGovernorV1(_deployProxy(_getGovernorV1InitCode()));
+        require(address(deployed) == _address_GovernorV1(), "Governor: invalid proxy deployment address");
     }
 }

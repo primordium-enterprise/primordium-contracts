@@ -43,7 +43,7 @@ abstract contract BaseScriptV1 is Script {
             broadcaster = envBroadcaster;
         } else {
             mnemonic = vm.envOr("MNEMONIC", TEST_MNEMONIC);
-            (broadcaster,) = deriveRememberKey({ mnemonic: mnemonic, index: 0 });
+            (broadcaster,) = deriveRememberKey({mnemonic: mnemonic, index: 0});
         }
     }
 
@@ -74,6 +74,25 @@ abstract contract BaseScriptV1 is Script {
         }
     }
 
+    function _deployAllImplementations()
+        internal
+        returns (
+            PrimordiumExecutorV1 executorImpl,
+            PrimordiumTokenV1 tokenImpl,
+            PrimordiumSharesOnboarderV1 sharesOnboarderImpl,
+            PrimordiumGovernorV1 governorImpl,
+            DistributorV1 distributorImpl
+        )
+    {
+        return (
+            _deploy_implementation_ExecutorV1(),
+            _deploy_implementation_TokenV1(),
+            _deploy_implementation_SharesOnboarderV1(),
+            _deploy_implementation_GovernorV1(),
+            _deploy_implementation_DistributorV1()
+        );
+    }
+
     /*/////////////////////////////////////////////////////////////////////////////
         PrimordiumExecutorV1
     /////////////////////////////////////////////////////////////////////////////*/
@@ -82,11 +101,9 @@ abstract contract BaseScriptV1 is Script {
         return computeCreate2Address(deploySalt, keccak256(type(PrimordiumExecutorV1).creationCode));
     }
 
-    function _deploy_implementation_ExecutorV1() internal {
-        address deployed = address(new PrimordiumExecutorV1{salt: deploySalt}());
-        if (deployed != _address_implementation_ExecutorV1()) {
-            revert("Executor: invalid implementation deployment address");
-        }
+    function _deploy_implementation_ExecutorV1() internal returns (PrimordiumExecutorV1 deployed) {
+        deployed = new PrimordiumExecutorV1{salt: deploySalt}();
+        require(address(deployed) == _address_implementation_ExecutorV1(), "Executor: invalid implementation deployment address");
     }
 
     /*/////////////////////////////////////////////////////////////////////////////
@@ -97,10 +114,10 @@ abstract contract BaseScriptV1 is Script {
         return computeCreate2Address(deploySalt, keccak256(type(PrimordiumTokenV1).creationCode));
     }
 
-    function _deploy_implementation_TokenV1() internal {
-        address deployed = address(new PrimordiumTokenV1{salt: deploySalt}());
-        if (deployed != _address_implementation_TokenV1()) {
-            revert("SharesToken: invalid deployment address");
+    function _deploy_implementation_TokenV1() internal returns (PrimordiumTokenV1 deployed) {
+        deployed = new PrimordiumTokenV1{salt: deploySalt}();
+        if (address(deployed) != _address_implementation_TokenV1()) {
+            revert("SharesToken: invalid implementation deployment address");
         }
     }
 
@@ -112,10 +129,10 @@ abstract contract BaseScriptV1 is Script {
         return computeCreate2Address(deploySalt, keccak256(type(PrimordiumSharesOnboarderV1).creationCode));
     }
 
-    function _deploy_implementation_SharesOnboarderV1() internal {
-        address deployed = address(new PrimordiumSharesOnboarderV1{salt: deploySalt}());
-        if (deployed != _address_implementation_SharesOnboarderV1()) {
-            revert("SharesOnboarder: invalid deployment address");
+    function _deploy_implementation_SharesOnboarderV1() internal returns (PrimordiumSharesOnboarderV1 deployed) {
+        deployed = new PrimordiumSharesOnboarderV1{salt: deploySalt}();
+        if (address(deployed) != _address_implementation_SharesOnboarderV1()) {
+            revert("SharesOnboarder: invalid implementation deployment address");
         }
     }
 
@@ -127,10 +144,10 @@ abstract contract BaseScriptV1 is Script {
         return computeCreate2Address(deploySalt, keccak256(type(PrimordiumGovernorV1).creationCode));
     }
 
-    function _deploy_implementation_GovernorV1() internal {
-        address deployed = address(new PrimordiumGovernorV1{salt: deploySalt}());
-        if (deployed != _address_implementation_GovernorV1()) {
-            revert("Governor: invalid deployment address");
+    function _deploy_implementation_GovernorV1() internal returns (PrimordiumGovernorV1 deployed) {
+        deployed = new PrimordiumGovernorV1{salt: deploySalt}();
+        if (address(deployed) != _address_implementation_GovernorV1()) {
+            revert("Governor: invalid implementation deployment address");
         }
     }
 
@@ -142,10 +159,10 @@ abstract contract BaseScriptV1 is Script {
         return computeCreate2Address(deploySalt, keccak256(type(DistributorV1).creationCode));
     }
 
-    function _deploy_implementation_DistributorV1() internal {
-        address deployed = address(new DistributorV1{salt: deploySalt}());
-        if (deployed != _address_implementation_DistributorV1()) {
-            revert("Distributor: invalid deployment address");
+    function _deploy_implementation_DistributorV1() internal returns (DistributorV1 deployed) {
+        deployed = new DistributorV1{salt: deploySalt}();
+        if (address(deployed) != _address_implementation_DistributorV1()) {
+            revert("Distributor: invalid implementation deployment address");
         }
     }
 }

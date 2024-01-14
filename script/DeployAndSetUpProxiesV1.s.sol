@@ -12,22 +12,13 @@ import {PrimordiumExecutorV1} from "src/executor/PrimordiumExecutorV1.sol";
 import {DistributorV1} from "src/executor/extensions/DistributorV1.sol";
 
 contract DeployAndSetUpProxiesV1 is BaseScriptV1, PrimordiumDAOConfigV1 {
-    function run() public virtual broadcast {
-
-        address executor = _deploy_ExecutorV1();
-        console2.log("Executor:", executor);
-
-        address token = _deploy_TokenV1();
-        console2.log("Token:", token);
-
-        address sharesOnboarder = _deploy_SharesOnboarderV1();
-        console2.log("Shares Onboarder:", sharesOnboarder);
-
-        address governor = _deploy_GovernorV1();
-        console2.log("Governor:", governor);
-
-        // Still need to setup the executor
-        PrimordiumExecutorV1(payable(executor)).setUp(_getExecutorV1InitParams());
+    function run() public virtual broadcast returns(
+        PrimordiumExecutorV1 executor,
+        PrimordiumTokenV1 token,
+        PrimordiumSharesOnboarderV1 sharesOnboarder,
+        PrimordiumGovernorV1 governor
+    ) {
+        return _deployAndSetupAllProxies();
     }
 
 }

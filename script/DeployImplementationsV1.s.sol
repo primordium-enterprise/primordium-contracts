@@ -10,12 +10,18 @@ import {PrimordiumExecutorV1} from "src/executor/PrimordiumExecutorV1.sol";
 import {DistributorV1} from "src/executor/extensions/DistributorV1.sol";
 
 contract DeployImplementationsV1 is BaseScriptV1 {
-
-    function run() public virtual broadcast {
-        _deploy_implementation_TokenV1();
-        _deploy_implementation_SharesOnboarderV1();
-        _deploy_implementation_GovernorV1();
-        _deploy_implementation_ExecutorV1();
-        _deploy_implementation_DistributorV1();
+    function run()
+        public
+        virtual
+        broadcast
+        returns (
+            PrimordiumExecutorV1 executorImpl,
+            PrimordiumTokenV1 tokenImpl,
+            PrimordiumSharesOnboarderV1 sharesOnboarderImpl,
+            PrimordiumGovernorV1 governorImpl,
+            DistributorV1 distributorImpl
+        )
+    {
+        return _deployAllImplementations();
     }
 }
