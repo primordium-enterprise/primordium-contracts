@@ -17,12 +17,15 @@ import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
 
 abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
-    function _deployAndSetupAllProxies() internal returns (
-        PrimordiumExecutorV1 executor,
-        PrimordiumTokenV1 token,
-        PrimordiumSharesOnboarderV1 sharesOnboarder,
-        PrimordiumGovernorV1 governor
-    ) {
+    function _deployAndSetupAllProxies()
+        internal
+        returns (
+            PrimordiumExecutorV1 executor,
+            PrimordiumTokenV1 token,
+            PrimordiumSharesOnboarderV1 sharesOnboarder,
+            PrimordiumGovernorV1 governor
+        )
+    {
         executor = _deploy_ExecutorV1();
         console2.log("Executor:", address(executor));
 
@@ -53,10 +56,7 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
         modules[0] = governor;
 
         return PrimordiumExecutorV1.ExecutorV1Init({
-            timelockAvatarInit: ITimelockAvatar.TimelockAvatarInit({
-                minDelay: 3 days,
-                modules: modules
-            }),
+            timelockAvatarInit: ITimelockAvatar.TimelockAvatarInit({minDelay: 3 days, modules: modules}),
             treasurerInit: ITreasurer.TreasurerInit({
                 token: token,
                 sharesOnboarder: sharesOnboarder,
@@ -80,6 +80,10 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
         return computeCreate2Address(deploySalt, keccak256(_getExecutorV1InitCode()));
     }
 
+    /**
+     * @dev The executor is deployed first, with the deployer as the authorized initializer (all subsequent create2
+     * addresses are built on this as a starting point).
+     */
     function _deploy_ExecutorV1() internal returns (PrimordiumExecutorV1 deployed) {
         deployed = PrimordiumExecutorV1(payable(_deployProxy(_getExecutorV1InitCode())));
         require(address(deployed) == _address_ExecutorV1(), "Executor: invalid proxy deployment address");

@@ -4,17 +4,63 @@ pragma solidity ^0.8.20;
 import {PRBTest} from "@prb/test/PRBTest.sol";
 import {console2} from "forge-std/console2.sol";
 import {DeployV1} from "script/DeployV1.s.sol";
+import {PrimordiumTokenV1} from "src/token/PrimordiumTokenV1.sol";
+import {PrimordiumSharesOnboarderV1} from "src/onboarder/PrimordiumSharesOnboarderV1.sol";
+import {PrimordiumGovernorV1} from "src/governor/PrimordiumGovernorV1.sol";
+import {PrimordiumExecutorV1} from "src/executor/PrimordiumExecutorV1.sol";
+import {DistributorV1} from "src/executor/extensions/DistributorV1.sol";
 
 contract DeployV1Test is PRBTest {
-
     DeployV1 deployScript = new DeployV1();
 
+    DeployV1.Implementations implementations;
+    DeployV1.Proxies proxies;
+
     function setUp() public {
-        deployScript.run();
+        (implementations, proxies) = deployScript.run();
     }
 
-    function test_Deploy() public view {
-        console2.logBytes(address(0x7C46a83fE28F0b283e354E1f783470157Ab242dc).code);
+    /// @dev Gets the stored implementation address for the provided ERC1967Proxy address
+    function _getProxyImplementation(address proxy) internal view returns (address impl) {
+        impl = address(
+            uint160(uint256(vm.load(proxy, 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc)))
+        );
     }
 
+    function test_ProxyImplementations() public {
+        assertEq(address(implementations.executorImpl), _getProxyImplementation(address(proxies.executor)));
+        assertEq(address(implementations.tokenImpl), _getProxyImplementation(address(proxies.token)));
+        assertEq(
+            address(implementations.sharesOnboarderImpl), _getProxyImplementation(address(proxies.sharesOnboarder))
+        );
+        assertEq(address(implementations.governorImpl), _getProxyImplementation(address(proxies.governor)));
+        assertEq(
+            address(implementations.distributorImpl), _getProxyImplementation(address(proxies.executor.distributor()))
+        );
+    }
+
+    function test_ContractReferences() public {
+        // Token
+        assertEq(address(proxies.executor), proxies.token.owner());
+        assertEq(address(proxies.executor), address(proxies.token.treasury()));
+
+        // SharesOnboarder
+        assertEq(address(proxies.executor), proxies.sharesOnboarder.owner());
+        assertEq(address(proxies.executor), address(proxies.sharesOnboarder.treasury()));
+
+        // Governor
+        assertEq(address(proxies.executor), address(proxies.governor.executor()));
+        assertEq(address(proxies.token), address(proxies.governor.token()));
+
+        // Executor
+        assertEq(address(proxies.token), address(proxies.executor.token()));
+        assertEq(address(proxies.sharesOnboarder), address(proxies.executor.sharesOnboarder()));
+
+        // governor is only module on executor
+        assertTrue(proxies.executor.isModuleEnabled(address(proxies.governor)));
+        address[] memory expectedModules = new address[](1);
+        expectedModules[0] = address(proxies.governor);
+        (address[] memory actualModules,) = proxies.executor.getModulesPaginated(address(0x01), 100);
+        assertEq(expectedModules, actualModules);
+    }
 }
