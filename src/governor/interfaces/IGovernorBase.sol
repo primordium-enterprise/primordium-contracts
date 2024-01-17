@@ -4,14 +4,26 @@
 
 pragma solidity ^0.8.20;
 
-import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {IGovernorToken} from "src/governor/interfaces/IGovernorToken.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
+import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
 
 /**
  * @dev Interface of the {GovernorBase} core.
  */
-interface IGovernorBase is IERC165, IERC6372 {
+interface IGovernorBase is IERC6372 {
+    struct GovernorBaseInit {
+        address executor;
+        address token;
+        uint256 governanceCanBeginAt;
+        uint256 governanceThresholdBps;
+        uint256 proposalThresholdBps;
+        uint256 votingDelay;
+        uint256 votingPeriod;
+        uint256 gracePeriod;
+        bytes grantRoles;
+    }
+
     enum ProposalState {
         Pending,
         Active,
@@ -23,20 +35,51 @@ interface IGovernorBase is IERC165, IERC6372 {
         Executed
     }
 
+    struct ProposalCore {
+        address proposer; // 20 bytes
+        uint48 voteStart; // 6 bytes
+        uint32 voteDuration; // 4 bytes
+        bool queued; // 1 byte
+        bool canceled; // 1 byte
+    }
+
+    /*/////////////////////////////////////////////////////////////////////////
+        EVENTS
+    /////////////////////////////////////////////////////////////////////////*/
+
     event GovernorBaseInitialized(
-        string name,
-        string version,
-        address timelockAvatar,
-        address token,
-        uint256 governanceCanBeginAt,
-        uint256 governanceThresholdBps,
-        bool isFounded
+        address executor, address token, uint256 governanceCanBeginAt, uint256 governanceThresholdBps, bool isFounded
     );
 
     /**
-     * @dev Emitted when governance is initialized.
+     * @dev Emitted when the Governor is successfully founded.
      */
-    event GovernanceInitialized(uint256 proposalId);
+    event GovernorFounded(uint256 proposalId);
+
+    /**
+     * @dev Emitted when the executor controller used for proposal execution is modified.
+     */
+    event ExecutorUpdate(address oldExecutor, address newExecutor);
+
+    /**
+     * @dev Emitted when the proposal threshold BPS is updated.
+     */
+    event ProposalThresholdBPSUpdate(uint256 oldProposalThresholdBps, uint256 newProposalThresholdBps);
+
+    /**
+     * @dev Emitted when the voting delay is updated.
+     */
+    event VotingDelayUpdate(uint256 oldVotingDelay, uint256 newVotingDelay);
+
+    /**
+     * @dev Emitted when the voting period is updated.
+     */
+    event VotingPeriodUpdate(uint256 oldVotingPeriod, uint256 newVotingPeriod);
+
+    /**
+     * @dev Emitted when the proposal grace period is updated.
+     */
+    event ProposalGracePeriodUpdate(uint256 oldGracePeriod, uint256 newGracePeriod);
 
     /**
      * @dev Emitted when a proposal is created.
@@ -46,8 +89,8 @@ interface IGovernorBase is IERC165, IERC6372 {
         address indexed proposer,
         address[] targets,
         uint256[] values,
-        string[] signatures,
         bytes[] calldatas,
+        string[] signatures,
         uint256 voteStart,
         uint256 voteEnd,
         string description
@@ -68,49 +111,93 @@ interface IGovernorBase is IERC165, IERC6372 {
      */
     event ProposalExecuted(uint256 indexed proposalId);
 
-    /**
-     * @dev Emitted when a vote is cast without params.
-     *
-     * Note: `support` values should be seen as buckets. Their interpretation depends on the voting module used.
-     */
-    event VoteCast(address indexed voter, uint256 indexed proposalId, uint8 support, uint256 weight, string reason);
+    /*/////////////////////////////////////////////////////////////////////////
+        ERRORS
+    /////////////////////////////////////////////////////////////////////////*/
 
     /**
-     * @dev Emitted when a vote is cast with params.
-     *
-     * Note: `support` values should be seen as buckets. Their interpretation depends on the voting module used.
-     * `params` are additional encoded parameters. Their interpepretation also depends on the voting module used.
+     * @dev Thrown if the action requires being executed through a governance proposal.
      */
-    event VoteCastWithParams(
-        address indexed voter, uint256 indexed proposalId, uint8 support, uint256 weight, string reason, bytes params
-    );
+    error OnlyGovernance();
+
+    /**
+     * @dev Thrown if the provided address is an invalid address to update the executor to.
+     */
+    error GovernorInvalidExecutorAddress(address invalidAddress);
+
+    /**
+     * @dev Thrown if an attempt to set the executor address in the initializer is made, but the executor is already
+     * a non-zero address (meaning it was already initialized).
+     */
+    error GovernorExecutorAlreadyInitialized();
+
+    /**
+     * @dev Thrown if the current block.timestamp is still less than the "governanceCanBeginAt()" timestamp.
+     */
+    error GovernorCannotBeFoundedYet(uint256 governanceCanBeginAt);
+
+    /**
+     * @dev Thrown if the current vote token supply is less than the required threshold for founding the Governor.
+     */
+    error GovernorFoundingVoteThresholdNotMet(uint256 governanceThreshold, uint256 voteSupply);
+
+    /**
+     * @dev Thrown if the Governor is already founded.
+     */
+    error GovernorAlreadyFounded();
+
+    /**
+     * @dev Thrown if the provided proposal ID when submitting a founding proposal is different than the expected
+     * proposal ID. The expected proposal ID is the current "proposalCount()" + 1
+     */
+    error GovernorInvalidFoundingProposalID(uint256 expectedProposalId, uint256 providedProposalId);
+
+    /**
+     * @dev Error thrown if a relay call by the exector to this contract reverts.
+     */
+    error GovernorRelayFailed();
 
     /**
      * @dev The current state of a proposal is not the required for performing an operation.
-     * The `expectedStates` is a bitmap with the bits enabled for each ProposalState enum position
-     * counting from right to left.
+     * The `expectedStates` is a bitmap with the bits enabled for each ProposalState enum position counting from right
+     * to left.
      *
      * NOTE: If `expectedState` is `bytes32(0)`, the proposal is expected to not be in any state (i.e. not exist).
      * This is the case when a proposal that is expected to be unset is already initiated (the proposal is duplicated).
-     *
-     * See {GovernorBase-_encodeStateBitmap}.
      */
     error GovernorUnexpectedProposalState(uint256 proposalId, ProposalState current, bytes32 expectedStates);
-    error GovernanceCannotInitializeYet(uint256 governanceCanBeginAt);
-    error GovernanceThresholdIsNotMet(uint256 governanceThreshold, uint256 voteSupply);
-    error GovernanceInitializationActionRequired();
-    error InvalidProposalIdForInitialization(uint256 expectedProposalId, uint256 providedProposalId);
-    error GovernanceAlreadyInitialized();
-    error UnknownProposalId(uint256 proposalId);
-    error GovernorClockMustMatchTokenClock();
-    error GovernorRestrictedProposer(address proposer);
-    error UnauthorizedToSubmitProposal(address proposer);
-    error UnauthorizedToCancelProposal();
-    error NotReadyForGovernance();
-    error InvalidActionSignature(uint256 index);
-    error InvalidActionsForProposal();
-    error TooLateToCancelProposal();
-    error GovernorInvalidSignature(address voter);
+
+    /**
+     * @dev If governance has not been initialized, the only allowable proposal action is to initialize governance.
+     */
+    error GovernorFoundingActionRequired();
+
+    /**
+     * @dev Thrown when the provided `proposalId` does not match any known proposals.
+     */
+    error GovernorUnknownProposalId(uint256 proposalId);
+
+    /**
+     * @dev Thrown when the proposal description ends with `#proposer=0x???`, where `0x???` is a valid address, and the
+     * msg.sender's address does not match this provided address.
+     */
+    error GovernorRestrictedProposer();
+
+    /**
+     * @dev Thrown when the msg.sender is unauthorized to complete the current action.
+     */
+    error GovernorUnauthorizedSender(address msgSender);
+
+    /**
+     * @dev Thrown when the actions hash of the targets, values, and calldatas do not match the proposal's actions hash.
+     */
+    error GovernorInvalidProposalActions(uint256 proposalId);
+
+    /**
+     * @dev Thrown when a calldata signature does not match the actual calldata selector. Provides the index where the
+     * mismatch occurs.
+     */
+    error GovernorInvalidActionSignature(uint256 index);
 
     /**
      * @dev Name of the governor instance (used in building the ERC712 domain separator).
@@ -123,121 +210,60 @@ interface IGovernorBase is IERC165, IERC6372 {
     function version() external view returns (string memory);
 
     /**
-     * @dev A description of the possible `support` values for {castVote} and the way these votes are counted, meant to
-     * be consumed by UIs to show correct vote options and interpret the results. The string is a URL-encoded sequence
-     * of key-value pairs that each describe one aspect, for example `support=bravo&quorum=for,abstain`.
-     *
-     * There are 2 standard keys: `support` and `quorum`.
-     *
-     * - `support=bravo` refers to the vote options 0 = Against, 1 = For, 2 = Abstain, as in `GovernorBravo`.
-     * - `quorum=bravo` means that only For votes are counted towards quorum.
-     * - `quorum=for,abstain` means that both For and Abstain votes are counted towards quorum.
-     *
-     * If a counting module makes use of encoded `params`, it should  include this under a `params` key with a unique
-     * name that describes the behavior. For example:
-     *
-     * - `params=fractional` might refer to a scheme where votes are divided fractionally between for/against/abstain.
-     * - `params=erc721` might refer to a scheme where specific NFTs are delegated to vote.
-     *
-     * NOTE: The string can be decoded by the standard
-     * https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams[`URLSearchParams`]
-     * JavaScript class.
+     * @notice Returns the address of the executor.
      */
-    // solhint-disable-next-line func-name-mixedcase
-    function COUNTING_MODE() external view returns (string memory);
+    function executor() external view returns (ITimelockAvatar _executor);
 
+    /**
+     * @notice Public endpoint to update the underlying timelock instance. Restricted to the timelock itself, so updates
+     * must be proposed, scheduled, and executed through governance proposals.
+     *
+     * @dev CAUTION: It is not recommended to change the timelock while there are other queued governance proposals.
+     */
+    function setExecutor(address newExecutor) external;
+
+    /**
+     * @notice Returns the address of the token used for tracking votes.
+     */
     function token() external view returns (IGovernorToken);
 
     /**
-     * Current state of a proposal, following Compound's convention.
+     * Returns the timestamp after which the Governor can be founded.
      */
-    function state(uint256 proposalId) external view returns (ProposalState);
+    function governanceCanBeginAt() external view returns (uint256 _governanceCanBeginAt);
 
     /**
-     * Returns the total number of submitted proposals.
+     * Returns the amount of the vote token's initial max supply that needs to be allocated into circulation (via
+     * deposits) before the Governor can be founded. Returns zero if governance is already active.
      */
-    function proposalCount() external view returns (uint256 _proposalCount);
+    function governanceFoundingVoteThreshold() external view returns (uint256 threshold);
 
     /**
-     * @dev Timepoint used to retrieve user's votes and quorum. If using block number (as per Compound's Comp), the
-     * snapshot is performed at the end of this block. Hence, voting for this proposal starts at the beginning of the
-     * following block.
+     * @notice Initializes governance. This function is the only allowable proposal action on the Governor until it has
+     * been successfully executed.
+     * @dev The governance threshold of tokens must be allocated before a founding proposal can be submitted.
+     * Additionally, the governance threshold of tokens must still be met at the end of the founding proposal's voting
+     * period to successfully execute this action, or else it will revert on execution (even if the proposal vote
+     * succeeded).
+     * @param proposalId This MUST be equal to the proposalId of the founding proposal, or else the `propose()` function
+     * will revert. The proposalId can be predicted by taking the current `proposalCount()` and adding one.
      */
-    function proposalSnapshot(uint256 proposalId) external view returns (uint256);
+    function foundGovernor(uint256 proposalId) external;
 
     /**
-     * @dev Timepoint at which votes close. If using block number, votes close at the end of this block, so it is
-     * possible to cast a vote during this block.
+     * @notice Returns true if the Governor has been founded, meaning any proposal actions are available for
+     * submission and execution.
      */
-    function proposalDeadline(uint256 proposalId) external view returns (uint256);
+    function isFounded() external view returns (bool);
 
     /**
-     * @dev Returns the hash of the proposal actions
-     */
-    function proposalActionsHash(uint256 proposalId) external view returns (bytes32);
-
-    /**
-     * @dev Address of the proposer
-     */
-    function proposalProposer(uint256 proposalId) external view returns (address);
-
-    /**
-     * @dev The current number of votes that need to be delegated to the msg.sender in order to create a new proposal.
-     */
-    function proposalThreshold() external view returns (uint256);
-
-    /**
-     * @dev Public accessor to check the eta of a proposal. Returns zero for an unqueued operation. Otherwise returns
-     * the result of {TimelockAvatar.getOperationExecutableAt}.
-     */
-    function proposalEta(uint256 proposalId) external view returns (uint256);
-
-    /**
-     * @dev Public accessor to check the operation nonce of a proposal queued on the Executor. Returns 0 for a proposal
-     * that has not been queued. Also returns zero for a proposalId that does not exist.
-     */
-    function proposalOpNonce(uint256 proposalId) external view returns (uint256);
-
-    /**
-     * @dev Delay, between the proposal is created and the vote starts. The unit this duration is expressed in depends
-     * on the clock (see EIP-6372) this contract uses.
-     *
-     * This can be increased to leave time for users to buy voting power, or delegate it, before the voting of a
-     * proposal starts.
-     */
-    function votingDelay() external view returns (uint256);
-
-    /**
-     * @dev Delay, between the vote start and vote ends. The unit this duration is expressed in depends on the clock
-     * (see EIP-6372) this contract uses.
-     *
-     * NOTE: The {votingDelay} can delay the start of the vote. This must be considered when setting the voting
-     * duration compared to the voting delay.
-     */
-    function votingPeriod() external view returns (uint256);
-
-    /**
-     * @dev Grace period after a proposal deadline passes in which a successful proposal must be queued for execution,
-     * or else the proposal will expire. The unit this duration is expressed in depends on the clock (see EIP-6372) this
-     * contract uses.
-     */
-    function proposalGracePeriod() external view returns (uint256);
-
-    /**
-     * @dev Minimum number of cast voted required for a proposal to be successful.
-     *
-     * NOTE: The `timepoint` parameter corresponds to the snapshot used for counting vote. This allows to scale the
-     * quorum depending on values such as the totalSupply of a token at this timepoint (see {ERC20Votes}).
-     */
-    function quorum(uint256 timepoint) external view returns (uint256);
-
-    /**
-     * @dev Voting power of an `account` at a specific `timepoint`.
+     * @notice Voting power of an `account` at a specific `timepoint` (which is according to the clock mode - see
+     * EIP6372).
      */
     function getVotes(address account, uint256 timepoint) external view returns (uint256);
 
     /**
-     * @dev Voting power of an `account` at a specific `timepoint` given additional encoded parameters.
+     * @notice Voting power of an `account` at a specific `timepoint` given additional encoded parameters.
      */
     function getVotesWithParams(
         address account,
@@ -248,41 +274,69 @@ interface IGovernorBase is IERC165, IERC6372 {
         view
         returns (uint256);
 
-    /**
-     * @dev Returns whether `account` has cast a vote on `proposalId`.
+        /**
+     * @dev The bytes32 role hash for accounts that are allowed to submit proposals, regardless of the proposal
+     * threshold.
      */
-    function hasVoted(uint256 proposalId, address account) external view returns (bool);
+    function PROPOSER_ROLE() external view returns (bytes32);
 
     /**
-     * Returns the timestamp that governance can be initiated after.
+     * @dev The bytes32 role hash for accounts that are allowed to cancel proposals. If granting this ability to an
+     * account, it is recommended to set a reasonable "expiresAt" paramater, as any account with this role can cancel
+     * any proposal before execution.
      */
-    function governanceCanBeginAt() external view returns (uint256 _governanceCanBeginAt);
+    function CANCELER_ROLE() external view returns (bytes32);
 
     /**
-     * Returns the amount of the vote token's initial max supply that needs to be in circulation (via deposits) before
-     * governance can be initiated. Returns zero if governance is already active.
+     * @notice Returns the total number of submitted proposals.
      */
-    function governanceThreshold() external view returns (uint256 _governanceThreshold);
+    function proposalCount() external view returns (uint256 _proposalCount);
 
     /**
-     * @dev Initializes governance. This function is the only allowable proposal action on the Governor until it has
-     * been successfully executed through the proposal process.
-     * @notice The governance threshold of tokens must be allocated before a proposal can be submitted. Additionally,
-     * the governance threshold of tokens must still be met at the end of the proposal's voting period to successfully
-     * execute this action, or else the action will revert on execution (even if the proposal vote succeeded).
-     * @param proposalId This MUST be equal to the proposalId of the proposal creating the action, or creating the
-     * proposal will not work. The proposalId can be predicted by taking the current proposalCount() and adding one.
+     * @notice Timepoint used to retrieve user's votes and quorum. If using block number (as per Compound's Comp), the
+     * snapshot is performed at the end of this block. Hence, voting for this proposal starts at the beginning of the
+     * following block.
      */
-    function initializeGovernance(uint256 proposalId) external;
+    function proposalSnapshot(uint256 proposalId) external view returns (uint256);
 
     /**
-     * @dev Returns true if the Governor has been initialized, meaning any proposal actions are available for
-     * submission and execution.
+     * @notice Timepoint at which votes close. If using block number, votes close at the end of this block, so it is
+     * possible to cast a vote during this block.
      */
-    function isGovernanceActive() external view returns (bool);
+    function proposalDeadline(uint256 proposalId) external view returns (uint256);
 
     /**
-     * @dev Hashing function used to verify the proposal actions that were originally submitted.
+     * @notice Address of the proposer.
+     */
+    function proposalProposer(uint256 proposalId) external view returns (address);
+
+    /**
+     * @notice Returns the hash of the proposal actions.
+     */
+    function proposalActionsHash(uint256 proposalId) external view returns (bytes32);
+
+    /**
+     * @notice Public accessor to check the eta of a proposal. Returns zero for an unqueued operation. Otherwise returns
+     * the result of {TimelockAvatar.getOperationExecutableAt}.
+     */
+    function proposalEta(uint256 proposalId) external view returns (uint256);
+
+    /**
+     * @notice Public accessor to check the operation nonce of a proposal queued on the Executor. Returns 0 for a
+     * proposal that has not been queued. Also returns zero for a proposalId that does not exist.
+     * @dev If the proposal is the first operation on the executor, it is possible that the operation nonce is 0 and
+     * does in fact exist. The {proposalEta} can be additionally checked to determine if the operation exists.
+     */
+    function proposalOpNonce(uint256 proposalId) external view returns (uint256);
+
+    /**
+     * Current state of a proposal, following Compound's convention.
+     */
+    function state(uint256 proposalId) external view returns (ProposalState);
+
+    /**
+     * @dev The actionsHash is produced by hashing the ABI encoded `targets` array, the `values` array, and the
+     * `calldatas` array. This can be reproduced from the proposal data which is part of the {ProposalCreated} event.
      */
     function hashProposalActions(
         address[] calldata targets,
@@ -294,9 +348,66 @@ interface IGovernorBase is IERC165, IERC6372 {
         returns (bytes32);
 
     /**
+     * @notice The current number of votes that need to be delegated to the msg.sender in order to create a new
+     * proposal (calculated using the {proposalThresholdBps}).
+     */
+    function proposalThreshold() external view returns (uint256);
+
+    /**
+     * @notice The percentage of the vote token's total supply (in basis points) that must be delegated to the
+     * msg.sender in order to create a new proposal.
+     */
+    function proposalThresholdBps() external view returns (uint256);
+
+    /**
+     * @notice A governance-only function to update the proposal threshold basis points. Max value is 10,000.
+     */
+    function setProposalThresholdBps(uint256 newProposalThresholdBps) external;
+
+    /**
+     * @notice Delay, between the proposal is created and the vote starts. The unit this duration is expressed in
+     * depends on the clock (see EIP-6372) this contract uses.
+     *
+     * This can be increased to leave time for users to buy voting power, or delegate it, before the voting of a
+     * proposal starts.
+     */
+    function votingDelay() external view returns (uint256);
+
+    /**
+     * @notice A governance-only function to update the voting delay.
+     */
+    function setVotingDelay(uint256 newVotingDelay) external;
+
+    /**
+     * @notice Delay, between the vote start and vote ends. The unit this duration is expressed in depends on the clock
+     * (see EIP-6372) this contract uses.
+     *
+     * NOTE: The {votingDelay} can delay the start of the vote. This must be considered when setting the voting period
+     * compared to the voting delay.
+     */
+    function votingPeriod() external view returns (uint256);
+
+    /**
+     * @notice A governance-only function to update the voting period.
+     */
+    function setVotingPeriod(uint256 newVotingPeriod) external;
+
+    /**
+     * @notice Grace period after a proposal deadline passes in which a successful proposal must be queued for
+     * execution, or else the proposal will expire. The unit this duration is expressed in depends on the clock
+     * (see EIP-6372) this contract uses.
+     */
+    function proposalGracePeriod() external view returns (uint256);
+
+    /**
+     * @notice A governance-only function to update the proposal grace period.
+     */
+    function setProposalGracePeriod(uint256 newGracePeriod) external;
+
+    /**
      * Create a new proposal. Emits a {ProposalCreated} event.
      *
-     * @notice Accounts with the PROPOSER_ROLE can submit proposals regardless of delegation.
+     * @dev Accounts with the PROPOSER_ROLE can submit proposals regardless of delegation.
      *
      * @param targets The execution targets.
      * @param values The execution values.
@@ -320,9 +431,8 @@ interface IGovernorBase is IERC165, IERC6372 {
         returns (uint256 proposalId);
 
     /**
-     * @dev Queue a proposal in the Executor for execution.
-     *
-     * Emits a {ProposalQueued} event.
+     * @notice Queue a proposal in the Timelock for execution. This requires the quorum to be reached, the vote to be
+     * successful, and the deadline to be reached.Emits a {ProposalQueued} event.
      */
     function queue(
         uint256 proposalId,
@@ -334,12 +444,8 @@ interface IGovernorBase is IERC165, IERC6372 {
         returns (uint256 proposalId_);
 
     /**
-     * @dev Execute a successful proposal. This requires the quorum to be reached, the vote to be successful, and the
-     * deadline to be reached.
-     *
-     * Emits a {ProposalExecuted} event.
-     *
-     * Note: some module can modify the requirements for execution, for example by adding an additional timelock.
+     * @notice Execute a queued proposal. Requires that the operation ETA is has been reached in the timelock, and that
+     * the operation has not expired.
      */
     function execute(
         uint256 proposalId,
@@ -351,13 +457,14 @@ interface IGovernorBase is IERC165, IERC6372 {
         returns (uint256 proposalId_);
 
     /**
-     * @dev Cancel a proposal. A proposal is cancellable by the proposer, but only while it is Pending state, i.e.
+     * @notice Cancel a proposal. A proposal is cancellable by the proposer, but only while it is Pending state, i.e.
      * before the vote starts.
      *
      * Emits a {ProposalCanceled} event.
      *
-     * Accounts with the CANCELER_ROLE can cancel the proposal anytime before execution. It is recommended to set an
-     * expiresAt timestamp for any CANCELER_ROLE grants, or else they can cancel any proposal forever into the future.
+     * @dev Accounts with the CANCELER_ROLE can cancel the proposal anytime before execution. It is recommended to set
+     * an expiresAt timestamp for any CANCELER_ROLE grants, or else they can cancel any proposal forever into the
+     * future.
      */
     function cancel(
         uint256 proposalId,
@@ -367,74 +474,6 @@ interface IGovernorBase is IERC165, IERC6372 {
     )
         external
         returns (uint256 proposalId_);
-
-    /**
-     * @dev Cast a vote
-     *
-     * Emits a {VoteCast} event.
-     */
-    function castVote(uint256 proposalId, uint8 support) external returns (uint256 balance);
-
-    /**
-     * @dev Cast a vote with a reason
-     *
-     * Emits a {VoteCast} event.
-     */
-    function castVoteWithReason(
-        uint256 proposalId,
-        uint8 support,
-        string calldata reason
-    )
-        external
-        returns (uint256 balance);
-
-    /**
-     * @dev Cast a vote with a reason and additional encoded parameters
-     *
-     * Emits a {VoteCast} or {VoteCastWithParams} event depending on the length of params.
-     */
-    function castVoteWithReasonAndParams(
-        uint256 proposalId,
-        uint8 support,
-        string calldata reason,
-        bytes memory params
-    )
-        external
-        returns (uint256 balance);
-
-    /**
-     * Cast a vote using the user's cryptographic signature.
-     *
-     * Emits a {VoteCast} event.
-     *
-     * @param signature The signature is a packed bytes encoding of the ECDSA r, s, and v signature values.
-     */
-    function castVoteBySig(
-        uint256 proposalId,
-        uint8 support,
-        address voter,
-        bytes memory signature
-    )
-        external
-        returns (uint256 balance);
-
-    /**
-     * @dev Cast a vote with a reason and additional encoded parameters using the user's cryptographic signature.
-     *
-     * Emits a {VoteCast} or {VoteCastWithParams} event depending on the length of params.
-     *
-     * @param signature The signature is a packed bytes encoding of the ECDSA r, s, and v signature values.
-     */
-    function castVoteWithReasonAndParamsBySig(
-        uint256 proposalId,
-        uint8 support,
-        address voter,
-        string calldata reason,
-        bytes memory params,
-        bytes memory signature
-    )
-        external
-        returns (uint256 balance);
 
     /**
      * @dev Batch method for granting roles. Only governance.

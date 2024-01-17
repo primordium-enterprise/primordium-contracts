@@ -140,8 +140,23 @@ contract MultiSendTest is PRBTest, IMultiSenderEvents {
         _asserts();
     }
 
-    function test_MultiSendEncodersAreEqual() public {
-        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = _buildTransactions();
+    struct Call {
+        address target;
+        uint256 value;
+        bytes data;
+    }
+
+    function test_MultiSendEncodersAreEqual(Call[] memory calls) public {
+        vm.assume(calls.length > 0);
+        address[] memory targets = new address[](calls.length);
+        uint256[] memory values = new uint256[](calls.length);
+        bytes[] memory calldatas = new bytes[](calls.length);
+        for (uint256 i = 0; i < calls.length; i++) {
+            Call memory call = calls[i];
+            targets[i] = call.target;
+            values[i] = call.value;
+            calldatas[i] = call.data;
+        }
 
         (address to, uint256 value, bytes memory data) =
             MultiSendEncoder.encodeMultiSend(multiSender, targets, values, calldatas);

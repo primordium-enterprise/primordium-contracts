@@ -4,7 +4,7 @@
 pragma solidity ^0.8.20;
 
 import {SafeTransferLib} from "./SafeTransferLib.sol";
-import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title A wrapper library for "SafeTransferLib.sol" with common operations based on ERC20 vs ETH operations.

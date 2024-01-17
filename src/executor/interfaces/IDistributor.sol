@@ -3,14 +3,14 @@
 
 pragma solidity ^0.8.20;
 
-import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title Interface functions used by the Treasurer for creating token distributions.
  * @author Ben Jett - @BCJdevelopment
  */
 interface IDistributor {
-    function initialize(address token_, uint256 claimPeriod_) external;
+    function setUp(address token_, uint256 claimPeriod_) external;
 
     function createDistribution(
         uint256 clockStartTime,

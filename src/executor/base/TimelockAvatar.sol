@@ -69,49 +69,11 @@ abstract contract TimelockAvatar is
         }
     }
 
-    address internal constant MODULES_HEAD = address(0x1);
+    address internal constant MODULES_HEAD = address(0x01);
 
     uint256 public constant GRACE_PERIOD = 14 days;
     uint256 public constant MIN_DELAY = 2 days;
     uint256 public constant MAX_DELAY = 30 days;
-
-    /**
-     * @dev Emitted when the minimum delay for future operations is modified.
-     */
-    event MinDelayUpdate(uint256 oldMinDelay, uint256 newMinDelay);
-
-    event ModulesInitialized(address[] modules_);
-
-    event OperationScheduled(
-        uint256 indexed opNonce,
-        address indexed module,
-        address to,
-        uint256 value,
-        bytes data,
-        Enum.Operation operation,
-        uint256 delay
-    );
-
-    event OperationExecuted(
-        uint256 indexed opNonce, address indexed module, address to, uint256 value, bytes data, Enum.Operation operation
-    );
-
-    event OperationCancelled(uint256 indexed opNonce, address indexed module);
-
-    error MinDelayOutOfRange(uint256 min, uint256 max);
-    error InsufficientDelay();
-    error ModuleNotEnabled(address module);
-    error SenderMustBeExecutingModule(address sender, address executingModule);
-    error ModulesAlreadyInitialized();
-    error ModuleInitializationNeedsMoreThanZeroModules();
-    error InvalidModuleAddress(address module);
-    error ModuleAlreadyEnabled(address module);
-    error InvalidPreviousModuleAddress(address prevModule);
-    error InvalidStartModule(address start);
-    error InvalidPageSize(uint256 pageSize);
-    error InvalidOperationStatus(OperationStatus currentStatus, OperationStatus requiredStatus);
-    error UnauthorizedModule();
-    error InvalidCallParameters();
 
     /// @dev Only enabled modules to take the specified action.
     modifier onlyModule() {
@@ -146,12 +108,12 @@ abstract contract TimelockAvatar is
         return _getModuleExecutionStorage()._executingModule;
     }
 
-    function __ModuleTimelockAdmin_init(uint256 minDelay_, address[] memory modules_) internal onlyInitializing {
+    function __TimelockAvatar_init(TimelockAvatarInit memory init) internal onlyInitializing {
         __SelfAuthorized_init();
         // Initialize the module execution to address(0x01) for cheaper gas updates
         _setModuleExecution(MODULES_HEAD);
-        _updateMinDelay(minDelay_);
-        _setUpModules(modules_);
+        _setMinDelay(init.minDelay);
+        _setUpModules(init.modules);
     }
 
     function supportsInterface(bytes4 interfaceId)
@@ -204,12 +166,12 @@ abstract contract TimelockAvatar is
     }
 
     /// @inheritdoc ITimelockAvatar
-    function updateMinDelay(uint256 newMinDelay) external onlySelf {
-        _updateMinDelay(newMinDelay);
+    function setMinDelay(uint256 newMinDelay) external onlySelf {
+        _setMinDelay(newMinDelay);
     }
 
     /// @dev Internal function to update the _minDelay.
-    function _updateMinDelay(uint256 newMinDelay) internal {
+    function _setMinDelay(uint256 newMinDelay) internal {
         TimelockStorage storage $ = _getTimelockStorage();
 
         if (newMinDelay < MIN_DELAY || newMinDelay > MAX_DELAY) {
@@ -232,10 +194,12 @@ abstract contract TimelockAvatar is
 
     /// @dev Internal utility to return the OperationStatus enum value based on the operation eta
     function _getOperationStatus(uint256 eta) internal view returns (OperationStatus opStatus) {
-        // ETA timestamp is equal to the enum value for NoOp, Cancelled, and Done
+        // ETA timestamp is equal to the enum value for NoOp, Canceled, and Done
         if (eta > uint256(OperationStatus.Done)) {
-            if (eta <= block.timestamp) {
-                if (eta + GRACE_PERIOD <= block.timestamp) return OperationStatus.Expired;
+            if (block.timestamp >= eta) {
+                if (block.timestamp >= eta + GRACE_PERIOD) {
+                    return OperationStatus.Expired;
+                }
                 return OperationStatus.Ready;
             }
             return OperationStatus.Pending;
@@ -246,21 +210,18 @@ abstract contract TimelockAvatar is
     /// @inheritdoc ITimelockAvatar
     function getOperationModule(uint256 opNonce) external view returns (address module) {
         TimelockStorage storage $ = _getTimelockStorage();
-        _checkOpNonce($, opNonce);
         module = $._operations[opNonce].module;
     }
 
     /// @inheritdoc ITimelockAvatar
     function getOperationHash(uint256 opNonce) external view returns (bytes32 opHash) {
         TimelockStorage storage $ = _getTimelockStorage();
-        _checkOpNonce($, opNonce);
         opHash = $._operations[opNonce].opHash;
     }
 
     /// @inheritdoc ITimelockAvatar
     function getOperationExecutableAt(uint256 opNonce) external view returns (uint256 executableAt) {
         TimelockStorage storage $ = _getTimelockStorage();
-        _checkOpNonce($, opNonce);
         executableAt = $._operations[opNonce].executableAt;
     }
 
@@ -271,7 +232,6 @@ abstract contract TimelockAvatar is
         returns (address module, uint256 executableAt, uint256 createdAt, bytes32 opHash)
     {
         TimelockStorage storage $ = _getTimelockStorage();
-        _checkOpNonce($, opNonce);
         Operation storage _op = $._operations[opNonce];
 
         module = _op.module;
@@ -298,7 +258,7 @@ abstract contract TimelockAvatar is
             revert ModuleAlreadyEnabled(module);
         }
 
-        $._modules[module] = MODULES_HEAD;
+        $._modules[module] = $._modules[MODULES_HEAD];
         $._modules[MODULES_HEAD] = module;
         emit EnabledModule(module);
     }
@@ -407,8 +367,8 @@ abstract contract TimelockAvatar is
         uint256 minDelay = $._minDelay;
         if (delay == 0) {
             delay = minDelay;
-        } else if (delay < minDelay) {
-            revert InsufficientDelay();
+        } else if (delay < minDelay || delay > MAX_DELAY) {
+            revert DelayOutOfRange(minDelay, MAX_DELAY);
         }
 
         // Set opNonce and increment
@@ -483,7 +443,7 @@ abstract contract TimelockAvatar is
 
         _op.executableAt = uint48(OperationStatus.Done);
 
-        emit OperationExecuted(opNonce, module, to, value, data, operation);
+        emit OperationExecuted(opNonce, module);
     }
 
     function _setModuleExecution(address module) private {
@@ -506,9 +466,9 @@ abstract contract TimelockAvatar is
             revert InvalidOperationStatus(opStatus, OperationStatus.Pending);
         }
 
-        _op.executableAt = uint48(OperationStatus.Cancelled);
+        _op.executableAt = uint48(OperationStatus.Canceled);
 
-        emit OperationCancelled(opNonce, module);
+        emit OperationCanceled(opNonce, module);
     }
 
     /// @inheritdoc IAvatar
@@ -572,13 +532,21 @@ abstract contract TimelockAvatar is
         virtual
         returns (bytes32 opHash)
     {
-        opHash = keccak256(abi.encode(to, value, data, operation));
-    }
+        // Gas optimized way to perform "keccak256(abi.encode(target, value, data, operation))"
+        assembly ("memory-safe") {
+            let start := mload(0x40) // Start at free memory pointer
+            let dataMem := add(start, 0x80) // bytes data will start after four 32 byte slots
+            mstore(start, to) // Store to
+            mstore(add(start, 0x20), value) // Store value
+            mstore(add(start, 0x40), 0x80) // Store pointer to data
+            mstore(add(start, 0x60), operation) // Store operation
+            let dataLengthPaddedTo32 := mul(0x20, div(add(data.length, 0x1f), 0x20))
+            mstore(add(dataMem, dataLengthPaddedTo32), 0) // Zero out padded bytes
+            mstore(dataMem, data.length) // Store data length
+            calldatacopy(add(dataMem, 0x20), data.offset, data.length) // Copy the byte data
 
-    /// @dev An internal utility function to revert if the provided operation nonce does not exist
-    function _checkOpNonce(TimelockStorage storage $, uint256 opNonce) internal view virtual {
-        if (opNonce >= $._opNonce) {
-            revert();
+            // Hash the contents to return result
+            opHash := keccak256(start, add(0xa0, dataLengthPaddedTo32))
         }
     }
 }

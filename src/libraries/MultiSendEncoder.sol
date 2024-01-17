@@ -42,8 +42,8 @@ library MultiSendEncoder {
                     dataLength += calldatas[i].length;
                 }
             }
-            /// @solidity memory-safe-assembly
-            assembly {
+
+            assembly ("memory-safe") {
                 /**
                  * Allocate enough memory for "data", total length =
                  *  32 bytes for overallDataLength +
@@ -154,8 +154,8 @@ library MultiSendEncoder {
                     dataLength += calldatas[i].length;
                 }
             }
-            /// @solidity memory-safe-assembly
-            assembly {
+
+            assembly ("memory-safe") {
                 /**
                  * Allocate enough memory for "data", total length =
                  *  32 bytes for overallDataLength +

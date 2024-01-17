@@ -163,6 +163,47 @@ library SnapshotCheckpoints {
     }
 
     /**
+     * @dev Optimizes the search for the most recent snapshot. Checks the most recent two checkpoints for a key lower or
+     * equal to the search key, and defaults to {upperLookupRecent} if a match isn't found.
+     *
+     * NOTE: Only use this function if the provided key is the most recent snapshot.
+     */
+    function upperLookupMostRecentSnapshot(Trace208 storage self, uint48 key) internal view returns (uint208) {
+        uint256 len = self._checkpointsLength;
+
+        uint256 high = len;
+
+        if (len > 1) {
+            // Check the most recent checkpoint, and return if the key matches
+            Checkpoint208 memory checkpoint = _unsafeAccess(self, high - 1);
+            if (checkpoint._key <= key) {
+                return checkpoint._value;
+            } else {
+                // Check the second most recent checkpoint (it should match if the key is the most recent snapshot)
+                high -= 1;
+                checkpoint = _unsafeAccess(self, high - 1);
+                if (checkpoint._key <= key) {
+                    return checkpoint._value;
+                }
+            }
+        }
+
+        // If the checkpoint still wasn't found, perform an upper lookup, optimized for recent
+        uint256 low = 0;
+        if (high > 5) {
+            uint256 mid = len - Math.sqrt(len);
+            if (key < _unsafeAccess(self, mid)._key) {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+
+        uint256 pos = _upperBinaryLookup(self, key, low, high);
+        return pos == 0 ? 0 : _unsafeAccess(self, pos - 1)._value;
+    }
+
+    /**
      * @dev Returns the value in the most recent checkpoint, or zero if there are no checkpoints.
      */
     function latest(Trace208 storage self) internal view returns (uint208) {

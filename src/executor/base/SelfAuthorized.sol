@@ -39,6 +39,10 @@ abstract contract SelfAuthorized is Initializable {
         }
     }
 
+    function __SelfAuthorized_init() internal onlyInitializing {
+        _getSelfAuthorizedStorage()._authorizedOperator = DEFAULT_OPERATOR_ADDRESS;
+    }
+
     /**
      * @dev Modifier that sets the provided operator address in storage for the duration of the function. This is useful
      * for a called contract to use {getAuthorizedOperator} to check the authorized operator. This modifier resets the
@@ -64,9 +68,5 @@ abstract contract SelfAuthorized is Initializable {
      */
     function getAuthorizedOperator() public view returns (address operator) {
         operator = _getSelfAuthorizedStorage()._authorizedOperator;
-    }
-
-    function __SelfAuthorized_init() internal onlyInitializing {
-        _getSelfAuthorizedStorage()._authorizedOperator = DEFAULT_OPERATOR_ADDRESS;
     }
 }

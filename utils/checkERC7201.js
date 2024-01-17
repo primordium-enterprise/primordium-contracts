@@ -6,7 +6,7 @@ const path = require("path");
 const chalk = require("chalk");
 const getERC7201Hash = require("./getERC7201Hash");
 
-const contracts = glob.sync('contracts/**/*.sol');
+const contracts = glob.sync('src/**/*.sol');
 
 const run = async () => {
 

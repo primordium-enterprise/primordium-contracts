@@ -41,13 +41,6 @@ abstract contract Ownable1Or2StepUpgradeable is Initializable {
 
     event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
 
-    /**
-     * @dev Initializes the contract setting the address provided by the deployer as the initial owner.
-     */
-    function __Ownable_init(address initialOwner) internal onlyInitializing {
-        __Ownable_init_unchained(initialOwner);
-    }
-
     function __Ownable_init_unchained(address initialOwner) internal onlyInitializing {
         if (initialOwner == address(0)) {
             revert OwnableInvalidOwner(address(0));
@@ -107,11 +100,10 @@ abstract contract Ownable1Or2StepUpgradeable is Initializable {
      * @dev The new owner accepts the ownership transfer.
      */
     function acceptOwnership() public virtual {
-        address sender = msg.sender;
-        if (pendingOwner() != sender) {
-            revert OwnableUnauthorizedAccount(sender);
+        if (pendingOwner() != msg.sender) {
+            revert OwnableUnauthorizedAccount(msg.sender);
         }
-        _transferOwnership(sender);
+        _transferOwnership(msg.sender);
     }
 
     /**
