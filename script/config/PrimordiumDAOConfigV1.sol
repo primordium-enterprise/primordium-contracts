@@ -99,7 +99,10 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
             owner: executor,
             name: "Primordium",
             symbol: "MUSHI",
-            sharesTokenInit: ISharesToken.SharesTokenInit({treasury: executor, maxSupply: 100_000})
+            sharesTokenInit: ISharesToken.SharesTokenInit({
+                treasury: executor,
+                maxSupply: 10_000_000e18 // 10 million MUSHI
+            })
         });
     }
 
@@ -133,8 +136,8 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
             sharesOnboarderInit: ISharesOnboarder.SharesOnboarderInit({
                 treasury: executor,
                 quoteAsset: address(0), // ETH
-                quoteAmount: 10 gwei,
-                mintAmount: 1 gwei,
+                quoteAmount: 1,
+                mintAmount: 200,
                 fundingBeginsAt: 1_705_708_800, // Janu 20th, 2024
                 fundingEndsAt: type(uint256).max
             })
