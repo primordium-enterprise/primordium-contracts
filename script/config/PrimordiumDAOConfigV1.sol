@@ -172,9 +172,9 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
             governorBaseInit: IGovernorBase.GovernorBaseInit({
                 executor: executor,
                 token: token,
-                governanceCanBeginAt: 1_706_745_600, // Feb 1, 2024
-                governanceThresholdBps: 500, // 5 %
-                proposalThresholdBps: 50, // 0.5%
+                governanceCanBeginAt: 1_708_023_600, // Feb 15, 2024
+                governanceThresholdBps: 2000, // 20 %
+                proposalThresholdBps: 1, // 0.01%
                 votingDelay: 2 days / 12,
                 votingPeriod: 3 days / 12,
                 gracePeriod: 3 weeks / 12,
