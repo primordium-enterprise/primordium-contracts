@@ -3,7 +3,7 @@
 pragma solidity ^0.8.20;
 
 import {BaseScriptV1, console2} from "./BaseV1.s.sol";
-import {PrimordiumV1} from "./PrimordiumV1.sol";
+import {PrimordiumV1} from "./PrimordiumV1.s.sol";
 import {PrimordiumTokenV1} from "src/token/PrimordiumTokenV1.sol";
 import {PrimordiumSharesOnboarderV1} from "src/onboarder/PrimordiumSharesOnboarderV1.sol";
 import {PrimordiumGovernorV1} from "src/governor/PrimordiumGovernorV1.sol";
@@ -24,6 +24,7 @@ contract DeployV1 is BaseScriptV1, PrimordiumV1 {
         PrimordiumTokenV1 token;
         PrimordiumSharesOnboarderV1 sharesOnboarder;
         PrimordiumGovernorV1 governor;
+        DistributorV1 distributor;
     }
 
     function run()
@@ -39,6 +40,6 @@ contract DeployV1 is BaseScriptV1, PrimordiumV1 {
 
         // Proxies
         saltProxies = deploySaltProxy;
-        (p.executor, p.token, p.sharesOnboarder, p.governor) = _deployAndSetupAllProxies();
+        (p.executor, p.token, p.sharesOnboarder, p.governor, p.distributor) = _deployAndSetupAllProxies();
     }
 }

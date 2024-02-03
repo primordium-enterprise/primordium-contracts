@@ -7,6 +7,7 @@ import {StdCheats} from "forge-std/StdCheats.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
 import {ExecutorV1Harness, PrimordiumExecutorV1} from "./harness/ExecutorV1Harness.sol";
 import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
+import {IDistributor} from "src/executor/extensions/interfaces/IDistributor.sol";
 import {ITreasurer} from "src/executor/interfaces/ITreasurer.sol";
 import {GovernorV1Harness, PrimordiumGovernorV1} from "./harness/GovernorV1Harness.sol";
 import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
@@ -16,7 +17,7 @@ import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
 import {TokenV1Harness, PrimordiumTokenV1} from "./harness/TokenV1Harness.sol";
 import {ISharesToken} from "src/token/interfaces/ISharesToken.sol";
 import {OnboarderV1Harness, PrimordiumSharesOnboarderV1} from "./harness/OnboarderV1Harness.sol";
-import {DistributorV1Harness} from "./harness/DistributorV1Harness.sol";
+import {DistributorV1Harness, DistributorV1} from "./harness/DistributorV1Harness.sol";
 import {BalanceSharesSingleton} from "balance-shares-protocol/BalanceSharesSingleton.sol";
 import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -32,8 +33,8 @@ import {console2} from "forge-std/console2.sol";
 abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     Users internal users;
 
-    uint256 internal constant STARTING_TIMESTAMP = 1703487600;
-    uint256 internal constant STARTING_BLOCK = 18861890;
+    uint256 internal constant STARTING_TIMESTAMP = 1_703_487_600;
+    uint256 internal constant STARTING_BLOCK = 18_861_890;
 
     uint256 internal constant MAX_BPS = 10_000;
 
@@ -53,18 +54,13 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     //////////////////////////////////////////////////////////*/
 
     PrimordiumExecutorV1.ExecutorV1Init EXECUTOR = PrimordiumExecutorV1.ExecutorV1Init({
-        timelockAvatarInit: ITimelockAvatar.TimelockAvatarInit({
-            minDelay: 2 days,
-            modules: new address[](0)
-        }),
+        timelockAvatarInit: ITimelockAvatar.TimelockAvatarInit({minDelay: 2 days, modules: new address[](0)}),
         treasurerInit: ITreasurer.TreasurerInit({
             token: address(0),
             sharesOnboarder: address(0),
             balanceSharesManager: address(0),
             balanceSharesManagerCalldatas: new bytes[](0),
-            erc1967CreationCode: type(ERC1967Proxy).creationCode,
-            distributorImplementation: address(0),
-            distributionClaimPeriod: 60 days
+            distributor: address(0)
         })
     });
 
@@ -75,16 +71,14 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
         owner: address(0),
         name: "Primordium",
         symbol: "MUSHI",
-        sharesTokenInit: ISharesToken.SharesTokenInit({
-            treasury: address(0),
-            maxSupply: 100_000_000 ether
-        })
+        sharesTokenInit: ISharesToken.SharesTokenInit({treasury: address(0), maxSupply: 100_000_000 ether})
     });
 
     address internal tokenImpl;
     TokenV1Harness internal token;
 
-    PrimordiumSharesOnboarderV1.SharesOnboarderV1Init internal ONBOARDER = PrimordiumSharesOnboarderV1.SharesOnboarderV1Init({
+    PrimordiumSharesOnboarderV1.SharesOnboarderV1Init internal ONBOARDER = PrimordiumSharesOnboarderV1
+        .SharesOnboarderV1Init({
         owner: address(0),
         sharesOnboarderInit: ISharesOnboarder.SharesOnboarderInit({
             treasury: address(0),
@@ -125,7 +119,13 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
     address internal governorImpl;
     GovernorV1Harness internal governor;
 
+    DistributorV1.DistributorV1Init internal DISTRIBUTOR = DistributorV1.DistributorV1Init({
+        owner: address(0),
+        distributorInit: IDistributor.DistributorInit({token: address(0), claimPeriod: 60 days})
+    });
+
     address internal distributorImpl;
+    DistributorV1Harness internal distributor;
 
     BalanceSharesSingleton balanceSharesSingleton;
 
@@ -178,12 +178,15 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
         vm.label({account: address(governor), newLabel: "Governor"});
 
         distributorImpl = address(new DistributorV1Harness());
+        distributor = DistributorV1Harness(address(new ERC1967Proxy(distributorImpl, "")));
+        vm.label({account: address(distributor), newLabel: "Distributor"});
     }
 
     function _initializeDefaults() internal {
         _initializeToken();
         _initializeOnboarder();
         _initializeGovernor();
+        _initializeDistributor();
         // Governor is only module
         address[] memory modules = new address[](1);
         modules[0] = address(governor);
@@ -214,11 +217,17 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
         governor.setUp(GOVERNOR);
     }
 
+    function _initializeDistributor() internal {
+        DISTRIBUTOR.owner = address(executor);
+        DISTRIBUTOR.distributorInit.token = address(token);
+        distributor.setUp(DISTRIBUTOR);
+    }
+
     function _initializeExecutor(address[] memory modules) internal {
         EXECUTOR.timelockAvatarInit.modules = modules;
         EXECUTOR.treasurerInit.token = address(token);
         EXECUTOR.treasurerInit.sharesOnboarder = address(onboarder);
-        EXECUTOR.treasurerInit.distributorImplementation = address(distributorImpl);
+        EXECUTOR.treasurerInit.distributor = address(distributor);
         executor.setUp(EXECUTOR);
     }
 

@@ -7,6 +7,8 @@ import {ImplementationsV1} from "./ImplementationsV1.s.sol";
 import {PrimordiumTokenV1} from "src/token/PrimordiumTokenV1.sol";
 import {PrimordiumSharesOnboarderV1} from "src/onboarder/PrimordiumSharesOnboarderV1.sol";
 import {PrimordiumGovernorV1} from "src/governor/PrimordiumGovernorV1.sol";
+import {DistributorV1} from "src/executor/extensions/DistributorV1.sol";
+import {IDistributor} from "src/executor/extensions/interfaces/IDistributor.sol";
 import {PrimordiumExecutorV1} from "src/executor/PrimordiumExecutorV1.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
@@ -24,13 +26,15 @@ abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
             PrimordiumExecutorV1 executor,
             PrimordiumTokenV1 token,
             PrimordiumSharesOnboarderV1 sharesOnboarder,
-            PrimordiumGovernorV1 governor
+            PrimordiumGovernorV1 governor,
+            DistributorV1 distributor
         )
     {
         executor = _deploy_ExecutorV1();
         token = _deploy_TokenV1();
         sharesOnboarder = _deploy_SharesOnboarderV1();
         governor = _deploy_GovernorV1();
+        distributor = _deploy_DistributorV1();
 
         // Still need to setup the executor
         PrimordiumExecutorV1(payable(executor)).setUp(_getExecutorV1InitParams());
@@ -44,7 +48,7 @@ abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
         address token = _address_TokenV1();
         address sharesOnboarder = _address_SharesOnboarderV1();
         address governor = _address_GovernorV1();
-        address distributorImpl = _address_implementation_DistributorV1();
+        address distributor = _address_DistributorV1();
 
         address[] memory modules = new address[](1);
         modules[0] = governor;
@@ -56,9 +60,7 @@ abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
                 sharesOnboarder: sharesOnboarder,
                 balanceSharesManager: address(0),
                 balanceSharesManagerCalldatas: new bytes[](0),
-                erc1967CreationCode: type(ERC1967Proxy).creationCode,
-                distributorImplementation: distributorImpl,
-                distributionClaimPeriod: 60 days
+                distributor: distributor
             })
         });
     }
@@ -219,5 +221,35 @@ abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
     function _deploy_GovernorV1() internal returns (PrimordiumGovernorV1 deployed) {
         deployed = PrimordiumGovernorV1(_deployProxy(_getGovernorV1InitCode()));
         require(address(deployed) == _address_GovernorV1(), "Governor: invalid proxy deployment address");
+    }
+
+    /*/////////////////////////////////////////////////////////////////////////////
+        DistributorV1
+    /////////////////////////////////////////////////////////////////////////////*/
+
+    function _getDistributorV1InitParams() public view returns (DistributorV1.DistributorV1Init memory) {
+        address owner = _address_ExecutorV1();
+        address token = _address_TokenV1();
+
+        return DistributorV1.DistributorV1Init({
+            owner: owner,
+            distributorInit: IDistributor.DistributorInit({token: token, claimPeriod: 60 days})
+        });
+    }
+
+    function _getDistributorV1InitCode() internal view returns (bytes memory) {
+        return _getProxyInitCode(
+            _address_implementation_DistributorV1(),
+            abi.encodeCall(DistributorV1.setUp, (_getDistributorV1InitParams()))
+        );
+    }
+
+    function _address_DistributorV1() internal view returns (address) {
+        return computeCreate2Address(deploySaltProxy, keccak256(_getDistributorV1InitCode()));
+    }
+
+    function _deploy_DistributorV1() internal returns (DistributorV1 deployed) {
+        deployed = DistributorV1(_deployProxy(_getDistributorV1InitCode()));
+        require(address(deployed) == _address_DistributorV1(), "Distributor: invalid proxy deployment address");
     }
 }

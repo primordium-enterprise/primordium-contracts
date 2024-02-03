@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {BaseTest} from "test/Base.t.sol";
 import {TimelockAvatarTestUtils} from "test/helpers/TimelockAvatarTestUtils.sol";
 import {ExecutorV1Harness} from "test/harness/ExecutorV1Harness.sol";
+import {DistributorV1Harness} from "test/harness/DistributorV1Harness.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {AuthorizedInitializer} from "src/utils/AuthorizedInitializer.sol";
 import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
@@ -21,6 +22,11 @@ contract AuthorizedInitializerTest is TimelockAvatarTestUtils {
                 )
             )
         );
+        // Need to deploy another distributor to ensure owner relationship matches
+        DISTRIBUTOR.owner = address(executor);
+        distributor = DistributorV1Harness(address(new ERC1967Proxy(distributorImpl, "")));
+        _initializeDistributor();
+        EXECUTOR.treasurerInit.distributor = address(distributor);
     }
 
     function test_AuthorizeInitializer() public {

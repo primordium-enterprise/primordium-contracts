@@ -22,6 +22,7 @@ contract TimelockAvatarTestUtils is BaseTest {
         _deploy();
         _initializeToken();
         _initializeOnboarder();
+        _initializeDistributor();
         _initializeExecutor(defaultModules);
     }
 

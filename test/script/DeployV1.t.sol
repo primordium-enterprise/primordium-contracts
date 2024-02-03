@@ -55,6 +55,11 @@ contract DeployV1Test is PRBTest {
         // Executor
         assertEq(address(proxies.token), address(proxies.executor.token()));
         assertEq(address(proxies.sharesOnboarder), address(proxies.executor.sharesOnboarder()));
+        assertEq(address(proxies.distributor), address(proxies.executor.distributor()));
+
+        // Distributor
+        assertEq(address(proxies.token), proxies.distributor.token());
+        assertEq(address(proxies.executor), proxies.distributor.owner());
 
         // governor is only module on executor
         assertTrue(proxies.executor.isModuleEnabled(address(proxies.governor)));
