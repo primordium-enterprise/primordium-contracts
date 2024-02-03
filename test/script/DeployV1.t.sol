@@ -17,7 +17,7 @@ contract DeployV1Test is PRBTest {
     DeployV1.Proxies proxies;
 
     function setUp() public {
-        (implementations, proxies) = deployScript.run();
+        (, implementations,, proxies) = deployScript.run();
     }
 
     /// @dev Gets the stored implementation address for the provided ERC1967Proxy address

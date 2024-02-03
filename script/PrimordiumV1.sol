@@ -2,7 +2,8 @@
 
 pragma solidity ^0.8.20;
 
-import {BaseScriptV1, console2} from "../BaseV1.s.sol";
+import {BaseScriptV1, console2} from "./BaseV1.s.sol";
+import {ImplementationsV1} from "./ImplementationsV1.s.sol";
 import {PrimordiumTokenV1} from "src/token/PrimordiumTokenV1.sol";
 import {PrimordiumSharesOnboarderV1} from "src/onboarder/PrimordiumSharesOnboarderV1.sol";
 import {PrimordiumGovernorV1} from "src/governor/PrimordiumGovernorV1.sol";
@@ -16,7 +17,7 @@ import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
 
-abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
+abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
     function _deployAndSetupAllProxies()
         internal
         returns (

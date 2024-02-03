@@ -191,7 +191,13 @@ contract VotesTest is BaseTest {
     )
         public
     {
-        vm.assume(amount > 0 && receiver != address(0) && accountDelegatee != receiver);
+        // forgefmt: disable-next-item
+        vm.assume(
+            amount > 0 &&
+            receiver != address(0) &&
+            accountDelegatee != receiver &&
+            accountDelegatee != receiverDelegatee
+        );
 
         address account = users.gwart;
 
