@@ -216,7 +216,7 @@ contract VotesTest is BaseTest {
 
         assertEq(0, token.getVotes(account));
         assertEq(0, token.getVotes(accountDelegatee));
-        assertEq(0, token.getVotes(receiver));
+        assertEq(receiver == receiverDelegatee ? amount : 0, token.getVotes(receiver));
         assertEq(receiverDelegatee == address(0) ? 0 : amount, token.getVotes(receiverDelegatee));
     }
 

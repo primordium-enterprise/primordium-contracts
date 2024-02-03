@@ -27,16 +27,9 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
         )
     {
         executor = _deploy_ExecutorV1();
-        console2.log("Executor:", address(executor));
-
         token = _deploy_TokenV1();
-        console2.log("Token:", address(token));
-
         sharesOnboarder = _deploy_SharesOnboarderV1();
-        console2.log("Shares Onboarder:", address(sharesOnboarder));
-
         governor = _deploy_GovernorV1();
-        console2.log("Governor:", address(governor));
 
         // Still need to setup the executor
         PrimordiumExecutorV1(payable(executor)).setUp(_getExecutorV1InitParams());
@@ -46,7 +39,7 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
         PrimordiumExecutorV1
     /////////////////////////////////////////////////////////////////////////////*/
 
-    function _getExecutorV1InitParams() internal view returns (PrimordiumExecutorV1.ExecutorV1Init memory) {
+    function _getExecutorV1InitParams() internal returns (PrimordiumExecutorV1.ExecutorV1Init memory) {
         address token = _address_TokenV1();
         address sharesOnboarder = _address_SharesOnboarderV1();
         address governor = _address_GovernorV1();
@@ -77,7 +70,7 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
     }
 
     function _address_ExecutorV1() internal view returns (address) {
-        return computeCreate2Address(deploySalt, keccak256(_getExecutorV1InitCode()));
+        return computeCreate2Address(deploySaltProxy, keccak256(_getExecutorV1InitCode()));
     }
 
     /**
@@ -113,7 +106,7 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
     }
 
     function _address_TokenV1() internal view returns (address) {
-        return computeCreate2Address(deploySalt, keccak256(_getTokenV1InitCode()));
+        return computeCreate2Address(deploySaltProxy, keccak256(_getTokenV1InitCode()));
     }
 
     function _deploy_TokenV1() internal returns (PrimordiumTokenV1 deployed) {
@@ -138,7 +131,7 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
                 quoteAsset: address(0), // ETH
                 quoteAmount: 1,
                 mintAmount: 200,
-                fundingBeginsAt: 1_705_708_800, // Janu 20th, 2024
+                fundingBeginsAt: 0,
                 fundingEndsAt: type(uint256).max
             })
         });
@@ -152,7 +145,7 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
     }
 
     function _address_SharesOnboarderV1() internal view returns (address) {
-        return computeCreate2Address(deploySalt, keccak256(_getSharesOnboarderV1InitCode()));
+        return computeCreate2Address(deploySaltProxy, keccak256(_getSharesOnboarderV1InitCode()));
     }
 
     function _deploy_SharesOnboarderV1() internal returns (PrimordiumSharesOnboarderV1 deployed) {
@@ -164,9 +157,29 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
         PrimordiumGovernorV1
     /////////////////////////////////////////////////////////////////////////////*/
 
-    function _getGovernorV1InitParams() internal view returns (PrimordiumGovernorV1.GovernorV1Init memory) {
+    function _getGovernorV1InitParams() public returns (PrimordiumGovernorV1.GovernorV1Init memory) {
         address executor = _address_ExecutorV1();
         address token = _address_TokenV1();
+
+        // Setup the default proposer roles
+        address[] memory proposerAddresses = vm.envOr("DEFAULT_PROPOSERS", ",", new address[](0));
+        uint256[] memory expiresAts = vm.envOr("DEFAULT_PROPOSERS_EXPIRES_ATS", ",", new uint256[](0));
+        bytes32[] memory roles = new bytes32[](proposerAddresses.length);
+
+        require(proposerAddresses.length == expiresAts.length, "Invalid proposer role array lengths");
+        bytes32 proposerRole = keccak256("PROPOSER");
+        for (uint256 i = 0; i < proposerAddresses.length; i++) {
+            roles[i] = proposerRole;
+            // Change zero value to max value (infinite)
+            if (expiresAts[i] == 0) {
+                expiresAts[i] = type(uint256).max;
+            }
+        }
+
+        // If array lengths are zero, then should set grantRoles to empty bytes, or else error will be thrown on setup
+        bytes memory grantRoles =
+            proposerAddresses.length > 0 ? abi.encode(roles, proposerAddresses, expiresAts) : bytes("");
+
         return PrimordiumGovernorV1.GovernorV1Init({
             name: "Primordium Governor",
             governorBaseInit: IGovernorBase.GovernorBaseInit({
@@ -178,7 +191,7 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
                 votingDelay: 2 days / 12,
                 votingPeriod: 3 days / 12,
                 gracePeriod: 3 weeks / 12,
-                grantRoles: ""
+                grantRoles: grantRoles
             }),
             proposalVotingInit: IProposalVoting.ProposalVotingInit({
                 percentMajority: 50,
@@ -191,15 +204,15 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
         });
     }
 
-    function _getGovernorV1InitCode() internal view returns (bytes memory) {
+    function _getGovernorV1InitCode() internal returns (bytes memory) {
         return _getProxyInitCode(
             _address_implementation_GovernorV1(),
             abi.encodeCall(PrimordiumGovernorV1.setUp, (_getGovernorV1InitParams()))
         );
     }
 
-    function _address_GovernorV1() internal view returns (address) {
-        return computeCreate2Address(deploySalt, keccak256(_getGovernorV1InitCode()));
+    function _address_GovernorV1() internal returns (address) {
+        return computeCreate2Address(deploySaltProxy, keccak256(_getGovernorV1InitCode()));
     }
 
     function _deploy_GovernorV1() internal returns (PrimordiumGovernorV1 deployed) {

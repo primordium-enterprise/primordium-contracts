@@ -63,4 +63,18 @@ contract DeployV1Test is PRBTest {
         (address[] memory actualModules,) = proxies.executor.getModulesPaginated(address(0x01), 100);
         assertEq(expectedModules, actualModules);
     }
+
+    function test_DefaultProposers() public {
+        PrimordiumGovernorV1.GovernorV1Init memory governorInit = deployScript._getGovernorV1InitParams();
+
+        if (governorInit.governorBaseInit.grantRoles.length > 0) {
+            (bytes32[] memory roles, address[] memory accounts, uint256[] memory expiresAts) =
+                abi.decode(governorInit.governorBaseInit.grantRoles, (bytes32[], address[], uint256[]));
+
+            for (uint256 i = 0; i < roles.length; i++) {
+                assertEq(true, proxies.governor.hasRole(roles[i], accounts[i]));
+                assertEq(expiresAts[i], proxies.governor.roleExpiresAt(roles[i], accounts[i]));
+            }
+        }
+    }
 }

@@ -340,7 +340,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
             IBalanceShareAllocations manager = $._balanceShares._balanceSharesManager;
 
             // Iterate through the token addresses, sending proportional payouts (using address(0) for ETH)
-            // TODO: Need to add the PROFT/DISTRIBUTIONS Balance share allocation to this function
             for (uint256 i = 0; i < assets.length;) {
                 uint256 tokenBalance = assets[i].getBalanceOf(address(this));
 

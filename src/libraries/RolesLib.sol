@@ -14,7 +14,7 @@ import {BatchArrayChecker} from "../utils/BatchArrayChecker.sol";
 library RolesLib {
     /// @custom:storage-location erc7201:RolesLib.Storage
     struct RolesLibStorage {
-        mapping(bytes32 => mapping(address => uint256)) _roleMembers;
+        mapping(bytes32 role => mapping(address account => uint256 roleExpiresAt)) _roleMembers;
     }
 
     // keccak256(abi.encode(uint256(keccak256("RolesLib.Storage")) - 1)) & ~bytes32(uint256(0xff));
