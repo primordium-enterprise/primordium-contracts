@@ -15,6 +15,7 @@ interface ITreasurer is ITreasury {
         address balanceSharesManager;
         bytes[] balanceSharesManagerCalldatas;
         address distributor;
+        uint256 distributionClaimPeriod;
     }
 
     event SharesOnboarderUpdate(address oldSharesOnboarder, address newSharesOnboarder);

@@ -60,7 +60,8 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
             sharesOnboarder: address(0),
             balanceSharesManager: address(0),
             balanceSharesManagerCalldatas: new bytes[](0),
-            distributor: address(0)
+            distributor: address(0),
+            distributionClaimPeriod: 60 days
         })
     });
 
@@ -118,11 +119,6 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
 
     address internal governorImpl;
     GovernorV1Harness internal governor;
-
-    DistributorV1.DistributorV1Init internal DISTRIBUTOR = DistributorV1.DistributorV1Init({
-        owner: address(0),
-        distributorInit: IDistributor.DistributorInit({token: address(0), claimPeriod: 60 days})
-    });
 
     address internal distributorImpl;
     DistributorV1Harness internal distributor;
@@ -186,7 +182,6 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
         _initializeToken();
         _initializeOnboarder();
         _initializeGovernor();
-        _initializeDistributor();
         // Governor is only module
         address[] memory modules = new address[](1);
         modules[0] = address(governor);
@@ -215,12 +210,6 @@ abstract contract BaseTest is PRBTest, StdCheats, StdUtils, EIP712Utils {
         GOVERNOR.governorBaseInit.token = address(token);
         GOVERNOR.governorBaseInit.grantRoles = _getDefaultGovernorRoles();
         governor.setUp(GOVERNOR);
-    }
-
-    function _initializeDistributor() internal {
-        DISTRIBUTOR.owner = address(executor);
-        DISTRIBUTOR.distributorInit.token = address(token);
-        distributor.setUp(DISTRIBUTOR);
     }
 
     function _initializeExecutor(address[] memory modules) internal {

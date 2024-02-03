@@ -10,6 +10,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * @author Ben Jett - @BCJdevelopment
  */
 interface IDistributionCreator {
+    function setUp(bytes memory initParams) external;
+
     /**
      * Creates a new distribution for share holders.
      * @notice Only callable by the owner (see dev note about authorized operation).

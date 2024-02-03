@@ -10,6 +10,8 @@ contract TimelockAvatarTestUtils is BaseTest {
 
     address[] internal defaultModules;
 
+    uint256 snapshotBeforeExecutorInitialized;
+
     constructor() {
         // Modules default to this test contract, gwart, and alice
         defaultModules = new address[](3);
@@ -22,8 +24,14 @@ contract TimelockAvatarTestUtils is BaseTest {
         _deploy();
         _initializeToken();
         _initializeOnboarder();
-        _initializeDistributor();
+        snapshotBeforeExecutorInitialized = vm.snapshot();
         _initializeExecutor(defaultModules);
+    }
+
+    // Helpful util for reverting pre-executor initialization
+    function _uninitializeExecutor() internal {
+        vm.revertTo(snapshotBeforeExecutorInitialized);
+        snapshotBeforeExecutorInitialized = vm.snapshot();
     }
 
     function _reverseModulesArray(address[] memory modules) internal pure returns (address[] memory reversedModules) {

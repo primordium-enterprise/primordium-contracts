@@ -12,21 +12,9 @@ import {ITreasury} from "src/executor/interfaces/ITreasury.sol";
 contract AuthorizedInitializerTest is TimelockAvatarTestUtils {
     function setUp() public virtual override {
         super.setUp();
-        // Deploy the executor proxy with "gwart" user as the authorized initializer
-        executor = ExecutorV1Harness(
-            payable(
-                address(
-                    new ERC1967Proxy(
-                        executorImpl, abi.encodeCall(AuthorizedInitializer.setAuthorizedInitializer, (users.gwart))
-                    )
-                )
-            )
-        );
-        // Need to deploy another distributor to ensure owner relationship matches
-        DISTRIBUTOR.owner = address(executor);
-        distributor = DistributorV1Harness(address(new ERC1967Proxy(distributorImpl, "")));
-        _initializeDistributor();
-        EXECUTOR.treasurerInit.distributor = address(distributor);
+        // Reset initialization, and set gwart as the authorized initializer
+        _uninitializeExecutor();
+        executor.setAuthorizedInitializer(users.gwart);
     }
 
     function test_AuthorizeInitializer() public {

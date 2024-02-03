@@ -7,11 +7,6 @@ import {IDistributionCreator} from "../../interfaces/IDistributionCreator.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IDistributor is IDistributionCreator {
-    struct DistributorInit {
-        address token;
-        uint256 claimPeriod;
-    }
-
     event DistributionCreated(
         uint256 indexed distributionId,
         IERC20 indexed asset,

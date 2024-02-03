@@ -36,14 +36,8 @@ contract TreasurerTest is BalanceSharesTestUtils, TimelockAvatarTestUtils {
     }
 
     function test_InitBalanceShares() public {
-        // Create a new executor proxy for re-initialization (and new distributor)
-        executor = ExecutorV1Harness(payable(address(new ERC1967Proxy(executorImpl, ""))));
-        vm.label({account: address(executor), newLabel: "NewExecutor"});
-
-        DISTRIBUTOR.owner = address(executor);
-        distributor = DistributorV1Harness(address(new ERC1967Proxy(distributorImpl, "")));
-        _initializeDistributor();
-        EXECUTOR.treasurerInit.distributor = address(distributor);
+        // Reset executor initialization
+        _uninitializeExecutor();
 
         address balanceSharesManager = address(balanceSharesSingleton);
 
@@ -65,7 +59,7 @@ contract TreasurerTest is BalanceSharesTestUtils, TimelockAvatarTestUtils {
         // Initialize executor
         vm.expectEmit(false, false, false, true, address(executor));
         emit ITreasurer.BalanceSharesManagerUpdate(address(0), balanceSharesManager);
-        executor.setUp(EXECUTOR);
+        _initializeExecutor(defaultModules);
 
         // After setup, should be the new address
         assertEq(balanceSharesManager, address(executor.balanceSharesManager()));

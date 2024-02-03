@@ -93,18 +93,8 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
         // Check distributor interface (proxy should support same interface as the implementation itself)
         authorizeDistributorImplementation(init.distributor);
 
-        // Authorize the owner and token addresses
-        {
-            address owner = DistributorV1(init.distributor).owner();
-            if (address(this) != owner) {
-                revert DistributorInvalidOwner(address(this), owner);
-            }
-
-            address distributorToken = DistributorV1(init.distributor).token();
-            if (init.token != distributorToken) {
-                revert DistributorInvalidTokenAddress(init.token, distributorToken);
-            }
-        }
+        // Initialize the distributor proxy
+        IDistributionCreator(init.distributor).setUp(abi.encode(init.token, init.distributionClaimPeriod));
 
         // Set the storage reference to the distributor proxy address
         $._distributor = IDistributionCreator(init.distributor);

@@ -8,6 +8,7 @@ import {IDistributionCreator} from "../interfaces/IDistributionCreator.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {Ownable1Or2StepUpgradeable} from "src/utils/Ownable1Or2StepUpgradeable.sol";
+import {AuthorizedInitializer} from "src/utils/AuthorizedInitializer.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
@@ -35,6 +36,7 @@ contract DistributorV1 is
     ContextUpgradeable,
     UUPSUpgradeable,
     Ownable1Or2StepUpgradeable,
+    AuthorizedInitializer,
     EIP712Upgradeable,
     NoncesUpgradeable,
     ERC165Upgradeable,
@@ -47,11 +49,6 @@ contract DistributorV1 is
     bytes32 private immutable CLAIM_DISTRIBUTION_TYPEHASH = keccak256(
         "ClaimDistribution(uint256 distributionId,address holder,address receiver,uint256 nonce,uint256 deadline)"
     );
-
-    struct DistributorV1Init {
-        address owner;
-        DistributorInit distributorInit;
-    }
 
     struct Distribution {
         // Slot 0 (32 bytes)
@@ -110,16 +107,17 @@ contract DistributorV1 is
     /**
      * By default, initializes to the msg.sender being the owner.
      */
-    function setUp(DistributorV1Init memory init) external virtual initializer {
+    function setUp(bytes memory initParams) external virtual override initializer {
         DistributorStorage storage $ = _getDistributorStorage();
 
-        __Ownable_init_unchained(init.owner);
+        __Ownable_init_unchained(msg.sender);
         __EIP712_init("DistributorV1", "1");
 
-        init.distributorInit.token.checkInterfaces([type(IERC20Snapshots).interfaceId, type(IERC6372).interfaceId]);
-        $._token = IERC20Snapshots(init.distributorInit.token);
+        (address token_, uint256 claimPeriod_) = abi.decode(initParams, (address, uint256));
+        token_.checkInterfaces([type(IERC20Snapshots).interfaceId, type(IERC6372).interfaceId]);
+        $._token = IERC20Snapshots(token_);
 
-        _setDistributionClaimPeriod(init.distributorInit.claimPeriod);
+        _setDistributionClaimPeriod(claimPeriod_);
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {

@@ -60,7 +60,8 @@ abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
                 sharesOnboarder: sharesOnboarder,
                 balanceSharesManager: address(0),
                 balanceSharesManagerCalldatas: new bytes[](0),
-                distributor: distributor
+                distributor: distributor,
+                distributionClaimPeriod: 60 days
             })
         });
     }
@@ -227,20 +228,10 @@ abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
         DistributorV1
     /////////////////////////////////////////////////////////////////////////////*/
 
-    function _getDistributorV1InitParams() public view returns (DistributorV1.DistributorV1Init memory) {
-        address owner = _address_ExecutorV1();
-        address token = _address_TokenV1();
-
-        return DistributorV1.DistributorV1Init({
-            owner: owner,
-            distributorInit: IDistributor.DistributorInit({token: token, claimPeriod: 60 days})
-        });
-    }
-
     function _getDistributorV1InitCode() internal view returns (bytes memory) {
         return _getProxyInitCode(
             _address_implementation_DistributorV1(),
-            abi.encodeCall(DistributorV1.setUp, (_getDistributorV1InitParams()))
+            abi.encodeCall(AuthorizedInitializer.setAuthorizedInitializer, (_address_ExecutorV1()))
         );
     }
 
