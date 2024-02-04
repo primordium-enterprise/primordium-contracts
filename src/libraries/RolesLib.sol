@@ -32,14 +32,14 @@ library RolesLib {
      * @param account The account the role was granted to.
      * @param expiresAt A timestamp at which the role will expire.
      */
-    event RoleGranted(bytes32 role, address account, uint256 expiresAt);
+    event RoleGranted(bytes32 indexed role, address indexed account, uint256 expiresAt);
 
     /**
      * @dev Emitted when a role has been revoked.
      * @param role The bytes32 role revoked.
      * @param account The account the role was revoked from.
      */
-    event RoleRevoked(bytes32 role, address account);
+    event RoleRevoked(bytes32 indexed role, address indexed account);
 
     /**
      * @dev Thrown when an account does not possess the required role.

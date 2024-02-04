@@ -7,6 +7,8 @@ import {BalanceSharesTestUtils} from "test/helpers/BalanceSharesTestUtils.sol";
 import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {Roles} from "src/utils/Roles.sol";
+import {RolesLib} from "src/libraries/RolesLib.sol";
 
 contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
     function setUp() public virtual override {
@@ -83,6 +85,21 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
         assertTrue(governor.proposalThreshold() > governor.getVotes(users.proposer, token.clock() - 1));
         vm.expectRevert(abi.encodeWithSelector(IGovernorBase.GovernorUnauthorizedSender.selector, users.proposer));
         _mockPropose(users.proposer);
+    }
+
+    function test_ProposerRenouncesRole() public {
+        bytes32 role = governor.PROPOSER_ROLE();
+
+        vm.expectRevert(Roles.UnauthorizedConfirmation.selector);
+        vm.prank(users.proposer);
+        governor.renounceRole(role, users.gwart);
+
+        vm.expectEmit(true, true, false, false, address(governor));
+        emit RolesLib.RoleRevoked(role, users.proposer);
+        vm.prank(users.proposer);
+        governor.renounceRole(role, users.proposer);
+
+        assertEq(false, governor.hasRole(role, users.proposer));
     }
 
     function test_RevertWhen_ProposalActionSignatureInvalid() public {
