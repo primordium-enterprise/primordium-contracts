@@ -274,7 +274,7 @@ interface IGovernorBase is IERC6372 {
         view
         returns (uint256);
 
-        /**
+    /**
      * @dev The bytes32 role hash for accounts that are allowed to submit proposals, regardless of the proposal
      * threshold.
      */

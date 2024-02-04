@@ -11,7 +11,9 @@ import {SelfAuthorized} from "src/executor/base/SelfAuthorized.sol";
 import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ExecutorV1Harness} from "test/harness/ExecutorV1Harness.sol";
-import {IDistributor} from "src/executor/interfaces/IDistributor.sol";
+import {DistributorV1Harness} from "test/harness/DistributorV1Harness.sol";
+import {IDistributor} from "src/executor/extensions/interfaces/IDistributor.sol";
+import {IDistributionCreator} from "src/executor/interfaces/IDistributionCreator.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -24,30 +26,18 @@ contract TreasurerTest is BalanceSharesTestUtils, TimelockAvatarTestUtils {
         super.setUp();
     }
 
-    function test_DistributorCreate2Address() public {
-        bytes memory bytecode = abi.encodePacked(
-            type(ERC1967Proxy).creationCode,
-            abi.encode(
-                distributorImpl, abi.encodeCall(IDistributor.setUp, (address(token), EXECUTOR.treasurerInit.distributionClaimPeriod))
-            )
-        );
+    function test_DistributorSetUp() public {
+        assertEq(address(executor.distributor()), address(distributor), "Invalid distributor address on executor");
 
-        assertEq(
-            address(executor.distributor()),
-            address(
-                uint160(
-                    uint256(keccak256(abi.encodePacked(hex"ff", address(executor), uint256(0), keccak256(bytecode))))
-                )
-            )
-        );
+        assertEq(address(executor), distributor.owner(), "Invalid distributor owner.");
 
-        assertTrue(address(executor.distributor()).supportsInterface(type(IDistributor).interfaceId));
+        assertTrue(address(distributor).supportsInterface(type(IDistributionCreator).interfaceId));
+        assertTrue(address(distributor).supportsInterface(type(IDistributor).interfaceId));
     }
 
     function test_InitBalanceShares() public {
-        // Create a new executor proxy for re-initialization
-        executor = ExecutorV1Harness(payable(address(new ERC1967Proxy(executorImpl, ""))));
-        vm.label({account: address(executor), newLabel: "NewExecutor"});
+        // Reset executor initialization
+        _uninitializeExecutor();
 
         address balanceSharesManager = address(balanceSharesSingleton);
 
@@ -69,7 +59,7 @@ contract TreasurerTest is BalanceSharesTestUtils, TimelockAvatarTestUtils {
         // Initialize executor
         vm.expectEmit(false, false, false, true, address(executor));
         emit ITreasurer.BalanceSharesManagerUpdate(address(0), balanceSharesManager);
-        executor.setUp(EXECUTOR);
+        _initializeExecutor(defaultModules);
 
         // After setup, should be the new address
         assertEq(balanceSharesManager, address(executor.balanceSharesManager()));
@@ -102,7 +92,12 @@ contract TreasurerTest is BalanceSharesTestUtils, TimelockAvatarTestUtils {
         // Now only gwart can call registerDeposit()
         vm.prank(address(onboarder));
         vm.expectRevert(ITreasurer.OnlySharesOnboarder.selector);
-        executor.registerDeposit(users.bob, IERC20(ONBOARDER.sharesOnboarderInit.quoteAsset), ONBOARDER.sharesOnboarderInit.quoteAmount, ONBOARDER.sharesOnboarderInit.mintAmount);
+        executor.registerDeposit(
+            users.bob,
+            IERC20(ONBOARDER.sharesOnboarderInit.quoteAsset),
+            ONBOARDER.sharesOnboarderInit.quoteAmount,
+            ONBOARDER.sharesOnboarderInit.mintAmount
+        );
     }
 
     function test_SetBalanceSharesManager() public {
@@ -153,7 +148,12 @@ contract TreasurerTest is BalanceSharesTestUtils, TimelockAvatarTestUtils {
 
         vm.prank(users.maliciousUser);
         vm.expectRevert(ITreasurer.OnlySharesOnboarder.selector);
-        executor.registerDeposit(users.bob, IERC20(ONBOARDER.sharesOnboarderInit.quoteAsset), ONBOARDER.sharesOnboarderInit.quoteAmount, ONBOARDER.sharesOnboarderInit.mintAmount);
+        executor.registerDeposit(
+            users.bob,
+            IERC20(ONBOARDER.sharesOnboarderInit.quoteAsset),
+            ONBOARDER.sharesOnboarderInit.quoteAmount,
+            ONBOARDER.sharesOnboarderInit.mintAmount
+        );
     }
 
     function test_RevertWhen_ProcessWithdrawal_IsNotSentFromToken() public {

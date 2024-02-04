@@ -2,10 +2,13 @@
 
 pragma solidity ^0.8.20;
 
-import {BaseScriptV1, console2} from "../BaseV1.s.sol";
+import {BaseScriptV1, console2} from "./BaseV1.s.sol";
+import {ImplementationsV1} from "./ImplementationsV1.s.sol";
 import {PrimordiumTokenV1} from "src/token/PrimordiumTokenV1.sol";
 import {PrimordiumSharesOnboarderV1} from "src/onboarder/PrimordiumSharesOnboarderV1.sol";
 import {PrimordiumGovernorV1} from "src/governor/PrimordiumGovernorV1.sol";
+import {DistributorV1} from "src/executor/extensions/DistributorV1.sol";
+import {IDistributor} from "src/executor/extensions/interfaces/IDistributor.sol";
 import {PrimordiumExecutorV1} from "src/executor/PrimordiumExecutorV1.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
@@ -16,27 +19,22 @@ import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
 
-abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
+abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
     function _deployAndSetupAllProxies()
         internal
         returns (
             PrimordiumExecutorV1 executor,
             PrimordiumTokenV1 token,
             PrimordiumSharesOnboarderV1 sharesOnboarder,
-            PrimordiumGovernorV1 governor
+            PrimordiumGovernorV1 governor,
+            DistributorV1 distributor
         )
     {
         executor = _deploy_ExecutorV1();
-        console2.log("Executor:", address(executor));
-
         token = _deploy_TokenV1();
-        console2.log("Token:", address(token));
-
         sharesOnboarder = _deploy_SharesOnboarderV1();
-        console2.log("Shares Onboarder:", address(sharesOnboarder));
-
         governor = _deploy_GovernorV1();
-        console2.log("Governor:", address(governor));
+        distributor = _deploy_DistributorV1();
 
         // Still need to setup the executor
         PrimordiumExecutorV1(payable(executor)).setUp(_getExecutorV1InitParams());
@@ -46,11 +44,11 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
         PrimordiumExecutorV1
     /////////////////////////////////////////////////////////////////////////////*/
 
-    function _getExecutorV1InitParams() internal view returns (PrimordiumExecutorV1.ExecutorV1Init memory) {
+    function _getExecutorV1InitParams() internal returns (PrimordiumExecutorV1.ExecutorV1Init memory) {
         address token = _address_TokenV1();
         address sharesOnboarder = _address_SharesOnboarderV1();
         address governor = _address_GovernorV1();
-        address distributorImpl = _address_implementation_DistributorV1();
+        address distributor = _address_DistributorV1();
 
         address[] memory modules = new address[](1);
         modules[0] = governor;
@@ -62,8 +60,7 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
                 sharesOnboarder: sharesOnboarder,
                 balanceSharesManager: address(0),
                 balanceSharesManagerCalldatas: new bytes[](0),
-                erc1967CreationCode: type(ERC1967Proxy).creationCode,
-                distributorImplementation: distributorImpl,
+                distributor: distributor,
                 distributionClaimPeriod: 60 days
             })
         });
@@ -77,7 +74,7 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
     }
 
     function _address_ExecutorV1() internal view returns (address) {
-        return computeCreate2Address(deploySalt, keccak256(_getExecutorV1InitCode()));
+        return computeCreate2Address(deploySaltProxy, keccak256(_getExecutorV1InitCode()));
     }
 
     /**
@@ -99,7 +96,10 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
             owner: executor,
             name: "Primordium",
             symbol: "MUSHI",
-            sharesTokenInit: ISharesToken.SharesTokenInit({treasury: executor, maxSupply: 100_000})
+            sharesTokenInit: ISharesToken.SharesTokenInit({
+                treasury: executor,
+                maxSupply: 10_000_000e18 // 10 million MUSHI
+            })
         });
     }
 
@@ -110,7 +110,7 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
     }
 
     function _address_TokenV1() internal view returns (address) {
-        return computeCreate2Address(deploySalt, keccak256(_getTokenV1InitCode()));
+        return computeCreate2Address(deploySaltProxy, keccak256(_getTokenV1InitCode()));
     }
 
     function _deploy_TokenV1() internal returns (PrimordiumTokenV1 deployed) {
@@ -133,9 +133,9 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
             sharesOnboarderInit: ISharesOnboarder.SharesOnboarderInit({
                 treasury: executor,
                 quoteAsset: address(0), // ETH
-                quoteAmount: 10 gwei,
-                mintAmount: 1 gwei,
-                fundingBeginsAt: 1_705_708_800, // Janu 20th, 2024
+                quoteAmount: 1,
+                mintAmount: 200,
+                fundingBeginsAt: 0,
                 fundingEndsAt: type(uint256).max
             })
         });
@@ -149,7 +149,7 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
     }
 
     function _address_SharesOnboarderV1() internal view returns (address) {
-        return computeCreate2Address(deploySalt, keccak256(_getSharesOnboarderV1InitCode()));
+        return computeCreate2Address(deploySaltProxy, keccak256(_getSharesOnboarderV1InitCode()));
     }
 
     function _deploy_SharesOnboarderV1() internal returns (PrimordiumSharesOnboarderV1 deployed) {
@@ -161,21 +161,41 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
         PrimordiumGovernorV1
     /////////////////////////////////////////////////////////////////////////////*/
 
-    function _getGovernorV1InitParams() internal view returns (PrimordiumGovernorV1.GovernorV1Init memory) {
+    function _getGovernorV1InitParams() public returns (PrimordiumGovernorV1.GovernorV1Init memory) {
         address executor = _address_ExecutorV1();
         address token = _address_TokenV1();
+
+        // Setup the default proposer roles
+        address[] memory proposerAddresses = vm.envOr("DEFAULT_PROPOSERS", ",", new address[](0));
+        uint256[] memory expiresAts = vm.envOr("DEFAULT_PROPOSERS_EXPIRES_ATS", ",", new uint256[](0));
+        bytes32[] memory roles = new bytes32[](proposerAddresses.length);
+
+        require(proposerAddresses.length == expiresAts.length, "Invalid proposer role array lengths");
+        bytes32 proposerRole = keccak256("PROPOSER");
+        for (uint256 i = 0; i < proposerAddresses.length; i++) {
+            roles[i] = proposerRole;
+            // Change zero value to max value (infinite)
+            if (expiresAts[i] == 0) {
+                expiresAts[i] = type(uint256).max;
+            }
+        }
+
+        // If array lengths are zero, then should set grantRoles to empty bytes, or else error will be thrown on setup
+        bytes memory grantRoles =
+            proposerAddresses.length > 0 ? abi.encode(roles, proposerAddresses, expiresAts) : bytes("");
+
         return PrimordiumGovernorV1.GovernorV1Init({
             name: "Primordium Governor",
             governorBaseInit: IGovernorBase.GovernorBaseInit({
                 executor: executor,
                 token: token,
-                governanceCanBeginAt: 1_706_745_600, // Feb 1, 2024
-                governanceThresholdBps: 500, // 5 %
-                proposalThresholdBps: 50, // 0.5%
+                governanceCanBeginAt: 1_708_023_600, // Feb 15, 2024
+                governanceThresholdBps: 2000, // 20 %
+                proposalThresholdBps: 1, // 0.01%
                 votingDelay: 2 days / 12,
                 votingPeriod: 3 days / 12,
                 gracePeriod: 3 weeks / 12,
-                grantRoles: ""
+                grantRoles: grantRoles
             }),
             proposalVotingInit: IProposalVoting.ProposalVotingInit({
                 percentMajority: 50,
@@ -188,19 +208,39 @@ abstract contract PrimordiumDAOConfigV1 is BaseScriptV1 {
         });
     }
 
-    function _getGovernorV1InitCode() internal view returns (bytes memory) {
+    function _getGovernorV1InitCode() internal returns (bytes memory) {
         return _getProxyInitCode(
             _address_implementation_GovernorV1(),
             abi.encodeCall(PrimordiumGovernorV1.setUp, (_getGovernorV1InitParams()))
         );
     }
 
-    function _address_GovernorV1() internal view returns (address) {
-        return computeCreate2Address(deploySalt, keccak256(_getGovernorV1InitCode()));
+    function _address_GovernorV1() internal returns (address) {
+        return computeCreate2Address(deploySaltProxy, keccak256(_getGovernorV1InitCode()));
     }
 
     function _deploy_GovernorV1() internal returns (PrimordiumGovernorV1 deployed) {
         deployed = PrimordiumGovernorV1(_deployProxy(_getGovernorV1InitCode()));
         require(address(deployed) == _address_GovernorV1(), "Governor: invalid proxy deployment address");
+    }
+
+    /*/////////////////////////////////////////////////////////////////////////////
+        DistributorV1
+    /////////////////////////////////////////////////////////////////////////////*/
+
+    function _getDistributorV1InitCode() internal view returns (bytes memory) {
+        return _getProxyInitCode(
+            _address_implementation_DistributorV1(),
+            abi.encodeCall(AuthorizedInitializer.setAuthorizedInitializer, (_address_ExecutorV1()))
+        );
+    }
+
+    function _address_DistributorV1() internal view returns (address) {
+        return computeCreate2Address(deploySaltProxy, keccak256(_getDistributorV1InitCode()));
+    }
+
+    function _deploy_DistributorV1() internal returns (DistributorV1 deployed) {
+        deployed = DistributorV1(_deployProxy(_getDistributorV1InitCode()));
+        require(address(deployed) == _address_DistributorV1(), "Distributor: invalid proxy deployment address");
     }
 }

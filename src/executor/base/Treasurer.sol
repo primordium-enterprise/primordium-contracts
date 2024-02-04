@@ -8,7 +8,8 @@ import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {ISharesToken} from "src/token/interfaces/ISharesToken.sol";
 import {ITreasury} from "../interfaces/ITreasury.sol";
 import {ITreasurer} from "../interfaces/ITreasurer.sol";
-import {IDistributor} from "../interfaces/IDistributor.sol";
+import {DistributorV1} from "../extensions/DistributorV1.sol";
+import {IDistributionCreator} from "../interfaces/IDistributionCreator.sol";
 import {IBalanceShareAllocations} from "balance-shares-protocol/interfaces/IBalanceShareAllocations.sol";
 import {BalanceShareIds} from "src/common/BalanceShareIds.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -37,7 +38,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
         ISharesToken _token;
         ISharesOnboarder _sharesOnboarder;
         BalanceShares _balanceShares;
-        IDistributor _distributor;
+        IDistributionCreator _distributor;
     }
 
     // keccak256(abi.encode(uint256(keccak256("Treasurer.Storage")) - 1)) & ~bytes32(uint256(0xff));
@@ -89,30 +90,14 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
             }
         }
 
-        // Check distributor implementation interface
-        authorizeDistributorImplementation(init.distributorImplementation);
+        // Check distributor interface (proxy should support same interface as the implementation itself)
+        authorizeDistributorImplementation(init.distributor);
 
-        // Pack the proxy deployment bytecode with the constructor arguments
-        bytes memory proxyDeploymentBytecode = abi.encodePacked(
-            init.erc1967CreationCode,
-            abi.encode(
-                uint256(uint160(init.distributorImplementation)),
-                abi.encodeCall(IDistributor.setUp, (init.token, init.distributionClaimPeriod))
-            )
-        );
+        // Initialize the distributor proxy
+        IDistributionCreator(init.distributor).setUp(abi.encode(init.token, init.distributionClaimPeriod));
 
-        // Create the proxy for the distributor
-        address distributorProxy;
-        assembly ("memory-safe") {
-            distributorProxy := create2(0, add(0x20, proxyDeploymentBytecode), mload(proxyDeploymentBytecode), 0)
-        }
-
-        if (distributorProxy == address(0)) {
-            revert DistributorCreationFailed();
-        }
-
-        // Set the storage reference to the proxy address
-        $._distributor = IDistributor(distributorProxy);
+        // Set the storage reference to the distributor proxy address
+        $._distributor = IDistributionCreator(init.distributor);
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
@@ -145,7 +130,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
     }
 
     /// @inheritdoc ITreasurer
-    function distributor() public view virtual returns (IDistributor _distributor) {
+    function distributor() public view virtual returns (IDistributionCreator _distributor) {
         return _getTreasurerStorage()._distributor;
     }
 
@@ -155,7 +140,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
     }
 
     function _createDistribution(
-        IDistributor _distributor,
+        IDistributionCreator _distributor,
         IERC20 asset,
         uint256 amount
     )
@@ -177,7 +162,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
 
     /// @inheritdoc ITreasurer
     function authorizeDistributorImplementation(address newImplementation) public view virtual {
-        newImplementation.checkInterface(type(IDistributor).interfaceId);
+        newImplementation.checkInterface(type(IDistributionCreator).interfaceId);
     }
 
     /// @inheritdoc ITreasurer
@@ -340,7 +325,6 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
             IBalanceShareAllocations manager = $._balanceShares._balanceSharesManager;
 
             // Iterate through the token addresses, sending proportional payouts (using address(0) for ETH)
-            // TODO: Need to add the PROFT/DISTRIBUTIONS Balance share allocation to this function
             for (uint256 i = 0; i < assets.length;) {
                 uint256 tokenBalance = assets[i].getBalanceOf(address(this));
 

@@ -3,10 +3,12 @@
 
 pragma solidity ^0.8.20;
 
-import {IDistributor} from "../interfaces/IDistributor.sol";
+import {IDistributor} from "./interfaces/IDistributor.sol";
+import {IDistributionCreator} from "../interfaces/IDistributionCreator.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {Ownable1Or2StepUpgradeable} from "src/utils/Ownable1Or2StepUpgradeable.sol";
+import {AuthorizedInitializer} from "src/utils/AuthorizedInitializer.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
@@ -34,6 +36,7 @@ contract DistributorV1 is
     ContextUpgradeable,
     UUPSUpgradeable,
     Ownable1Or2StepUpgradeable,
+    AuthorizedInitializer,
     EIP712Upgradeable,
     NoncesUpgradeable,
     ERC165Upgradeable,
@@ -90,34 +93,6 @@ contract DistributorV1 is
 
     uint256 public constant MAX_DISTRIBUTION_AMOUNT = type(uint128).max;
 
-    event DistributionCreated(
-        uint256 indexed distributionId,
-        IERC20 indexed asset,
-        uint256 indexed balance,
-        uint256 snapshotId,
-        uint256 closableAt
-    );
-    event DistributionClaimPeriodUpdate(uint256 oldClaimPeriod, uint256 newClaimPeriod);
-    event CloseDistributionsApprovalUpdate(address indexed account, bool indexed isApproved);
-    event DistributionClosed(uint256 indexed distributionId, IERC20 asset, uint256 reclaimAmount);
-    event ClaimDistributionsApprovalUpdate(address indexed holder, address indexed account, bool indexed isApproved);
-    event DistributionClaimed(uint256 indexed distributionId, address indexed holder, IERC20 asset, uint256 amount);
-
-    error Unauthorized();
-    error InvalidSnapshotId(uint256 currentClock, uint256 snapshotClock);
-    error DistributionAmountTooLow();
-    error DistributionAmountTooHigh(uint256 maxAmount);
-    error InvalidMsgValue();
-    error ETHTransferFailed();
-    error OwnerAuthorizationRequired();
-    error DistributionDoesNotExist();
-    error DistributionIsClosed();
-    error DistributionClaimsStillActive(uint256 closableAt);
-    error DistributionAlreadyClaimed(address holder);
-    error TokenTotalSupplyIsZero(address token, uint256 snapshotId);
-    error ClaimsExpiredSignature();
-    error ClaimsInvalidSignature();
-
     modifier requireOwnerAuthorization() {
         if (SelfAuthorized(owner()).getAuthorizedOperator() != address(this)) {
             revert OwnerAuthorizationRequired();
@@ -132,12 +107,13 @@ contract DistributorV1 is
     /**
      * By default, initializes to the msg.sender being the owner.
      */
-    function setUp(address token_, uint256 claimPeriod_) external virtual override initializer {
+    function setUp(bytes memory initParams) external virtual override initializer {
         DistributorStorage storage $ = _getDistributorStorage();
 
         __Ownable_init_unchained(msg.sender);
         __EIP712_init("DistributorV1", "1");
 
+        (address token_, uint256 claimPeriod_) = abi.decode(initParams, (address, uint256));
         token_.checkInterfaces([type(IERC20Snapshots).interfaceId, type(IERC6372).interfaceId]);
         $._token = IERC20Snapshots(token_);
 
@@ -147,30 +123,22 @@ contract DistributorV1 is
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         // forgefmt: disable-next-item
         return
+            interfaceId == type(IDistributionCreator).interfaceId ||
             interfaceId == type(IDistributor).interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
-    /**
-     * Returns the address of the token used for calculating each holder's distribution share.
-     */
-    function token() public view virtual returns (address _token) {
+    /// @inheritdoc IDistributor
+    function token() public view virtual override returns (address _token) {
         _token = address(_getDistributorStorage()._token);
     }
 
-    /**
-     * Returns the current distribution claim period. This is the minimum time period, in seconds, that a distribution
-     * will be claimable by token holders.
-     */
+    /// @inheritdoc IDistributor
     function distributionClaimPeriod() public view virtual returns (uint256 claimPeriod) {
         claimPeriod = _getDistributorStorage()._claimPeriod;
     }
 
-    /**
-     * Updates the distribution claim period.
-     * @notice Only callable by the owning contract.
-     * @param newClaimPeriod The new minimum claim period, in seconds (no greater than type(uint48).max)
-     */
+    /// @inheritdoc IDistributor
     function setDistributionClaimPeriod(uint256 newClaimPeriod) external virtual onlyOwner {
         _setDistributionClaimPeriod(newClaimPeriod);
     }
@@ -181,16 +149,12 @@ contract DistributorV1 is
         $._claimPeriod = SafeCast.toUint48(newClaimPeriod);
     }
 
-    /**
-     * Returns the total count of distributions so far.
-     */
+    /// @inheritdoc IDistributor
     function distributionsCount() public view virtual returns (uint256 _distributionsCount) {
         _distributionsCount = _getDistributorStorage()._distributionsCount;
     }
 
-    /**
-     * Check the closable status for a distribution. Returns false for distributions that are already closed.
-     */
+    /// @inheritdoc IDistributor
     function isDistributionClosable(uint256 distributionId) public view virtual returns (bool) {
         DistributorStorage storage $ = _getDistributorStorage();
         Distribution storage _distribution = $._distributions[distributionId];
@@ -205,9 +169,7 @@ contract DistributorV1 is
         return true;
     }
 
-    /**
-     * Returns true if the distribution has been closed.
-     */
+    /// @inheritdoc IDistributor
     function isDistributionClosed(uint256 distributionId) public view virtual returns (bool isClosed) {
         Distribution storage _distribution = _getDistributorStorage()._distributions[distributionId];
         _checkDistributionExistence(_distribution);
@@ -215,9 +177,7 @@ contract DistributorV1 is
         isClosed = _distribution.isClosed;
     }
 
-    /**
-     * Returns true if the specified account holder has claimed the distriution ID.
-     */
+    /// @inheritdoc IDistributor
     function accountHasClaimedDistribution(
         uint256 distributionId,
         address holder
@@ -233,15 +193,7 @@ contract DistributorV1 is
         hasClaimed = _distribution.hasClaimed[holder];
     }
 
-    /**
-     * Returns the data for the given distribution ID.
-     * @return totalBalance The total balance of the asset for distribution to share holders.
-     * @return claimedBalance The total amount of balance claimed by share holders.
-     * @return asset The address of the ERC20 asset for the distribution (address(0) for ETH).
-     * @return snapshotId The token snapshot ID for this distribution.
-     * @return closableAt The clock unit when this distribution will be closable.
-     * @return isClosed A bool that is true if the distribution has been closed.
-     */
+    /// @inheritdoc IDistributor
     function getDistributionData(uint256 distributionId)
         public
         view
@@ -264,13 +216,7 @@ contract DistributorV1 is
     }
 
     /**
-     * Creates a new distribution for share holders.
-     * @notice Only callable by the owner (see dev note about authorized operation).
-     * @param snapshotId The ID of the token snapshot for this distribution.
-     * @param asset The ERC20 asset to be used for the distribution (address(0) for ETH).
-     * @param amount The amount of the ERC20 asset to be transferred to this contract as a total amount avaialable for
-     * distribution. Cannot be greater than type(uint128).max for gas reasons.
-     * @return distributionId The ID of the newly created distribution.
+     * @inheritdoc IDistributionCreator
      *
      * @dev This function requires that not only the owner initiates the call, but also that the owner has flagged this
      * contract as the authorized operator. If not, this call will fail. This restricts the call to only be callable
@@ -284,6 +230,7 @@ contract DistributorV1 is
         public
         payable
         virtual
+        override
         onlyOwner
         requireOwnerAuthorization
         returns (uint256 distributionId)
@@ -333,21 +280,12 @@ contract DistributorV1 is
         emit DistributionCreated(distributionId, asset, amount, snapshotId, closableAt);
     }
 
-    /**
-     * Returns whether or not the provided address is approved for closing distributions once the claim period has
-     * expired for a distribution.
-     * @param account The address to check the status for.
-     * @return isApproved A bool indicating whether or not the account is approved.
-     */
+    /// @inheritdoc IDistributor
     function isApprovedForClosingDistributions(address account) public view virtual returns (bool) {
         return _getDistributorStorage()._closeDistributionsApproval[account];
     }
 
-    /**
-     * A timelock-only function to approve addresses to close distributions once the claim period has expired. Approve
-     * address(0) to allow anyone to close a distribution.
-     * @param accounts A list of addresses to approve.
-     */
+    /// @inheritdoc IDistributor
     function approveForClosingDistributions(address[] calldata accounts) external virtual onlyOwner {
         DistributorStorage storage $ = _getDistributorStorage();
         for (uint256 i = 0; i < accounts.length;) {
@@ -358,10 +296,7 @@ contract DistributorV1 is
         }
     }
 
-    /**
-     * A timelock-only function to unapprove addresses for closing distributions.
-     * @param accounts A list of addresses to unapprove.
-     */
+    /// @inheritdoc IDistributor
     function unapproveForClosingDistributions(address[] calldata accounts) external virtual onlyOwner {
         DistributorStorage storage $ = _getDistributorStorage();
         for (uint256 i = 0; i < accounts.length;) {
@@ -384,13 +319,7 @@ contract DistributorV1 is
         emit CloseDistributionsApprovalUpdate(account, isApproved);
     }
 
-    /**
-     * A function to close a distribution and reclaim the remaining distribution balance to the owner. Only callable by
-     * the owner, or approved addresses. If the distribution claims have not yet started, the owner can close it. If the
-     * distribution claims have already begun, then the distribution cannot be closed until after the claim period has
-     * passed.
-     * @param distributionId The identifier of the distribution to be closed.
-     */
+    /// @inheritdoc IDistributor
     function closeDistribution(uint256 distributionId) external virtual {
         DistributorStorage storage $ = _getDistributorStorage();
 
@@ -435,12 +364,7 @@ contract DistributorV1 is
         emit DistributionClosed(distributionId, asset, reclaimAmount);
     }
 
-    /**
-     * Returns whether or not the provided address is approved to claim distributions for the specified token holder.
-     * @notice Claimed funds are still sent to the token holder. Approved accounts can simply process the claims.
-     * @param holder The token holder.
-     * @param account The address to check for approval for claiming distributions to the owner.
-     */
+    /// @inheritdoc IDistributor
     function isApprovedForClaimingDistributions(
         address holder,
         address account
@@ -453,11 +377,7 @@ contract DistributorV1 is
         isApproved = _getDistributorStorage()._claimDistributionsApproval[holder][account];
     }
 
-    /**
-     * Approves the provided accounts to claim distributions on behalf of the msg.sender.
-     * @notice Claimed distribution funds are still sent to the token holder, not the approved account.
-     * @param accounts A list of addresses to approve.
-     */
+    /// @inheritdoc IDistributor
     function approveForClaimingDistributions(address[] calldata accounts) external virtual {
         DistributorStorage storage $ = _getDistributorStorage();
         for (uint256 i = 0; i < accounts.length; ++i) {
@@ -465,12 +385,7 @@ contract DistributorV1 is
         }
     }
 
-    /**
-     * Approves the provided accounts to claim distributions on behalf of the msg.sender. Approving address(0) allows
-     * anyone to claim distributions on behalf of the msg.sender.
-     * @notice Claimed distribution funds are still sent to the token holder, not the approved account.
-     * @param accounts A list of addresses to approve.
-     */
+    /// @inheritdoc IDistributor
     function unapproveForClaimingDistributions(address[] calldata accounts) external virtual {
         DistributorStorage storage $ = _getDistributorStorage();
         for (uint256 i = 0; i < accounts.length; ++i) {
@@ -490,16 +405,7 @@ contract DistributorV1 is
         emit ClaimDistributionsApprovalUpdate(holder, account, isApproved);
     }
 
-    /**
-     * Claims a distribution for the specified token holder, sending the claimed asset amount to the receiver.
-     * @notice If the msg.sender is not the holder, this requires that the msg.sender is approved for claiming
-     * distributions on behalf of the holder (or that the holder has approved address(0)).
-     * @notice The receiver address MUST be equal to the holder address UNLESS the msg.sender is the holder.
-     * @param distributionId The distribution ID to claim for.
-     * @param holder The address of the token holder.
-     * @param receiver The address to send the claimed assets to.
-     * @return claimAmount The amount of assets claimed by this token holder.
-     */
+    /// @inheritdoc IDistributor
     function claimDistribution(
         uint256 distributionId,
         address holder,
@@ -528,19 +434,13 @@ contract DistributorV1 is
         claimAmount = _claimDistribution($, distributionId, holder, receiver);
     }
 
-    /**
-     * Same as above, but uses the msg.sender as the holder and the receiver address.
-     */
+    /// @inheritdoc IDistributor
     function claimDistribution(uint256 distributionId) public virtual returns (uint256 claimAmount) {
         address sender = _msgSender();
         claimAmount = _claimDistribution(_getDistributorStorage(), distributionId, sender, sender);
     }
 
-    /**
-     * @dev Claims distribution for holder by signature, sending to receiver. Supports ECDSA or EIP1271 signatures.
-     *
-     * @param signature The signature is a packed bytes encoding of the ECDSA r, s, and v signature values.
-     */
+    /// @inheritdoc IDistributor
     function claimDistributionBySig(
         uint256 distributionId,
         address holder,

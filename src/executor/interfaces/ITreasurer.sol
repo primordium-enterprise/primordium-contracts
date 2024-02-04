@@ -6,7 +6,7 @@ pragma solidity ^0.8.20;
 import {ITreasury} from "./ITreasury.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
-import {IDistributor} from "./IDistributor.sol";
+import {IDistributionCreator} from "./IDistributionCreator.sol";
 
 interface ITreasurer is ITreasury {
     struct TreasurerInit {
@@ -14,8 +14,7 @@ interface ITreasurer is ITreasury {
         address sharesOnboarder;
         address balanceSharesManager;
         bytes[] balanceSharesManagerCalldatas;
-        bytes erc1967CreationCode; // Passed as argument to reduce deployment size
-        address distributorImplementation;
+        address distributor;
         uint256 distributionClaimPeriod;
     }
 
@@ -26,7 +25,8 @@ interface ITreasurer is ITreasury {
         address indexed balanceSharesManager, uint256 indexed balanceShareId, IERC20 asset, uint256 amountAllocated
     );
 
-    error DistributorCreationFailed();
+    error DistributorInvalidTokenAddress(address executorToken, address distributorToken);
+    error DistributorInvalidOwner(address expectedOwner, address currentOwner);
     error BalanceSharesInitializationCallFailed(uint256 index, bytes data);
     error OnlyToken();
     error OnlySharesOnboarder();
@@ -57,7 +57,7 @@ interface ITreasurer is ITreasury {
     /**
      * @notice Returns the address of the contract used for distributions.
      */
-    function distributor() external view returns (IDistributor _distributor);
+    function distributor() external view returns (IDistributionCreator _distributor);
 
     /**
      * @notice Creates a distribution on the distributor contract for the given amount.
@@ -68,7 +68,7 @@ interface ITreasurer is ITreasury {
 
     /**
      * @dev A public accessor function that reverts if the provided address does not support the ERC165 interfaceId
-     * of the {IDistributor}
+     * of the {IDistributionCreator}
      */
     function authorizeDistributorImplementation(address newImplementation) external view;
 

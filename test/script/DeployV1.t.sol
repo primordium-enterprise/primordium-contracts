@@ -17,7 +17,7 @@ contract DeployV1Test is PRBTest {
     DeployV1.Proxies proxies;
 
     function setUp() public {
-        (implementations, proxies) = deployScript.run();
+        (, implementations,, proxies) = deployScript.run();
     }
 
     /// @dev Gets the stored implementation address for the provided ERC1967Proxy address
@@ -55,6 +55,11 @@ contract DeployV1Test is PRBTest {
         // Executor
         assertEq(address(proxies.token), address(proxies.executor.token()));
         assertEq(address(proxies.sharesOnboarder), address(proxies.executor.sharesOnboarder()));
+        assertEq(address(proxies.distributor), address(proxies.executor.distributor()));
+
+        // Distributor
+        assertEq(address(proxies.token), proxies.distributor.token());
+        assertEq(address(proxies.executor), proxies.distributor.owner());
 
         // governor is only module on executor
         assertTrue(proxies.executor.isModuleEnabled(address(proxies.governor)));
@@ -62,5 +67,19 @@ contract DeployV1Test is PRBTest {
         expectedModules[0] = address(proxies.governor);
         (address[] memory actualModules,) = proxies.executor.getModulesPaginated(address(0x01), 100);
         assertEq(expectedModules, actualModules);
+    }
+
+    function test_DefaultProposers() public {
+        PrimordiumGovernorV1.GovernorV1Init memory governorInit = deployScript._getGovernorV1InitParams();
+
+        if (governorInit.governorBaseInit.grantRoles.length > 0) {
+            (bytes32[] memory roles, address[] memory accounts, uint256[] memory expiresAts) =
+                abi.decode(governorInit.governorBaseInit.grantRoles, (bytes32[], address[], uint256[]));
+
+            for (uint256 i = 0; i < roles.length; i++) {
+                assertEq(true, proxies.governor.hasRole(roles[i], accounts[i]));
+                assertEq(expiresAts[i], proxies.governor.roleExpiresAt(roles[i], accounts[i]));
+            }
+        }
     }
 }

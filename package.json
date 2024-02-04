@@ -10,7 +10,7 @@
     "test": "forge test --no-match-path 'test/.*/*' -vvv",
     "test:lite": "FOUNDRY_PROFILE=lite pnpm test",
     "test:lite:watch": "pnpm test:lite -- --watch",
-    "deploy:local": "forge script DeployDAOV1.s.sol --broadcast",
+    "deploy:local": "forge script DeployV1 --fork-url localhost --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast",
     "lint": "solhint 'contracts/**/*.sol'",
     "selector-order": "ts-node utils/selectorOrder.ts",
     "check:erc7201": "node utils/checkERC7201.js",

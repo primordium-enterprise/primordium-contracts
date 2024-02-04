@@ -357,7 +357,7 @@ contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
     )
         public
     {
-        vm.assume(sender != address(0));
+        vm.assume(sender != address(0) && receiver != address(executor));
 
         address owner = users.signer.addr;
 
