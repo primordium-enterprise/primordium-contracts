@@ -31,15 +31,26 @@ contract DeployV1 is BaseScriptV1, PrimordiumV1 {
         public
         virtual
         broadcast
-        returns (bytes32 saltImplementations, Implementations memory i, bytes32 saltProxies, Proxies memory p)
+        returns (
+            bytes32 saltImplementations,
+            Implementations memory implementations,
+            bytes32 saltProxies,
+            Proxies memory proxies
+        )
     {
         // Implementations
         saltImplementations = deploySaltImplementation;
-        (i.executorImpl, i.tokenImpl, i.sharesOnboarderImpl, i.governorImpl, i.distributorImpl) =
-            _deployAllImplementations();
+        (
+            implementations.executorImpl,
+            implementations.tokenImpl,
+            implementations.sharesOnboarderImpl,
+            implementations.governorImpl,
+            implementations.distributorImpl
+        ) = _deployAllImplementations();
 
         // Proxies
         saltProxies = deploySaltProxy;
-        (p.executor, p.token, p.sharesOnboarder, p.governor, p.distributor) = _deployAndSetupAllProxies();
+        (proxies.executor, proxies.token, proxies.sharesOnboarder, proxies.governor, proxies.distributor) =
+            _deployAndSetupAllProxies();
     }
 }

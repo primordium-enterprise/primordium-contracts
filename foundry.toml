@@ -23,7 +23,11 @@
 
 [rpc_endpoints]
   localhost = "http://localhost:8545"
-  mainnet = "https://eth-mainnet.g.alchemy.com/v2/${API_KEY_ALCHEMY}"
-  sepolia = "https://eth-sepolia.g.alchemy.com/v2/${API_KEY_ALCHEMY}"
+  mainnet = "https://eth-mainnet.g.alchemy.com/v2/${API_KEY_ALCHEMY_MAINNET}"
+  sepolia = "https://eth-sepolia.g.alchemy.com/v2/${API_KEY_ALCHEMY_SEPOLIA}"
+
+[etherscan]
+  mainnet = { key = "${ETHERSCAN_API_KEY}" }
+  sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api-sepolia.etherscan.io/api" }
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
