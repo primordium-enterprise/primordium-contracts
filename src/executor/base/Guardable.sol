@@ -7,7 +7,7 @@ import {SelfAuthorized} from "./SelfAuthorized.sol";
 import {IGuard} from "../interfaces/IGuard.sol";
 import {IGuardable} from "../interfaces/IGuardable.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
-import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
 
 abstract contract BaseGuard is IGuard, IERC165 {

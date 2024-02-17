@@ -9,7 +9,7 @@ import {IGovernorBase} from "../../interfaces/IGovernorBase.sol";
 import {IGovernorToken} from "../../interfaces/IGovernorToken.sol";
 import {IAvatar} from "src/executor/interfaces/IAvatar.sol";
 import {ITimelockAvatar} from "src/executor/interfaces/ITimelockAvatar.sol";
-import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ITreasurer} from "src/executor/interfaces/ITreasurer.sol";
 import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
