@@ -36,7 +36,7 @@ interface IProposalVoting is IGovernorBase {
     /**
      * @dev Emitted when the quorum BPS value is updated.
      */
-    event QuorumBpsUpdate(uint256 oldQuorumBps, uint256 newQuorumBps);
+    event QuorumBPSUpdate(uint256 oldQuorumBps, uint256 newQuorumBps);
 
     /**
      * @dev Emitted when a vote is cast without params.

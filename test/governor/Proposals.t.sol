@@ -240,7 +240,7 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
         vm.roll(governor.proposalSnapshot(proposalId) - 1);
         vm.prank(users.gwart);
         vm.expectEmit(true, false, false, false, address(governor));
-        emit IGovernorBase.ProposalCanceled(proposalId);
+        emit IGovernorBase.ProposalCanceled(proposalId, users.gwart);
         _cancel(proposalId, target, value, "");
         assertEq(uint8(IGovernorBase.ProposalState.Canceled), uint8(governor.state(proposalId)));
     }
@@ -283,7 +283,7 @@ contract ProposalsTest is BaseTest, ProposalTestUtils, BalanceSharesTestUtils {
         // Allow one with "canceler" role to cancel
         assertEq(true, governor.hasRole(governor.CANCELER_ROLE(), users.canceler));
         vm.expectEmit(true, false, false, false, address(governor));
-        emit IGovernorBase.ProposalCanceled(proposalId);
+        emit IGovernorBase.ProposalCanceled(proposalId, users.canceler);
         vm.prank(users.canceler);
         _cancel(proposalId, target, value, "");
         assertEq(uint8(IGovernorBase.ProposalState.Canceled), uint8(governor.state(proposalId)));

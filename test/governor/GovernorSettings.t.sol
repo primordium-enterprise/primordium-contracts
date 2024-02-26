@@ -312,7 +312,7 @@ contract GovernorSettingsTest is BaseTest, ProposalTestUtils {
         } else {
             expectedQuorumBps = newQuorumBps;
             vm.expectEmit(false, false, false, true);
-            emit IProposalVoting.QuorumBpsUpdate(GOVERNOR.proposalVotingInit.quorumBps, newQuorumBps);
+            emit IProposalVoting.QuorumBPSUpdate(GOVERNOR.proposalVotingInit.quorumBps, newQuorumBps);
         }
 
         _executeOnlyGovernanceUpdate(proposalId, data, err);

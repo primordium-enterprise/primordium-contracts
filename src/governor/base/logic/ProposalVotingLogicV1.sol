@@ -212,7 +212,7 @@ library ProposalVotingLogicV1 {
         // Set new quorum for future proposals
         // toBps() checks for out of range BPS value
         $._quorumBpsCheckpoints.push(GovernorBaseLogicV1._clock(), newQuorumBps.toBps());
-        emit IProposalVoting.QuorumBpsUpdate(oldQuorumBps, newQuorumBps);
+        emit IProposalVoting.QuorumBPSUpdate(oldQuorumBps, newQuorumBps);
     }
 
     /**

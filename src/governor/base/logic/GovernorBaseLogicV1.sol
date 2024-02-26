@@ -795,7 +795,7 @@ library GovernorBaseLogicV1 {
             _executor().cancelOperation(opNonce);
         }
 
-        emit IGovernorBase.ProposalCanceled(proposalId);
+        emit IGovernorBase.ProposalCanceled(proposalId, msg.sender);
 
         return proposalId;
     }

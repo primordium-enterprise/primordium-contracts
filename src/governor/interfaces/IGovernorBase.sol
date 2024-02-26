@@ -104,7 +104,7 @@ interface IGovernorBase is IERC6372 {
     /**
      * @dev Emitted when a proposal is canceled.
      */
-    event ProposalCanceled(uint256 indexed proposalId);
+    event ProposalCanceled(uint256 indexed proposalId, address indexed canceler);
 
     /**
      * @dev Emitted when a proposal is executed.
