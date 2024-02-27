@@ -109,6 +109,9 @@ coverage.json
 typechain
 typechain-types
 
+# Hidden config files
+script/config/.*
+
 # Hardhat files
 cache
 artifacts

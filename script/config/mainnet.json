@@ -1,0 +1,36 @@
+{
+    "executor": {
+        "minDelay": 259200,
+        "balanceSharesManager": "0x0000000000000000000000000000000000000000",
+        "balanceSharesManagerCalldatas": "0x",
+        "distributionClaimPeriod": 5184000
+    },
+    "token": {
+        "name": "PrimordiumDAO",
+        "symbol": "MUSHI",
+        "maxSupply": 10000000000000000000000000
+    },
+    "onboarder": {
+        "quoteAsset": "0x0000000000000000000000000000000000000000",
+        "quoteAmount": 1,
+        "mintAmount": 200,
+        "fundingBeginsAt": 0,
+        "fundingEndsAt": 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    },
+    "governor": {
+        "proposers": ["0xD85C88E04b00253B92e7a94f2F7Abdd75A78b88f"],
+        "proposersExpiresAts": [0],
+        "governanceCanBeginAt": 1708023600,
+        "governanceThresholdBps": 2000,
+        "proposalThresholdBps": 1,
+        "votingDelay": 14400,
+        "votingPeriod": 21600,
+        "gracePeriod": 151200,
+        "percentMajority": 50,
+        "quorumBps": 100,
+        "maxDeadlineExtension": 50400,
+        "baseDeadlineExtension": 14400,
+        "decayPeriod": 1200,
+        "percentDecay": 4
+    }
+}

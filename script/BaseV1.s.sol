@@ -59,6 +59,14 @@ abstract contract BaseScriptV1 is Script {
         vm.stopBroadcast();
     }
 
+    function setImplementationSalt(bytes32 salt) public {
+        deploySaltImplementation = salt;
+    }
+
+    function setProxySalt(bytes32 salt) public {
+        deploySaltProxy = salt;
+    }
+
     function _checkContractAlreadyExists(address addr) internal view returns (bool exists) {
         uint256 codeSize;
         assembly {

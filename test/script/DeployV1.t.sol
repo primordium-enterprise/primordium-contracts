@@ -20,6 +20,13 @@ contract DeployV1Test is PRBTest {
         (, implementations,, proxies) = deployScript.run();
     }
 
+    function test_TestSetUp() public {
+        DeployV1 tester = new DeployV1();
+        tester.setImplementationSalt(keccak256("test"));
+        tester.setProxySalt(keccak256("test"));
+        tester.run();
+    }
+
     /// @dev Gets the stored implementation address for the provided ERC1967Proxy address
     function _getProxyImplementation(address proxy) internal view returns (address impl) {
         impl = address(

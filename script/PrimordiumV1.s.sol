@@ -18,8 +18,24 @@ import {ISharesToken} from "src/token/interfaces/ISharesToken.sol";
 import {ISharesOnboarder} from "src/onboarder/interfaces/ISharesOnboarder.sol";
 import {IGovernorBase} from "src/governor/interfaces/IGovernorBase.sol";
 import {IProposalVoting} from "src/governor/interfaces/IProposalVoting.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {stdJson} from "forge-std/StdJson.sol";
 
 abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
+    using stdJson for string;
+    using SafeCast for uint256;
+
+    // JSON configuration, loaded in from the `JSON_CONFIG_PATH` environment variable
+    // Path should be formatted as "path/to/file.json", which is relative to project root
+    string internal config;
+
+    constructor() {
+        string memory root = vm.projectRoot();
+        string memory relativePath = vm.envString("JSON_CONFIG_PATH");
+        string memory path = string.concat(root, "/", relativePath);
+        config = vm.readFile(path);
+    }
+
     function _deployAndSetupAllProxies()
         internal
         returns (
@@ -44,7 +60,7 @@ abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
         PrimordiumExecutorV1
     /////////////////////////////////////////////////////////////////////////////*/
 
-    function _getExecutorV1InitParams() internal returns (PrimordiumExecutorV1.ExecutorV1Init memory) {
+    function _getExecutorV1InitParams() internal view returns (PrimordiumExecutorV1.ExecutorV1Init memory) {
         address token = _address_TokenV1();
         address sharesOnboarder = _address_SharesOnboarderV1();
         address governor = _address_GovernorV1();
@@ -54,14 +70,17 @@ abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
         modules[0] = governor;
 
         return PrimordiumExecutorV1.ExecutorV1Init({
-            timelockAvatarInit: ITimelockAvatar.TimelockAvatarInit({minDelay: 3 days, modules: modules}),
+            timelockAvatarInit: ITimelockAvatar.TimelockAvatarInit({
+                minDelay: config.readUint(".executor.minDelay"),
+                modules: modules
+            }),
             treasurerInit: ITreasurer.TreasurerInit({
                 token: token,
                 sharesOnboarder: sharesOnboarder,
-                balanceSharesManager: address(0),
-                balanceSharesManagerCalldatas: new bytes[](0),
+                balanceSharesManager: config.readAddress(".executor.balanceSharesManager"),
+                balanceSharesManagerCalldatas: config.readBytesArray(".executor.balanceSharesManagerCalldatas"),
                 distributor: distributor,
-                distributionClaimPeriod: 60 days
+                distributionClaimPeriod: config.readUint(".executor.distributionClaimPeriod")
             })
         });
     }
@@ -94,11 +113,11 @@ abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
         address executor = _address_ExecutorV1();
         return PrimordiumTokenV1.TokenV1Init({
             owner: executor,
-            name: "Primordium",
-            symbol: "MUSHI",
+            name: config.readString(".token.name"),
+            symbol: config.readString(".token.symbol"),
             sharesTokenInit: ISharesToken.SharesTokenInit({
                 treasury: executor,
-                maxSupply: 10_000_000e18 // 10 million MUSHI
+                maxSupply: config.readUint(".token.maxSupply")
             })
         });
     }
@@ -132,11 +151,11 @@ abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
             owner: executor,
             sharesOnboarderInit: ISharesOnboarder.SharesOnboarderInit({
                 treasury: executor,
-                quoteAsset: address(0), // ETH
-                quoteAmount: 1,
-                mintAmount: 200,
-                fundingBeginsAt: 0,
-                fundingEndsAt: type(uint256).max
+                quoteAsset: config.readAddress(".onboarder.quoteAsset"),
+                quoteAmount: config.readUint(".onboarder.quoteAmount").toUint128(),
+                mintAmount: config.readUint(".onboarder.mintAmount").toUint128(),
+                fundingBeginsAt: config.readUint(".onboarder.fundingBeginsAt"),
+                fundingEndsAt: config.readUint(".onboarder.fundingEndsAt")
             })
         });
     }
@@ -161,13 +180,13 @@ abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
         PrimordiumGovernorV1
     /////////////////////////////////////////////////////////////////////////////*/
 
-    function _getGovernorV1InitParams() public returns (PrimordiumGovernorV1.GovernorV1Init memory) {
+    function _getGovernorV1InitParams() public view returns (PrimordiumGovernorV1.GovernorV1Init memory) {
         address executor = _address_ExecutorV1();
         address token = _address_TokenV1();
 
         // Setup the default proposer roles
-        address[] memory proposerAddresses = vm.envOr("DEFAULT_PROPOSERS", ",", new address[](0));
-        uint256[] memory expiresAts = vm.envOr("DEFAULT_PROPOSERS_EXPIRES_ATS", ",", new uint256[](0));
+        address[] memory proposerAddresses = config.readAddressArray(".governor.proposers");
+        uint256[] memory expiresAts = config.readUintArray(".governor.proposersExpiresAts");
         bytes32[] memory roles = new bytes32[](proposerAddresses.length);
 
         require(proposerAddresses.length == expiresAts.length, "Invalid proposer role array lengths");
@@ -189,33 +208,33 @@ abstract contract PrimordiumV1 is BaseScriptV1, ImplementationsV1 {
             governorBaseInit: IGovernorBase.GovernorBaseInit({
                 executor: executor,
                 token: token,
-                governanceCanBeginAt: 1_708_023_600, // Feb 15, 2024
-                governanceThresholdBps: 2000, // 20 %
-                proposalThresholdBps: 1, // 0.01%
-                votingDelay: 2 days / 12,
-                votingPeriod: 3 days / 12,
-                gracePeriod: 3 weeks / 12,
+                governanceCanBeginAt: config.readUint(".governor.governanceCanBeginAt"),
+                governanceThresholdBps: config.readUint(".governor.governanceThresholdBps"),
+                proposalThresholdBps: config.readUint(".governor.proposalThresholdBps"),
+                votingDelay: config.readUint(".governor.votingDelay"),
+                votingPeriod: config.readUint(".governor.votingPeriod"),
+                gracePeriod: config.readUint(".governor.gracePeriod"),
                 grantRoles: grantRoles
             }),
             proposalVotingInit: IProposalVoting.ProposalVotingInit({
-                percentMajority: 50,
-                quorumBps: 100, // 1%
-                maxDeadlineExtension: 7 days / 12,
-                baseDeadlineExtension: 2 days / 12,
-                decayPeriod: 4 hours / 12,
-                percentDecay: 4 // base extension decays by 4% every decay period past original deadline
+                percentMajority: config.readUint(".governor.percentMajority"),
+                quorumBps: config.readUint(".governor.quorumBps"),
+                maxDeadlineExtension: config.readUint(".governor.maxDeadlineExtension"),
+                baseDeadlineExtension: config.readUint(".governor.baseDeadlineExtension"),
+                decayPeriod: config.readUint(".governor.decayPeriod"),
+                percentDecay: config.readUint(".governor.percentDecay")
             })
         });
     }
 
-    function _getGovernorV1InitCode() internal returns (bytes memory) {
+    function _getGovernorV1InitCode() internal view returns (bytes memory) {
         return _getProxyInitCode(
             _address_implementation_GovernorV1(),
             abi.encodeCall(PrimordiumGovernorV1.setUp, (_getGovernorV1InitParams()))
         );
     }
 
-    function _address_GovernorV1() internal returns (address) {
+    function _address_GovernorV1() internal view returns (address) {
         return computeCreate2Address(deploySaltProxy, keccak256(_getGovernorV1InitCode()));
     }
 
