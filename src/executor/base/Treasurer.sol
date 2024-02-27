@@ -98,6 +98,8 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
 
         // Set the storage reference to the distributor proxy address
         $._distributor = IDistributionCreator(init.distributor);
+
+        emit DistributorUpdate(address(0), init.distributor);
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
@@ -320,6 +322,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
         internal
         virtual
     {
+        uint256[] memory payouts = new uint256[](assets.length);
         if (sharesTotalSupply > 0 && sharesBurned > 0) {
             TreasurerStorage storage $ = _getTreasurerStorage();
             IBalanceShareAllocations manager = $._balanceShares._balanceSharesManager;
@@ -337,8 +340,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
                     payout -= distributionShareAllocation;
 
                     assets[i].transferTo(receiver, payout);
-
-                    emit WithdrawalAssetProcessed(account, receiver, assets[i], payout);
+                    payouts[i] = payout;
                 }
 
                 unchecked {
@@ -347,7 +349,7 @@ abstract contract Treasurer is TimelockAvatar, ITreasurer, BalanceShareIds {
             }
         }
 
-        emit WithdrawalProcessed(account, receiver, sharesBurned, sharesTotalSupply, assets);
+        emit WithdrawalProcessed(account, receiver, sharesBurned, sharesTotalSupply, assets, payouts);
     }
 
     /**

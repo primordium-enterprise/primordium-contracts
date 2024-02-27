@@ -24,6 +24,7 @@ interface ITreasurer is ITreasury {
     event BalanceShareAllocated(
         address indexed balanceSharesManager, uint256 indexed balanceShareId, IERC20 asset, uint256 amountAllocated
     );
+    event DistributorUpdate(address oldDistributor, address newDistributor);
 
     error DistributorInvalidTokenAddress(address executorToken, address distributorToken);
     error DistributorInvalidOwner(address expectedOwner, address currentOwner);

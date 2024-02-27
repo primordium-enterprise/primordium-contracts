@@ -272,9 +272,6 @@ contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
                             $.expectedBalanceShareAllocations[0]
                         );
                     }
-
-                    vm.expectEmit(true, false, false, true, $.treasury);
-                    emit ITreasury.WithdrawalAssetProcessed($.withdrawer, $.receiver, $.assets[0], $.expectedPayouts[0]);
                 }
 
                 if ($.expectedPayouts[1] > 0) {
@@ -287,14 +284,17 @@ contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
                             $.expectedBalanceShareAllocations[1]
                         );
                     }
+                }
 
-                    vm.expectEmit(true, false, false, true, $.treasury);
-                    emit ITreasury.WithdrawalAssetProcessed($.withdrawer, $.receiver, $.assets[1], $.expectedPayouts[1]);
+                // Copy expected payouts to a dynamic length array to match event type
+                uint256[] memory payouts = new uint256[]($.expectedPayouts.length);
+                for (uint256 i = 0; i < payouts.length; i++) {
+                    payouts[i] = $.expectedPayouts[i];
                 }
 
                 vm.expectEmit(true, false, false, true, $.treasury);
                 emit ITreasury.WithdrawalProcessed(
-                    $.withdrawer, $.receiver, $.withdrawAmount, $.expectedTotalSupply, $.assets
+                    $.withdrawer, $.receiver, $.withdrawAmount, $.expectedTotalSupply, $.assets, payouts
                 );
             }
 
@@ -336,6 +336,7 @@ contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
     )
         public
     {
+        vm.assume(receiver != address(this));
         address withdrawer = users.gwart;
 
         WithdrawParameters memory $ = _setupWithdrawExpectations(
