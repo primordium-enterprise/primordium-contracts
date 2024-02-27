@@ -358,7 +358,13 @@ contract SharesTokenTest is BaseTest, BalanceSharesTestUtils {
     )
         public
     {
-        vm.assume(sender != address(0) && receiver != address(executor));
+        // forgefmt: disable-next-item
+        vm.assume(
+            sender != address(0) &&
+            sender != address(this) &&
+            receiver != address(executor) &&
+            receiver != address(this)
+        );
 
         address owner = users.signer.addr;
 
