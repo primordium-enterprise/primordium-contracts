@@ -1,6 +1,6 @@
 {
     "executor": {
-        "minDelay": 259200,
+        "minDelay": 345600,
         "balanceSharesManager": "0x0000000000000000000000000000000000000000",
         "balanceSharesManagerCalldatas": "0x",
         "distributionClaimPeriod": 5184000
@@ -20,7 +20,7 @@
     "governor": {
         "proposers": ["0xD85C88E04b00253B92e7a94f2F7Abdd75A78b88f"],
         "proposersExpiresAts": [0],
-        "governanceCanBeginAt": 1708023600,
+        "governanceCanBeginAt": 1711389600,
         "governanceThresholdBps": 2000,
         "proposalThresholdBps": 1,
         "votingDelay": 14400,
