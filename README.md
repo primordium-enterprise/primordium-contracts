@@ -12,4 +12,4 @@ For more details, see:
 - [Primordium Whitepaper](https://primordiumdao.xyz/whitepaper.pdf)
 - [Website](https://primordiumdao.xyz)
 
-Join the community on [Discord](https://discord.gg/H9AyEuggyP).
+Join the community on [Discord](https://discord.gg/bCrxhnAJRz).
