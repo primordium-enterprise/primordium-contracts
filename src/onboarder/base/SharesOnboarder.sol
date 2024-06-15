@@ -20,7 +20,7 @@ import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
 /**
  * @title SharesOnboarder
  * @author Ben Jett - @BCJdevelopment
- * @notice Manages funding parameters and deposit flows for permissionless onboarding to the DAO.
+ * @notice Manages funding parameters and deposit flows for permissionless onboarding to the business.
  */
 abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
     using SafeCast for *;

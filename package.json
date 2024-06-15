@@ -1,7 +1,7 @@
 {
   "name": "primordium-contracts",
   "version": "0.0.1",
-  "description": "The Primordium on-chain governance framework.",
+  "description": "The Primordium business enterprise smart contracts.",
   "main": "index.js",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
@@ -19,20 +19,19 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/BCJdevelopment/primordium-contracts.git"
+    "url": "git+https://github.com/primordium-enterprise/primordium-contracts.git"
   },
   "keywords": [
     "Primordium",
-    "DAO",
     "ethereum",
     "governance"
   ],
-  "author": "Ben Jett - @BCJdevelopment",
+  "author": "Ben Jett (bcj.dev)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/BCJdevelopment/primordium-contracts/issues"
+    "url": "https://github.com/primordium-enterprise/primordium-contracts/issues"
   },
-  "homepage": "https://github.com/BCJdevelopment/primordium-contracts#readme",
+  "homepage": "https://github.com/primordium-enterprise/primordium-contracts#readme",
   "devDependencies": {
     "@types/node": "^20.10.5",
     "chalk": "^4.1.2",

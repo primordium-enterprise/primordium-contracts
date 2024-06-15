@@ -31,7 +31,7 @@ import {BasisPoints} from "src/libraries/BasisPoints.sol";
  *
  * The decay function of the extensions is designed to prevent DoS by constant vote updates.
  *
- * Through the governance process, the DAO can set the baseDeadlineExtension, the decayPeriod, and the percentDecay
+ * Through the governance process, the executor can set the baseDeadlineExtension, the decayPeriod, and the percentDecay
  * values. This allows fine-tuning the exponential decay of the baseDeadlineExtension amount as a vote moves past the
  * original proposal deadline (to prevent votes from being filibustered forever by constant voting).
  *

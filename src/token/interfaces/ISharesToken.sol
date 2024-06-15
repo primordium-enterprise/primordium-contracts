@@ -51,8 +51,7 @@ interface ISharesToken is IERC20Snapshots {
     function createSnapshot() external returns (uint256 newSnapshotId);
 
     /**
-     * Returns the address for the treasury that processes deposits and withdrawals (most-likely the DAO executor
-     * contract).
+     * Returns the address for the treasury that processes deposits and withdrawals (most-likely the executor contract).
      */
     function treasury() external view returns (ITreasury);
 

@@ -49,7 +49,7 @@ abstract contract SelfAuthorized is Initializable {
      * operator address back to address(0x01) after the modified function is called to avoid stagnant authorization and
      * to issue a gas refund.
      *
-     * Example usage: a DAO executor (which can execute arbitrary transactions) owns a contract where an owner-only
+     * Example usage: an executor (which can execute arbitrary transactions) owns a contract where an owner-only
      * function call should only occur in the context of a self-authorized function called by the executor on itself.
      * This modifier allows the owned contract to verify that it is the authorized operator on the owner contract,
      * restricting that function to ONLY be called through the executor's self-authorized function.

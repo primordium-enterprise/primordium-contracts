@@ -228,8 +228,8 @@ interface IProposalVoting is IGovernorBase {
     function maxDeadlineExtension() external view returns (uint256);
 
     /**
-     * @notice Governance-only function to update the max deadline extension. The DAO should set this parameter to
-     * prevent a DoS attack where proposals are extended indefinitely.
+     * @notice Governance-only function to update the max deadline extension. This parameter should be set to prevent a
+     * DoS attack where proposals are extended indefinitely.
      * @dev This should be set in the clock mode's units.
      */
     function setMaxDeadlineExtension(uint256 newMaxDeadlineExtension) external;

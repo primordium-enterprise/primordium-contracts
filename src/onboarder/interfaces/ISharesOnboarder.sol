@@ -66,7 +66,7 @@ interface ISharesOnboarder {
     error TokenPriceTooLow();
 
     /**
-     * Returns the address for the treasury that processes deposits and withdrawals (most-likely the DAO executor
+     * Returns the address for the treasury that processes deposits and withdrawals (most-likely the business executor
      * contract).
      */
     function treasury() external view returns (ITreasury);
@@ -80,8 +80,8 @@ interface ISharesOnboarder {
     /**
      * Gets the admin status for the account. The owning contract can approve "admin" accounts that will have the
      * ability to pause deposits by expiring the funding period. This can enable faster protectionary measures against a
-     * DAO's permissionless funding in the case that the owner is a DAO executor that does not have the ability to take
-     * immediate protectionary actions.
+     * business's permissionless funding in the case that the owner is a business executor that does not have the
+     * ability to take immediate protectionary actions because of governance delays.
      * @param account The address of the account to check.
      * @return isAdmin True if the account is currently a valid admin.
      * @return expiresAt The timestamp at which this account's admin status expires.

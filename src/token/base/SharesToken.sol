@@ -18,9 +18,9 @@ import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
  * @title SharesToken
  * @author Ben Jett - @BCJdevelopment
  * @notice Inherits the ERC20Snapshots and ERC20Votes contracts, and adds an owner authorized to create snapshots and
- * mint share tokens (it is most-likely that the DAO executor should be the owner). Also includes logic for members to
- * permissionlessly withdraw from the DAO by burning their tokens and receiving their pro-rata share of specified ERC20
- * assets from the treasury.
+ * mint share tokens (it is most-likely that the executor should be the owner). Also includes logic for members to
+ * permissionlessly withdraw from the treasury by burning their tokens and receiving their pro-rata share of specified
+ * ERC20 assets from the treasury.
  */
 abstract contract SharesToken is OwnableUpgradeable, ERC20VotesUpgradeable, ISharesToken {
     using ERC165Verifier for address;
@@ -112,8 +112,8 @@ abstract contract SharesToken is OwnableUpgradeable, ERC20VotesUpgradeable, ISha
 
     /**
      * @dev Internal function to update the max supply. We DO allow the max supply to be set below the current
-     * totalSupply(), because this would allow a DAO to keep funding active but continue to reject deposits ABOVE the
-     * max supply threshold of tokens minted.
+     * totalSupply(), because this would allow a business to keep funding active while continuing to reject deposits
+     * ABOVE the max token supply.
      */
     function _setMaxSupply(uint256 newMaxSupply) internal virtual {
         // Max supply is limited by ERC20Snapshots
