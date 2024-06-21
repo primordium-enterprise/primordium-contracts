@@ -1,10 +1,10 @@
 # Primordium Contracts
 
-Primordium is a decentralized, self-sovereign business enterprise. This repository contains the smart contracts that facilitate all of Primordium's operations.
+Primordium is a decentralized, self-governed business enterprise. This repository contains the smart contracts that facilitate all of Primordium's operations.
 
 Read Primordium's whitepaper [here.](https://primordium.one/primordium_whitepaper.pdf)
 
-Join Primordium through the app: https://primordium.one
+Join Primordium: https://primordium.one
 
 ## Contract Deployments
 
