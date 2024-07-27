@@ -13,7 +13,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title ProposalVotingLogicV1
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  * @notice An external library with the main proposal voting and deadline extension logic (for reducing code size)
  * @dev Some functions are internal, meaning they will still be included in a contract's code if the contract makes use
  * of these functions. While this leads to some bytecode duplication across contracts/libraries, it also saves on gas by

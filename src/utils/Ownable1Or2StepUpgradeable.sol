@@ -9,7 +9,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 
 /**
  * @title Ownable 1 or 2 step implementation. Owner can complete normal 2-step transfer, or force transfer in 1 step.
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  */
 abstract contract Ownable1Or2StepUpgradeable is Initializable {
     /// @custom:storage-location erc7201:Ownable1Or2Step.Storage

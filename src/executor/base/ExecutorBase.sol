@@ -9,7 +9,7 @@ import {SelfAuthorized} from "./SelfAuthorized.sol";
 /**
  * @title Executor Base - Basic internal execution logic
  *
- * @author Ben Jett @BCJdevelopment
+ * @author Ben Jett @benbcjdev
  */
 abstract contract ExecutorBase is SelfAuthorized {
     event CallExecuted(address indexed target, uint256 value, bytes data, Enum.Operation operation);

@@ -8,7 +8,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /**
  * @title Wrapper around OpenZeppelin ERC165Checker library that throws a common error for invalid interface support.
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  */
 library ERC165Verifier {
     using ERC165Checker for address;

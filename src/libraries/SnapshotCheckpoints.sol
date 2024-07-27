@@ -10,7 +10,7 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 /**
  * @title A library to keep historical track of sequential checkpoints, with option to optimize gas between snapshots
  * by avoiding pushing new checkpoints unnecessarily.
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  * @dev Modified from OpenZeppelin's procedurally generated {Checkpoints.sol} contract:
  * https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v5.0/contracts/utils/structs/Checkpoints.sol
  *

@@ -9,7 +9,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /**
  * @title A wrapper library for "SafeTransferLib.sol" with common operations based on ERC20 vs ETH operations.
  * @notice Assumes asset is ETH if the token is address(0)
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  */
 library ERC20Utils {
     using SafeTransferLib for IERC20;

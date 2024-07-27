@@ -9,7 +9,7 @@ import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/intro
 
 /**
  * @title EIP1271MessageSigner
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  * @notice A utility contract for signing messages and exposing the EIP1271 "isValidSignature" function for contract
  * validation of these signatures.
  * @dev Allows this contract to sign a message by setting an expiration for the provided message hash that is sometime

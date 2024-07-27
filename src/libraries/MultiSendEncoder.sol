@@ -8,7 +8,7 @@ import {BatchArrayChecker} from "src/utils/BatchArrayChecker.sol";
 /**
  * @title Multi Send Encoder - A library to encode a multiSend transaction to the executor
  *
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  */
 library MultiSendEncoder {
     /**

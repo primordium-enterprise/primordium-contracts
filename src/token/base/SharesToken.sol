@@ -16,7 +16,7 @@ import {ERC165Verifier} from "src/libraries/ERC165Verifier.sol";
 
 /**
  * @title SharesToken
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  * @notice Inherits the ERC20Snapshots and ERC20Votes contracts, and adds an owner authorized to create snapshots and
  * mint share tokens (it is most-likely that the executor should be the owner). Also includes logic for members to
  * permissionlessly withdraw from the treasury by burning their tokens and receiving their pro-rata share of specified

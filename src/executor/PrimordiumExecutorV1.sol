@@ -9,7 +9,7 @@ import {AuthorizedInitializer} from "src/utils/AuthorizedInitializer.sol";
 
 /**
  * @title PrimordiumExecutorV1
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  * @notice The implementation contract for the first version of the Primordium executor.
  */
 contract PrimordiumExecutorV1 is Treasurer, UUPSUpgradeable, AuthorizedInitializer {

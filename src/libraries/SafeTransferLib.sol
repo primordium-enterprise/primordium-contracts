@@ -12,7 +12,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * @author Solady (https://github.com/vectorized/solady/blob/main/src/utils/SafeTransferLib.sol)
  * @author Modified from Solmate (https://github.com/transmissions11/solmate/blob/main/src/utils/SafeTransferLib.sol)
  *
- * @author Further modified by Ben Jett @BCJdevelopment to include checks for contract existence in ERC20 operations
+ * @author Further modified by Ben Jett @benbcjdev to include checks for contract existence in ERC20 operations
  *
  * @dev Note:
  * - For ETH transfers, please use `forceSafeTransferETH` for DoS protection.

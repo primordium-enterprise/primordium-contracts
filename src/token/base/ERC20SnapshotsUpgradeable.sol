@@ -18,7 +18,7 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /**
  * @title Allows for creating historical ERC20 balance snapshots with the IERC6372 clock mode.
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  *
  * @notice Implementation of the OpenZeppelin {ERC20} module with {ERC20Permit} and the IERC6372 clock mode, but uses
  * snapshot checkpoints to keep historical track of account balance's at the time of each created snapshot.

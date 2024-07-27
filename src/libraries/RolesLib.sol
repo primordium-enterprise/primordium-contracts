@@ -7,7 +7,7 @@ import {BatchArrayChecker} from "../utils/BatchArrayChecker.sol";
 
 /**
  * @title RolesLib
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  * @notice A library with logic functions for managing and checking roles for various accounts.
  * @dev This library stores it's internal state at erc7201:RolesLib.Storage.
  */

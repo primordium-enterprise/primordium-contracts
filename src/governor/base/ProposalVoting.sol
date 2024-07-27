@@ -15,7 +15,7 @@ import {BasisPoints} from "src/libraries/BasisPoints.sol";
 
 /**
  * @title ProposalVoting
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  * @notice Includes vote casting logic for the Governor. Also includes settings for dynamically extending the proposal
  * deadline for controversial votes.
  *

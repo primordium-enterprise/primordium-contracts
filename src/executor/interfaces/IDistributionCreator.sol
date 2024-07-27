@@ -7,7 +7,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title Interface functions used by the Treasurer for creating token distributions.
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  */
 interface IDistributionCreator {
     function setUp(bytes memory initParams) external;

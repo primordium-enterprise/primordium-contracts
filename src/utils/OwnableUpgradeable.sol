@@ -8,7 +8,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 
 /**
  * @title Ownable
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  */
 abstract contract OwnableUpgradeable is Initializable {
     /// @custom:storage-location erc7201:Ownable.Storage

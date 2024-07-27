@@ -21,7 +21,7 @@ abstract contract BaseGuard is IGuard, IERC165 {
 
 /**
  * @title Guardable - Zodiac implementation to make an Avatar guardable
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  * @notice Uses EIP-7201 namespacing to store the guard
  */
 contract Guardable is SelfAuthorized, IGuardable, ERC165Upgradeable {

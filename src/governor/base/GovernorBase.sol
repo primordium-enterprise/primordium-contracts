@@ -23,7 +23,7 @@ import {BasisPoints} from "src/libraries/BasisPoints.sol";
 
 /**
  * @title GovernorBase
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  * @notice The base governance storage for the Governor, and the base proposal logic.
  * @dev Uses the zodiac-based TimelockAvatar contract as the executor, and uses an IERC5805 vote token for tracking
  * voting weights.

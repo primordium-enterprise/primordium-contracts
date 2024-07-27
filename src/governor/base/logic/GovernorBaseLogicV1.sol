@@ -24,7 +24,7 @@ import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol
 
 /**
  * @title GovernorBaseLogicV1
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  * @notice Internal storage logic for the GovernorBase (founding parameters, executor storage, etc.).
  * @dev Mostly consists of internal functions that are inlined wherever they are used. But this makes these functions
  * available to external libraries that are used with DELEGATECALL's to split the code.

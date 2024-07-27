@@ -16,7 +16,7 @@ import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 
 /**
  * @title ERC20VotesUpgradeable - ERC20 Votes implementation, using the ERC20SnapshotsUpgradeable as the base.
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  *
  * This module is essentially a merge of OpenZeppelin's {Votes} and {ERC20Votes} contracts, but this inherits directly
  * from the customized {ERC20SnapshotsUpgradeable} in this repository (which already implements historical

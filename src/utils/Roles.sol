@@ -7,7 +7,7 @@ pragma solidity ^0.8.20;
 
 /**
  * @title Roles
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  * @notice Some public boilerplate functions that make use of the {RolesLib} library for managing roles.
  */
 contract Roles {

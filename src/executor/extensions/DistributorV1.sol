@@ -27,7 +27,7 @@ import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/Signa
 
 /**
  * @title DistributorV1
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  * @notice An extension implementation contract for use with the Executor. Allows creating distributions for share
  * holders using any given ERC20 asset. The share holder token must implement balance snapshots to allow this contract
  * to calculate distribution claims.

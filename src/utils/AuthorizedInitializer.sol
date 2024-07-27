@@ -14,7 +14,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * will zero out the "initializer" address after successful initialization (which is equivalent to allowing anyone to
  * call the function going forward).
  *
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  */
 abstract contract AuthorizedInitializer is Initializable {
     /// @custom:storage-location erc7201:AuthorizedInitializer.Storage

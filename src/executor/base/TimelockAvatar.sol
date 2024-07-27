@@ -19,7 +19,7 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
  *
  * @dev This contract follows the IAvatar interface for the Zodiac Modular Accounts standard from EIP-5005.
  *
- * @author Ben Jett @BCJdevelopment
+ * @author Ben Jett @benbcjdev
  */
 abstract contract TimelockAvatar is
     MultiSend,

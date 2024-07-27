@@ -14,7 +14,7 @@ import {ExecutorBase} from "./ExecutorBase.sol";
  * @dev This contract inherits from {ExecutorBase}, and uses the internal {_execute} method to call each of the packed
  * multi-send methods. This is to ensure the expected execution events are used properly.
  *
- * @author Ben Jett - @BCJdevelopment
+ * @author Ben Jett - @benbcjdev
  */
 abstract contract MultiSend is ExecutorBase {
     /**
