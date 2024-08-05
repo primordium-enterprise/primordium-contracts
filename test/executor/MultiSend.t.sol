@@ -28,6 +28,36 @@ contract ExternalEncoder {
     {
         return MultiSendEncoder.encodeMultiSendCalldata(executor, targets, values, calldatas);
     }
+
+    function encodeMultiSendClassic(
+        address executor,
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas
+    )
+        external
+        pure
+        returns (address to, uint256 value, bytes memory data)
+    {
+        if (targets.length > 1) {
+            to = executor;
+            value = 0;
+            data = hex"";
+            for (uint256 i; i < targets.length;) {
+                data = abi.encodePacked(
+                    data, abi.encodePacked(uint8(0), targets[i], values[i], uint256(calldatas[i].length), calldatas[i])
+                );
+                unchecked {
+                    ++i;
+                }
+            }
+            data = abi.encodeWithSelector(MultiSend.multiSend.selector, data);
+        } else {
+            to = targets[0];
+            value = values[0];
+            data = calldatas[0];
+        }
+    }
 }
 
 contract MultiSender is MultiSend, IMultiSenderEvents {
@@ -125,6 +155,16 @@ contract MultiSendTest is PRBTest, IMultiSenderEvents {
         MultiSender(payable(multiSender)).execute(to, value, data);
     }
 
+    function _executeMultiSendClassicCalldata() internal {
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = _buildTransactions();
+
+        (address to, uint256 value, bytes memory data) =
+            ExternalEncoder(externalEncoder).encodeMultiSendClassic(multiSender, targets, values, calldatas);
+
+        vm.recordLogs();
+        MultiSender(payable(multiSender)).execute(to, value, data);
+    }
+
     function test_MultiSend() public {
         _executeMultiSend();
         _asserts();
@@ -137,6 +177,11 @@ contract MultiSendTest is PRBTest, IMultiSenderEvents {
 
     function test_MultiSendClassic() public {
         _executeMultiSendClassic();
+        _asserts();
+    }
+
+    function test_MultiSendClassicCalldata() public {
+        _executeMultiSendClassicCalldata();
         _asserts();
     }
 
