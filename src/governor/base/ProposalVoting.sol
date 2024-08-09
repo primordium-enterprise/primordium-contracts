@@ -17,35 +17,7 @@ import {BasisPoints} from "src/libraries/BasisPoints.sol";
  * @title ProposalVoting
  * @author Ben Jett - @benbcjdev
  * @notice Includes vote casting logic for the Governor. Also includes settings for dynamically extending the proposal
- * deadline for controversial votes.
- *
- * The proposal deadline extension calculation takes several parameters into account, such as:
- * - Only extends the deadline if a quorum has been reached.
- * - Only extends if the vote is taking place close to the current deadline.
- * - If the vote is particularly influential to the outcome of the vote, this will weight towards a larger extension.
- * - If the vote takes place close to the current deadline, this will also weight towards a longer extension.
- * - The deadline extension amount decays exponentially as the proposal moves further past its original deadline.
- *
- * This is designed as a dynamic protection mechanism against "Vote Sniping," where the outcome of a low activity
- * proposal is flipped at the last minute by a heavy swing vote, without leaving time for additional voters to react.
- *
- * The decay function of the extensions is designed to prevent DoS by constant vote updates.
- *
- * Through the governance process, the executor can set the baseDeadlineExtension, the decayPeriod, and the percentDecay
- * values. This allows fine-tuning the exponential decay of the baseDeadlineExtension amount as a vote moves past the
- * original proposal deadline (to prevent votes from being filibustered forever by constant voting).
- *
- * The exponential decay of the baseDeadlineExtension follows the following formula:
- *
- * E = [ baseDeadlineExtension * ( 100 - percentDecay)**P ] / [ 100**P ]
- *
- * Where P = distancePastDeadline / decayPeriod = ( currentTimepoint - originalDeadline ) / decayPeriod
- *
- * Notably, if the original deadline has not been reached yet, then E = baseDeadlineExtension
- *
- * Finally, the actual extension amount follows the following formula for each cast vote:
- *
- * deadlineExtension = ( E - distanceFromDeadline ) * min(1.25, [ voteWeight / ( abs(ForVotes - AgainstVotes) + 1 ) ])
+ * deadline for last-minute swing votes (see ./logic/ProposalVotingLogicV1).
  */
 abstract contract ProposalVoting is GovernorBase, IProposalVoting {
     bytes32 private immutable BALLOT_TYPEHASH =

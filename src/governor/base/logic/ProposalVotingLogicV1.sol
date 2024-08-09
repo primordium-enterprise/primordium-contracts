@@ -401,6 +401,37 @@ library ProposalVotingLogicV1 {
         $._percentDecay = uint8(newPercentDecay);
     }
 
+    /**
+     * The proposal deadline extension calculation takes several parameters into account:
+     * - Only extends if a quorum has been reached.
+     * - Only extends if the current vote is close to the current deadline.
+     * - If the current vote is particularly impactful to the outcome of the vote, this will weight towards a larger
+     * extension.
+     * - If the vote is taking place close to the current deadline, this will also weight towards a longer extension.
+     * - The amount to extend by decays exponentially as the proposal moves further past its original deadline.
+     *
+     * This is designed as a dynamic protection mechanism against "vote sniping," where the outcome of a low activity
+     * proposal is flipped at the last minute by a heavy swing vote, without leaving time for additional voters to
+     * react.
+     *
+     * The decay function of the extensions is designed to prevent DoS by constant last-minute votes.
+     *
+     * Through the governance process, the executor can set the baseDeadlineExtension, the decayPeriod, and the
+     * percentDecay values. This enables fine-tuning the exponential decay of the baseDeadlineExtension as a vote moves
+     * past the original proposal deadline (to prevent votes from being filibustered forever by constant voting).
+     *
+     * The exponential decay of the baseDeadlineExtension follows the following formula:
+     *
+     * E = [baseDeadlineExtension * (100 - percentDecay)**P] / (100**P)
+     *
+     * Where P = distancePastDeadline / decayPeriod = (currentTimepoint - originalDeadline) / decayPeriod
+     *
+     * If the original deadline has not been reached yet, then E = baseDeadlineExtension
+     *
+     * Finally, the actual extension amount follows the following formula for each cast vote:
+     *
+     * deadlineExtension = (E - distanceFromDeadline) * min(1.25, [voteWeight / (abs(ForVotes - AgainstVotes) + 1)])
+     */
     function processDeadlineExtensionOnVote(uint256 proposalId, uint256 voteWeight) public {
         ProposalDeadlineExtensionsStorage storage $ = _getProposalDeadlineExtensionsStorage();
 
