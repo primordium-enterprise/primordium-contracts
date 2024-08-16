@@ -225,15 +225,7 @@ abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
         $._sharePrice.mintAmount = castedMintAmount;
     }
 
-    /**
-     * @notice Allows exchanging the depositAmount of quote asset for vote shares (if shares are currently available).
-     * @param account The recipient account address to receive the newly minted share tokens.
-     * @param depositAmount The amount of the quote asset being deposited by the msg.sender. Will mint
-     * {sharePrice.mintAmount} votes for every {sharePrice.quoteAmount} amount of quote asset tokens. The depositAmount
-     * must be an exact multiple of the {sharePrice.quoteAmount}. The  depositAmount also must match the msg.value if
-     * the current quoteAsset is the native chain currency (address(0)).
-     * @return totalSharesMinted The amount of vote share tokens minted to the account.
-     */
+    /// @inheritdoc ISharesOnboarder
     function depositFor(
         address account,
         uint256 depositAmount
@@ -246,18 +238,12 @@ abstract contract SharesOnboarder is OwnableUpgradeable, ISharesOnboarder {
         totalSharesMinted = _depositFor(account, depositAmount, msg.sender);
     }
 
-    /**
-     * @notice Same as the {depositFor} function, but uses the msg.sender as the recipient account of the newly minted
-     * shares.
-     */
+    /// @inheritdoc ISharesOnboarder
     function deposit(uint256 depositAmount) public payable virtual returns (uint256 totalSharesMinted) {
         totalSharesMinted = _depositFor(msg.sender, depositAmount, msg.sender);
     }
 
-    /**
-     * @notice Additional function helper to use permit on the quote asset contract to approve and deposit in a single
-     * transaction (if supported by the ERC20 quote asset).
-     */
+    /// @inheritdoc ISharesOnboarder
     function depositWithPermit(
         address owner,
         address spender,

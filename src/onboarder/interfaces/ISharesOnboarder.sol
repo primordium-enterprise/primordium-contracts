@@ -22,10 +22,27 @@ interface ISharesOnboarder {
         uint128 mintAmount; // Number of votes that can be minted per {quoteAmount} count of quote asset.
     }
 
+    /**
+     * @notice Emitted when the quote asset contract address is updated.
+     * @param oldQuoteAsset The previous quote asset contract address.
+     * @param newQuoteAsset The new quote asset contract address.
+     */
     event QuoteAssetChange(address oldQuoteAsset, address newQuoteAsset);
 
+    /**
+     * @notice Emitted when the treasury contract address is updated.
+     * @param oldTreasury The previous treasury contract address.
+     * @param newTreasury The new treasury contract address.
+     */
     event TreasuryChange(address oldTreasury, address newTreasury);
 
+    /**
+     * Emitted when a funding period parameter is updated.
+     * @param oldFundingBeginsAt The old timestamp for when deposits become available.
+     * @param newFundingBeginsAt The new timestamp for when deposits become available.
+     * @param oldFundingEndsAt The old timestamp for when deposits become unavailable.
+     * @param newFundingEndsAt The new timestamp for when depsoits become unavailable.
+     */
     event FundingPeriodChange(
         uint256 oldFundingBeginsAt, uint256 newFundingBeginsAt, uint256 oldFundingEndsAt, uint256 newFundingEndsAt
     );
@@ -50,8 +67,18 @@ interface ISharesOnboarder {
      */
     event Deposit(address indexed account, uint256 amountDeposited, uint256 votesMinted, address depositor);
 
+    /**
+     * Emitted when the admin status of an address is updated.
+     * @param account The address being updated.
+     * @param oldExpiresAt The previous expiration timestamp for the admin status of the account.
+     * @param newExpiresAt The new expiration timestmap for the admin status of the account.
+     */
     event AdminStatusChange(address indexed account, uint256 oldExpiresAt, uint256 newExpiresAt);
 
+    /**
+     * Emitted when an admin pauses deposits.
+     * @param admin The address of the admin who paused the deposits.
+     */
     event AdminPausedFunding(address indexed admin);
 
     error InvalidTreasuryAddress(address treasury);
@@ -97,7 +124,16 @@ interface ISharesOnboarder {
      */
     function setAdminExpirations(address[] memory accounts, uint256[] memory expiresAts) external;
 
+    /**
+     * Returns the address of the quote asset contract, which is the ERC-20 token used for deposits.
+     */
     function quoteAsset() external view returns (IERC20 _quoteAsset);
+
+    /**
+     * Sets the address of the quote asset contract.
+     * @param newQuoteAsset The new quote asset contract address.
+     * @notice Only the owner can update the quote asset address.
+     */
     function setQuoteAsset(address newQuoteAsset) external;
 
     /**
@@ -149,12 +185,33 @@ interface ISharesOnboarder {
      */
     function setSharePrice(uint256 newQuoteAmount, uint256 newMintAmount) external;
 
-    /// Function to make a deposit, and have votes minted to the supplied account
+    /**
+     * Allows exchanging the depositAmount of quote asset for vote shares (if shares are currently available).
+     * @param account The recipient account address to receive the newly minted share tokens.
+     * @param depositAmount The amount of the quote asset being deposited by the msg.sender. Will mint
+     * {sharePrice.mintAmount} votes for every {sharePrice.quoteAmount} amount of quote asset tokens. The depositAmount
+     * must be an exact multiple of the {sharePrice.quoteAmount}. The  depositAmount also must match the msg.value if
+     * the current quoteAsset is the native chain currency (address(0)).
+     * @return totalMintAmount The amount of vote share tokens minted to the account.
+     */
     function depositFor(address account, uint256 depositAmount) external payable returns (uint256 totalMintAmount);
 
-    /// Function to make a deposit and have votes minted to the msg.sender
+    /**
+     * Same as the {depositFor} function, but uses the msg.sender as the recipient of the newly minted shares.
+     */
     function deposit(uint256 depositAmount) external payable returns (uint256 totalMintAmount);
 
+    /**
+     * A deposit function using the ERC-20 "permit" on the quote asset contract to approve and deposit the funds
+     * in a single transaction (if supported by the ERC20 quote asset).
+     * @param owner The address of the account to spend the ERC-20 quote asset from.
+     * @param spender MUST BE equal to the address of this SharesOnboarder contract.
+     * @param value The amount of the ERC-20 to spend.
+     * @param deadline The deadline for the permit function.
+     * @param v The "v" signature parameter.
+     * @param r The "r" signature parameter.
+     * @param s The "s" signature parameter.
+     */
     function depositWithPermit(
         address owner,
         address spender,
